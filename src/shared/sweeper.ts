@@ -2,7 +2,8 @@
 // 写完一章后：生成记录的解析、设定变化候选的推断、以及「接受草稿 → 落库」的应用。
 // 原则：AI 从不直接改设定 —— 所有变化都要先成为草稿（SweepDraft），主人确认后才进时间线。
 import { appendSlice } from './setting.ts'
-import type { Project, Chapter, ChapterRecord, SweepDraft, Foreshadow, SettingSlice, Character } from './types.ts'
+import type { Project, Chapter, ChapterRecord, SweepDraft, Foreshadow, SettingSlice, Character, Element } from './types.ts'
+import type { MeltElement } from './melt.ts'
 
 export interface AuditParseResult {
   record: ChapterRecord | null
@@ -154,6 +155,7 @@ export function syncForeshadows(project: Project, record: ChapterRecord): Foresh
 /** 接受一批草稿 → 就地写回（返回新的 snapshots 供外部赋值到 project） */
 export interface ApplyResult {
   characters: Character[]
+  elements: Element[]
   records: ChapterRecord[]
   foreshadows: Foreshadow[]
   drafts: SweepDraft[]
@@ -173,6 +175,8 @@ export function applySweeps(
   const records = [...(project.records ?? [])]
   let foreshadows = [...(project.foreshadows ?? [])]
   const charMap = new Map((project.characters ?? []).map((c) => [c.id, { ...c }]))
+  const elemMap = new Map((project.elements ?? []).map((e) => [e.id, { ...e }]))
+  const ts = Date.now()
   const drafts = (project.sweepDrafts ?? []).map((d) => {
     if (!accept.has(d.id)) return d
     if (d.status === 'rejected') return d
@@ -185,6 +189,38 @@ export function applySweeps(
         foreshadows = syncForeshadows({ ...project, foreshadows, records }, rec)
       } catch {
         /* 记录解析失败则跳过 */
+      }
+    } else if (d.targetType === 'element' && d.targetId.startsWith('new:')) {
+      // 沉淀为条目：确认后真正创建新条目
+      try {
+        const me = JSON.parse(d.draftContent) as MeltElement
+        if (me && me.name) {
+          const el: Element = {
+            id: 'e_' + ts.toString(36) + Math.random().toString(36).slice(2, 6),
+            kind: me.kind ?? 'lore',
+            name: me.name,
+            tags: me.tags ?? [],
+            active: true,
+            slices: [{ atChapter: Math.max(1, d.atChapter), content: me.content || '', source: 'initial', confirmed: true }],
+            createdAt: ts,
+            updatedAt: ts
+          }
+          elemMap.set(el.id, el)
+        }
+      } catch {
+        /* 跳过 */
+      }
+    } else if (d.targetType === 'element') {
+      const e = elemMap.get(d.targetId)
+      if (e) {
+        e.slices = appendSlice(e.slices ?? [], {
+          atChapter: Math.max(1, d.atChapter),
+          content: d.draftContent,
+          changeLog: d.changeLog,
+          source: 'sweep' as const,
+          confirmed: true
+        })
+        elemMap.set(e.id, e)
       }
     } else {
       const c = charMap.get(d.targetId)
@@ -204,6 +240,7 @@ export function applySweeps(
   })
   return {
     characters: [...charMap.values()],
+    elements: [...elemMap.values()],
     records,
     foreshadows,
     drafts

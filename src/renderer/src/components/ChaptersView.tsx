@@ -120,6 +120,7 @@ export default function ChaptersView({ project, onSave }: Props) {
     onSave({
       ...project,
       characters: r.characters,
+      elements: r.elements,
       records: r.records,
       foreshadows: r.foreshadows,
       sweepDrafts: r.drafts

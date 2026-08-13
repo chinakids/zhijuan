@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Project, Element, SettingSlice } from '../../../shared/types'
+import { applySweeps, rejectSweeps } from '../../../shared/sweeper'
 
 interface Props {
   project: Project
@@ -47,6 +48,7 @@ export default function ElementsView({ project, onSave }: Props) {
   const [newAt, setNewAt] = useState<number>(maxChapter + 1)
   const [newContent, setNewContent] = useState('')
   const [newLog, setNewLog] = useState('')
+  const [meltLoading, setMeltLoading] = useState(false)
 
   const selected = project.elements.find((el) => el.id === selectedId) ?? null
   const currentContent = selected ? (sliceAt(selected.slices, maxChapter + 1)?.content ?? '') : ''
@@ -78,6 +80,45 @@ export default function ElementsView({ project, onSave }: Props) {
     saveElements(project.elements.filter((el) => el.id !== id))
     if (selectedId === id) setSelectedId(null)
   }
+
+  // —— 沉淀为条目：把一段设定文字交给模型拆成条目草稿（确认后才真正创建）——
+  async function doMelt() {
+    const text = prompt('把一段设定文字粘贴到这里，模型会拆成若干条目草稿：')
+    if (!text || !text.trim()) return
+    setMeltLoading(true)
+    try {
+      const res = await window.zhijuan.meltConvert(text, maxChapter + 1, {
+        baseUrl: 'http://127.0.0.1:8888/v1',
+        model: 'deepseek-v4-flash-0731',
+        apiKey: 'EMPTY'
+      })
+      if (res.ok && res.drafts?.length) {
+        onSave({ ...project, sweepDrafts: [...project.sweepDrafts, ...res.drafts] })
+      } else {
+        alert('没有产生条目：' + (res.error ?? '未知错误'))
+      }
+    } finally {
+      setMeltLoading(false)
+    }
+  }
+
+  function acceptDrafts(ids: string[]) {
+    const r = applySweeps(project, ids)
+    onSave({
+      ...project,
+      characters: r.characters,
+      elements: r.elements,
+      records: r.records,
+      foreshadows: r.foreshadows,
+      sweepDrafts: r.drafts
+    })
+  }
+
+  function declineDrafts(ids: string[]) {
+    onSave({ ...project, sweepDrafts: rejectSweeps(project, ids) })
+  }
+
+  const pendingDrafts = project.sweepDrafts.filter((d) => d.status === 'pending')
 
   /** 编辑当前内容 = 更新最后一个切片（保持「最后切片 = 当前值」，不堆历史）；堆历史走下方手动打点或章节沉淀 */
   function updateCurrentContent(id: string, content: string) {
@@ -113,13 +154,54 @@ export default function ElementsView({ project, onSave }: Props) {
     <div className="panel elems-panel">
       <div className="panel-head">
         <h2>🧩 设定库</h2>
-        <button className="btn btn-primary btn-sm" onClick={addElement}>
-          ＋ 新条目
-        </button>
+        <div className="btn-row">
+          <button className="btn btn-sm" onClick={doMelt} disabled={meltLoading}>
+            {meltLoading ? '拆解中…' : '📥 把文字块沉淀为条目'}
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={addElement}>
+            ＋ 新条目
+          </button>
+        </div>
       </div>
       <p className="hint">
         规则 / 场景 / 道具按条目维护，每条带自己的时间线。生成时只取「到本章为止」的切片，后文的设定不会提前泄出。
       </p>
+
+      {pendingDrafts.length > 0 && (
+        <details className="sweep-box" open>
+          <summary className="sweep-summary">
+            <b>待确认沉淀（{pendingDrafts.length}）</b>—— 接受后才会真正落进时间线
+          </summary>
+          {pendingDrafts.map((d) => (
+            <div key={d.id} className="sweep-item">
+              <div className="sweep-head">
+                <span className="tl-badge">
+                  {d.targetId.startsWith('record:') ? '章节记录' : d.targetId.startsWith('new:') ? '新条目' : '设定变化'}
+                </span>
+                <b>{d.targetName}</b>
+              </div>
+              <div className="sweep-log">原因：{d.changeLog}</div>
+              <pre className="sweep-preview">{d.draftContent}</pre>
+              <div className="btn-row">
+                <button className="btn btn-sm btn-primary" onClick={() => acceptDrafts([d.id])}>
+                  ✓ 接受
+                </button>
+                <button className="btn btn-sm" onClick={() => declineDrafts([d.id])}>
+                  拒绝
+                </button>
+              </div>
+            </div>
+          ))}
+          <div className="btn-row">
+            <button className="btn btn-sm btn-primary" onClick={() => acceptDrafts(pendingDrafts.map((x) => x.id))}>
+              全部接受
+            </button>
+            <button className="btn btn-sm" onClick={() => declineDrafts(pendingDrafts.map((x) => x.id))}>
+              全部拒绝
+            </button>
+          </div>
+        </details>
+      )}
 
       {/* 时间线滑块：查看任一章节时刻的设定快照 */}
       {project.elements.length > 0 && (

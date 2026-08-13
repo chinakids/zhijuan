@@ -11,7 +11,7 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
-    "verify": "node --experimental-strip-types scripts/verify-setting.mts && node --experimental-strip-types scripts/verify-composer.mts && node --experimental-strip-types scripts/verify-sweeper.mts"
+    "verify": "node --experimental-strip-types scripts/verify-setting.mts && node --experimental-strip-types scripts/verify-composer.mts && node --experimental-strip-types scripts/verify-sweeper.mts && node --experimental-strip-types scripts/e2e-timeline.mts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

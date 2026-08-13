@@ -664,3 +664,14 @@ label.checkbox input {
   max-height: 120px;
   overflow-y: auto;
 }
+
+/* 沉淀面板可折叠头 */
+.sweep-summary {
+  cursor: pointer;
+  color: var(--text);
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+.future-invalid {
+  opacity: 0.5;
+}

@@ -6,6 +6,7 @@ import type { Project, Chapter, SweepDraft } from '../shared/types'
 import { buildAssembledContext } from '../shared/composer'
 import { sliceAt, charSnapshot } from '../shared/setting'
 import { parseAudit, inferChangeCandidates, toSweepDrafts } from '../shared/sweeper'
+import { parseElementMelt, toCreateDrafts, type MeltElement } from '../shared/melt'
 
 let _abort: AbortController | null = null
 
@@ -99,6 +100,46 @@ export function registerSweepIpc() {
   ipcMain.handle('audit:generate', async (_e, project: Project, chapter: Chapter, opts: { baseUrl: string; model: string; apiKey: string }) => {
     try {
       return await auditChapter(project, chapter, opts)
+    } catch (err) {
+      return { ok: false as const, error: (err as Error).message }
+    }
+  })
+  ipcMain.handle('melt:convert', async (_e, text: string, atChapter: number, opts: { baseUrl: string; model: string; apiKey: string }) => {
+    try {
+      const trimmed = (text ?? '').trim()
+      if (!trimmed) return { ok: false as const, error: '没有可分解的文本' }
+      _abort?.abort()
+      _abort = new AbortController()
+      const url = opts.baseUrl.replace(/\/$/, '') + '/chat/completions'
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + opts.apiKey },
+        body: JSON.stringify({
+          model: opts.model,
+          messages: [
+            {
+              role: 'user',
+              content:
+                '把下面这段设定文字拆成若干条目（每条对应一个规则/场景/道具/设定信息卡）。' +
+                '只输出一个 JSON 数组，不要任何解释或 Markdown 围栏：\n' +
+                '[{"kind":"rule|scene|prop|lore|other","name":"条目名","tags":["标签"],"content":"详细设定"}]\n\n' +
+                '文字：\n' +
+                trimmed.slice(0, 12000)
+            }
+          ],
+          temperature: 0.2,
+          max_tokens: 2000,
+          stream: false
+        }),
+        signal: _abort.signal
+      })
+      if (!res.ok) throw new Error(`LLM 请求失败: ${res.status}`)
+      const data = (await res.json()) as { choices?: { message?: { content?: string; reasoning?: string } }[] }
+      const raw = data.choices?.[0]?.message?.content ?? data.choices?.[0]?.message?.reasoning ?? ''
+      const { elements, error } = parseElementMelt(raw)
+      if (elements.length === 0) throw new Error('没有解析出任何条目：' + (error ?? '空结果'))
+      const drafts = toCreateDrafts(elements, atChapter, trimmed.slice(0, 12))
+      return { ok: true as const, drafts, elements: elements.slice(0, 20) }
     } catch (err) {
       return { ok: false as const, error: (err as Error).message }
     }
