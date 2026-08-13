@@ -590,3 +590,23 @@ label.checkbox input {
   gap: 10px;
   margin-bottom: 10px;
 }
+
+/* ---------- 组配诊断 ---------- */
+.comp-bar {
+  background: var(--bg2);
+  border: 1px solid #7fa8c9;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+.comp-bar strong {
+  color: #7fa8c9;
+}
+.comp-bar pre {
+  white-space: pre-wrap;
+  font-family: inherit;
+  color: var(--muted);
+  margin-top: 4px;
+  line-height: 1.6;
+}

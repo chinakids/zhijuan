@@ -35,6 +35,7 @@ export default function ChaptersView({ project, onSave }: Props) {
   const chapters = [...project.chapters].sort((a, b) => a.num - b.num)
   const [selectedId, setSelectedId] = useState<string | null>(chapters[0]?.id ?? null)
   const selected = project.chapters.find((c) => c.id === selectedId) ?? null
+  const [lastComposition, setLastComposition] = useState('')
 
   function saveChapters(chs: Chapter[]) {
     onSave({ ...project, chapters: chs })
@@ -77,9 +78,10 @@ export default function ChaptersView({ project, onSave }: Props) {
       project,
       selected,
       { baseUrl: 'http://127.0.0.1:8888/v1', model: 'deepseek-v4-flash-0731', apiKey: 'EMPTY' }
-    )) as { ok: boolean; text?: string; error?: string; prompt?: string }
+    )) as { ok: boolean; text?: string; error?: string; prompt?: string; composition?: string }
     if (result.ok && result.text) {
       updateChapter(selected.id, { content: result.text, status: 'draft' })
+      setLastComposition(result.composition ?? '')
     } else {
       alert('生成失败：' + (result.error ?? '未知错误'))
     }
@@ -202,6 +204,13 @@ export default function ChaptersView({ project, onSave }: Props) {
                 ))}
               {selected.beats.length === 0 && <span className="muted">未设置。可在曲线上点击“加情节点”来标记位置。</span>}
             </div>
+
+            {lastComposition && (
+              <div className="comp-bar">
+                <strong>本次组配（动它之前先看这里 👀）</strong>
+                <pre>{lastComposition}</pre>
+              </div>
+            )}
 
             <h4>生成的正文</h4>
             <textarea
