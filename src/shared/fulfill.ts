@@ -5,6 +5,7 @@
 // 但清单构建、正文分块、行式协议解析、报告渲染都是可测的纯函数。
 import type { Chapter, FulfillVerdict, FulfillReport } from './types.ts'
 import { makeDirectorBoard, renderShotRow } from './director.ts'
+import { pivotAxes } from './axes.ts'
 
 /** 一条要检查的契约要求 */
 export interface FulfillChecklistItem {
@@ -55,19 +56,24 @@ export function buildFulfillChecklist(chapter: Chapter): FulfillChecklist {
     })
   }
 
-  // 2) 人物行为轴：带轴的人物曲线，按其各段的动作要求各列一条
+  // 2) 人物行为轴：每根行为轴曲线在各段的档位要求各列一条
   for (const c of curves) {
-    if (c.kind !== 'character' || !c.axis) continue
-    for (const p of plans) {
-      const cv = p.curves.find((x) => x.name === c.name)
-      if (!cv?.ax) continue
-      items.push({
-        id: `A-${c.name}-${p.seg}`,
-        kind: 'axis',
-        seg: p.seg,
-        desc: `人物「${c.name}」在段${p.seg}要按行为轴「${cv.ax.label}」的动作要求来写`,
-        requirement: `人物「${c.name}」在段${p.seg}（进度 ${p.fromPct}%-${p.toPct}%）必须表现「${cv.ax.label}」档位的动作：${cv.ax.demand}`
-      })
+    if (c.kind !== 'character') continue
+    const axs = pivotAxes(c)
+    if (axs.length === 0) continue
+    for (const a of axs) {
+      for (const p of plans) {
+        const cv = p.curves.find((x) => x.name === c.name)
+        const act = cv?.acts?.find((ac) => ac.name === a.name)
+        if (!act) continue
+        items.push({
+          id: `A-${c.name}-${a.name}-${p.seg}`,
+          kind: 'axis',
+          seg: p.seg,
+          desc: `人物「${c.name}」行为轴「${a.name}」在段${p.seg}要按「${act.band}」档来写`,
+          requirement: `人物「${c.name}」在段${p.seg}（进度 ${p.fromPct}%-${p.toPct}%）应按行为轴「${a.name}」的「${act.band}」档动作来写：${act.demand}${act.shift ? '（本段相对上一段档位跳变，必须用具体事件承接）' : ''}`
+        })
+      }
     }
   }
 
@@ -191,19 +197,23 @@ export function renderFulfillPrompt(
   return `你是《${projectName}》第${chapterNum}章「${chapterTitle}」的审稿人。本章写作前有明确的导演曲线契约，现在要核对正文是否兑现了每一条。
 请客观判断，不要迁就：没写够就是没写够。
 
+第一步，也是最优先的一步：一次性输出所有契约条目的回报行（格式见下），把它们放在最前面。所有回报行输出完之后，才允许写任何解释、总结或分析。
+
 【需要核对的契约条目】（每条的 id 就是你回报时的依据）
 ${itemRows}
 
 【本章正文】（已按块编号，判断证据时请指出块号）
 ${body}
 
-现在，对每一条契约条目输出一行回报，一行一条，格式严格为：
+回报行格式（一行一条，这是最重要的要求，必须全部在开头顶格依次列出）：
 <条目id>: <判定> — 块号,块号: 理由
 判定只能是：已兑现 / 部分兑现 / 未兑现（不要用别的词，不要加评价前缀）
 块号：支撑你判断的正文块号（数字，可多个用逗号）；判断不了就写 0
 理由：一句话直白说明，未兑现或部分兑现必须给出具体缺了什么、在哪一块。
 示例：D3: 未兑现 — 3,4: 该有的动作没有写出来，只有内心戏
-必须每一条都回报，不要省略。不要输出任何解释、标题或多余文字，只输出这些回报行。`
+必须每一条都回报，不要省略。
+
+返回值要求：先列全部回报行，然后另起一行写出“### 总评”，后面可以跟一段自由解释。除此之外不要输出任何标题或多余文字。`
 }
 
 /** 渲染成主人可读的报告（未兑现最优先、其次部分，块号供回正文定位） */

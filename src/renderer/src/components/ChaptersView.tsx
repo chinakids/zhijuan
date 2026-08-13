@@ -27,8 +27,8 @@ function defaultCurves(chars: Project['characters']): SeriesCurve[] {
       kind: 'character',
       name: c.name + '·防线',
       color: PALETTE[(i + 3) % PALETTE.length],
-      points: [],
-      axis: 'shyness' // M2.3：新人物曲线默认挂「羞耻防线」轴（与“·防线”的命名一致），可在曲线上改或改回“不声明”
+      axes: [], // M2.3：行为轴是可自由添加、可拖拽的曲线
+      points: []
     })
   })
   return curves
@@ -258,10 +258,11 @@ export default function ChaptersView({ project, onSave }: Props) {
                       curves: selected.curves.map((cc) => (cc.id === c.id ? { ...cc, points } : cc))
                     })
                   }
-                  onAxisChange={(axis) =>
+                  axes={c.axes}
+                  onAxesChange={(axes) =>
                     updateChapter(selected.id, {
                       curves: selected.curves.map((cc) =>
-                        cc.id === c.id ? { ...cc, axis: axis || undefined } : cc
+                        cc.id === c.id ? { ...cc, axes } : cc
                       )
                     })
                   }
@@ -347,7 +348,7 @@ export default function ChaptersView({ project, onSave }: Props) {
                       disabled={fulfillLoading || !selected.content.trim() || cl.source !== 'board'}
                       title={cl.source !== 'board' ? '先画好曲线（每条至少两个点）再检查' : '把正文与本章曲线契约核一遍'}
                     >
-                      {fulfillLoading ? '检查中…' : selected.fulfill ? '重跑检查' : '运行兑现检查'}
+                      {fulfillLoading ? '检查中（本地模型要按条核对，通常须等几分钟）…' : selected.fulfill ? '重跑检查' : '运行兑现检查'}
                     </button>
                   </div>
                   {cl.source !== 'board' && <p className="hint">本章还没有可用曲线（每条曲线至少两个控制点），先画好曲线再检查。</p>}

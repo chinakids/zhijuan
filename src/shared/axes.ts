@@ -4,12 +4,8 @@
 // 「可写动作要求」——采样值不再是数字，而是导演写给该角色的动作指令，直接进 prompt。
 // 轴的措辞按主人的创作风格写的：感官细节为主、动作直白，主线女角细腻、娇而带韧。
 
-/** 一个强度档位：强度落在 [min, 100] 且高于下一档时，用本档的动作要求 */
-export interface AxisBand {
-  min: number // 本档强度下限（含）；档位按 min 升序，须完整覆盖 0..100
-  label: string // 档位名（如：由她主导 / 有来有回 / 被牵着走）
-  demand: string // 该强度区间的可写动作要求（具体到动作、眼神、声音、身体反应）
-}
+import type { AxisBand, CurvePoint, CurveAxis } from './types.ts'
+
 
 /** 一条轴：曲线名是「谁」，轴定义「这条线的数值意味着什么动作」 */
 export interface CharacterAxis {
@@ -164,4 +160,90 @@ export function axisDemand(
   }
   if (!hit) hit = ax.bands[0]
   return { label: `${ax.label}·${hit.label}`, demand: hit.demand }
+}
+
+// ---------- M2.3 升级：每个行为轴是一根可拖拽的曲线（free-form） ----------
+
+/** 自由命名的轴没有自带档位时，套用通用三档（按主人创作风格：主线以女性角色为主视角措辞） */
+export function generalBands(): AxisBand[] {
+  return [
+    {
+      min: 0,
+      label: '被动·生涩',
+      demand:
+        '主动权完全不在她手里：她只回应、只跟随，动作都是被带着走的；身体的生涩要写在细微处——攥紧的指尖、缩回去的半个身位、不敢对上的目光'
+    },
+    {
+      min: 35,
+      label: '拉锯·试探',
+      demand:
+        '有来有回：她会接、会试，几个动作里有进有退，甚至反着梅一次——拉扯必须有具体的身体细节（半推半就、欲拒还迎），不能一句话带过'
+    },
+    {
+      min: 70,
+      label: '主导·放开',
+      demand:
+        '主动权在她手里：她先近先开口，节奏由她把持，动作带着明确的主动意味，别把她写成只被动承受的样子；越是放开，细节越要直白到位'
+    }
+  ]
+}
+
+function valueAt(points: CurvePoint[], x: number): number {
+  if (!points || points.length === 0) return 50
+  const sorted = [...points].sort((a, b) => a.x - b.x)
+  if (x <= sorted[0].x) return sorted[0].y
+  if (x >= sorted[sorted.length - 1].x) return sorted[sorted.length - 1].y
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i], b = sorted[i + 1]
+    if (x >= a.x && x <= b.x) {
+      const t = (x - a.x) / (b.x - a.x)
+      return a.y + (b.y - a.y) * t
+    }
+  }
+  return 50
+}
+
+/** 把一条曲线正规化成「行为轴」列表：有 axes 用 axes；否则把 legacy 的 axis+points 合成单根轴 */
+export function pivotAxes(curve: { kind?: string; axis?: string; axes?: CurveAxis[]; points: CurvePoint[] }): CurveAxis[] {
+  if (curve.axes && curve.axes.length > 0) return curve.axes.map((a) => ({ ...a, points: [...a.points] }))
+  if (curve.kind === 'character' && curve.axis) {
+    const lib = resolveAxis(curve.axis)
+    return [
+      {
+        id: curve.axis,
+        name: lib?.label ?? curve.axis,
+        points: [...curve.points],
+        bands: lib?.bands
+      }
+    ]
+  }
+  return []
+}
+
+/** 按值取档位（自带档优先，没有则通用档） */
+export function bandAt(bands: AxisBand[] | undefined, value: number): { label: string; demand: string } {
+  const bs = (bands && bands.length ? bands : generalBands()).slice().sort((a, b) => a.min - b.min)
+  let hit = bs[0]
+  for (const b of bs) if (value >= b.min) hit = b
+  return { label: hit.label, demand: hit.demand }
+}
+
+/**
+ * 把一根行为轴曲线按段采样，翻译成段级「动作硬命令」。
+ * 每个段落给出此刻该在她身上的档位与可写动作要求；档位相对上一段跳变时，
+ * 附加「必须用具体事件接住这一跃」硬要求（呼应导演板的落差逻辑）。
+ */
+export function translateAxisCurve(axis: CurveAxis, segs = 8): string[] {
+  const out: string[] = []
+  let prevLabel: string | null = null
+  for (let s = 0; s < segs; s++) {
+    const x0 = (s / segs) * 100
+    const x1 = ((s + 1) / segs) * 100
+    const v = Math.round((valueAt(axis.points, x0) + valueAt(axis.points, x1)) / 2)
+    const b = bandAt(axis.bands, v)
+    const shift = prevLabel && prevLabel !== b.label ? '；**注意：本段档位较上一段跳变（上一段是「' + prevLabel + '」），必须用一件具体事件或转折接住这一跃，不能让读者觉得突兀**' : ''
+    out.push(`段${s + 1}(${x0}-${x1}%) 强度${v}：此刻应落在「${b.label}」档——${b.demand}${shift}`)
+    prevLabel = b.label
+  }
+  return out
 }

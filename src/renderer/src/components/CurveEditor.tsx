@@ -1,12 +1,13 @@
 import { useRef } from 'react'
-import type { SeriesCurve, CurvePoint, PlotBeat } from '../../../shared/types'
-import { AXIS_LIBRARY, AXIS_ORDER } from '../../../shared/axes'
+import type { SeriesCurve, CurvePoint, PlotBeat, CurveAxis } from '../../../shared/types'
+import AxisCurve from './AxisCurve'
 
 interface Props {
   curve: SeriesCurve
   beats: PlotBeat[]
   onChange: (points: CurvePoint[]) => void
-  onAxisChange?: (axis: string) => void
+  axes?: CurveAxis[]
+  onAxesChange?: (axes: CurveAxis[]) => void
   onAddBeat: (x: number) => void
   onRemoveBeat: (id: string) => void
 }
@@ -43,7 +44,7 @@ function pathOf(points: CurvePoint[]): string {
   return d
 }
 
-export default function CurveEditor({ curve, beats, onChange, onAxisChange, onAddBeat, onRemoveBeat }: Props) {
+export default function CurveEditor({ curve, beats, onChange, axes, onAxesChange, onAddBeat, onRemoveBeat }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
   const dragRef = useRef<number | null>(null) // 正在拖拽的控制点索引
 
@@ -100,22 +101,8 @@ export default function CurveEditor({ curve, beats, onChange, onAxisChange, onAd
       <div className={`curve-title ${curve.color}`}>
         <span className="dot" style={{ background: curve.color }} />
         {curve.kind === 'emotion' ? '情绪' : '人物'}曲线：{curve.name}
-        {curve.kind === 'character' && onAxisChange && (
-          <label className="axis-select" title="把这条人物曲线的数值翻译成该角色的可写动作要求（不同强度档位给出不同的动作硬命令），进生成 prompt">
-            行为轴
-            <select
-              value={curve.axis ?? ''}
-              onChange={(e) => onAxisChange(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <option value="">不声明（只报趋势）</option>
-              {AXIS_ORDER.map((id) => (
-                <option key={id} value={id} title={AXIS_LIBRARY[id].hint}>
-                  {AXIS_LIBRARY[id].label}（{AXIS_LIBRARY[id].subject}）
-                </option>
-              ))}
-            </select>
-          </label>
+        {curve.kind === 'character' && onAxesChange && (
+          <span className="muted axis-hint">往下拖每根行为轴曲线，就是调她的档位走向</span>
         )}
         <small>
           （点击空处加点，拖拽移动，双击删点；右侧栏在此曲线位置按情节点）
@@ -179,6 +166,41 @@ export default function CurveEditor({ curve, beats, onChange, onAxisChange, onAd
           </text>
         )}
       </svg>
+      {curve.kind === 'character' && onAxesChange && (
+        <div className="axes-box">
+          <div className="axes-head">
+            <strong>行为轴</strong>
+            <span className="muted">每根都是一条可拖拽的曲线（强度 → 档位 → 动作要求），名称可随时改</span>
+          </div>
+          {(axes ?? []).map((a) => (
+            <AxisCurve
+              key={a.id}
+              axis={a}
+              color={curve.color}
+              onChange={(na) => onAxesChange((axes ?? []).map((x) => (x.id === na.id ? na : x)))}
+              onRemove={() => onAxesChange((axes ?? []).filter((x) => x.id !== a.id))}
+            />
+          ))}
+          <button
+            className="btn btn-sm"
+            onClick={() =>
+              onAxesChange([
+                ...(axes ?? []),
+                {
+                  id: 'ax' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+                  name: '新行为轴',
+                  points: [
+                    { x: 0, y: 30 },
+                    { x: 100, y: 80 }
+                  ]
+                }
+              ])
+            }
+          >
+            ＋ 新增行为轴
+          </button>
+        </div>
+      )}
     </div>
   )
 }

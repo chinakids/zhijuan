@@ -750,3 +750,57 @@ label.checkbox input {
   max-height: 320px;
   overflow-y: auto;
 }
+
+/* ---------- 行为轴（可视化曲线） ---------- */
+.axis-hint {
+  margin-left: 6px;
+}
+.axes-box {
+  margin-top: 10px;
+  border-top: 1px dashed var(--border);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.axes-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12px;
+}
+.axes-head strong {
+  color: var(--accent);
+}
+.axis-curve {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.axis-curve-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.axis-name {
+  width: 220px;
+  font-weight: 600;
+  padding: 4px 8px;
+}
+.axis-curve-head .muted {
+  flex: 1;
+  font-size: 11px;
+}
+.axis-svg {
+  height: auto;
+  max-height: 150px;
+  cursor: crosshair;
+}
+.axis-path {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  opacity: 0.9;
+}

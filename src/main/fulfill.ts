@@ -37,12 +37,18 @@ async function checkFulfill(
       },
       body: JSON.stringify({
         model: opts.model,
-        messages: [{ role: 'user', content: prompt }],
+        messages: [
+          {
+            role: 'system',
+            content: '你是一个严格照单执行格式要求的审稿工具。用户要你输出的东西必须原样按行输出，任何分析、解释都要排在回报行之后。先给完整回报行，别先自言自语。'
+          },
+          { role: 'user', content: prompt }
+        ],
         temperature: 0.1,
-        max_tokens: 8000,
+        max_tokens: 6000,
         stream: false
       }),
-      signal: _abort.signal
+      signal: AbortSignal.any([_abort.signal, AbortSignal.timeout(600_000)])
     })
     if (!res.ok) throw new Error(`LLM 请求失败: ${res.status}`)
     const data = (await res.json()) as { choices?: { message?: { content?: string; reasoning?: string } }[] }
@@ -81,9 +87,9 @@ async function checkFulfill(
           max_tokens: 4000,
           stream: false
         }),
-        signal: _abort.signal
+        signal: AbortSignal.any([_abort.signal, AbortSignal.timeout(180_000)])
       })
-      if (res.ok) {
+      if (retry.ok) {
         const r2 = (await retry.json()) as { choices?: { message?: { content?: string; reasoning?: string } }[] }
         const m2 = r2.choices?.[0]?.message
         const retryText = m2?.content ?? m2?.reasoning ?? ''

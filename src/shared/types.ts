@@ -94,14 +94,30 @@ export interface CurvePoint {
   label?: string // 可选标记（如「她进门」「内射」）
 }
 
+/** 行为轴档位：强度落在 [min, 下一档 min) 区间时，用本档的可写动作要求 */
+export interface AxisBand {
+  min: number // 本档强度下限（含）；按 min 升序，须完整覆盖 0..100
+  label: string
+  demand: string // 该强度区间的可写动作要求（具体到动作、眼神、声音、身体反应）
+}
+
+/** 一根行为轴曲线：可自由命名，有自己可拖拽的曲线与可选的档位定义 */
+export interface CurveAxis {
+  id: string
+  name: string // 轴名（自由填，如「她的主动权」「他的压迫感」「两人距离」）
+  points: CurvePoint[] // 该轴的曲线控制点（可拖）
+  bands?: AxisBand[] // 可选档位；缺省用通用三档（被动/拉锯/主导）
+}
+
 /** 一条曲线（情绪曲线或人物曲线） */
 export interface SeriesCurve {
   id: string
   kind: 'emotion' | 'character'
   name: string // 情绪名（紧张、甜腻、肉欲）或 角色名
   color: string // 显示颜色
+  axis?: string // 兼容旧字段：legacy 单轴（轴库 id 或名字）；新数据请用 axes
+  axes?: CurveAxis[] // 行为轴曲线集合（人物曲线用；有它时 axis 被忽略）
   points: CurvePoint[]
-  axis?: string // M2.3 人物曲线声明的行为轴（AXIS_LIBRARY 的轴 id；未声明则只报趋势，不进动作要求）
 }
 
 /** 章节 · 情节点（曲线上的重要刻度，是给 AI 的结构提示） */

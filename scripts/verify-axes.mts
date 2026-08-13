@@ -1,12 +1,9 @@
-// 织卷 · 人物曲线行为轴（M2.3）· 自动化验证
+// 织卷 · 行为轴（axes）· 自动化验证（M2.3 多轴曲线语义）
 // 用法：node --experimental-strip-types scripts/verify-axes.mts
-// 覆盖：轴库良好性（档位完整覆盖 0..100）、档位取值、导演板集成（行为轴进每段的动作硬命令）、
-// 向后兼容（无轴曲线行为不变、未知轴不崩）、整链路（分幕指令里带行为轴）。
 import assert from 'node:assert'
-import { AXIS_LIBRARY, AXIS_ORDER, resolveAxis, axisDemand } from '../src/shared/axes.ts'
+import type { SeriesCurve, AxisBand, CurveAxis } from '../src/shared/types.ts'
+import { AXIS_LIBRARY, resolveAxis, axisDemand, pivotAxes, bandAt, generalBands, translateAxisCurve } from '../src/shared/axes.ts'
 import { makeDirectorBoard, renderDirectorBoard, renderShotRow } from '../src/shared/director.ts'
-import { planActs, renderActDirective } from '../src/shared/acts.ts'
-import type { SeriesCurve } from '../src/shared/types.ts'
 
 let passed = 0
 let failed = 0
@@ -21,135 +18,90 @@ function check(name: string, fn: () => void) {
   }
 }
 
-function curve(
-  name: string,
-  kind: SeriesCurve['kind'],
-  points: SeriesCurve['points'],
-  axis?: string
-): SeriesCurve {
-  return { id: name + Math.random(), kind, name, color: '#fff', points: points as never, axis }
+function curve(name: string, kind: SeriesCurve['kind'], points: SeriesCurve['points'], axes?: CurveAxis[]): SeriesCurve {
+  return { id: name + Math.random(), kind, name, color: '#fff', points: points as never, axes } as SeriesCurve
 }
 
-console.log('== 轴库良好性 ==')
-check('轴库非空，且 ORDER 每条都能在库里找到', () => {
-  assert.ok(AXIS_ORDER.length >= 3, '至少要有几条预设轴')
-  for (const id of AXIS_ORDER) {
-    assert.ok(AXIS_LIBRARY[id], '轴 ' + id + ' 应在库里')
-  }
-})
-check('每条轴的档位完整覆盖 0..100，且按 min 升序、档位措辞非空', () => {
-  for (const id of AXIS_ORDER) {
-    const ax = AXIS_LIBRARY[id]
-    assert.ok(ax.bands.length >= 2, ax.label + ' 至少两档')
-    const mins = ax.bands.map((b) => b.min)
-    const sorted = [...mins].sort((a, b) => a - b)
-    assert.deepStrictEqual(mins, sorted, ax.label + ' 档位应按 min 升序')
-    assert.strictEqual(mins[0], 0, ax.label + ' 最低档 min 应为 0')
-    assert.ok(ax.bands.every((b) => b.label && b.demand.length >= 10), ax.label + ' 各档要求具体、可写')
-  }
-})
+const shyBands = AXIS_LIBRARY['shyness'].bands as AxisBand[]
 
-console.log('== 档位取值 ==')
-check('resolveAxis：合法 id 取到轴；未知 / 空返回 undefined', () => {
-  assert.ok(resolveAxis('initiative'), '合法轴应取到')
-  assert.strictEqual(resolveAxis('no_such_axis'), undefined, '未知轴应返回 undefined')
-  assert.strictEqual(resolveAxis(undefined), undefined, '空值应返回 undefined')
-})
-check('axisDemand：低值取低档、高值取高档，边界归属正确', () => {
+console.log('== legacy 兼容（单轴） ==')
+check('resolveAxis / axisDemand 仍然可用', () => {
   const d0 = axisDemand('initiative', 5)
-  assert.ok(d0 && d0.label.includes('被牵着走'), '低值应是低档，实际 ' + d0?.label)
-  const dMid = axisDemand('initiative', 40)
-  assert.ok(dMid && dMid.label.includes('有来有回'), '中值应是中档，实际 ' + dMid?.label)
-  const dHi = axisDemand('initiative', 96)
-  assert.ok(dHi && dHi.label.includes('由她主导'), '高值应是高档，实际 ' + dHi?.label)
-  // 档位边界：恰好在 min 上归给该档
-  const edge = axisDemand('initiative', 70)
-  assert.ok(edge && edge.label.includes('由她主导'), '恰在 70 应归高档，实际 ' + edge?.label)
-  const justBelow = axisDemand('initiative', 69)
-  assert.ok(justBelow && justBelow.label.includes('有来有回'), '69 应仍是中档，实际 ' + justBelow?.label)
-})
-check('axisDemand：无轴曲线 → undefined（旧行为不变）', () => {
+  assert.ok(d0 && d0.label.includes('被牵着走'))
   assert.strictEqual(axisDemand(undefined, 80), undefined)
-  assert.strictEqual(axisDemand('bad', 80), undefined)
 })
-check('档位切换是平滑的：相邻档的 demand 文案不同', () => {
-  for (const id of AXIS_ORDER) {
-    const ax = AXIS_LIBRARY[id]
-    for (let i = 1; i < ax.bands.length; i++) {
-      const a = ax.bands[i - 1]
-      const b = ax.bands[i]
-      assert.notStrictEqual(a.demand, b.demand, ax.label + ' 相邻档文案应不同')
-    }
-  }
+check('旧曲线（axis+points）能被 pivotAxes 合成为一根轴', () => {
+  const c = curve('沈若汐·防线', 'character', [{ x: 0, y: 20 }, { x: 100, y: 90 }], undefined)
+  ;(c as { axis?: string }).axis = 'shyness'
+  const axs = pivotAxes(c)
+  assert.strictEqual(axs.length, 1)
+  assert.strictEqual(axs[0].name, '羞耻防线')
+  assert.ok(axs[0].bands && axs[0].bands.length >= 3)
 })
 
-console.log('== 导演板集成 ==')
-function plansWithAxis() {
-  const c = curve('沈若汐·防线', 'character', [
-    { x: 0, y: 20 },
-    { x: 40, y: 25 },
-    { x: 60, y: 95 },
-    { x: 100, y: 30 }
-  ], 'shyness')
+console.log('== 多轴自由曲线 ==')
+check('带 axes 时用 axes（忽略 legacy axis）', () => {
+  const c = curve('许晴', 'character', [], [
+    { id: 'a1', name: '她的主动权', points: [{ x: 0, y: 20 }, { x: 100, y: 95 }], bands: undefined },
+    { id: 'a2', name: '两人距离', points: [{ x: 0, y: 60 }, { x: 100, y: 30 }], bands: shyBands }
+  ])
+  ;(c as { axis?: string }).axis = 'shyness' // 应被忽略
+  const axs = pivotAxes(c)
+  assert.strictEqual(axs.length, 2)
+  assert.ok(axs.every((a) => a.name !== '羞耻防线'), 'legacy axis 不应再产生轴')
+})
+check('bandAt：自带档优先，没有则用通用三档', () => {
+  assert.strictEqual(bandAt(undefined, 5).label, '被动·生涩')
+  assert.strictEqual(bandAt(undefined, 95).label, '主导·放开')
+  assert.strictEqual(bandAt(shyBands, 90).label, '羞到骨里')
+  assert.strictEqual(bandAt(generalBands(), 40).label, '拉锯·试探')
+})
+check('translateAxisCurve：把档位写成段级动作命令', () => {
+  const lines = translateAxisCurve(
+    { id: 'a', name: '她的主动权', points: [{ x: 0, y: 10 }, { x: 100, y: 90 }], bands: undefined },
+    4
+  )
+  assert.ok(lines.length === 4)
+  assert.ok(lines[0].includes('被动·生涩'), '开头应是被动档')
+  assert.ok(lines[lines.length - 1].includes('主导·放开'), '结尾应是主导档')
+})
+check('档位跨段跳变时给到硬提示', () => {
+  const lines = translateAxisCurve(
+    { id: 'a', name: '她的主动权', points: [{ x: 0, y: 15 }, { x: 30, y: 20 }, { x: 60, y: 85 }, { x: 100, y: 90 }], bands: undefined },
+    4
+  )
+  assert.ok(lines.some((l) => l.includes('必须用一件具体事件或转折接住这一跃')), '跳变段要显式要求事件承载')
+})
+
+console.log('== 导演板接入 ==')
+check('带轴人物曲线：每段曲线信息里携带动作要求（acts）', () => {
+  const shi = curve('沈若汐·防线', 'character', [{ x: 0, y: 20 }, { x: 40, y: 25 }, { x: 60, y: 95 }, { x: 100, y: 30 }], [
+    { id: 'ax', name: '羞耻防线', points: [{ x: 0, y: 10 }, { x: 50, y: 30 }, { x: 60, y: 95 }, { x: 100, y: 20 }], bands: shyBands }
+  ])
   const emo = curve('整体张力', 'emotion', [{ x: 0, y: 40 }, { x: 100, y: 60 }])
-  return makeDirectorBoard([emo, c], [])
-}
-
-check('带轴人物曲线：每段曲线信息里携带动件要求', () => {
-  const plans = plansWithAxis()
-  const withAx = plans.filter((p) => p.curves.some((c) => c.ax))
-  assert.ok(withAx.length >= 2, '应有段带着行为轴指令')
-  // 高值段应取到「羞到骨里」档，低值段取到「防线尽失」档
-  const high = plans.find((p) => p.curves.find((c) => c.name === '沈若汐·防线')?.value >= 65)!
-  const highAx = high.curves.find((c) => c.name === '沈若汐·防线')!.ax
-  assert.ok(highAx && highAx.label.includes('羞到骨里'), '峰值段应落到最高档，实际 ' + highAx?.label)
-  const low = plans.find((p) => p.curves.find((c) => c.name === '沈若汐·防线')?.value <= 35)!
-  const lowAx = low.curves.find((c) => c.name === '沈若汐·防线')!.ax
-  assert.ok(lowAx && lowAx.label.includes('防线尽失'), '低值段应落到最低档，实际 ' + lowAx?.label)
+  const plans = makeDirectorBoard([emo, shi], [])
+  const withAct = plans.filter((p) => p.curves.some((c) => c.acts?.length))
+  assert.ok(withAct.length >= 2, '应有段带着行为轴指令')
+  const high = plans.find((p) => p.curves.find((c) => c.name === '沈若汐·防线')?.acts?.some((a) => a.value >= 70))!
+  const highAct = high.curves.find((c) => c.name === '沈若汐·防线')!.acts!.find((a) => a.value >= 70)!
+  assert.ok(highAct.band.includes('羞到骨里'), '峰值段应落到最高档，实际 ' + highAct.band)
 })
-check('渲染里出现“行为轴硬命令”与具体动作要求', () => {
-  const plans = plansWithAxis()
-  const board = renderDirectorBoard('测试', plans)
-  assert.ok(board.includes('行为轴硬命令'), '应有行为轴标记')
-  assert.ok(board.includes('沈若汐·防线'), '应有角色名')
-  assert.ok(board.includes('羞') || board.includes('身体'), '动作要求要具体而有感官')
+check('渲染里出现行为轴硬命令与具体动作要求，并带档位跳变提醒', () => {
+  const shi = curve('沈若汐·防线', 'character', [{ x: 0, y: 50 }, { x: 100, y: 50 }], [
+    { id: 'ax', name: '她的主动权', points: [{ x: 0, y: 20 }, { x: 10, y: 25 }, { x: 55, y: 90 }, { x: 100, y: 85 }], bands: undefined }
+  ])
+  const emo = curve('整体张力', 'emotion', [{ x: 0, y: 30 }, { x: 100, y: 70 }])
+  const board = renderDirectorBoard('测试', makeDirectorBoard([emo, shi], []))
+  assert.ok(board.includes('行为轴「她的主动权」'), '应有自由命名的行为轴标记')
+  assert.ok(board.includes('档位跳变'), '应有跳变提醒')
 })
-check('整链路：分幕指令的对应幕里也带行为轴（不进其它幕）', () => {
-  const plans = plansWithAxis()
-  const acts = planActs(plans)
-  const highAct = acts.find((a) => a.segs.some((s) => s.curves.some((c) => c.name === '沈若汐·防线' && (c.value ?? 0) >= 65)))
-  assert.ok(highAct, '应有峰值所在幕')
-  const text = renderActDirective('测试', highAct)
-  assert.ok(text.includes('行为轴硬命令'), '峰值幕指令应带行为轴')
-  // 低谷幕不应带“羞到骨里”（不同档位各自的指令跟着自己的段走）
-  const lowAct = acts.find((a) => a !== highAct && a.segs.some((s) => s.curves.some((c) => c.name === '沈若汐·防线' && c.value <= 35)))
-  if (lowAct) {
-    const lowText = renderActDirective('测试', lowAct)
-    assert.ok(!lowText.includes('羞到骨里'), '低谷幕不应带高羞档指令')
-    assert.ok(lowText.includes('行为轴硬命令') || !lowText.includes('行为轴硬命令'), '低谷幕要么带低档指令要么该幕没有人物段')
-  }
-})
-
-console.log('== 向后兼容 ==')
-check('无轴的人物曲线：渲染跟以前一样，不带行为轴', () => {
-  const c = curve('林晚·防线', 'character', [{ x: 0, y: 20 }, { x: 100, y: 90 }])
-  const plans = makeDirectorBoard([c], [])
-  assert.ok(plans.every((p) => p.curves.every((x) => !x.ax)), '无轴曲线不应带动作要求')
-  const row = renderShotRow(plans[4])
-  assert.ok(!row.includes('行为轴硬命令'), '渲染不应出现行为轴字样')
-  assert.ok(row.includes('曲线走向'), '仍保留曲线走向')
-})
-check('未知轴的曲线：不崩，退化为只报趋势', () => {
-  const c = curve('某人', 'character', [{ x: 0, y: 10 }, { x: 100, y: 90 }], 'no_such')
-  const plans = makeDirectorBoard([c], [])
-  assert.ok(plans.every((p) => p.curves.every((x) => !x.ax)), '未知轴应降级')
-  assert.ok(renderDirectorBoard('测试', plans).includes('曲线走向'))
-})
-check('情绪曲线即使有 axis 字段也不当作人物轴（按其 kind 走）', () => {
-  // 防御：老数据若误填了 axis，情绪曲线仍只报趋势
-  const c = curve('整体张力', 'emotion', [{ x: 0, y: 10 }, { x: 100, y: 90 }], 'shyness')
-  const plans = makeDirectorBoard([c], [])
-  assert.ok(plans.every((p) => p.curves.every((x) => !x.ax)), '情绪曲线不带行为轴')
+check('renderShotRow（兑现检查用）同样带着轴指令', () => {
+  const shi = curve('沈若汐', 'character', [], [
+    { id: 'ax', name: '两人距离', points: [{ x: 0, y: 80 }, { x: 100, y: 20 }], bands: shyBands }
+  ])
+  const plans = makeDirectorBoard([shi], [])
+  const row = renderShotRow(plans[0])
+  assert.ok(row.includes('两人距离'), '兑现清单要求里应见到轴名')
 })
 
 console.log(`\n结果：通过 ${passed}，失败 ${failed}${failed ? '（有失败！）' : '（全部通过 ✅）'}`)

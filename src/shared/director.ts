@@ -6,7 +6,7 @@
 //   3. 波峰/波谷定位——本章最高点（climax）与最低点（nadir），作为写作的锚。
 // 曲线不是建议，是导演手里的剧本沙盘。
 import type { SeriesCurve, PlotBeat, CurvePoint } from './types.ts'
-import { axisDemand } from './axes.ts'
+import { pivotAxes, bandAt } from './axes.ts'
 
 export interface ShotPlan {
   seg: number
@@ -17,7 +17,7 @@ export interface ShotPlan {
   nadir: boolean // 本章波谷所在段
   jumps: { from: number; to: number; dir: '骤升' | '猛跌' }[] // 本段发生的剧烈落差
   beats: string[] // 落在本段的节拍点
-  curves: { name: string; trend: string; value: number; ax?: { label: string; demand: string } }[] // 每条曲线在本段的走向与均值（人物曲线带行为轴动作要求）
+  curves: { name: string; trend: string; value: number; acts?: { name: string; value: number; band: string; demand: string; shift: boolean }[] }[] // 每条曲线的走向与均值（人物曲线带各行为轴的段级动作硬命令）
 }
 
 export const DIRECTOR = {
@@ -56,6 +56,7 @@ function trend(v0: number, v1: number): string {
 export function makeDirectorBoard(curves: SeriesCurve[], beats: PlotBeat[]): ShotPlan[] {
   const segs = DIRECTOR.segs
   const plans: ShotPlan[] = []
+  const prevBand = new Map<string, string>() // 各行为轴在上一段的档位（跨段跳变提示用）
   const beatTexts = (beats ?? []).map((b) => ({ at: b.at, label: `${b.label}（${b.note}）` }))
 
   // 找出全局最高/最低点（用情绪曲线中的第一条作为主曲线；没有曲线时平铺）
@@ -95,8 +96,18 @@ export function makeDirectorBoard(curves: SeriesCurve[], beats: PlotBeat[]): Sho
         name: c.name,
         trend: dir,
         value: Math.round((v0 + v1) / 2),
-        // M2.3：人物曲线带行为轴 → 把本段采样值翻译成该角色的可写动作要求（动作硬命令）
-        ax: c.kind === 'character' ? axisDemand(c.axis, (v0 + v1) / 2) : undefined
+        // M2.3：人物曲线的每根行为轴，按本段采样值翻译成档位与可写动作硬命令（档位跳变附事件要求）
+        acts:
+          c.kind === 'character'
+            ? pivotAxes(c).map((a) => {
+                const v = Math.round((valueAt(a.points, x0) + valueAt(a.points, x1)) / 2)
+                const b = bandAt(a.bands, v)
+                const prev = prevBand.get(a.id)
+                const shift = prev !== undefined && prev !== b.label
+                prevBand.set(a.id, b.label)
+                return { name: a.name, value: v, band: b.label, demand: b.demand, shift }
+              })
+            : undefined
       }
     })
     const bs = beatTexts.filter((b) => b.at >= x0 && b.at < x1).map((b) => b.label)
@@ -128,9 +139,12 @@ export function renderShotRow(p: ShotPlan): string {
   const jumpNote = p.jumps.length
     ? '；本段存在强度落差（' + p.jumps.map((j) => `${j.dir} ${j.from}→${j.to}`).join('、') + '），必须用一件具体事件撑起这个变化，不能让读者觉得突然'
     : ''
-  const charDirs = p.curves
-    .filter((c) => c.ax)
-    .map((c) => `\n   · 人物「${c.name}」行为轴硬命令：${(c.ax as { label: string; demand: string }).label}——${(c.ax as { label: string; demand: string }).demand}`)
+  const charDirs = p.curves.flatMap((c) =>
+    (c.acts ?? []).map(
+      (a) =>
+        `\n   · 人物「${c.name}」行为轴「${a.name}」(强度 ${a.value})：此刻应按「${a.band}」来写——${a.demand}${a.shift ? '；此段相对上一段档位跳变，必须用一件具体事件或转折接住这一跃，不可突兀' : ''}`
+    )
+  )
   const task =
     p.intensity >= 70
       ? '白热化：迎着前面的铺垫往上顶，正面交锋或关键反转必须落地'
