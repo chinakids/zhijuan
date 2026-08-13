@@ -67,7 +67,7 @@
 
 **M2.4 曲线兑现检查 ✅ 完成（2026-08-13，由主会话收尾提交）**
 - `shared/fulfill.ts`：从导演板（段任务）/ 行为轴 / 情节点派生**兑现清单** → 正文按块切分 → 交本地模型核验 → 结构化报告；`main/fulfill.ts` 为 LLM 调用层；UI 在章节页展示报告并可回看。
-- `verify-fulfill.mts`（18 断言）+ `smoke-fulfill.mts`（12 断言）；verify 现共 **93 断言**全绿。
+- `verify-fulfill.mts`（18 断言）+ `smoke-fulfill.mts`（12 断言）；全 verify 现为 **90** 断言全绿（M2.3 的 axes 重构把 verify-axes 收窄到 9 条，故总数从 93 回落）。
 - **M2 至此全线完成**：导演板 → 分幕生成 → 行为轴 → 兑现检查。
 
 ### M3 体验与稳定（攒着别急）
