@@ -41,7 +41,7 @@ async function call(messages: { role: string; content: string }[], maxTokens: nu
       max_tokens: maxTokens,
       stream: false
     }),
-    signal: AbortSignal.timeout(240_000)
+    signal: AbortSignal.timeout(600_000)
   })
   if (!res.ok) throw new Error('HTTP ' + res.status)
   const data = await res.json()
