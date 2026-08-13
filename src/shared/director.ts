@@ -6,6 +6,7 @@
 //   3. 波峰/波谷定位——本章最高点（climax）与最低点（nadir），作为写作的锚。
 // 曲线不是建议，是导演手里的剧本沙盘。
 import type { SeriesCurve, PlotBeat, CurvePoint } from './types.ts'
+import { axisDemand } from './axes.ts'
 
 export interface ShotPlan {
   seg: number
@@ -16,7 +17,7 @@ export interface ShotPlan {
   nadir: boolean // 本章波谷所在段
   jumps: { from: number; to: number; dir: '骤升' | '猛跌' }[] // 本段发生的剧烈落差
   beats: string[] // 落在本段的节拍点
-  curves: { name: string; trend: string; value: number }[] // 每条曲线在本段的走向与均值
+  curves: { name: string; trend: string; value: number; ax?: { label: string; demand: string } }[] // 每条曲线在本段的走向与均值（人物曲线带行为轴动作要求）
 }
 
 export const DIRECTOR = {
@@ -90,7 +91,13 @@ export function makeDirectorBoard(curves: SeriesCurve[], beats: PlotBeat[]): Sho
       if (Math.abs(dd) >= DIRECTOR.jumpThreshold) {
         jumps.push({ from: Math.round(v0), to: Math.round(v1), dir: dd > 0 ? '骤升' : '猛跌' })
       }
-      return { name: c.name, trend: dir, value: Math.round((v0 + v1) / 2) }
+      return {
+        name: c.name,
+        trend: dir,
+        value: Math.round((v0 + v1) / 2),
+        // M2.3：人物曲线带行为轴 → 把本段采样值翻译成该角色的可写动作要求（动作硬命令）
+        ax: c.kind === 'character' ? axisDemand(c.axis, (v0 + v1) / 2) : undefined
+      }
     })
     const bs = beatTexts.filter((b) => b.at >= x0 && b.at < x1).map((b) => b.label)
     const avg = (valueAt(prime?.points ?? [], x0) + valueAt(prime?.points ?? [], x1)) / 2
@@ -121,6 +128,9 @@ export function renderShotRow(p: ShotPlan): string {
   const jumpNote = p.jumps.length
     ? '；本段存在强度落差（' + p.jumps.map((j) => `${j.dir} ${j.from}→${j.to}`).join('、') + '），必须用一件具体事件撑起这个变化，不能让读者觉得突然'
     : ''
+  const charDirs = p.curves
+    .filter((c) => c.ax)
+    .map((c) => `\n   · 人物「${c.name}」行为轴硬命令：${(c.ax as { label: string; demand: string }).label}——${(c.ax as { label: string; demand: string }).demand}`)
   const task =
     p.intensity >= 70
       ? '白热化：迎着前面的铺垫往上顶，正面交锋或关键反转必须落地'
@@ -136,7 +146,8 @@ export function renderShotRow(p: ShotPlan): string {
       ? `；曲线走向：${p.curves.map((c) => `「${c.name}」${c.trend}(${c.value})`).join('、')}`
       : '') +
     (p.beats.length ? `；此处落实情节点：${p.beats.join('、')}` : '') +
-    jumpNote
+    jumpNote +
+    (charDirs.length ? charDirs.join('') : '')
   )
 }
 

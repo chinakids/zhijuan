@@ -26,7 +26,8 @@ function defaultCurves(chars: Project['characters']): SeriesCurve[] {
       kind: 'character',
       name: c.name + '·防线',
       color: PALETTE[(i + 3) % PALETTE.length],
-      points: []
+      points: [],
+      axis: 'shyness' // M2.3：新人物曲线默认挂「羞耻防线」轴（与“·防线”的命名一致），可在曲线上改或改回“不声明”
     })
   })
   return curves
@@ -225,6 +226,13 @@ export default function ChaptersView({ project, onSave }: Props) {
                   onChange={(points) =>
                     updateChapter(selected.id, {
                       curves: selected.curves.map((cc) => (cc.id === c.id ? { ...cc, points } : cc))
+                    })
+                  }
+                  onAxisChange={(axis) =>
+                    updateChapter(selected.id, {
+                      curves: selected.curves.map((cc) =>
+                        cc.id === c.id ? { ...cc, axis: axis || undefined } : cc
+                      )
                     })
                   }
                   onAddBeat={(x) => {

@@ -101,6 +101,7 @@ export interface SeriesCurve {
   name: string // 情绪名（紧张、甜腻、肉欲）或 角色名
   color: string // 显示颜色
   points: CurvePoint[]
+  axis?: string // M2.3 人物曲线声明的行为轴（AXIS_LIBRARY 的轴 id；未声明则只报趋势，不进动作要求）
 }
 
 /** 章节 · 情节点（曲线上的重要刻度，是给 AI 的结构提示） */

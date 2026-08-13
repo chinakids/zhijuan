@@ -389,6 +389,23 @@ label.checkbox input {
   font-weight: 400;
   margin-left: auto;
 }
+.axis-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-left: 10px;
+}
+.axis-select select {
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--fg);
+}
 .dot {
   width: 10px;
   height: 10px;
