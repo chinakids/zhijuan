@@ -62,6 +62,14 @@ export function normalizeProject(p: Project): Project {
     }
     return c
   })
+
+  // M2.2：旧章节没有 acts 时把 content 折成整幕，保证「回滚到某幕」的入口恒在
+  p.chapters = (p.chapters ?? []).map((c) => {
+    if (!Array.isArray(c.acts) || c.acts.length === 0) {
+      c.acts = c.content ? [c.content] : []
+    }
+    return c
+  })
   return p
 }
 

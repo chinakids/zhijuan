@@ -11,9 +11,16 @@ const api = {
   deleteProject: (id: string) => ipcRenderer.invoke('project:delete', id),
   // 章节导出
   exportChapter: (project: Project, chapter: Chapter) => ipcRenderer.invoke('chapter:export', project, chapter),
-  // 生成
-  generate: (project: Project, chapter: Chapter, opts: { baseUrl: string; model: string; apiKey: string }) =>
-    ipcRenderer.invoke('gen:generate', project, chapter, opts),
+  // 生成（fromAct 可选：回滚到第 fromAct 幕起重新生成，前面幕的正文保留）
+  generate: (project: Project, chapter: Chapter, opts: { baseUrl: string; model: string; apiKey: string }, fromAct?: number) =>
+    ipcRenderer.invoke('gen:generate', project, chapter, opts, fromAct) as Promise<{
+      ok: boolean
+      text?: string
+      acts?: string[]
+      prompt?: string
+      composition?: string
+      error?: string
+    }>,
   abortGenerate: () => ipcRenderer.invoke('gen:abort'),
   // 章节审计（AI 只出草稿，确认在渲染层）
   auditGenerate: (project: Project, chapter: Chapter, opts: { baseUrl: string; model: string; apiKey: string }) =>

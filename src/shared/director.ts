@@ -113,35 +113,37 @@ export function makeDirectorBoard(curves: SeriesCurve[], beats: PlotBeat[]): Sho
   return plans
 }
 
+/** 把导演板的「一段」渲染成写给模型的指令行（导出供分幕复用） */
+export function renderShotRow(p: ShotPlan): string {
+  const tags: string[] = []
+  if (p.climax) tags.push('本章最高潮')
+  if (p.nadir) tags.push('本章最低谷')
+  const jumpNote = p.jumps.length
+    ? '；本段存在强度落差（' + p.jumps.map((j) => `${j.dir} ${j.from}→${j.to}`).join('、') + '），必须用一件具体事件撑起这个变化，不能让读者觉得突然'
+    : ''
+  const task =
+    p.intensity >= 70
+      ? '白热化：迎着前面的铺垫往上顶，正面交锋或关键反转必须落地'
+      : p.intensity >= 45
+        ? '推进：细节要具体，动作要有进展，情感要有进位'
+        : p.intensity <= 25
+          ? '低谷：留白与伏笔，铺垫即将到来的反弹'
+          : '拉锯：要有足够的细节和张力细节，把这份热度维持住'
+  return (
+    `- 段${p.seg}（${p.fromPct}%-${p.toPct}%）·强度 ${p.intensity}${' · ' + tags.join('/')}` +
+    `：本段任务 = ${task}` +
+    (p.curves.length
+      ? `；曲线走向：${p.curves.map((c) => `「${c.name}」${c.trend}(${c.value})`).join('、')}`
+      : '') +
+    (p.beats.length ? `；此处落实情节点：${p.beats.join('、')}` : '') +
+    jumpNote
+  )
+}
+
 /** 把导演板渲染成写给模型的分段指令（进 prompt） */
 export function renderDirectorBoard(projectName: string, plans: ShotPlan[]): string {
-  const rows = plans.map((p) => {
-    const tags: string[] = []
-    if (p.climax) tags.push('本章最高潮')
-    if (p.nadir) tags.push('本章最低谷')
-    const jumpNote = p.jumps.length
-      ? '；本段存在强度落差（' + p.jumps.map((j) => `${j.dir} ${j.from}→${j.to}`).join('、') + '），必须用一件具体事件撑起这个变化，不能让读者觉得突然' 
-      : ''
-    const task =
-      p.intensity >= 70
-        ? '白热化：迎着前面的铺垫往上顶，正面交锋或关键反转必须落地' 
-        : p.intensity >= 45
-        ? '推进：细节要具体，动作要有进展，情感要有进位' 
-        : p.intensity <= 25
-        ? '低谷：留白与伏笔，铺垫即将到来的反弹' 
-        : '拉锯：要有足够的细节和张力细节，把这份热度维持住'
-    return (
-      `- 段${p.seg}（${p.fromPct}%-${p.toPct}%）·强度 ${p.intensity}${' · ' + tags.join('/')}` +
-      `：本段任务 = ${task}` +
-      (p.curves.length
-        ? `；曲线走向：${p.curves.map((c) => `「${c.name}」${c.trend}(${c.value})`).join('、')}`
-        : '') +
-      (p.beats.length ? `；此处落实情节点：${p.beats.join('、')}` : '') +
-      jumpNote
-    )
-  })
   return (
     `以下是《${projectName}》本章的「导演板」。每段都是硬指令：人物行为、事件烈度必须配得上本段的强度与走向；落差段必须由具体事件承载。按序推进，不能跳段、不能把高潮提前或拖后：\n` +
-    rows.join('\n')
+    plans.map(renderShotRow).join('\n')
   )
 }

@@ -675,3 +675,21 @@ label.checkbox input {
 .future-invalid {
   opacity: 0.5;
 }
+
+/* ---------- 分幕（M2.2） ---------- */
+.act-bar {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.act-bar strong {
+  color: var(--muted);
+  font-weight: 500;
+}

@@ -38,6 +38,7 @@ export default function ChaptersView({ project, onSave }: Props) {
   const selected = project.chapters.find((c) => c.id === selectedId) ?? null
   const [lastComposition, setLastComposition] = useState('')
   const [auditLoading, setAuditLoading] = useState(false)
+  const [genLoading, setGenLoading] = useState(false)
 
   function saveChapters(chs: Chapter[]) {
     onSave({ ...project, chapters: chs })
@@ -74,18 +75,28 @@ export default function ChaptersView({ project, onSave }: Props) {
     if (selectedId === id) setSelectedId(null)
   }
 
-  async function doGenerate() {
+  async function doGenerate(fromAct = 0) {
     if (!selected) return
-    const result = (await window.zhijuan.generate(
-      project,
-      selected,
-      { baseUrl: 'http://127.0.0.1:8888/v1', model: 'deepseek-v4-flash-0731', apiKey: 'EMPTY' }
-    )) as { ok: boolean; text?: string; error?: string; prompt?: string; composition?: string }
-    if (result.ok && result.text) {
-      updateChapter(selected.id, { content: result.text, status: 'draft' })
-      setLastComposition(result.composition ?? '')
-    } else {
-      alert('生成失败：' + (result.error ?? '未知错误'))
+    setGenLoading(true)
+    try {
+      const result = (await window.zhijuan.generate(
+        project,
+        selected,
+        { baseUrl: 'http://127.0.0.1:8888/v1', model: 'deepseek-v4-flash-0731', apiKey: 'EMPTY' },
+        fromAct
+      )) as { ok: boolean; text?: string; acts?: string[]; error?: string; prompt?: string; composition?: string }
+      if (result.ok && result.text) {
+        updateChapter(selected.id, {
+          content: result.text,
+          acts: result.acts && result.acts.length ? result.acts : [result.text],
+          status: 'draft'
+        })
+        setLastComposition(result.composition ?? '')
+      } else {
+        alert('生成失败：' + (result.error ?? '未知错误'))
+      }
+    } finally {
+      setGenLoading(false)
     }
   }
 
@@ -181,8 +192,8 @@ export default function ChaptersView({ project, onSave }: Props) {
                 </select>
               </label>
               <div className="btn-row">
-                <button className="btn btn-primary" onClick={doGenerate}>
-                  ✨ 生成本章
+                <button className="btn btn-primary" onClick={() => doGenerate()} disabled={genLoading}>
+                  {genLoading ? '生成中…' : '✨ 生成本章'}
                 </button>
                 <button className="btn" onClick={doExport}>
                   📤 导出
@@ -250,6 +261,26 @@ export default function ChaptersView({ project, onSave }: Props) {
               <div className="comp-bar">
                 <strong>本次组配（动它之前先看这里 👀）</strong>
                 <pre>{lastComposition}</pre>
+              </div>
+            )}
+
+            {selected.acts && selected.acts.length > 1 && (
+              <div className="act-bar">
+                <strong>幕次（点击某幕 = 从它开始重写，前面的保留）</strong>
+                <div className="btn-row">
+                  {selected.acts.map((_, i) => (
+                    <button
+                      key={i}
+                      className="btn btn-sm"
+                      title={`从第 ${i + 1} 幕起重新生成（共 ${selected.acts!.length} 幕）`}
+                      onClick={() => {
+                        if (window.confirm(`从第 ${i + 1} 幕起重新生成？前面的 ${i} 幕会保留，从这幕开始重写。`)) doGenerate(i)
+                      }}
+                    >
+                      幕{i + 1}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 

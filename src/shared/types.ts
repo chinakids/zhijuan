@@ -122,6 +122,7 @@ export interface Chapter {
   curves: SeriesCurve[] // 情绪曲线 + 人物曲线集合
   beats: PlotBeat[] // 重要情节点
   content: string // 生成的正文
+  acts?: string[] // M2.2 分幕生成的各幕正文字块（可选；旧数据缺省时以 content 为整幕）
   updatedAt: number
 }
 
