@@ -1,53 +1,10 @@
 import { ipcMain } from 'electron'
-import type { Project, Chapter, SeriesCurve, CurvePoint } from '../shared/types'
+import type { Project, Chapter } from '../shared/types'
 import { buildAssembledContext, describeComposition } from '../shared/composer'
-
-/** 曲线上采样出的一组描述文本（这是「曲线如何在生成里起作用」的关键设计） */
-function sampleCurve(curve: SeriesCurve, beats: { at: number; label: string; note: string }[]): string[] {
-  const out: string[] = []
-  // 把 0..100 划分成 8 段，逐段采样趋势 → 生成一条「走向描述」
-  const segs = 8
-  for (let s = 0; s < segs; s++) {
-    const x0 = (s / segs) * 100
-    const x1 = ((s + 1) / segs) * 100
-    const v0 = valueAt(curve.points, x0)
-    const v1 = valueAt(curve.points, x1)
-    const trend = v1 - v0
-    const dir = trend > 12 ? '骤升' : trend > 2 ? '缓升' : trend < -12 ? '猛跌' : trend < -2 ? '缓降' : '平缓'
-    const tag = beatIn(curve, beats, x0, x1)
-    out.push(`段 ${s + 1}(${x0}-${x1}%):强度 ${v0}→${v1}（${dir}）${tag ? `，此处情节点「${tag}」` : ''}`)
-  }
-  return out
-}
-
-function valueAt(pts: CurvePoint[], x: number): number {
-  if (pts.length === 0) return 50
-  const sorted = [...pts].sort((a, b) => a.x - b.x)
-  if (x <= sorted[0].x) return sorted[0].y
-  if (x >= sorted[sorted.length - 1].x) return sorted[sorted.length - 1].y
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const a = sorted[i]
-    const b = sorted[i + 1]
-    if (x >= a.x && x <= b.x) {
-      const t = (x - a.x) / (b.x - a.x)
-      return Math.round(a.y + (b.y - a.y) * t)
-    }
-  }
-  return 50
-}
-
-function beatIn(
-  curve: SeriesCurve,
-  beats: { at: number; label: string; note: string }[],
-  x0: number,
-  x1: number
-): string | null {
-  const b = beats.find((bb) => bb.at >= x0 && bb.at < x1)
-  return b ? `${b.label}（${b.note}）` : null
-}
+import { makeDirectorBoard, renderDirectorBoard } from '../shared/director'
 
 /** 用组配器产出的上下文包（AssembledContext）拼 Prompt —— 取代过去的「整包硬塞」 */
-function buildPrompt(ctx: ReturnType<typeof buildAssembledContext>, chapter: Chapter): string {
+function buildPrompt(ctx: ReturnType<typeof buildAssembledContext>, chapter: Chapter, projectName: string): string {
   const chars = ctx.chars.length
     ? ctx.chars
         .map(
@@ -72,12 +29,7 @@ function buildPrompt(ctx: ReturnType<typeof buildAssembledContext>, chapter: Cha
     ? ctx.openForeshadows.join('\n')
     : '（无）'
 
-  const curves = chapter.curves
-    .map((c) => {
-      const samples = sampleCurve(c, chapter.beats).join('\n        ')
-      return `【曲线】${c.kind === 'emotion' ? '情绪' : '人物'}「${c.name}」:\n        绘制说明: ${samples}`
-    })
-    .join('\n\n')
+  const director = renderDirectorBoard(projectName, makeDirectorBoard(chapter.curves, chapter.beats))
 
   const beats = chapter.beats.length
     ? chapter.beats.map((b) => `   ${b.at}%处: ${b.label} — ${b.note}`).join('\n')
@@ -108,8 +60,8 @@ ${chapter.elements || '（暂无）'}
 【本章梗概】
 ${chapter.premise || '（暂无）'}
 
-【本章节情绪与人物曲线（按进度推进，每条曲线代表一个维度的强度变化，写的时候让剧情配得上这些走势）】
-${curves || '（未绘制）'}
+【导演板（以下是本章每一段的硬指令：强度、走向、落差与情节点位置。曲线是命令不是参考，每一场戏都要配得上所在段的要求）】
+${chapter.curves.length ? director : '（本章未绘制曲线）——请仍然让本章拥有自己的起伏、层次与一次像样的高潮'}
 
 【关键情节点（它们出现在段落中的位置已用百分比标出）】
 ${beats}
@@ -133,7 +85,7 @@ async function generate(
   opts: { baseUrl: string; model: string; apiKey: string }
 ): Promise<{ text: string; prompt: string; composition: string }> {
   const ctx = buildAssembledContext(project, chapter)
-  const prompt = buildPrompt(ctx, chapter)
+  const prompt = buildPrompt(ctx, chapter, project.name)
   _abort?.abort()
   _abort = new AbortController()
 
