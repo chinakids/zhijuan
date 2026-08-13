@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Project, Chapter, SeriesCurve, PlotBeat } from '../../../shared/types'
 import CurveEditor from './CurveEditor'
 import { applySweeps, rejectSweeps } from '../../../shared/sweeper'
+import { buildFulfillChecklist, renderFulfillReport } from '../../../shared/fulfill'
 
 interface Props {
   project: Project
@@ -40,6 +41,8 @@ export default function ChaptersView({ project, onSave }: Props) {
   const [lastComposition, setLastComposition] = useState('')
   const [auditLoading, setAuditLoading] = useState(false)
   const [genLoading, setGenLoading] = useState(false)
+  const [fulfillLoading, setFulfillLoading] = useState(false)
+  const [fulfillMarkdown, setFulfillMarkdown] = useState('')
 
   function saveChapters(chs: Chapter[]) {
     onSave({ ...project, chapters: chs })
@@ -105,6 +108,33 @@ export default function ChaptersView({ project, onSave }: Props) {
     if (!selected) return
     const path = (await window.zhijuan.exportChapter(project, selected)) as string
     alert('已导出到：' + path)
+  }
+
+  // —— M2.4 曲线兑现检查：把正文与本章曲线契约核一遍，标出没兑现的段落 ——
+  async function doFulfill() {
+    if (!selected || !selected.content.trim()) return
+    setFulfillLoading(true)
+    try {
+      const res = await window.zhijuan.fulfillCheck(project, selected, {
+        baseUrl: 'http://127.0.0.1:8888/v1',
+        model: 'deepseek-v4-flash-0731',
+        apiKey: 'EMPTY'
+      })
+      if (res.ok && res.report) {
+        updateChapter(selected.id, { fulfill: res.report })
+        setFulfillMarkdown(res.markdown ?? '')
+        const r = res.report
+        alert(
+          r.miss + r.partial
+            ? `兑现检查完成：已兑现 ${r.met} · 部分 ${r.partial} · 未兑现 ${r.miss}${r.unknown ? ` · 未判定 ${r.unknown}` : ''}，详情见下方报告。`
+            : '本章曲线契约全部兑现 🎉'
+        )
+      } else {
+        alert((res as { error?: string }).error || (res as { ok: boolean }).ok === false ? '兑现检查失败：' + (res as { error?: string }).error : '兑现检查未返回结果，请稍后再试。')
+      }
+    } finally {
+      setFulfillLoading(false)
+    }
   }
 
   // —— 章节沉淀：生成记录（AI 只出草稿，主人确认后才进时间线）——
@@ -299,6 +329,35 @@ export default function ChaptersView({ project, onSave }: Props) {
               onChange={(e) => updateChapter(selected.id, { content: e.target.value })}
               placeholder="点「✨ 生成本章」让 AI 按上面的要素、曲线和情节点写出正文；也可以直接在这里手写或修改。"
             />
+
+            {(() => {
+              const cl = buildFulfillChecklist(selected)
+              const historic =
+                selected.fulfill && cl.source === 'board'
+                  ? renderFulfillReport(project.name, selected, cl, selected.fulfill)
+                  : ''
+              const md = fulfillMarkdown || historic
+              return (
+                <div className="fulfill-bar">
+                  <div className="panel-head">
+                    <h4>✅ 曲线兑现检查（写完自检：曲线要求肉没兑现就标出来）</h4>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={doFulfill}
+                      disabled={fulfillLoading || !selected.content.trim() || cl.source !== 'board'}
+                      title={cl.source !== 'board' ? '先画好曲线（每条至少两个点）再检查' : '把正文与本章曲线契约核一遍'}
+                    >
+                      {fulfillLoading ? '检查中…' : selected.fulfill ? '重跑检查' : '运行兑现检查'}
+                    </button>
+                  </div>
+                  {cl.source !== 'board' && <p className="hint">本章还没有可用曲线（每条曲线至少两个控制点），先画好曲线再检查。</p>}
+                  {md && <pre className="fulfill-md">{md}</pre>}
+                  {selected.fulfill && !selected.fulfill.raw && (
+                    <p className="hint">（本次检查的模型原始回报未保留，报告结论仍在）</p>
+                  )}
+                </div>
+              )
+            })()}
 
             <div className="sweep-box">
               <div className="panel-head sweep-head-bar">

@@ -710,3 +710,43 @@ label.checkbox input {
   color: var(--muted);
   font-weight: 500;
 }
+
+/* ---------- 曲线兑现检查（M2.4） ---------- */
+.fulfill-bar {
+  margin-top: 14px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-left: 3px solid #5dd39e;
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  font-size: 12px;
+}
+.fulfill-bar .panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.fulfill-bar h4 {
+  margin: 0;
+  color: #5dd39e;
+}
+.fulfill-bar .hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 6px;
+}
+.fulfill-md {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text);
+  background: var(--bg3);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-top: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Project, Chapter } from '../shared/types'
+import type { Project, Chapter, FulfillReport } from '../shared/types'
 import type { SweepDraft } from '../shared/types'
 
 const api = {
@@ -22,6 +22,17 @@ const api = {
       error?: string
     }>,
   abortGenerate: () => ipcRenderer.invoke('gen:abort'),
+  // 曲线兑现检查（M2.4）：把本章正文与曲线契约核对，返回逐条兑现报告与给人看的 markdown
+  fulfillCheck: (project: Project, chapter: Chapter, opts: { baseUrl: string; model: string; apiKey: string }) =>
+    ipcRenderer.invoke('fulfill:check', project, chapter, opts) as Promise<{
+      ok: boolean
+      report?: FulfillReport
+      markdown?: string
+      prompt?: string
+      checklistCount?: number
+      source?: string
+      error?: string
+    }>,
   // 章节审计（AI 只出草稿，确认在渲染层）
   auditGenerate: (project: Project, chapter: Chapter, opts: { baseUrl: string; model: string; apiKey: string }) =>
     ipcRenderer.invoke('audit:generate', project, chapter, opts) as Promise<{ ok: boolean; drafts?: SweepDraft[]; prompt?: string; error?: string }>,

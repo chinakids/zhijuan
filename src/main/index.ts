@@ -3,6 +3,7 @@ import { join } from 'path'
 import { registerStoreIpc } from './store'
 import { registerGenIpc } from './generator'
 import { registerSweepIpc } from './sweeper'
+import { registerFulfillIpc } from './fulfill'
 
 const isDev = !!process.env['ELECTRON_RENDERER_URL']
 
@@ -50,6 +51,7 @@ app.whenReady().then(() => {
   registerStoreIpc()
   registerGenIpc()
   registerSweepIpc()
+  registerFulfillIpc()
   ipcMain.handle('app:getPaths', () => ({
     documents: app.getPath('documents')
   }))

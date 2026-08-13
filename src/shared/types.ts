@@ -112,6 +112,26 @@ export interface PlotBeat {
   note: string // 说明文字（该点的关键动作 / 视觉）
 }
 
+/** 曲线兑现检查（M2.4）：本章生成后把正文 + 本章曲线契约过一遍，标出没兑现的段落 */
+export interface FulfillVerdict {
+  id: string // 对应 FulfillChecklistItem 的 id（如 D3 / A-沈若汐·防线 / B-破门而入）
+  result: 'met' | 'partial' | 'miss' | 'unknown' // 已兑现 / 部分 / 未兑现 / 模型未判定
+  blocks: string // 证据位置（正文块号，逗号分隔；模型给不出可留空）
+  note: string // 模型给的一句理由
+}
+
+/** 一次兑现检查的完整结果（挂在 Chapter.fulfill 上，可选，向后兼容） */
+export interface FulfillReport {
+  checkedAt: number
+  total: number // 契约要求条目数
+  met: number
+  partial: number
+  miss: number
+  unknown: number
+  verdicts: FulfillVerdict[] // 逐条判定（含未兑现的细节）
+  raw: string // 模型原始输出（可回看排查）
+}
+
 /** 章节 */
 export interface Chapter {
   id: string
@@ -124,6 +144,7 @@ export interface Chapter {
   beats: PlotBeat[] // 重要情节点
   content: string // 生成的正文
   acts?: string[] // M2.2 分幕生成的各幕正文字块（可选；旧数据缺省时以 content 为整幕）
+  fulfill?: FulfillReport // M2.4 曲线兑现检查结果（可选；旧数据无此字段）
   updatedAt: number
 }
 
