@@ -610,3 +610,57 @@ label.checkbox input {
   margin-top: 4px;
   line-height: 1.6;
 }
+
+/* ---------- 章节沉淀（sweep） ---------- */
+.sweep-box {
+  margin-top: 18px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.sweep-head-bar {
+  margin-bottom: 6px;
+}
+.sweep-head-bar h4 {
+  margin: 0;
+  color: var(--accent);
+}
+.sweep-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+.sweep-item {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.sweep-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.sweep-head b {
+  color: var(--text);
+}
+.sweep-log {
+  color: #ffd166;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.sweep-preview {
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--bg2);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  max-height: 120px;
+  overflow-y: auto;
+}

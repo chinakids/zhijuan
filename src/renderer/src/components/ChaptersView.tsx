@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Project, Chapter, SeriesCurve, PlotBeat } from '../../../shared/types'
 import CurveEditor from './CurveEditor'
+import { applySweeps, rejectSweeps } from '../../../shared/sweeper'
 
 interface Props {
   project: Project
@@ -36,6 +37,7 @@ export default function ChaptersView({ project, onSave }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(chapters[0]?.id ?? null)
   const selected = project.chapters.find((c) => c.id === selectedId) ?? null
   const [lastComposition, setLastComposition] = useState('')
+  const [auditLoading, setAuditLoading] = useState(false)
 
   function saveChapters(chs: Chapter[]) {
     onSave({ ...project, chapters: chs })
@@ -92,6 +94,44 @@ export default function ChaptersView({ project, onSave }: Props) {
     const path = (await window.zhijuan.exportChapter(project, selected)) as string
     alert('已导出到：' + path)
   }
+
+  // —— 章节沉淀：生成记录（AI 只出草稿，主人确认后才进时间线）——
+  async function doAudit() {
+    if (!selected || !selected.content.trim()) return
+    setAuditLoading(true)
+    try {
+      const res = await window.zhijuan.auditGenerate(project, selected, {
+        baseUrl: 'http://127.0.0.1:8888/v1',
+        model: 'deepseek-v4-flash-0731',
+        apiKey: 'EMPTY'
+      })
+      if (res.ok && res.drafts?.length) {
+        onSave({ ...project, sweepDrafts: [...project.sweepDrafts, ...res.drafts] })
+      } else {
+        alert('没有生成到可确认内容：' + (res.error ?? '未知错误'))
+      }
+    } finally {
+      setAuditLoading(false)
+    }
+  }
+
+  function acceptDrafts(ids: string[]) {
+    const r = applySweeps(project, ids)
+    onSave({
+      ...project,
+      characters: r.characters,
+      records: r.records,
+      foreshadows: r.foreshadows,
+      sweepDrafts: r.drafts
+    })
+  }
+
+  function declineDrafts(ids: string[]) {
+    onSave({ ...project, sweepDrafts: rejectSweeps(project, ids) })
+  }
+
+  const pendingDrafts = project.sweepDrafts.filter((d) => d.status === 'pending')
+  const thisRecord = selected ? project.records.find((r) => r.chapterNum === selected.num) : null
 
   return (
     <div className="panel chapters-panel">
@@ -219,6 +259,69 @@ export default function ChaptersView({ project, onSave }: Props) {
               onChange={(e) => updateChapter(selected.id, { content: e.target.value })}
               placeholder="点「✨ 生成本章」让 AI 按上面的要素、曲线和情节点写出正文；也可以直接在这里手写或修改。"
             />
+
+            <div className="sweep-box">
+              <div className="panel-head sweep-head-bar">
+                <h4>📝 章节沉淀（设定随正文生长）</h4>
+                <button
+                  className="btn btn-sm btn-primary"
+                  onClick={doAudit}
+                  disabled={auditLoading || !selected.content.trim()}
+                >
+                  {auditLoading ? '审计中…' : '生成本章记录 & 检测变化'}
+                </button>
+              </div>
+              <p className="hint">把本章正文交给模型总结出「章节记录 + 人物状态推进 + 伏笔」；变化先成草稿，你确认后才进时间线。</p>
+
+              {thisRecord && (
+                <div className="tl-item">
+                  <div className="tl-head">
+                    <span className="tl-badge">第 {thisRecord.chapterNum} 章记录 ✅</span>
+                  </div>
+                  <div className="tl-content">{thisRecord.summary}</div>
+                  {thisRecord.sown.length > 0 && <small className="tl-log">新埋伏笔：{thisRecord.sown.join('；')}</small>}
+                  {thisRecord.resolved.length > 0 && (
+                    <small className="tl-log" style={{ color: '#5dd39e' }}>
+                      兑现伏笔：{thisRecord.resolved.join('；')}
+                    </small>
+                  )}
+                </div>
+              )}
+
+              {pendingDrafts.length > 0 && (
+                <div className="sweep-list">
+                  {pendingDrafts.map((d) => (
+                    <div key={d.id} className="sweep-item">
+                      <div className="sweep-head">
+                        <span className="tl-badge">{d.targetId.startsWith('record:') ? '章节记录' : '人物状态变化'}</span>
+                        <b>{d.targetName}</b>
+                      </div>
+                      <div className="sweep-log">原因：{d.changeLog}</div>
+                      <pre className="sweep-preview">{d.draftContent}</pre>
+                      <div className="btn-row">
+                        <button className="btn btn-sm btn-primary" onClick={() => acceptDrafts([d.id])}>
+                          ✓ 接受
+                        </button>
+                        <button className="btn btn-sm" onClick={() => declineDrafts([d.id])}>
+                          拒绝
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="btn-row">
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={() => acceptDrafts(pendingDrafts.map((d) => d.id))}
+                    >
+                      全部接受
+                    </button>
+                    <button className="btn btn-sm" onClick={() => declineDrafts(pendingDrafts.map((d) => d.id))}>
+                      全部拒绝
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { registerStoreIpc } from './store'
 import { registerGenIpc } from './generator'
+import { registerSweepIpc } from './sweeper'
 
 const isDev = !!process.env['ELECTRON_RENDERER_URL']
 
@@ -48,6 +49,7 @@ function createWindow() {
 app.whenReady().then(() => {
   registerStoreIpc()
   registerGenIpc()
+  registerSweepIpc()
   ipcMain.handle('app:getPaths', () => ({
     documents: app.getPath('documents')
   }))

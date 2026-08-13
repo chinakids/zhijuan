@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { Project, Chapter } from '../shared/types'
+import type { SweepDraft } from '../shared/types'
 
 const api = {
   // 项目管理
@@ -14,6 +15,9 @@ const api = {
   generate: (project: Project, chapter: Chapter, opts: { baseUrl: string; model: string; apiKey: string }) =>
     ipcRenderer.invoke('gen:generate', project, chapter, opts),
   abortGenerate: () => ipcRenderer.invoke('gen:abort'),
+  // 章节审计（AI 只出草稿，确认在渲染层）
+  auditGenerate: (project: Project, chapter: Chapter, opts: { baseUrl: string; model: string; apiKey: string }) =>
+    ipcRenderer.invoke('audit:generate', project, chapter, opts) as Promise<{ ok: boolean; drafts?: SweepDraft[]; prompt?: string; error?: string }>,
   // 环境
   getPaths: () => ipcRenderer.invoke('app:getPaths')
 }
