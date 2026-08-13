@@ -32,7 +32,9 @@ export default function CharactersView({ project, onSave }: Props) {
       tags: [],
       fields: [],
       background: '',
-      relation: ''
+      relation: '',
+      active: true,
+      slices: [{ atChapter: 1, content: '标签: \n身世: \n与主角关系: ', source: 'initial', confirmed: true }]
     }
     saveChars([...project.characters, c])
     setSelectedId(c.id)

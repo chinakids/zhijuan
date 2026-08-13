@@ -3,8 +3,9 @@ import type { Project } from '../../../shared/types'
 import WorldviewView from './WorldviewView'
 import CharactersView from './CharactersView'
 import ChaptersView from './ChaptersView'
+import ElementsView from './ElementsView'
 
-type Tab = 'worldview' | 'characters' | 'chapters'
+type Tab = 'worldview' | 'elements' | 'characters' | 'chapters'
 
 interface Props {
   project: Project
@@ -28,6 +29,9 @@ export default function Workspace({ project, onBack, onSave }: Props) {
           <button className={tab === 'worldview' ? 'active' : ''} onClick={() => setTab('worldview')}>
             🌍 世界观
           </button>
+          <button className={tab === 'elements' ? 'active' : ''} onClick={() => setTab('elements')}>
+            🧩 设定库
+          </button>
           <button className={tab === 'characters' ? 'active' : ''} onClick={() => setTab('characters')}>
             👤 人物设定
           </button>
@@ -38,6 +42,7 @@ export default function Workspace({ project, onBack, onSave }: Props) {
       </aside>
       <main className="main">
         {tab === 'worldview' && <WorldviewView project={project} onSave={onSave} />}
+        {tab === 'elements' && <ElementsView project={project} onSave={onSave} />}
         {tab === 'characters' && <CharactersView project={project} onSave={onSave} />}
         {tab === 'chapters' && <ChaptersView project={project} onSave={onSave} />}
       </main>

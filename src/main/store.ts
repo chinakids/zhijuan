@@ -1,7 +1,8 @@
 import { app, ipcMain } from 'electron'
-import { join, basename } from 'path'
+import { join } from 'path'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync } from 'fs'
-import type { Project, Chapter, Character } from '../shared/types'
+import type { Project, Chapter } from '../shared/types'
+import { normalizeProject, currentChapter } from '../shared/setting'
 
 /** 项目根目录（默认：文档/织卷 项目库；可通过设置改） */
 function libraryRoot(): string {
@@ -46,6 +47,10 @@ function createProject(name: string, description: string): Project {
     worldview: { name: '', city: '', era: '', themes: [], rules: [], background: '' },
     characters: [],
     chapters: [],
+    elements: [],
+    records: [],
+    foreshadows: [],
+    sweepDrafts: [],
     updatedAt: Date.now()
   }
   writeJson(projectFile(p.id), p)
@@ -63,10 +68,17 @@ function listProjects(): { id: string; name: string; description: string; update
 }
 
 function loadProject(id: string): Project | null {
-  return readJson<Project>(projectFile(id))
+  const p = readJson<Project>(projectFile(id))
+  if (!p) return null
+  const before = JSON.stringify(p)
+  normalizeProject(p)
+  // 旧数据补齐字段后写回一次，保证后续一致
+  if (before !== JSON.stringify(p)) writeJson(projectFile(id), p)
+  return p
 }
 
 function saveProject(p: Project): Project {
+  normalizeProject(p)
   p.updatedAt = Date.now()
   writeJson(projectFile(p.id), p)
   return p
@@ -108,4 +120,4 @@ export function registerStoreIpc() {
   ipcMain.handle('chapter:export', (_e, project: Project, chapter: Chapter) => exportChapter(project, chapter))
 }
 
-export { newId }
+export { newId, currentChapter }
