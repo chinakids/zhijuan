@@ -1,6 +1,6 @@
 # 织卷 · AI 辅助小说创作工作台
 
-把「世界观 + 人物设定 + 章节情绪曲线/人物曲线」结构化，作为输入交给本地 LLM 生成章节正文的 Electron 桌面应用。
+把「世界观 + 人物设定 + 章节情绪曲线/人物曲线」结构化，作为输入交给本地 LLM <!-- ann:msswpmxo -->生成<!-- /ann:msswpmxo -->章节<!-- ann:mssxa14k -->正文<!-- /ann:mssxa14k -->的 Electron 桌面应用。
 
 ## 快速开始
 
@@ -14,8 +14,8 @@ npm run build    # 编译产物到 out/
 
 ```
 src/
-  main/          # Electron 主进程：窗口、本地存储、生成引擎（IPC）
-    store.ts     #   项目库读写（文档/织卷项目库，每个项目一个 JSON）
+  main/          # Electron 主<!-- ann:mssxgq8e -->进程<!-- /ann:mssxgq8e -->：窗口、本地存储、生成引擎（IPC）
+    store.ts     #   <!-- ann:msswqrlh --><!-- ann:mssx8ad9 --><!-- ann:mssxgxph -->项目<!-- /ann:mssxgxph --><!-- /ann:mssx8ad9 --><!-- /ann:msswqrlh -->库读写（文档/织卷项目库，每个项目一个 JSON）
     generator.ts #   生成引擎：曲线采样 → 拼 prompt → 调 OpenAI 兼容 API
     index.ts     #   应用入口
   preload/       # contextBridge 桥（window.zhijuan.*）
@@ -23,7 +23,7 @@ src/
   renderer/      # React 界面（世界观 / 人物 / 章节 三视图）
     src/components/
       WorldviewView.tsx    # 世界观编辑
-      CharactersView.tsx   # 人物档案（自由字段）
+      <!-- ann:msswqjtn -->CharactersView.tsx<!-- /ann:msswqjtn -->   # 人物档案（自由字段）
       ChaptersView.tsx     # 章节工作台（要素 + 曲线 + 生成）
       CurveEditor.tsx      # SVG 双曲线编辑器（可拖拽）
 ```
@@ -45,7 +45,7 @@ src/
 
 ## 数据存放
 
-所有项目保存在 `~/Documents/织卷项目库/<项目id>/project.json`，一个项目一个目录，纯 JSON，可直接进 git。
+所有项目保存在 `~/<!-- ann:mssx81xw -->Documents<!-- /ann:mssx81xw -->/织卷项目库/<项目id>/project.json`，一个项目一个目录，纯 JSON，可直接进 git。
 
 ## 已知限制
 

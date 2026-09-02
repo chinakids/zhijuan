@@ -1,46 +1,34 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Project, Chapter, FulfillReport } from '../shared/types'
-import type { SweepDraft } from '../shared/types'
+import type { AppSettings, ChapterEntry, FsEvent, ProjectSummary } from '../shared/types'
 
 const api = {
-  // 项目管理
-  listProjects: () => ipcRenderer.invoke('project:list'),
-  createProject: (name: string, description: string) => ipcRenderer.invoke('project:create', name, description),
-  loadProject: (id: string) => ipcRenderer.invoke('project:load', id),
-  saveProject: (p: Project) => ipcRenderer.invoke('project:save', p),
-  deleteProject: (id: string) => ipcRenderer.invoke('project:delete', id),
-  // 章节导出
-  exportChapter: (project: Project, chapter: Chapter) => ipcRenderer.invoke('chapter:export', project, chapter),
-  // 生成（fromAct 可选：回滚到第 fromAct 幕起重新生成，前面幕的正文保留）
-  generate: (project: Project, chapter: Chapter, opts: { baseUrl: string; model: string; apiKey: string }, fromAct?: number) =>
-    ipcRenderer.invoke('gen:generate', project, chapter, opts, fromAct) as Promise<{
-      ok: boolean
-      text?: string
-      acts?: string[]
-      prompt?: string
-      composition?: string
-      error?: string
-    }>,
-  abortGenerate: () => ipcRenderer.invoke('gen:abort'),
-  // 曲线兑现检查（M2.4）：把本章正文与曲线契约核对，返回逐条兑现报告与给人看的 markdown
-  fulfillCheck: (project: Project, chapter: Chapter, opts: { baseUrl: string; model: string; apiKey: string }) =>
-    ipcRenderer.invoke('fulfill:check', project, chapter, opts) as Promise<{
-      ok: boolean
-      report?: FulfillReport
-      markdown?: string
-      prompt?: string
-      checklistCount?: number
-      source?: string
-      error?: string
-    }>,
-  // 章节审计（AI 只出草稿，确认在渲染层）
-  auditGenerate: (project: Project, chapter: Chapter, opts: { baseUrl: string; model: string; apiKey: string }) =>
-    ipcRenderer.invoke('audit:generate', project, chapter, opts) as Promise<{ ok: boolean; drafts?: SweepDraft[]; prompt?: string; error?: string }>,
-  // 沉淀为条目（把一段文字交给模型拆成条目草稿）
-  meltConvert: (text: string, atChapter: number, opts: { baseUrl: string; model: string; apiKey: string }) =>
-    ipcRenderer.invoke('melt:convert', text, atChapter, opts) as Promise<{ ok: boolean; drafts?: SweepDraft[]; error?: string; elements?: unknown[] }>,
-  // 环境
-  getPaths: () => ipcRenderer.invoke('app:getPaths')
+  // 设置
+  getSettings: () => ipcRenderer.invoke('settings:get') as Promise<AppSettings>,
+  setSettings: (patch: Partial<AppSettings>) => ipcRenderer.invoke('settings:set', patch) as Promise<AppSettings>,
+
+  // 项目
+  listProjects: () => ipcRenderer.invoke('project:list') as Promise<ProjectSummary[]>,
+  createProject: (name: string, description: string) =>
+    ipcRenderer.invoke('project:create', name, description) as Promise<ProjectSummary | null>,
+  removeProject: (id: string) => ipcRenderer.invoke('project:remove', id) as Promise<{ ok: boolean; error?: string }>,
+  importProject: (dir: string) => ipcRenderer.invoke('project:import', dir) as Promise<ProjectSummary | null>,
+  revealProject: (id: string) => ipcRenderer.invoke('project:reveal', id),
+  openProject: (id: string) => ipcRenderer.invoke('project:open', id) as Promise<boolean>,
+
+  // 文档（相对项目根）
+  readDoc: (id: string, rel: string) => ipcRenderer.invoke('doc:read', id, rel) as Promise<string | null>,
+  writeDoc: (id: string, rel: string, content: string) => ipcRenderer.invoke('doc:write', id, rel, content) as Promise<boolean>,
+  listDocs: (id: string, relDir: string) => ipcRenderer.invoke('doc:list', id, relDir) as Promise<{ file: string; name: string; mtime: number }[]>,
+  listChapters: (id: string) => ipcRenderer.invoke('chapter:list', id) as Promise<ChapterEntry[]>,
+
+  // 文件系统事件（项目目录被外部改动时）
+  onFsEvent: (cb: (evt: FsEvent) => void) => {
+    const listener = (_e: unknown, evt: FsEvent) => cb(evt)
+    ipcRenderer.on('fs:event', listener)
+    return () => {
+      ipcRenderer.removeListener('fs:event', listener)
+    }
+  }
 }
 
 export type ZhijuanApi = typeof api

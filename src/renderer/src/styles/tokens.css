@@ -1,0 +1,155 @@
+@import 'tailwindcss';
+
+/* ===== 织卷 V2 · 设计 tokens（模块设计 §13.2） =====
+ * 默认「暖纸」（浅色写作台），.dark 走 Linear 系深色层级。
+ * 语义色用 CSS 变量，运行时在根节点切 .dark 即整体换肤。
+ */
+
+:root {
+  /* 纸面与表面 */
+  --paper: #f6f4ef;
+  --surface: #fffefb;
+  --surface-2: #faf8f3;
+  --well: #f1eee7;
+  /* 文字 */
+  --ink: #322e27;
+  --ink-2: #6d675c;
+  --ink-3: #a49e92;
+  /* 发丝边框 */
+  --hair: color-mix(in srgb, #322e27 12%, transparent);
+  --hair-strong: color-mix(in srgb, #322e27 22%, transparent);
+  /* 强调（单一青黛） */
+  --accent: #0f766e;
+  --accent-ink: #ffffff;
+  --accent-soft: #e3f0ee;
+  /* 状态色（小剂量） */
+  --danger: #b5382e;
+  --danger-soft: #f6e6e3;
+  --success: #2f7d4f;
+  --warn: #9a6a0a;
+  --warn-soft: #f6edd8;
+  /* 其它 */
+  --selection: color-mix(in srgb, var(--accent) 22%, transparent);
+  --shadow: 0 1px 2px rgb(50 46 39 / 6%), 0 8px 24px rgb(50 46 39 / 8%);
+}
+
+.dark {
+  --paper: #141312;
+  --surface: #1b1a19;
+  --surface-2: #201f1d;
+  --well: #242220;
+  --ink: #e9e6df;
+  --ink-2: #a39e94;
+  --ink-3: #6d6860;
+  --hair: color-mix(in srgb, #e9e6df 13%, transparent);
+  --hair-strong: color-mix(in srgb, #e9e6df 24%, transparent);
+  --accent: #5caea4;
+  --accent-ink: #101615;
+  --accent-soft: color-mix(in srgb, #5caea4 18%, transparent);
+  --danger: #e07063;
+  --danger-soft: color-mix(in srgb, #e07063 16%, transparent);
+  --success: #66b588;
+  --warn: #d3a077;
+  --warn-soft: color-mix(in srgb, #d3a077 16%, transparent);
+  --selection: color-mix(in srgb, var(--accent) 30%, transparent);
+  --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 12px 32px rgb(0 0 0 / 38%);
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-well: var(--well);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-hair: var(--hair);
+  --color-hair-strong: var(--hair-strong);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-success: var(--success);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --font-sans: 'PingFang SC', 'Hiragino Sans GB', -apple-system, 'Helvetica Neue', sans-serif;
+  --font-serif: 'Songti SC', 'Noto Serif SC', 'Source Han Serif SC', Georgia, serif;
+  --font-mono: 'Menlo', 'SF Mono', 'JetBrains Mono', monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--selection);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--hair-strong) transparent;
+}
+
+/* 正文纸面画布（写作区通用） */
+.paper-canvas {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  line-height: 1.85;
+  color: var(--ink);
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 48px 40px 96px;
+}
+
+.paper-canvas h1,
+.paper-canvas h2,
+.paper-canvas h3 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  color: var(--ink);
+  margin: 1.4em 0 0.5em;
+}
+
+.paper-canvas h1 {
+  font-size: 1.5em;
+}
+
+.paper-canvas h2 {
+  font-size: 1.25em;
+  border-bottom: 1px solid var(--hair);
+  padding-bottom: 0.3em;
+}
+
+.paper-canvas code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--well);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+
+.paper-canvas blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 1em 0;
+  padding: 0.2em 1em;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border-radius: 0 6px 6px 0;
+}
+
+.paper-canvas a {
+  color: var(--accent);
+}

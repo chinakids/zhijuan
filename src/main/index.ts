@@ -1,20 +1,19 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
-import { registerStoreIpc } from './store'
-import { registerGenIpc } from './generator'
-import { registerSweepIpc } from './sweeper'
-import { registerFulfillIpc } from './fulfill'
+import { registerIpc } from './ipc'
+import { getSettings } from './store'
 
 const isDev = !!process.env['ELECTRON_RENDERER_URL']
 
 function createWindow() {
+  const theme = getSettings().theme
   const win = new BrowserWindow({
     width: 1280,
     height: 860,
     minWidth: 1000,
     minHeight: 700,
     title: '织卷',
-    backgroundColor: '#0f1115',
+    backgroundColor: theme === 'dark' ? '#141414' : '#fbf9f4',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -42,19 +41,13 @@ function createWindow() {
         const { writeFileSync } = await import('fs')
         writeFileSync(process.env['ZHJUAN_SHOT']!, img.toPNG())
         app.quit()
-      }, 2500)
+      }, 3000)
     })
   }
 }
 
 app.whenReady().then(() => {
-  registerStoreIpc()
-  registerGenIpc()
-  registerSweepIpc()
-  registerFulfillIpc()
-  ipcMain.handle('app:getPaths', () => ({
-    documents: app.getPath('documents')
-  }))
+  registerIpc()
   createWindow()
 
   app.on('activate', () => {
