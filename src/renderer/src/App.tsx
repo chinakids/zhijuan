@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { TooltipProvider } from './components/ui/tooltip'
 import { useAppStore } from './store/app'
+import { useAgentStore } from './features/agent/store'
 import Home from './pages/Home'
 import Workspace from './pages/Workspace'
 import Novel from './pages/Novel'
@@ -18,10 +19,24 @@ function Boot() {
   return null
 }
 
+/** 全局桥：编辑器划词浮层「添加到对话」→ 对话引用（任何文档页都生效） */
+function QuoteBridge() {
+  useEffect(() => {
+    const h = (e: Event) => {
+      const t = (e as CustomEvent<string>).detail
+      if (typeof t === 'string' && t.trim()) useAgentStore.getState().setQuote(t.trim())
+    }
+    window.addEventListener('zj:quote-text', h)
+    return () => window.removeEventListener('zj:quote-text', h)
+  }, [])
+  return null
+}
+
 export default function App() {
   return (
     <TooltipProvider>
       <Boot />
+      <QuoteBridge />
       <HashRouter>
         <Routes>
           <Route path="/" element={<Home />} />

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type MutableRefObject } from 'react'
+import { useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { Editor, rootCtx, defaultValueCtx, editorViewCtx, parserCtx, serializerCtx } from '@milkdown/kit/core'
 import { commonmark } from '@milkdown/kit/preset/commonmark'
 import { gfm } from '@milkdown/kit/preset/gfm'
@@ -12,6 +12,7 @@ import { wrapInList } from 'prosemirror-schema-list'
 import { undo, redo, undoDepth, redoDepth } from 'prosemirror-history'
 import '@milkdown/theme-nord/style.css'
 import '../../styles/milkdown.css'
+import { MessageSquarePlus } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 /** 暴露给父组件的命令式 API */
@@ -101,6 +102,50 @@ export default function Prose({ value, onEdit, apiRef, className }: ProseProps) 
   const liveRef = useRef(true)
   const edRef = useRef<any>(null) // Milkdown Editor 实例（工具栏用）
 
+  /* —— 划词浮层：选中文本 → 送进对话引用（全局事件 zj:quote-text）—— */
+  const [bubble, setBubble] = useState<{ text: string; x: number; y: number; below: boolean } | null>(null)
+  useEffect(() => {
+    const onSel = () => {
+      const host = hostRef.current
+      const s = window.getSelection()
+      if (!host || !s || s.rangeCount === 0 || s.isCollapsed) {
+        setBubble(null)
+        return
+      }
+      const t = s.toString().trim()
+      if (!t) {
+        setBubble(null)
+        return
+      }
+      const r = s.getRangeAt(0)
+      if (!host.contains(r.startContainer) || !host.contains(r.endContainer)) {
+        setBubble(null)
+        return
+      }
+      const rect = r.getBoundingClientRect()
+      const below = rect.top < 120
+      setBubble({ text: t, x: rect.left + rect.width / 2, y: below ? rect.bottom : rect.top, below })
+    }
+    const onDown = (e: MouseEvent) => {
+      if ((e.target as HTMLElement)?.closest?.('.zj-sel-bubble')) return
+      if (!hostRef.current?.contains(e.target as Node)) setBubble(null)
+    }
+    const onScroll = () => onSel()
+    document.addEventListener('selectionchange', onSel)
+    document.addEventListener('mousedown', onDown, true)
+    window.addEventListener('scroll', onScroll, true)
+    return () => {
+      document.removeEventListener('selectionchange', onSel)
+      document.removeEventListener('mousedown', onDown, true)
+      window.removeEventListener('scroll', onScroll, true)
+    }
+  }, [])
+  const dispatchQuote = () => {
+    if (!bubble) return
+    window.dispatchEvent(new CustomEvent('zj:quote-text', { detail: bubble.text }))
+    setBubble(null)
+  }
+
   useEffect(() => {
     if (!hostRef.current) return
     let api: ProseApi | null = null
@@ -176,10 +221,27 @@ export default function Prose({ value, onEdit, apiRef, className }: ProseProps) 
   }, [])
 
   return (
-    <div className={cn('zj-md flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-hair', className)}>
-      <Toolbar edRef={edRef} />
-      <div ref={hostRef} className="min-h-0 flex-1 overflow-y-auto" />
-    </div>
+    <>
+      <div className={cn('zj-md flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-hair', className)}>
+        <Toolbar edRef={edRef} />
+        <div ref={hostRef} className="min-h-0 flex-1 overflow-y-auto" />
+      </div>
+      {bubble && (
+        <div
+          className="zj-sel-bubble flex items-center gap-1"
+          style={{
+            left: bubble.x,
+            top: bubble.below ? bubble.y + 10 : bubble.y,
+            transform: bubble.below ? 'translate(-50%, 4px)' : 'translate(-50%, calc(-100% - 10px))'
+          }}
+        >
+          <button onClick={dispatchQuote} title="把选中文字作为引用添加到右下对话">
+            <MessageSquarePlus className="h-3.5 w-3.5" />
+            添加到对话
+          </button>
+        </div>
+      )}
+    </>
   )
 }
 

@@ -44,6 +44,32 @@
 .zj-md-toolbar button:hover { background: var(--well); color: var(--ink); }
 .zj-md-toolbar .sep { width: 1px; height: 16px; margin: 0 4px; background: var(--hair); }
 
+/* 划词浮层（选中文本 → 添加到对话） */
+.zj-sel-bubble {
+  position: fixed;
+  z-index: 60;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--hair-strong);
+  box-shadow: var(--shadow);
+  white-space: nowrap;
+}
+.zj-sel-bubble button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.zj-sel-bubble button:hover {
+  background: var(--well);
+  color: var(--accent);
+}
+.dark .zj-sel-bubble { background: var(--surface-2); border-color: var(--hair-strong); }
+
 /* 深色跟随我们的 tokens */
 .dark .zj-md { background: var(--surface); }
 .dark .zj-md .milkdown, .dark .zj-md .ProseMirror { background: var(--surface) !important; color: var(--ink); }
