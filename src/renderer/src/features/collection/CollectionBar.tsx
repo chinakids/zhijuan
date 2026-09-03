@@ -1,0 +1,156 @@
+import { useCallback, useEffect, useState } from 'react'
+import { useParams } from 'react-router-dom'
+import { CloudDownload, RefreshCw } from 'lucide-react'
+import { Button } from '../../components/ui/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog'
+import { Input } from '../../components/ui/input'
+import { Label } from '../../components/ui/label'
+import { Textarea } from '../../components/ui/textarea'
+import { cn } from '../../lib/utils'
+import { useFsEvents } from '../fs/useFsEvents'
+
+/* ===== 织卷 S5 · 采集栏：任务卡列表 + 发起采集表单 ===== */
+
+type TaskStatus = 'pending' | 'done' | 'failed' | 'running'
+interface TaskInfo {
+  file: string
+  mtime: number
+  status: TaskStatus
+  summary: string
+}
+
+const STATUS_CLS: Record<string, string> = {
+  pending: 'bg-warn-soft text-warn',
+  running: 'bg-accent-soft text-accent',
+  done: 'bg-[#e6f0ee] text-success',
+  failed: 'bg-danger-soft text-danger'
+}
+
+function parseStatus(file: string, text: string): { status: TaskStatus; summary: string } {
+  const m = text.match(/status:\s*(\w+)/)
+  let status: TaskStatus = 'pending'
+  if (m && ['pending', 'done', 'failed', 'running'].includes(m[1])) status = m[1] as TaskStatus
+  const s = text.match(/^#\s*(.+)$/m)
+  return { status, summary: s ? s[1].slice(0, 40) : file.replace(/\.md$/, '') }
+}
+
+export default function CollectionBar() {
+  const { id = '' } = useParams()
+  const [tasks, setTasks] = useState<TaskInfo[]>([])
+  const [open, setOpen] = useState(false)
+  const [demand, setDemand] = useState('')
+  const [keywords, setKeywords] = useState('')
+  const [category, setCategory] = useState('环境')
+  const [source, setSource] = useState('')
+  const [saving, setSaving] = useState(false)
+  const events = useFsEvents(id)
+
+  const refresh = useCallback(async () => {
+    if (!id) return
+    const list = await window.zhijuan.listDocs(id, '素材库/采集池')
+    const infos: TaskInfo[] = []
+    for (const d of list) {
+      const text = (await window.zhijuan.readDoc(id, d.file)) ?? ''
+      infos.push({ file: d.file, mtime: d.mtime, ...parseStatus(d.file, text) })
+    }
+    setTasks(infos)
+  }, [id])
+
+  useEffect(() => {
+    void refresh()
+  }, [refresh])
+
+  useEffect(() => {
+    const ev = events[events.length - 1]
+    if (ev && ev.path.startsWith('素材库/采集池')) void refresh()
+  }, [events, refresh])
+
+  async function submit() {
+    if (!id || !demand.trim()) return
+    setSaving(true)
+    const ts = Date.now()
+    const name = '任务_' + new Date(ts).toISOString().replace(/[-:TZ]/g, '').slice(0, 14)
+    const kws = keywords.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
+    const fm = [
+      '---',
+      'status: pending',
+      '类别: ' + (category.trim() || '环境'),
+      '关键词: [' + kws.join(', ') + ']',
+      '需求: ' + demand.replace(/\n/g, ' ').slice(0, 120),
+      '来源: ' + source.trim(),
+      '创建: ' + new Date(ts).toLocaleString('sv'),
+      '---',
+      '',
+      '# 采集任务：' + demand.replace(/\n/g, ' ').slice(0, 20),
+      '',
+      '**需求详情**：' + demand,
+      '',
+      '（由管道的后台代理按关键词抓取并回填，App 侧只负责登记。）',
+      ''
+    ].join('\n')
+    await window.zhijuan.writeDoc(id, '素材库/采集池/' + name + '.md', fm)
+    setOpen(false)
+    setDemand(''); setKeywords(''); setCategory('环境'); setSource('')
+    setSaving(false)
+    await refresh()
+  }
+
+  return (
+    <div className="shrink-0 border-b border-hair bg-surface-2 px-4 py-2.5">
+      <div className="mb-1.5 flex items-center gap-2">
+        <CloudDownload className="h-4 w-4 text-accent" />
+        <span className="text-xs font-medium text-ink">采集任务（本机管道按需求抓取）</span>
+        <span className="flex-1" />
+        <Button variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => void refresh()}>
+          <RefreshCw className="mr-1 h-3 w-3" /> 刷新
+        </Button>
+        <Button size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => setOpen(true)}>＋ 发起采集</Button>
+      </div>
+      {tasks.length === 0 ? (
+        <p className="text-[11px] text-ink-3">还没有采集任务。点击「发起采集」，任务会落到 素材库/采集池，由本机管道处理。</p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {tasks.map((t) => (
+            <div key={t.file} className="flex items-center gap-2 rounded-lg border border-hair bg-surface px-2.5 py-1.5">
+              <span className={cn('rounded-full px-1.5 py-0.5 text-[10px]', STATUS_CLS[t.status])}>{t.status}</span>
+              <span className="max-w-[220px] truncate text-[11px] text-ink">{t.summary}</span>
+              <span className="text-[10px] text-ink-3">{new Date(t.mtime).toLocaleString('sv')}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>发起采集</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label>需求描述 *</Label>
+              <Textarea rows={3} placeholder="如：校园图书馆的老旧细节——木地板、借书卡、靠窗的旧阅览室" value={demand} onChange={(e) => setDemand(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>关键词（逗号分隔）</Label>
+                <Input placeholder="如：旧图书馆, 借书卡" value={keywords} onChange={(e) => setKeywords(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>目标类别</Label>
+                <Input placeholder="环境" value={category} onChange={(e) => setCategory(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>来源偏好（可选）</Label>
+              <Input placeholder="如：知乎问答、博客；默认搜索引擎" value={source} onChange={(e) => setSource(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>取消</Button>
+            <Button onClick={() => void submit()} disabled={!demand.trim() || saving}>{saving ? '提交中…' : '提交任务'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
