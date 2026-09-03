@@ -4,6 +4,11 @@
   background: var(--surface);
   color: var(--ink);
 }
+/* Milkdown 根元素：剥掉第三方主题的固定白色，跟我们的纸面走 */
+:where(.zj-md) .milkdown {
+  background: var(--surface) !important;
+  color: var(--ink);
+}
 .zj-md .ProseMirror {
   color: var(--ink);
   background: var(--surface);
@@ -41,7 +46,7 @@
 
 /* 深色跟随我们的 tokens */
 .dark .zj-md { background: var(--surface); }
-.dark .zj-md .ProseMirror { color: var(--ink); }
+.dark .zj-md .milkdown, .dark .zj-md .ProseMirror { background: var(--surface) !important; color: var(--ink); }
 .dark .zj-md-toolbar { background: var(--surface-2); border-bottom-color: var(--hair); }
 .dark .zj-md-toolbar button { color: var(--ink-2); }
 .dark .zj-md-toolbar button:hover { background: var(--well); color: var(--ink); }
