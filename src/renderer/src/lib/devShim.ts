@@ -273,6 +273,29 @@ const mock = {
     console.log('[devShim] agent answer', JSON.stringify(answers))
     return { ok: true }
   },
+  agentAudit: async (_projectId: string, kind: string) =>
+    kind === 'consistency'
+      ? {
+          ok: true,
+          result: {
+            summary: '（演示）发现有 2 处设定需要再看一眼。',
+            items: [
+              { severity: 'high', type: 'setting-conflict', where: '第2章 · 灯塔夜访（正文/第02章_灯塔夜访.md）', what: '“顾岸的旧车”前文是烟青色，这里写成了黑色', suggest: '统一为烟青色并顺手修正后文描写', target: '人物/顾岸.md' },
+              { severity: 'low', type: 'foreshadow', where: '第1章 · 雾港之夜', what: '墙角提到一封信，之后没有回收', suggest: '后续任一章节提一笔，或在文中删掉', target: '' },
+              { severity: 'medium', type: 'character-drift', where: '第3章', what: '沈确的称呼在“你”与“您”之间跳了两次', suggest: '保持对这个人物的固定称呼（建议互称）', target: '人物/沈确.md' }
+            ]
+          }
+        }
+      : {
+          ok: true,
+          result: {
+            summary: '（演示）开篇节奏可以再快一点。',
+            items: [
+              { severity: 'high', type: 'pacing', where: '第1章 · 雾港之夜', what: '进入第一个事件太慢，背景铺垫多', suggest: '让第一个事件提前一页，细节后置到冲突里补', target: '' },
+              { severity: 'medium', type: 'structure', where: '全书', what: '第3章和第4章是同一天的两条线，读者易混', suggest: '在章节头标注同一天下的不同地点', target: '世界观/切片_灯塔.md' }
+            ]
+          }
+        },
   agentSync: async () => ({ ok: true, items: [] } as { ok: boolean; items: ProposalItem[] }),
   agentStatus: async () => ({ online: true, engine: 'harness', model: settings.llm.model })
 }

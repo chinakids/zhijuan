@@ -1,6 +1,7 @@
 // ===== 织卷 · agent IPC 路由（主进程） =====
 import { ipcMain, BrowserWindow } from 'electron'
 import { runChat, runSync, abortRequest, type AgentOutEvent } from './engine'
+import { runAudit, type AuditKind } from './audit'
 import { ensureHarness, closeHarness, answerDir } from './runtime'
 import { getSettings } from '../store'
 import { mkdirSync, writeFileSync } from 'fs'
@@ -48,6 +49,8 @@ export function registerAgentIpc() {
       return { ok: false, error: String(e?.message ?? e) }
     }
   })
+  // 全卷检查子任务（一致性巡查 / 冷读报告）
+  ipcMain.handle('agent:audit', (_e, projectId: string, kind: AuditKind) => runAudit(projectId, kind))
   // 引擎状态（设置页用）
   ipcMain.handle('agent:status', async () => {
     const err = await ensureHarness()

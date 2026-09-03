@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Loader2, Quote, Paperclip, RotateCcw, Send } from 'lucide-react'
+import { Loader2, Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck } from 'lucide-react'
 import type { ProseApi } from '../editor/Prose'
+import type { AuditKind } from '../../../../shared/types'
 import { useAppStore } from '../../store/app'
 import { useAgentStore } from './store'
 import { buildAgentContext } from './context'
@@ -10,6 +11,7 @@ import { streamChat, type ChatMessage } from './llm'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
 import TodoCard from './TodoCard'
 import AskCard from './AskCard'
+import AuditDrawer from '../audit/AuditDrawer'
 import { cn } from '../../lib/utils'
 import { Button } from '../../components/ui/button'
 
@@ -141,6 +143,7 @@ export default function AgentPanel(props: AgentPanelProps) {
   const [input, setInput] = useState('')
   const { send, stop, streaming: sending } = useSender(props)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [audit, setAudit] = useState<{ open: boolean; tab: AuditKind }>({ open: false, tab: 'consistency' })
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
@@ -160,11 +163,26 @@ export default function AgentPanel(props: AgentPanelProps) {
   }
 
   return (
-    <aside className="flex h-full w-80 shrink-0 flex-col border-l border-hair bg-surface-2">
+    <>
+      <aside className="flex h-full w-80 shrink-0 flex-col border-l border-hair bg-surface-2">
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hair px-4">
         <span className="text-sm font-medium text-ink">Agent</span>
         <span className="text-[11px] text-ink-3">本地模型 · 上下文按章节装配</span>
         <span className="flex-1" />
+        <button
+          title="一致性巡查：按设定档案检查全卷"
+          onClick={() => setAudit({ open: true, tab: 'consistency' })}
+          className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
+        >
+          <ShieldAlert className="h-3.5 w-3.5" />
+        </button>
+        <button
+          title="冷读报告：以读者视角通读全卷"
+          onClick={() => setAudit({ open: true, tab: 'review' })}
+          className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
+        >
+          <BookOpenCheck className="h-3.5 w-3.5" />
+        </button>
         <button title="清空对话" onClick={() => useAgentStore.getState().reset()} className="text-ink-3 hover:text-ink">
           <RotateCcw className="h-3.5 w-3.5" />
         </button>
@@ -279,6 +297,14 @@ export default function AgentPanel(props: AgentPanelProps) {
           )}
         </div>
       </div>
-    </aside>
+      </aside>
+      <AuditDrawer
+        projectId={props.projectId}
+        open={audit.open}
+        tab={audit.tab}
+        onClose={() => setAudit((a) => ({ ...a, open: false }))}
+        onTab={(t) => setAudit((a) => ({ ...a, tab: t }))}
+      />
+    </>
   )
 }

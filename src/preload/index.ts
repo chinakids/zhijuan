@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings, AgentEvent, ChapterEntry, FsEvent, ProjectSummary, Proposal, ProposalItem } from '../shared/types'
+import type { AppSettings, AgentEvent, ChapterEntry, FsEvent, ProjectSummary, Proposal, ProposalItem, AuditItem } from '../shared/types'
 
 const api = {
   // 设置
@@ -53,6 +53,11 @@ const api = {
     ipcRenderer.invoke('agent:sync', projectId, chapterRel) as Promise<{ ok: boolean; items: ProposalItem[]; error?: string }>,
   agentAnswer: (batch: string, answers: { id: string; selected: string[]; custom?: string }[]) =>
     ipcRenderer.invoke('agent:answer', batch, answers) as Promise<{ ok: boolean; error?: string }>,
+  agentAudit: (projectId: string, kind: 'consistency' | 'review') =>
+    ipcRenderer.invoke('agent:audit', projectId, kind) as Promise<
+      | { ok: true; result: { summary: string; items: AuditItem[] } }
+      | { ok: false; error: string }
+    >,
   agentStatus: () =>
     ipcRenderer.invoke('agent:status') as Promise<{ online: boolean; engine: string; model?: string; message?: string }>,
   onAgentEvent: (cb: (evt: AgentEvent) => void) => {

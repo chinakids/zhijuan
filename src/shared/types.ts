@@ -141,3 +141,18 @@ export interface CollectionTask {
   summary?: string
   error?: string
 }
+
+/** 全卷检查（agent-first）：一致性巡查 / 冷读报告 */
+export type AuditKind = 'consistency' | 'review'
+export interface AuditItem {
+  severity: 'high' | 'medium' | 'low'
+  type: string
+  where: string
+  what: string
+  suggest: string
+  target?: string
+}
+export interface AuditResult {
+  summary: string
+  items: AuditItem[]
+}
