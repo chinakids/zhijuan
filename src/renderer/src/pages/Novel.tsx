@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Plus, BookOpen } from 'lucide-react'
+import { Plus, BookOpen, ShieldAlert } from 'lucide-react'
 import type { ChapterEntry } from '../../../shared/types'
 import { serializeFrontMatter } from '../../../shared/fmatter'
 import { Button } from '../components/ui/button'
@@ -13,6 +13,7 @@ import { runSliceSync } from '../features/sync/sliceSync'
 import { useProposalStore } from '../store/proposals'
 import type { ProseApi } from '../features/editor/Prose'
 import AgentPanel from '../features/agent/AgentPanel'
+import ChapterCheckDrawer from '../features/check/ChapterCheckDrawer'
 import { useFsEvents } from '../features/fs/useFsEvents'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog'
 
@@ -31,6 +32,7 @@ export default function Novel() {
   const events = useFsEvents(id)
   const apiRef = useRef<ProseApi | null>(null)
   const [syncMsg, setSyncMsg] = useState('')
+  const [checkOpen, setCheckOpen] = useState(false)
 
   const handleChapterSaved = useCallback(
     async (rel: string) => {
@@ -154,6 +156,15 @@ export default function Novel() {
                 </span>
               )}
               <span className="flex-1" />
+              <button
+                onClick={() => setCheckOpen(true)}
+                disabled={!sel}
+                title="本章小环：短巡查 / 分层修订（沿写作线兜底）"
+                className="mr-3 flex items-center gap-1 rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+              >
+                <ShieldAlert className="h-3 w-3" />
+                本章小环
+              </button>
               <span className="text-[11px] text-ink-3">选中段落后可用 agent 的「引用选中」· ⌘S 保存</span>
             </div>
             <div className="min-h-0 flex-1">
@@ -166,6 +177,8 @@ export default function Novel() {
       </main>
 
       <AgentPanel projectId={id} chapterRel={sel} chapterTitle={cur?.name ?? ''} editorApi={() => apiRef.current} />
+
+      <ChapterCheckDrawer projectId={id} chapter={sel} chapterTitle={cur?.name ?? ''} open={checkOpen} onClose={() => setCheckOpen(false)} />
 
       <Dialog open={creating} onOpenChange={setCreating}>
         <DialogContent className="sm:max-w-md">

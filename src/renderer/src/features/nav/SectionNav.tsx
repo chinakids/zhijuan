@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { PenLine, Users, Globe2, Library as LibraryIcon, Settings as SettingsIcon, ArrowLeft } from 'lucide-react'
+import { PenLine, Users, Globe2, Library as LibraryIcon, ListTree, Settings as SettingsIcon, ArrowLeft } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 export interface NavCounts {
   novel: number
   characters: number
   worldview: number
+  outline: number
   library: number
 }
 
@@ -19,6 +20,7 @@ const items = [
   { to: 'novel', label: '正文创作', icon: PenLine, key: 'novel' as const },
   { to: 'characters', label: '人物设定', icon: Users, key: 'characters' as const },
   { to: 'worldview', label: '世界观设定', icon: Globe2, key: 'worldview' as const },
+  { to: 'outline', label: '大纲区', icon: ListTree, key: 'outline' as const },
   { to: 'library', label: '素材库', icon: LibraryIcon, key: 'library' as const }
 ]
 

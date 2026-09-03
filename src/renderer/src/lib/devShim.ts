@@ -70,6 +70,45 @@ docs.set(
   'demo-aseya/素材库/桥段/追忆型开头.md',
   ['---', '标签: [桥段, 开头, 失忆]', '---', '', '# 追忆型开头', '', '以一件旧物切入，牵出角色“忘了的事”，用于开篇营造悬念。', ''].join('\n')
 )
+docs.set(
+  'demo-aseya/大纲/第01章_雾港.md',
+  [
+    '---',
+    '章号: 1',
+    '题名: 雾港',
+    '切片: 第一幕_雾港之夜',
+    '状态: 已回建',
+    '---',
+    '',
+    '# 章卡 第1章 雾港',
+    '',
+    '> 对应正文：正文/第01章_雾港.md',
+    '',
+    '## 一句话定位',
+    '',
+    '用一盏旧灯和一张泛黄船票，把失忆的主角和「忘了的事」焊进主线。',
+    '',
+    '## 关键事件',
+    '',
+    '- 阿七提着旧灯出现在暴雨中的候船厅',
+    '- 沈藏点破：这盏灯是阿七自己熄灭的',
+    '- 一张十年前写着阿七名字的船票出现',
+    '',
+    '## 人物进展',
+    '',
+    '阿七从“什么也不记得”进入“裂缝松动”的状态。',
+    '',
+    '## 钩子 / 要还的债',
+    '',
+    '- 船票是谁留的',
+    '- 灯为什么要被熄灭',
+    ''
+  ].join('\n')
+)
+docs.set(
+  'demo-aseya/大纲/索引.md',
+  ['---', '状态: 已回建', '---', '', '# 大纲区 · 章卡索引', '', '共 1 章已回建章卡。', '', '## 第1章 · 雾港', '', '> 定位：用一盏旧灯和一张泛黄船票，把失忆的主角和「忘了的事」焊进主线。', '', '- 关键事件：阿七提旧灯出现；沈藏点破灯是阿七自己熄的；十年前船票出现', ''].join('\n')
+)
 
 const settings: AppSettings = { workspace: '', libraryRoot: '', llm: { baseUrl: 'http://127.0.0.1:8888', model: 'deepseek-v4-flash-0731', apiKey: '' }, theme: 'paper', collectionEnabled: true, agentEngine: 'harness', agentTools: { todo: true, askUser: true } }
 
@@ -297,7 +336,78 @@ const mock = {
           }
         },
   agentSync: async () => ({ ok: true, items: [] } as { ok: boolean; items: ProposalItem[] }),
-  agentStatus: async () => ({ online: true, engine: 'harness', model: settings.llm.model })
+  agentStatus: async () => ({ online: true, engine: 'harness', model: settings.llm.model }),
+
+  // 本章级小环（每章短巡查 / 分层修订）— dev 模式给固定演示数据
+  agentChapterCheck: async (_projectId: string, _chapterRel: string, kind: string) =>
+    kind === 'chapter'
+      ? {
+          ok: true,
+          result: {
+            summary: '（演示）本章有两处值得现在就处理。',
+            items: [
+              { severity: 'medium', type: 'character-drift', where: '阿七对沈藏的称呼突然从“您”变“你”', what: '两人是第一次见面，称谓跳变显突兀', suggest: '统一为“您”，直到关系拉近那幕再改口', target: '人物/沈藏.md' },
+              { severity: 'low', type: 'timeline', where: '船票日期 “十年前”', what: '与世界观里记忆雾吞人记忆的时间设定没有对齐', suggest: '对一下世界观里的时间线，必要时改票面日期', target: '世界观/总纲.md' }
+            ]
+          }
+        }
+      : {
+          ok: true,
+          result: {
+            summary: '（演示）本章最值得先改的是：把开头的说明性白线压掉。',
+            items: [
+              { severity: 'high', layer: 'story', type: 'structure', where: '本章定位', what: '这章同时做了「相遇」和「信息揭示」，两个目标挤在一场戏里', suggest: '把“灯是阿七自己熄的”这个揭示挪到下一章，本章只留相遇', target: '' },
+              { severity: 'medium', layer: 'scene', type: 'pacing', where: '候船厅相遇', what: '沈藏点烟后立刻给答案，场景张力被提前放掉', suggest: '让沈藏先说半句就停，把答案放到阿七追问之后', target: '' },
+              { severity: 'low', layer: 'prose', type: 'prose', where: '“雨把港口淋成一片灰”', what: '开场白线带说明腔', suggest: '改成从阿七的手指、灯笼光写起，让雨退到背景', target: '' }
+            ]
+          }
+        },
+  // 大纲回建（dev 模式：写 mock 的 大纲/ 文件并返回卡片）
+  agentOutlineRebuild: async (projectId: string) => {
+    const cards = [
+      {
+        file: '正文/第01章_雾港.md',
+        no: 1,
+        title: '雾港',
+        slice: '第一幕_雾港之夜',
+        oneLine: '用一盏旧灯和一张泛黄船票，把失忆的主角和「忘了的事」焊进主线。',
+        beats: ['阿七提旧灯出现在暴雨中的候船厅', '沈藏点破：这盏灯是阿七自己熄灭的', '一张十年前写着阿七名字的船票出现'],
+        charProgress: '阿七从“什么也不记得”进入“裂缝松动”的状态。',
+        hooks: ['船票是谁留的', '灯为什么要被熄灭'],
+        wordCount: 86
+      },
+      {
+        file: '正文/第02章_灯塔.md',
+        no: 2,
+        title: '灯塔',
+        slice: '第二幕_灯塔',
+        oneLine: '（演示）阿七顺着船票线索走向灯塔，第一次正面接触记忆雾。',
+        beats: ['阿七带着船票走向海边灯塔', '在灯塔脚下遇到守塔人', '掌心贝壳耳坠有了微微的知觉'],
+        charProgress: '从被动追查转为主动出发。',
+        hooks: ['守塔人似乎认识阿七'],
+        wordCount: 5
+      }
+    ]
+    const writes: string[] = []
+    for (const c of cards) {
+      const rel = '大纲/' + c.file.replace(/^正文\//, '')
+      docs.set(projectId + '/' + rel, '# 章卡 ' + (c.no ? `第${c.no}章 ` : '') + c.title + '\n\n> 定位：' + c.oneLine + '\n\n- 关键事件：' + c.beats.join('；') + '\n- 人物进展：' + c.charProgress + '\n- 钩子：' + c.hooks.join('；') + '\n')
+      writes.push(rel)
+    }
+    docs.set(projectId + '/大纲/索引.md', '# 大纲区 · 章卡索引\n\n共 ' + cards.length + ' 章已回建章卡。\n')
+    return { ok: true, cards, written: writes }
+  },
+  // 素材→设定升格（dev 模式：固定演示判定）
+  agentTriage: async () => ({
+    ok: true,
+    result: {
+      summary: '（演示）素材库里有一条值得直接升格进设定档案。',
+      items: [
+        { file: '素材库/桥段/追忆型开头.md', name: '追忆型开头', verdict: 'promote', category: '桥段', what: '以旧物切入牵出“忘了的事”，用于开篇营造悬念', suggestion: '把“以旧物定主线”的句式写成创作规范补进世界观总纲', target: '世界观/总纲.md' },
+        { file: '素材库/环境/雾海.md', name: '雾海', verdict: 'reference', category: '环境', what: '雾海细节（能见度、气味）的描写素材', suggestion: '保持素材，写作时作为描写参考引入', target: '' }
+      ]
+    }
+  })
 }
 
 /** devShim 用的锚点写入（与 main 侧同规则：标题下节体替换；无标题则追加） */

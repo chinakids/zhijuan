@@ -11,11 +11,12 @@ const sectionTitles: Record<string, string> = {
   novel: '正文创作',
   characters: '人物设定',
   worldview: '世界观设定',
+  outline: '大纲区',
   library: '素材库',
   settings: '设置'
 }
 
-const emptyCounts: NavCounts = { novel: 0, characters: 0, worldview: 0, library: 0 }
+const emptyCounts: NavCounts = { novel: 0, characters: 0, worldview: 0, outline: 0, library: 0 }
 
 export default function Workspace() {
   const { id } = useParams<{ id: string }>()
@@ -30,16 +31,18 @@ export default function Workspace() {
     const list = await window.zhijuan.listProjects()
     const me = list.find((p) => p.id === id) ?? null
     setProject(me)
-    const [chs, chars, world, lib] = await Promise.all([
+    const [chs, chars, world, outline, lib] = await Promise.all([
       window.zhijuan.listChapters(id),
       window.zhijuan.listDocs(id, '人物'),
       window.zhijuan.listDocs(id, '世界观'),
+      window.zhijuan.listDocs(id, '大纲'),
       window.zhijuan.listDocs(id, '素材库')
     ])
     setCounts({
       novel: chs.length,
       characters: chars.filter((d) => d.file !== '人物/总览.md').length,
       worldview: world.filter((d) => d.file !== '世界观/总纲.md').length,
+      outline: outline.filter((d) => d.file !== '索引.md').length,
       library: lib.filter((d) => !d.file.startsWith('素材库/采集池')).length
     })
   }, [id])

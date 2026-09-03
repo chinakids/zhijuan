@@ -8,6 +8,7 @@ import Workspace from './pages/Workspace'
 import Novel from './pages/Novel'
 import Characters from './pages/Characters'
 import Worldview from './pages/Worldview'
+import Outline from './pages/Outline'
 import Library from './pages/Library'
 import Settings from './pages/Settings'
 
@@ -45,6 +46,7 @@ export default function App() {
             <Route path="novel" element={<Novel />} />
             <Route path="characters" element={<Characters />} />
             <Route path="worldview" element={<Worldview />} />
+            <Route path="outline" element={<Outline />} />
             <Route path="library" element={<Library />} />
             <Route path="settings" element={<Settings />} />
           </Route>

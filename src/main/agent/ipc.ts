@@ -1,7 +1,9 @@
 // ===== 织卷 · agent IPC 路由（主进程） =====
 import { ipcMain, BrowserWindow } from 'electron'
 import { runChat, runSync, abortRequest, type AgentOutEvent } from './engine'
-import { runAudit, type AuditKind } from './audit'
+import { runAudit, runChapterCheck, type AuditKind } from './audit'
+import { runOutlineRebuild } from './outline'
+import { runMaterialTriage } from './triage'
 import { ensureHarness, closeHarness, answerDir } from './runtime'
 import { getSettings } from '../store'
 import { mkdirSync, writeFileSync } from 'fs'
@@ -51,6 +53,14 @@ export function registerAgentIpc() {
   })
   // 全卷检查子任务（一致性巡查 / 冷读报告）
   ipcMain.handle('agent:audit', (_e, projectId: string, kind: AuditKind) => runAudit(projectId, kind))
+  // 本章级小环（每章短巡查 / 分层修订）
+  ipcMain.handle('agent:chapterCheck', (_e, projectId: string, chapterRel: string, kind: 'chapter' | 'revision') =>
+    runChapterCheck(projectId, chapterRel, kind)
+  )
+  // 大纲回建（把已有正文回建成章卡，写 大纲/ 目录；only：只回建指定的正文章节）
+  ipcMain.handle('agent:outlineRebuild', (_e, projectId: string, only: string[] | undefined) => runOutlineRebuild(projectId, { only }))
+  // 素材→设定升格判定
+  ipcMain.handle('agent:triage', (_e, projectId: string) => runMaterialTriage(projectId))
   // 引擎状态（设置页用）
   ipcMain.handle('agent:status', async () => {
     const err = await ensureHarness()

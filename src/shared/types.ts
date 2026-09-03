@@ -156,3 +156,61 @@ export interface AuditResult {
   summary: string
   items: AuditItem[]
 }
+
+/** 本章级检查（agent-first 小环）：每章短巡查 / 分层修订 */
+export type ChapterCheckKind = 'chapter' | 'revision'
+/** 修订层：故事 / 场景 / 词句（沿写作线的打磨顺序） */
+export type RevisionLayer = 'story' | 'scene' | 'prose'
+export interface ChapterCheckItem {
+  severity: 'high' | 'medium' | 'low'
+  type: string
+  /** 分层修订时给出所属层；短巡查不带 */
+  layer?: RevisionLayer
+  where: string
+  what: string
+  suggest: string
+  /** 本条建议涉及的设定文件（人物/… 或 世界观/…）；给得出才带，用于转提案 */
+  target?: string
+}
+export interface ChapterCheckResult {
+  summary: string
+  items: ChapterCheckItem[]
+}
+
+/** 大纲区：一张章卡对应一章正文（agent 从正文回建） */
+export interface OutlineCard {
+  /** 对应正文文件，如 正文/第01章_雾港.md */
+  file: string
+  no?: number
+  title: string
+  slice: string
+  /** 一句话定位：这一章在全书里干什么 */
+  oneLine: string
+  /** 关键事件（动词短语） */
+  beats: string[]
+  /** 主要人物在本章的状态变化 */
+  charProgress: string
+  /** 本章新埋的钩子 / 应该回应的旧钩子 */
+  hooks: string[]
+  wordCount: number
+}
+
+/** 素材→设定升格判定 */
+export type TriageVerdict = 'promote' | 'reference' | 'skip'
+export interface TriageItem {
+  file: string
+  name: string
+  /** promote=可直接入档为设定；reference=可借鉴暂不入档；skip=用不上 */
+  verdict: TriageVerdict
+  /** 素材在素材库里的归属类别（桥段 / 人物原型 / 环境…） */
+  category: string
+  /** 素材一句话说明 */
+  what: string
+  suggestion: string
+  /** promote 时建议入档的设定文件（人物/… 或 世界观/…，须为已存在文件） */
+  target?: string
+}
+export interface TriageResult {
+  summary: string
+  items: TriageItem[]
+}

@@ -1,5 +1,18 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings, AgentEvent, ChapterEntry, FsEvent, ProjectSummary, Proposal, ProposalItem, AuditItem } from '../shared/types'
+import type {
+  AppSettings,
+  AgentEvent,
+  ChapterEntry,
+  FsEvent,
+  ProjectSummary,
+  Proposal,
+  ProposalItem,
+  AuditItem,
+  ChapterCheckKind,
+  ChapterCheckResult,
+  OutlineCard,
+  TriageResult
+} from '../shared/types'
 
 const api = {
   // 设置
@@ -56,6 +69,21 @@ const api = {
   agentAudit: (projectId: string, kind: 'consistency' | 'review') =>
     ipcRenderer.invoke('agent:audit', projectId, kind) as Promise<
       | { ok: true; result: { summary: string; items: AuditItem[] } }
+      | { ok: false; error: string }
+    >,
+  agentChapterCheck: (projectId: string, chapterRel: string, kind: ChapterCheckKind) =>
+    ipcRenderer.invoke('agent:chapterCheck', projectId, chapterRel, kind) as Promise<
+      | { ok: true; result: ChapterCheckResult }
+      | { ok: false; error: string }
+    >,
+  agentOutlineRebuild: (projectId: string, only?: string[]) =>
+    ipcRenderer.invoke('agent:outlineRebuild', projectId, only) as Promise<
+      | { ok: true; cards: OutlineCard[]; written: string[] }
+      | { ok: false; error: string }
+    >,
+  agentTriage: (projectId: string) =>
+    ipcRenderer.invoke('agent:triage', projectId) as Promise<
+      | { ok: true; result: TriageResult }
       | { ok: false; error: string }
     >,
   agentStatus: () =>
