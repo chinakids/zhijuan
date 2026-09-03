@@ -9,6 +9,8 @@ import { createRequire } from 'node:module'
 
 const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_APP_PATH = root
+// 固定 userData，使主进程 answerDir() 与边车插件 ZJ_USER_ANSWER_DIR 指向同一目录（回灌一致）
+process.env.ZJ_USERDATA = '/tmp/zj-bridge-userdata'
 const out = '/tmp/zj-bridge-engine.mjs'
 
 await esbuild({
@@ -53,6 +55,19 @@ wss.on('connection', (ws) => {
       }
     } else if (msg.type === 'cancel') {
       mod.abortRequest(String(msg.requestId))
+    } else if (msg.type === 'answer') {
+      // 用户回答某个 ask 批次：写答案文件，边车插件轮询到后回灌模型
+      const mkdirSync = (await import('node:fs')).mkdirSync
+      const writeFileSync = (await import('node:fs')).writeFileSync
+      const join = (await import('node:path')).join
+      const dir = join('/tmp/zj-bridge-userdata', 'agent-answers')
+      mkdirSync(dir, { recursive: true })
+      try {
+        writeFileSync(join(dir, String(msg.batch) + '.json'), JSON.stringify({ answers: msg.answers ?? [] }), 'utf-8')
+        ws.send(JSON.stringify({ type: 'answer-ok', batch: msg.batch }))
+      } catch (e) {
+        ws.send(JSON.stringify({ type: 'answer-err', error: String(e?.message || e) }))
+      }
     } else if (msg.type === 'status') {
       try { ws.send(JSON.stringify({ type: 'status', data: { online: true, engine: 'bridge->harness', model: 'deepseek-v4-flash-0731' } })) } catch {}
     }

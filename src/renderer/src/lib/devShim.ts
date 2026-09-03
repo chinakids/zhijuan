@@ -71,7 +71,7 @@ docs.set(
   ['---', '标签: [桥段, 开头, 失忆]', '---', '', '# 追忆型开头', '', '以一件旧物切入，牵出角色“忘了的事”，用于开篇营造悬念。', ''].join('\n')
 )
 
-const settings: AppSettings = { libraryRoot: '', llm: { baseUrl: 'http://127.0.0.1:8888', model: 'deepseek-v4-flash-0731', apiKey: '' }, theme: 'paper', collectionEnabled: true, agentEngine: 'harness' }
+const settings: AppSettings = { libraryRoot: '', llm: { baseUrl: 'http://127.0.0.1:8888', model: 'deepseek-v4-flash-0731', apiKey: '' }, theme: 'paper', collectionEnabled: true, agentEngine: 'harness', agentTools: { todo: true, askUser: true } }
 
 const projects: ProjectSummary[] = [
   {
@@ -197,9 +197,39 @@ const mock = {
   agentSend: async (input: { requestId: string; prompt: string }) => {
     const rid = input.requestId
     const emit = (e: AgentEvent) => mock.agentListeners.forEach((h) => h(e))
-    await new Promise((r) => setTimeout(r, 80))
-    emit({ requestId: rid, type: 'meta', tool: 'zj_read_doc' })
-    await new Promise((r) => setTimeout(r, 80))
+    await new Promise((r) => setTimeout(r, 60))
+    emit({ requestId: rid, type: 'meta', tool: 'todo_write' })
+    await new Promise((r) => setTimeout(r, 60))
+    emit({
+      requestId: rid,
+      type: 'todo',
+      items: [
+        { content: '读取当前章节与人物设定', status: 'in_progress' },
+        { content: '给出续写建议', status: 'pending' },
+        { content: '等待确认后应用到正文', status: 'pending' }
+      ]
+    })
+    await new Promise((r) => setTimeout(r, 60))
+    emit({ requestId: rid, type: 'meta', tool: 'ask_user_question' })
+    await new Promise((r) => setTimeout(r, 60))
+    emit({
+      requestId: rid,
+      type: 'ask',
+      batch: 'dev-demo-1',
+      questions: [
+        {
+          id: 'q_style',
+          header: '风格选择',
+          question: '这段续写打算用什么语气？',
+          options: [
+            { label: '保持现状', description: '延续全章的沉郁氛围' },
+            { label: '轻快一些', description: '给角色一个透气的瞬间' }
+          ],
+          multiSelect: false
+        }
+      ]
+    })
+    await new Promise((r) => setTimeout(r, 60))
     const demo =
       '（dev 模式模拟回复）\n\n根据当前章节，阿七在雨中攥紧了那盏旧灯 —— 她该回头去灯塔看看。\n\n要不要我把这一段续出去？'
     for (let i = 0; i < demo.length; i += 8) {
@@ -210,6 +240,10 @@ const mock = {
     emit({ requestId: rid, type: 'done' })
   },
   agentCancel: async () => true,
+  agentAnswer: async (_batch: string, answers: unknown[]) => {
+    console.log('[devShim] agent answer', JSON.stringify(answers))
+    return { ok: true }
+  },
   agentSync: async () => ({ ok: true, items: [] } as { ok: boolean; items: ProposalItem[] }),
   agentStatus: async () => ({ online: true, engine: 'harness', model: settings.llm.model })
 }

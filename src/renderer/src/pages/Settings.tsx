@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAppStore } from '../store/app'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -25,7 +25,19 @@ export default function Settings() {
   const [libraryRoot, setLibraryRoot] = useState('')
   const [theme, setTheme] = useState<'paper' | 'dark'>('paper')
   const [collection, setCollection] = useState(true)
+  const [agentEngine, setAgentEngine] = useState<'harness' | 'legacy'>('harness')
+  const [tools, setTools] = useState({ todo: true, askUser: true })
+  const [status, setStatus] = useState<{ online: boolean; engine?: string; model?: string; message?: string } | null>(null)
   const [saved, setSaved] = useState(false)
+
+  const refreshStatus = useCallback(async () => {
+    try {
+      const s = await window.zhijuan.agentStatus()
+      setStatus(s)
+    } catch {
+      setStatus({ online: false, message: '引擎状态查询失败' })
+    }
+  }, [])
 
   useEffect(() => {
     void loadSettings()
@@ -39,17 +51,23 @@ export default function Settings() {
     setLibraryRoot(settings.libraryRoot)
     setTheme(settings.theme)
     setCollection(settings.collectionEnabled)
-  }, [settings])
+    setAgentEngine(settings.agentEngine)
+    setTools({ todo: settings.agentTools?.todo ?? true, askUser: settings.agentTools?.askUser ?? true })
+    void refreshStatus()
+  }, [settings, refreshStatus])
 
   async function save() {
     await updateSettings({
       llm: { baseUrl: baseUrl.trim() || 'http://127.0.0.1:8888', model: model.trim() || 'deepseek-v4-flash-0731', apiKey: apiKey.trim() },
       libraryRoot: libraryRoot.trim(),
       theme,
-      collectionEnabled: collection
+      collectionEnabled: collection,
+      agentEngine,
+      agentTools: tools
     })
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
+    void refreshStatus()
   }
 
   return (
@@ -69,6 +87,54 @@ export default function Settings() {
         <Field label="API Key（如需要）">
           <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="留空即可（本地端点一般不要）" />
         </Field>
+      </Card>
+
+      <Card className="mt-4 p-6">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-ink-2">Agent 引擎与常用工具</h3>
+          <button onClick={() => void refreshStatus()} className="text-[11px] text-ink-3 hover:text-ink">
+            {status === null ? '查询引擎状态…' : status.online ? (
+              <span className="flex items-center gap-1 text-success">
+                <span className="h-1.5 w-1.5 rounded-full bg-success" /> 边车在线 · {status.model}
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-danger">
+                <span className="h-1.5 w-1.5 rounded-full bg-danger" /> 离线 {status.message ? '（' + status.message.slice(0, 40) + '）' : ''}
+              </span>
+            )}
+          </button>
+        </div>
+        <Separator className="my-4" />
+        <div className="flex items-center justify-between pb-4">
+          <div>
+            <Label>对话引擎</Label>
+            <p className="text-xs text-ink-3">边车（推荐）：走 dsh 边车，模型可在会话里读章节、列计划、向你确认。切换后下次对话生效。</p>
+          </div>
+          <div className="flex gap-1 rounded-lg border border-hair p-0.5">
+            <Button variant={agentEngine === 'harness' ? 'default' : 'ghost'} size="sm" className="h-7" onClick={() => setAgentEngine('harness')}>
+              边车（有工具）
+            </Button>
+            <Button variant={agentEngine === 'legacy' ? 'default' : 'ghost'} size="sm" className="h-7" onClick={() => setAgentEngine('legacy')}>
+              直连对话
+            </Button>
+          </div>
+        </div>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>任务清单（todo_write）</Label>
+              <p className="text-xs text-ink-3">模型会把执行步骤画成清单卡片，随进度更新。</p>
+            </div>
+            <Switch checked={tools.todo} onCheckedChange={(v) => setTools((t) => ({ ...t, todo: v }))} />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>需要你确认（ask_user）</Label>
+              <p className="text-xs text-ink-3">需要选择时模型会停下，用提问卡等你回答。</p>
+            </div>
+            <Switch checked={tools.askUser} onCheckedChange={(v) => setTools((t) => ({ ...t, askUser: v }))} />
+          </div>
+        </div>
       </Card>
 
       <Card className="mt-4 p-6">

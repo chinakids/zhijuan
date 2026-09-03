@@ -25,3 +25,11 @@
       inject: [agents]
     - id: zj-core
       name: 'zj-core'
+    - id: zj-questions
+      name: 'zj-questions'
+    - id: tool-ask-user
+      name: '@deepseek-ai/dsh-tool-ask-user'
+# 写作以串行为主：允许多个 in_progress 会让 todo 卡显得喧嚣；这里覆盖 base 的默认并行配置。
+- id: tool-todo
+  config:
+    allowParallelInProgress: false

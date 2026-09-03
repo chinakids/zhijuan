@@ -75,3 +75,10 @@ export async function sendAgent(input: AgentSendInput, onEvent: Handler): Promis
 export function cancelAgent(requestId: string) {
   api()?.agentCancel?.(requestId)
 }
+
+/** 回答某个 ask 批次（模型等答案） */
+export function answerAgent(batch: string, answers: { id: string; selected: string[]; custom?: string }[]) {
+  const a = api()
+  if (!a?.agentAnswer) return Promise.resolve({ ok: false, error: 'agent 通道未就绪' } as { ok: boolean; error?: string })
+  return a.agentAnswer(batch, answers) as Promise<{ ok: boolean; error?: string }>
+}

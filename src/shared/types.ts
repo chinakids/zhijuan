@@ -49,6 +49,8 @@ export interface AppSettings {
   collectionEnabled: boolean
   /** agent 引擎：harness = dsh 边车（有工具）；legacy = 直连 LLM 对话 */
   agentEngine: 'harness' | 'legacy'
+  /** 常用 agent 工具开关（harness 引擎内） */
+  agentTools?: { todo?: boolean; askUser?: boolean }
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -56,16 +58,45 @@ export const DEFAULT_SETTINGS: AppSettings = {
   llm: { baseUrl: 'http://127.0.0.1:8888', model: 'deepseek-v4-flash-0731', apiKey: '' },
   theme: 'paper',
   collectionEnabled: true,
-  agentEngine: 'harness'
+  agentEngine: 'harness',
+  agentTools: { todo: true, askUser: true }
+}
+
+/** todo 清单项（模型通过 todo_write 维护的全量列表） */
+export interface TodoItem {
+  content: string
+  status: 'pending' | 'in_progress' | 'completed'
+}
+
+/** ask_user_question 的一次提问 */
+export interface AskQuestion {
+  id: string
+  question: string
+  header?: string
+  options?: { label: string; description?: string }[]
+  multiSelect?: boolean
+}
+
+/** 用户对一次提问的回答 */
+export interface AskAnswer {
+  id: string
+  selected: string[]
+  custom?: string
 }
 
 /** agent 流事件（主进程 → 渲染层，按 requestId 认领） */
 export interface AgentEvent {
   requestId: string
-  type: 'delta' | 'meta' | 'meta-done' | 'final' | 'done' | 'aborted' | 'error'
+  type: 'delta' | 'meta' | 'meta-done' | 'final' | 'done' | 'aborted' | 'error' | 'todo' | 'ask'
   text?: string
   tool?: string
   message?: string
+  /** type = todo 时的全量清单 */
+  items?: TodoItem[]
+  /** type = ask 时的提问组 */
+  questions?: AskQuestion[]
+  /** type = ask 时的提问批次 id（提交答案时回传） */
+  batch?: string
 }
 
 /** 文件系统事件（watcher 广播给渲染层） */

@@ -8,6 +8,8 @@ import { useAgentStore } from './store'
 import { buildAgentContext } from './context'
 import { streamChat, type ChatMessage } from './llm'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
+import TodoCard from './TodoCard'
+import AskCard from './AskCard'
 import { cn } from '../../lib/utils'
 import { Button } from '../../components/ui/button'
 
@@ -58,10 +60,11 @@ function useSender(props: AgentPanelProps) {
         if (engine === 'harness') {
           attachAgentBridge()
           abortRef.current = { kind: 'harness', rid }
-          // 可见历史（去掉刚 push 的最后一条 user + 空 assistant）由引擎拼进上下文
+          // 可见历史（去掉刚 push 的最后一条 user + 空 assistant、以及 tool 卡片）由引擎拼进上下文
           const history = useAgentStore
             .getState()
             .messages.slice(0, -2)
+            .filter((m): m is { role: 'user' | 'assistant'; content: string; id: string } => m.role !== 'tool')
             .slice(-20)
             .map((m) => ({ role: m.role, content: m.content }))
           const r = await harnessSend(
@@ -78,6 +81,11 @@ function useSender(props: AgentPanelProps) {
               if (e.type === 'delta') patch((useAgentStore.getState().messages.at(-1)?.content ?? '') + e.text, false)
               else if (e.type === 'final') patch(e.text ?? '')
               else if (e.type === 'error') fail('请求失败：' + (e.message ?? ''))
+              else if (e.type === 'todo') useAgentStore.getState().upsertTool({ id: rid, kind: 'todo', items: e.items ?? [] })
+              else if (e.type === 'ask')
+                useAgentStore
+                  .getState()
+                  .upsertTool({ id: rid + '-a-' + (e.batch ?? ''), kind: 'ask', questions: e.questions ?? [], batch: e.batch ?? '' })
             }
           )
           if (r === 'aborted') patch((useAgentStore.getState().messages.at(-1)?.content ?? '') + '\n\n（已停止）')
@@ -170,39 +178,60 @@ export default function AgentPanel(props: AgentPanelProps) {
             先选中正文某段 → 「引用选中」，或直接输入指令。
           </p>
         )}
-        {messages.map((m) => (
-          <div key={m.id} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
-            <div
-              className={cn(
-                'max-w-[92%] rounded-xl px-3 py-2 text-[13px] leading-relaxed',
-                m.role === 'user' ? 'bg-accent text-accent-ink' : 'border border-hair bg-surface text-ink'
-              )}
-            >
-              {m.quote && (
-                <blockquote className="mb-1.5 rounded bg-surface-2 px-2 py-1 text-[11px] text-ink-2" style={{ whiteSpace: 'pre-wrap' }}>
-                  {m.quote.slice(0, 300)}
-                  {m.quote.length > 300 ? '…' : ''}
-                </blockquote>
-              )}
-              {m.role === 'assistant' ? (
-                <div className="prose">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content || (m.error ? '' : '…')}</ReactMarkdown>
-                  {m.error && <span className="text-danger">（{m.content}）</span>}
+        {messages.map((m) => {
+          if (m.role === 'tool') {
+            if (m.kind === 'todo' && m.items) return (
+              <div key={m.id} className="w-full">
+                <TodoCard items={m.items} />
+              </div>
+            )
+            if (m.kind === 'ask' && m.questions && m.batch)
+              return (
+                <div key={m.id} className="w-full">
+                  <AskCard
+                    id={m.id}
+                    batch={m.batch}
+                    questions={m.questions}
+                    onAnswered={() => useAgentStore.getState().markAsked(m.id)}
+                  />
                 </div>
-              ) : (
-                <span className="whitespace-pre-wrap">{m.content}</span>
-              )}
-              {m.role === 'assistant' && !m.error && m.content && (
-                <div className="mt-2 flex items-center gap-2">
-                  <Button variant="outline" size="sm" className="h-6 px-2 text-[11px]" onClick={() => applyText(m)} disabled={!props.chapterRel}>
-                    {m.applied ? '✓ 已应用' : '应用到正文'}
-                  </Button>
-                  {m.applied && <span className="text-[11px] text-ink-3">保存以保留（⌘S）</span>}
-                </div>
-              )}
+              )
+            return <div key={m.id} className="h-px" />
+          }
+          return (
+            <div key={m.id} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
+              <div
+                className={cn(
+                  'max-w-[92%] rounded-xl px-3 py-2 text-[13px] leading-relaxed',
+                  m.role === 'user' ? 'bg-accent text-accent-ink' : 'border border-hair bg-surface text-ink'
+                )}
+              >
+                {m.quote && (
+                  <blockquote className="mb-1.5 rounded bg-surface-2 px-2 py-1 text-[11px] text-ink-2" style={{ whiteSpace: 'pre-wrap' }}>
+                    {m.quote.slice(0, 300)}
+                    {m.quote.length > 300 ? '…' : ''}
+                  </blockquote>
+                )}
+                {m.role === 'assistant' ? (
+                  <div className="prose">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content || (m.error ? '' : '…')}</ReactMarkdown>
+                    {m.error && <span className="text-danger">（{m.content}）</span>}
+                  </div>
+                ) : (
+                  <span className="whitespace-pre-wrap">{m.content}</span>
+                )}
+                {m.role === 'assistant' && !m.error && m.content && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <Button variant="outline" size="sm" className="h-6 px-2 text-[11px]" onClick={() => applyText(m)} disabled={!props.chapterRel}>
+                      {m.applied ? '✓ 已应用' : '应用到正文'}
+                    </Button>
+                    {m.applied && <span className="text-[11px] text-ink-3">保存以保留（⌘S）</span>}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
         {streaming && (
           <div className="flex items-center gap-2 px-2 text-[11px] text-ink-3">
             <Loader2 className="h-3 w-3 animate-spin" /> 生成中…

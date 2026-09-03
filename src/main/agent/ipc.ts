@@ -1,8 +1,11 @@
 // ===== 织卷 · agent IPC 路由（主进程） =====
 import { ipcMain, BrowserWindow } from 'electron'
 import { runChat, runSync, abortRequest, type AgentOutEvent } from './engine'
-import { ensureHarness, closeHarness } from './runtime'
+import { ensureHarness, closeHarness, answerDir } from './runtime'
 import { getSettings } from '../store'
+import { mkdirSync, writeFileSync } from 'fs'
+import { dirname, join } from 'path'
+import type { AskAnswer } from '../../shared/types'
 
 export interface AgentSendInput {
   requestId: string
@@ -33,6 +36,18 @@ export function registerAgentIpc() {
   })
   // 切片同步（设定补丁）
   ipcMain.handle('agent:sync', (_e, projectId: string, chapterRel: string) => runSync(projectId, chapterRel))
+  // 用户回答某个 ask 批次（写答案文件 → 边车插件轮询回灌模型循环）
+  ipcMain.handle('agent:answer', (_e, batch: string, answers: AskAnswer[]) => {
+    if (!batch) return { ok: false, error: 'missing batch' }
+    try {
+      const dir = answerDir()
+      mkdirSync(dir, { recursive: true })
+      writeFileSync(join(dir, batch + '.json'), JSON.stringify({ answers }), 'utf-8')
+      return { ok: true }
+    } catch (e: any) {
+      return { ok: false, error: String(e?.message ?? e) }
+    }
+  })
   // 引擎状态（设置页用）
   ipcMain.handle('agent:status', async () => {
     const err = await ensureHarness()

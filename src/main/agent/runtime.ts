@@ -6,7 +6,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'fs'
 import { resolve, dirname, join } from 'path'
 import { getSettings } from '../store'
 
-// 运行时根目录：默认 <appPath>/dsh-runtime（env 可覆盖，便于无头测试指向临时副本）
+/** 运行时根目录：默认 <appPath>/dsh-runtime（env 可覆盖，便于无头测试指向临时副本） */
 function runtimeDir(): string {
   if (process.env.ZHJUAN_DSH_RUNTIME) return process.env.ZHJUAN_DSH_RUNTIME
   return resolve(app.getAppPath(), 'dsh-runtime')
@@ -14,6 +14,11 @@ function runtimeDir(): string {
 
 const dshHome = () => join(runtimeDir(), 'dshhome')
 const sdkBin = () => join(runtimeDir(), 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
+
+/** 用户回答的回灌目录（边车插件轮询这里读答案 JSON） */
+export function answerDir(): string {
+  return join(app.getPath('userData'), 'agent-answers')
+}
 
 // 动态加载 SDK client（从 dsh-runtime 的依赖树读，主库零新依赖）
 let harnessCtor: any = null
@@ -73,6 +78,21 @@ function llmOverrideArgs(): string[] {
   return ['--patch', patch]
 }
 
+/** 按设置的常用工具开关生成工具 override（只含要关的项；全开时无文件无参数） */
+function toolsOverrideArgs(): string[] {
+  const t = getSettings().agentTools ?? {}
+  const rows: string[] = []
+  if (t.todo === false) rows.push('- id: tool-todo\n  disabled: true\n')
+  if (t.askUser === false) rows.push('- id: tool-ask-user\n  disabled: true\n')
+  if (!rows.length) return []
+  const run = join(runtimeDir(), 'run')
+  mkdirSync(run, { recursive: true })
+  const patch = join(run, 'tools.override.patch.yml')
+  const body = rows.join('')
+  if (readFileSync(patch, 'utf-8') !== body) writeFileSync(patch, body, 'utf-8')
+  return ['--patch', patch]
+}
+
 /** 确保边车在跑；失败返回原因字符串，成功返回 undefined */
 export async function ensureHarness(): Promise<string | undefined> {
   if (harness) return undefined
@@ -84,12 +104,12 @@ export async function ensureHarness(): Promise<string | undefined> {
   const apiKey = process.env.LOCAL_LLM_KEY ?? (llm.apiKey || 'local')
   const launch: any = {
     command: process.execPath,
-    args: [sdkBin(), '--profile', 'sdk', ...llmOverrideArgs()],
+    args: [sdkBin(), '--profile', 'sdk', ...llmOverrideArgs(), ...toolsOverrideArgs()],
     cwd: runtimeDir(),
     requestTimeoutMs: 1_200_000
   }
-  // 子进程环境：父环境 + DSH_HOME + LLM key（env 传对象会整体替换父环境）
-  launch.env = { ...process.env, DSH_HOME: dshHome(), LOCAL_LLM_KEY: String(apiKey) }
+  // 子进程环境：父环境 + DSH_HOME + LLM key + 用户问答回灌目录（env 传对象会整体替换父环境）
+  launch.env = { ...process.env, DSH_HOME: dshHome(), LOCAL_LLM_KEY: String(apiKey), ZJ_USER_ANSWER_DIR: answerDir() }
   try {
     harness = new Sdk({ launch, provider, model, maxTokens: 8192 })
     await harness.start()

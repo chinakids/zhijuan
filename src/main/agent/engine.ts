@@ -18,6 +18,8 @@ export type AgentOutEvent =
   | { requestId: string; type: 'done' }
   | { requestId: string; type: 'aborted' } // 用户点了停止（模型可能在边上跑完）
   | { requestId: string; type: 'error'; message: string }
+  | { requestId: string; type: 'todo'; items: import('../../shared/types').TodoItem[] } // 模型更新任务清单
+  | { requestId: string; type: 'ask'; questions: import('../../shared/types').AskQuestion[]; batch: string } // 模型在问用户
 
 // ---------- 展示性取消 ----------
 const active: Map<string, { aborted: boolean }> = new Map()
@@ -112,6 +114,24 @@ function translate(n: DriveEvent, requestId: string, emit: (e: AgentOutEvent) =>
         .join(' ')
         .slice(0, 80) || '完成'
     emit({ requestId, type: 'meta-done', tool: String(d.callId ?? ''), message: summary })
+  } else if (t === 'todo/write') {
+    const todos = Array.isArray(d.todos)
+      ? d.todos.map((x: any) => ({ content: String(x?.content ?? ''), status: x?.status }))
+      : []
+    emit({ requestId, type: 'todo', items: todos })
+  } else if (t === 'zj/user-ask') {
+    const qs = Array.isArray(d.questions)
+      ? d.questions.map((q: any) => ({
+          id: String(q?.id ?? ''),
+          question: String(q?.question ?? ''),
+          header: q?.header,
+          options: Array.isArray(q?.options)
+            ? q.options.map((o: any) => ({ label: String(o?.label ?? ''), description: o?.description }))
+            : undefined,
+          multiSelect: !!q?.multiSelect
+        }))
+      : []
+    emit({ requestId, type: 'ask', questions: qs, batch: String(d?.batch ?? '') })
   }
 }
 
@@ -125,7 +145,8 @@ function syncSystem(): string {
     '3. 每条补丁为：{"target":"相对项目根的文件路径","anchor":"要更新小节对应的标题文本（目标文档无此小节则填空串，我们把它作为新小节追加）","kind":"upsert-section","before":"原状态的一句话要点","after":"本小节要写入的完整新内容（markdown 列表即可）","reason":"一句话理由"}\n' +
     '4. target 优先：人物档案用 人物/<姓名>.md；世界/环境变化用 世界观/<切片名>.md。只允许这两个目录里已有的文件。\n' +
     '5. after 是该小节完整的新内容，不含标题行。\n' +
-    '6. 只输出 JSON 数组本身：不加注释、不加 markdown 围栏、不加任何前后缀文字。'
+    '6. 只输出 JSON 数组本身：不加注释、不加 markdown 围栏、不加任何前后缀文字。\n' +
+    '7. 不要用 ask_user_question 或任何提问工具：本任务离线执行，直接按文件决定即可。'
   )
 }
 
