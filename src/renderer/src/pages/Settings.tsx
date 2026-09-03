@@ -6,6 +6,7 @@ import { Label } from '../components/ui/label'
 import { Separator } from '../components/ui/separator'
 import { Switch } from '../components/ui/switch'
 import { Card } from '../components/ui/card'
+import { cn } from '../lib/utils'
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -16,6 +17,15 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
     </div>
   )
 }
+
+/** 设置页一级分区（将来加配置先挂到这里，保证布局稳定） */
+const SECTIONS = [
+  { key: 'workspace', label: '工作区与项目', hint: '工作区、项目库与文档落档', icon: 'Folder' },
+  { key: 'engine', label: '写作引擎', hint: '模型连接、常用工具与运行', icon: 'Sparkles' },
+  { key: 'look', label: '外观与数据', hint: '主题与联网采集', icon: 'Palette' },
+  { key: 'about', label: '关于', hint: '版本与本地数据', icon: 'Info' }
+] as const
+type SectionKey = (typeof SECTIONS)[number]['key']
 
 export default function Settings() {
   const { settings, loadSettings, updateSettings } = useAppStore()
@@ -34,6 +44,7 @@ export default function Settings() {
   const [tools, setTools] = useState({ todo: true, askUser: true })
   const [status, setStatus] = useState<{ online: boolean; engine?: string; model?: string; message?: string } | null>(null)
   const [saved, setSaved] = useState(false)
+  const [section, setSection] = useState<SectionKey>('workspace')
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -106,13 +117,58 @@ export default function Settings() {
     setOpenDocBody(t ?? '')
   }
 
+  const cur = SECTIONS.find((s) => s.key === section)
   return (
-    <div className="mx-auto max-w-2xl p-8">
-      <h2 className="text-lg font-semibold">设置</h2>
-      <p className="mt-1 text-sm text-ink-3">全部保存在本机，明文可入 git。</p>
+    <div className="flex h-full">
+      <aside className="flex w-52 shrink-0 flex-col gap-1 border-r border-hair bg-surface-2 p-3">
+        <div className="mb-2 flex items-center gap-2 px-1 py-1">
+          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-accent text-xs font-bold text-accent-ink">织</span>
+          <span className="text-sm font-semibold">设置</span>
+        </div>
+        {SECTIONS.map((s) => (
+          <button
+            key={s.key}
+            onClick={() => setSection(s.key)}
+            className={cn(
+              'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
+              section === s.key ? 'bg-accent-soft' : 'hover:bg-surface'
+            )}
+          >
+            <span
+              className={cn(
+                'flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-bold',
+                section === s.key ? 'bg-accent text-accent-ink' : 'bg-surface text-ink-3'
+              )}
+            >
+              {s.label.slice(0, 1)}
+            </span>
+            <span className="min-w-0">
+              <span className={cn('block truncate text-sm', section === s.key ? 'font-medium text-accent' : 'text-ink')}>{s.label}</span>
+              <span className="block truncate text-[10px] text-ink-3">{s.hint}</span>
+            </span>
+          </button>
+        ))}
+        <div className="flex-1" />
+        <p className="px-2 text-[10px] leading-relaxed text-ink-3">全部保存在本机，明文可进版本库。</p>
+      </aside>
 
-      <Card className="mt-6 p-6">
-        <h3 className="text-sm font-semibold text-ink-2">工作区</h3>
+      <div className="min-w-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-2xl p-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">{cur?.label}</h2>
+              <p className="mt-0.5 text-sm text-ink-3">{cur?.hint}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {saved && <span className="text-xs text-success">已保存 ✓</span>}
+              <Button onClick={() => void save()}>保存设置</Button>
+            </div>
+          </div>
+
+          {section === 'workspace' && (
+            <>
+              <Card className="mt-6 p-6">
+                <h3 className="text-sm font-semibold text-ink-2">工作区</h3>
         <Separator className="my-4" />
         <Field label="工作区路径" hint="留空用默认：~/Documents/织卷工作区。相关的说明文档、项目库都在这里落档。">
           <Input value={workspacePath} onChange={(e) => setWorkspacePath(e.target.value)} placeholder="如：~/Documents/织卷工作区" />
@@ -147,8 +203,20 @@ export default function Settings() {
         )}
       </Card>
 
-      <Card className="mt-6 p-6">
-        <h3 className="text-sm font-semibold text-ink-2">大模型</h3>
+        <Card className="mt-4 p-6">
+          <h3 className="text-sm font-semibold text-ink-2">项目库</h3>
+          <Separator className="my-4" />
+          <Field label="库根路径" hint="留空则用工作区下的默认位置（工作区/项目库）；现有项目迁移时可直接填老路径。">
+            <Input value={libraryRoot} onChange={(e) => setLibraryRoot(e.target.value)} placeholder="/Users/你/Documents/织卷工作区/项目库" />
+          </Field>
+        </Card>
+            </>
+          )}
+
+          {section === 'engine' && (
+            <>
+              <Card className="mt-6 p-6">
+                <h3 className="text-sm font-semibold text-ink-2">大模型</h3>
         <Separator className="my-4" />
         <Field label="端点地址" hint="本地 vLLM 或其他 OpenAI 兼容端点">
           <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="http://127.0.0.1:8888" />
@@ -208,44 +276,51 @@ export default function Settings() {
           </div>
         </div>
       </Card>
+            </>
+          )}
 
-      <Card className="mt-4 p-6">
-        <h3 className="text-sm font-semibold text-ink-2">项目库</h3>
-        <Separator className="my-4" />
-        <Field label="库根路径" hint="留空则用工作区下的默认位置（工作区/项目库）；现有项目迁移时可直接填老路径。">
-          <Input value={libraryRoot} onChange={(e) => setLibraryRoot(e.target.value)} placeholder="/Users/你/Documents/织卷工作区/项目库" />
-        </Field>
-      </Card>
+          {section === 'look' && (
+            <>
+              <Card className="mt-6 p-6">
+                <h3 className="text-sm font-semibold text-ink-2">外观与采集</h3>
+                <Separator className="my-4" />
+                <div className="flex items-center justify-between pb-4">
+                  <div>
+                    <Label>主题</Label>
+                    <p className="text-xs text-ink-3">暖纸（默认）适合长时间写作，深色适合夜间。</p>
+                  </div>
+                  <div className="flex gap-1 rounded-lg border border-hair p-0.5">
+                    <Button variant={theme === 'paper' ? 'default' : 'ghost'} size="sm" className="h-7" onClick={() => setTheme('paper')}>
+                      暖纸
+                    </Button>
+                    <Button variant={theme === 'dark' ? 'default' : 'ghost'} size="sm" className="h-7" onClick={() => setTheme('dark')}>
+                      深色
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>联网采集管道</Label>
+                    <p className="text-xs text-ink-3">开启后，采集池的任务会由本机管道后台处理（S5）。</p>
+                  </div>
+                  <Switch checked={collection} onCheckedChange={setCollection} />
+                </div>
+              </Card>
+            </>
+          )}
 
-      <Card className="mt-4 p-6">
-        <h3 className="text-sm font-semibold text-ink-2">外观与采集</h3>
-        <Separator className="my-4" />
-        <div className="flex items-center justify-between pb-4">
-          <div>
-            <Label>主题</Label>
-            <p className="text-xs text-ink-3">暖纸（默认）适合长时间写作，深色适合夜间。</p>
-          </div>
-          <div className="flex gap-1 rounded-lg border border-hair p-0.5">
-            <Button variant={theme === 'paper' ? 'default' : 'ghost'} size="sm" className="h-7" onClick={() => setTheme('paper')}>
-              暖纸
-            </Button>
-            <Button variant={theme === 'dark' ? 'default' : 'ghost'} size="sm" className="h-7" onClick={() => setTheme('dark')}>
-              深色
-            </Button>
-          </div>
+          {section === 'about' && (
+            <Card className="mt-6 p-6">
+              <h3 className="text-sm font-semibold text-ink-2">关于</h3>
+              <Separator className="my-4" />
+              <p className="text-sm text-ink-2">织卷 v0.1.0 — AI 辅助小说创作工作台。</p>
+              <p className="mt-1 text-xs text-ink-3">
+                所有数据都是本机明文文件：项目在项目库（默认 工作区/项目库），说明文档在工作区 文档/；
+                每个章节是一个时间切片，约定头写在正文文件顶部；正文为源，设定跟着走。
+              </p>
+            </Card>
+          )}
         </div>
-        <div className="flex items-center justify-between">
-          <div>
-            <Label>联网采集管道</Label>
-            <p className="text-xs text-ink-3">开启后，采集池的任务会由本机管道后台处理（S5）。</p>
-          </div>
-          <Switch checked={collection} onCheckedChange={setCollection} />
-        </div>
-      </Card>
-
-      <div className="mt-6 flex items-center gap-3">
-        <Button onClick={() => void save()}>保存设置</Button>
-        {saved && <span className="text-sm text-success">已保存 ✓</span>}
       </div>
     </div>
   )
