@@ -3,6 +3,8 @@ import { useParams, Outlet, useLocation } from 'react-router-dom'
 import type { FsEvent, ProjectSummary } from '../../../shared/types'
 import SectionNav, { type NavCounts } from '../features/nav/SectionNav'
 import { ListChecks } from 'lucide-react'
+import { useProposalStore } from '../store/proposals'
+import ProposalDrawer from '../features/proposals/ProposalDrawer'
 
 const sectionTitles: Record<string, string> = {
   novel: '正文创作',
@@ -52,7 +54,16 @@ export default function Workspace() {
   const seg = loc.pathname.split('/').filter(Boolean)
   const section = seg[1] ?? 'novel'
   const title = sectionTitles[section] ?? '织卷'
-  const pending = 0 // S4 接提案计数
+  const proposals = useProposalStore((s) => s.list)
+  const tick = useProposalStore((s) => s.tick)
+  const pending = proposals.filter((p) => p.status === 'pending').length
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const refreshProposals = useCallback(() => {
+    if (id) void useProposalStore.getState().refresh(id)
+  }, [id])
+  useEffect(() => {
+    refreshProposals()
+  }, [refreshProposals, tick])
 
   if (!project) {
     return (
@@ -69,7 +80,7 @@ export default function Workspace() {
           <h2 className="text-sm font-medium">{title}</h2>
           <div className="flex-1" />
           {pending > 0 && (
-            <button className="flex items-center gap-1.5 rounded-full bg-warn-soft px-2.5 py-1 text-xs text-warn transition-colors hover:brightness-95">
+            <button onClick={() => setDrawerOpen(true)} className="flex items-center gap-1.5 rounded-full bg-warn-soft px-2.5 py-1 text-xs text-warn transition-colors hover:brightness-95">
               <ListChecks className="h-3.5 w-3.5" />
               待确认提案 {pending}
             </button>
@@ -79,6 +90,9 @@ export default function Workspace() {
           <Outlet />
         </div>
       </div>
+      {drawerOpen && (
+        <ProposalDrawer projectId={project.id} list={proposals} onChanged={refreshProposals} onClose={() => setDrawerOpen(false)} />
+      )}
     </div>
   )
 }

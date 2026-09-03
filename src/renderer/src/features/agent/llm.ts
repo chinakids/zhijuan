@@ -1,36 +1,38 @@
-// ===== 织卷 agent · 本地 LLM 流式调用（OpenAI 兼容 SSE） =====
+// ===== 织卷 agent · 本地 LLM 调用（OpenAI 兼容） =====
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
   content: string
 }
 
-export interface StreamChatOpts {
+function endpoint(baseUrl: string): string {
+  const base = baseUrl.replace(/\/$/, '')
+  return base + (base.endsWith('/v1') ? '' : '/v1') + '/chat/completions'
+}
+
+function headers(apiKey: string) {
+  return {
+    'Content-Type': 'application/json',
+    ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
+  }
+}
+
+/** 流式走完整个回复；出错抛异常（由调用方展示） */
+export async function streamChat(opts: {
   baseUrl: string
   model: string
   apiKey: string
   messages: ChatMessage[]
   onToken: (t: string) => void
   signal?: AbortSignal
-}
-
-/** 流式走完整个回复；出错抛异常（由调用方展示） */
-export async function streamChat({ baseUrl, model, apiKey, messages, onToken, signal }: StreamChatOpts): Promise<void> {
-  const base = baseUrl.replace(/\/$/, '')
-  const url = base + (base.endsWith('/v1') ? '' : '/v1') + '/chat/completions'
-  const res = await fetch(url, {
+}): Promise<void> {
+  const res = await fetch(endpoint(opts.baseUrl), {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {})
-    },
-    body: JSON.stringify({ model, messages, stream: true, temperature: 0.8 }),
-    signal
+    headers: headers(opts.apiKey),
+    body: JSON.stringify({ model: opts.model, messages: opts.messages, stream: true, temperature: 0.8 }),
+    signal: opts.signal
   })
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '')
-    throw new Error(`LLM 响应 ${res.status}：${detail.slice(0, 200)}`)
-  }
+  if (!res.ok) throw new Error('LLM HTTP ' + res.status + ': ' + (await res.text().catch(() => '')))
   const reader = res.body!.getReader()
   const dec = new TextDecoder()
   let buf = ''
@@ -46,12 +48,44 @@ export async function streamChat({ baseUrl, model, apiKey, messages, onToken, si
       const data = t.slice(5).trim()
       if (data === '[DONE]') return
       try {
-        const j = JSON.parse(data)
+        const j = JSON.parse(data) as { choices?: { delta?: { content?: string } }[] }
         const delta = j.choices?.[0]?.delta?.content
-        if (delta) onToken(delta)
+        if (delta) opts.onToken(delta)
       } catch {
-        // 忽略非 JSON 数据片（keep-alive 等）
+        // 跳过无法解析的行
       }
     }
+  }
+}
+
+/** 非流式完整请求，返回解析出的 JSON（按数组提取或整体解析）；失败抛错 */
+export async function completeJson(opts: {
+  baseUrl: string
+  model: string
+  apiKey: string
+  messages: ChatMessage[]
+  temperature?: number
+}): Promise<unknown> {
+  const res = await fetch(endpoint(opts.baseUrl), {
+    method: 'POST',
+    headers: headers(opts.apiKey),
+    body: JSON.stringify({ model: opts.model, messages: opts.messages, stream: false, temperature: opts.temperature ?? 0.2 })
+  })
+  if (!res.ok) throw new Error('LLM HTTP ' + res.status + ': ' + (await res.text().catch(() => '')))
+  const j = (await res.json()) as { choices?: { message?: { content?: string } }[] }
+  const text = j.choices?.[0]?.message?.content ?? ''
+  const first = text.indexOf('[')
+  const last = text.lastIndexOf(']')
+  if (first >= 0 && last > first) {
+    try {
+      return JSON.parse(text.slice(first, last + 1))
+    } catch {
+      // 继续尝试整体解析
+    }
+  }
+  try {
+    return JSON.parse(text)
+  } catch {
+    throw new Error('模型未返回可解析的 JSON：' + text.slice(0, 200))
   }
 }

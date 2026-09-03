@@ -1,5 +1,5 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
-import type { AppSettings, ChapterEntry, ProjectSummary } from '../../../shared/types'
+import type { AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary } from '../../../shared/types'
 
 const now = Date.now()
 
@@ -140,7 +140,72 @@ const mock = {
     return out.sort((a, b) => (a.fm?.['章号'] ?? 1e9) - (b.fm?.['章号'] ?? 1e9))
   },
   onFsEvent: () => () => {},
-  getPaths: async () => ({ documents: '', libraryRoot: '' })
+  getPaths: async () => ({ documents: '', libraryRoot: '' }),
+
+  // 提案（S4）
+  proposals: [] as Proposal[],
+  listProposals: async () => mock.proposals.slice(),
+  createProposals: async (_id: string, source: 'slice-sync' | 'agent-chat', chapter: string, sliceName: string, items: ProposalItem[]) => {
+    console.log('[sync] items', JSON.stringify(items))
+    const nowT = Date.now()
+    const created = items.map((it, idx) => {
+      const p: Proposal = {
+        id: 'p' + nowT.toString(36) + idx,
+        source,
+        chapter,
+        slice: sliceName,
+        status: 'pending',
+        createdAt: nowT,
+        items: [it]
+      }
+      mock.proposals.push(p)
+      return p
+    })
+    return created
+  },
+  applyProposal: async (_id: string, pid: string) => {
+    const p = mock.proposals.find((x) => x.id === pid)
+    if (!p || p.status !== 'pending') return { ok: false, applied: [], errors: ['未找到待处理的提案'] }
+    const errs: string[] = []
+    for (const it of p.items) {
+      const key = _id + '/' + it.target
+      const cur = docs.get(key) ?? ''
+      try {
+        if (!it || typeof it.after !== 'string') throw new Error('提案格式不完整: ' + JSON.stringify(it).slice(0, 120))
+        docs.set(key, applyAnchor(cur, it))
+      } catch (e) {
+        errs.push(it?.target + ': ' + String((e as Error).message || e))
+      }
+    }
+    p.status = 'accepted'
+    return { ok: errs.length === 0, applied: p.items.filter((_, i) => !errs[i]).map((i) => i.target), errors: errs }
+  },
+  rejectProposal: async (_id: string, pid: string) => {
+    const p = mock.proposals.find((x) => x.id === pid)
+    if (p) p.status = 'rejected'
+    return true
+  }
+}
+
+/** devShim 用的锚点写入（与 main 侧同规则：标题下节体替换；无标题则追加） */
+function applyAnchor(text: string, it: ProposalItem): string {
+  const lines = text.split('\n')
+  const hit = lines.findIndex((l) => /^#{1,4}\s/.test(l) && l.replace(/^#+\s*/, '').replace(/^#/, '').trim() === it.anchor)
+  if (it.kind === 'append') return text + '\n\n' + it.after
+  if (hit >= 0) {
+    const level = (lines[hit].match(/^#+/) || [''])[0].length
+    let end = lines.length
+    for (let i = hit + 1; i < lines.length; i++) {
+      const m = lines[i].match(/^#+/)
+      if (m && m[0].length <= level) {
+        end = i
+        break
+      }
+    }
+    const head = lines[hit]
+    return [...lines.slice(0, hit), head, '', ...it.after.split('\n'), '', ...lines.slice(end)].join('\n')
+  }
+  return text.trimEnd() + '\n\n### ' + it.anchor + '\n\n' + it.after + '\n'
 }
 
 export function ensureDevShim() {

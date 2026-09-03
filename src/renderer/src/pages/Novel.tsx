@@ -8,6 +8,8 @@ import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { cn } from '../lib/utils'
 import DocEditor from '../features/editor/DocEditor'
+import { runSliceSync } from '../features/sync/sliceSync'
+import { useProposalStore } from '../store/proposals'
 import type { ProseApi } from '../features/editor/Prose'
 import AgentPanel from '../features/agent/AgentPanel'
 import { useFsEvents } from '../features/fs/useFsEvents'
@@ -24,6 +26,23 @@ export default function Novel() {
   const [pitch, setPitch] = useState('')
   const events = useFsEvents(id)
   const apiRef = useRef<ProseApi | null>(null)
+  const [syncMsg, setSyncMsg] = useState('')
+
+  const handleChapterSaved = useCallback(
+    async (rel: string) => {
+      if (!id) return
+      setSyncMsg('切片同步中…')
+      const r = await runSliceSync(id, rel)
+      if (r.ok) {
+        setSyncMsg(r.items > 0 ? `✓ 已生成 ${r.items} 条切片提案` : '✓ 无设定变化')
+        useProposalStore.getState().bump()
+      } else {
+        setSyncMsg('✗ 切片同步失败: ' + r.error)
+      }
+      window.setTimeout(() => setSyncMsg(''), 6000)
+    },
+    [id]
+  )
 
   const refresh = useCallback(async () => {
     if (!id) return
@@ -104,11 +123,21 @@ export default function Novel() {
           <>
             <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hair px-4">
               <span className="truncate text-sm font-medium text-ink">{cur?.name}</span>
+              {syncMsg && (
+                <span
+                  className={cn(
+                    'rounded-full px-2.5 py-0.5 text-[11px]',
+                    syncMsg.startsWith('✓') ? 'bg-[#e6f0ee] text-success' : syncMsg.startsWith('✗') ? 'bg-danger-soft text-danger' : 'bg-accent-soft text-accent'
+                  )}
+                >
+                  {syncMsg}
+                </span>
+              )}
               <span className="flex-1" />
               <span className="text-[11px] text-ink-3">选中段落后可用 agent 的「引用选中」· ⌘S 保存</span>
             </div>
             <div className="min-h-0 flex-1">
-              <DocEditor projectId={id} rel={sel} withFm extVersion={extVersion} editorApiRef={apiRef} onSave={() => void refresh()} />
+              <DocEditor projectId={id} rel={sel} withFm extVersion={extVersion} editorApiRef={apiRef} onSave={() => { void refresh(); void handleChapterSaved(sel) }} />
             </div>
           </>
         ) : (

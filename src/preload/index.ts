@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings, ChapterEntry, FsEvent, ProjectSummary } from '../shared/types'
+import type { AppSettings, ChapterEntry, FsEvent, ProjectSummary, Proposal, ProposalItem } from '../shared/types'
 
 const api = {
   // 设置
@@ -20,6 +20,14 @@ const api = {
   writeDoc: (id: string, rel: string, content: string) => ipcRenderer.invoke('doc:write', id, rel, content) as Promise<boolean>,
   listDocs: (id: string, relDir: string) => ipcRenderer.invoke('doc:list', id, relDir) as Promise<{ file: string; name: string; mtime: number }[]>,
   listChapters: (id: string) => ipcRenderer.invoke('chapter:list', id) as Promise<ChapterEntry[]>,
+
+  // 提案（S4）
+  listProposals: (id: string) => ipcRenderer.invoke('proposal:list', id) as Promise<Proposal[]>,
+  createProposals: (id: string, source: 'slice-sync' | 'agent-chat', chapter: string, slice: string, items: ProposalItem[]) =>
+    ipcRenderer.invoke('proposal:create', id, source, chapter, slice, items) as Promise<Proposal[]>,
+  applyProposal: (id: string, pid: string) =>
+    ipcRenderer.invoke('proposal:apply', id, pid) as Promise<{ ok: boolean; applied: string[]; errors: string[] }>,
+  rejectProposal: (id: string, pid: string) => ipcRenderer.invoke('proposal:reject', id, pid) as Promise<boolean>,
 
   // 文件系统事件（项目目录被外部改动时）
   onFsEvent: (cb: (evt: FsEvent) => void) => {
