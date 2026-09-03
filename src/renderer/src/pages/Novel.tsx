@@ -1,46 +1,52 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Plus, BookOpen } from 'lucide-react'
 import type { ChapterEntry } from '../../../shared/types'
 import { serializeFrontMatter } from '../../../shared/fmatter'
 import { Button } from '../components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose
-} from '../components/ui/dialog'
 import { cn } from '../lib/utils'
+import DocEditor from '../features/editor/DocEditor'
+import { useFsEvents } from '../features/fs/useFsEvents'
 
 export default function Novel() {
-  const { id } = useParams<{ id: string }>()
+  const { id = '' } = useParams()
   const [chapters, setChapters] = useState<ChapterEntry[]>([])
   const [sel, setSel] = useState<string | null>(null)
-  const [content, setContent] = useState<string>('')
   const [creating, setCreating] = useState(false)
   const [title, setTitle] = useState('')
   const [slice, setSlice] = useState('')
   const [cast, setCast] = useState('')
   const [pitch, setPitch] = useState('')
+  const events = useFsEvents(id)
 
   const refresh = useCallback(async () => {
     if (!id) return
-    setChapters(await window.zhijuan.listChapters(id))
+    const list = await window.zhijuan.listChapters(id)
+    setChapters(list)
+    setSel((s) => (s && list.some((c) => c.file === s) ? s : list[0]?.file ?? null))
   }, [id])
 
   useEffect(() => {
     void refresh()
   }, [refresh])
 
+  // 磁盘事件：文件新建/删除时刷新章节列表
   useEffect(() => {
-    if (!id || !sel) return
-    void window.zhijuan.readDoc(id, sel).then((t) => setContent(t ?? ''))
-  }, [id, sel])
+    const ev = events[events.length - 1]
+    if (ev && (ev.path.startsWith('正文/') || ev.path === '正文')) void refresh()
+  }, [events, refresh])
+
+  // 当前文件的外部事件版本（供 DocEditor 感知外部修改）
+  const extVersion = useMemo(() => (sel ? events.filter((e) => e.path === sel).length : 0), [events, sel])
+
+  const mds = useMemo(() => {
+    const m = new Map<string, ChapterEntry>()
+    for (const c of chapters) m.set(c.file, c)
+    return m
+  }, [chapters])
 
   async function createChapter() {
     if (!id || !title.trim()) return
@@ -62,27 +68,26 @@ export default function Novel() {
     await refresh()
   }
 
+  const cur = sel ? mds.get(sel) : undefined
+
   return (
-    <div className="flex h-full">
-      {/* 章节列表 */}
-      <aside className="flex w-56 shrink-0 flex-col border-r border-hair bg-surface-2">
+    <div className="flex h-full min-h-0">
+      <aside className="flex w-60 shrink-0 flex-col border-r border-hair bg-surface-2">
         <div className="flex items-center justify-between px-3 pb-2 pt-3">
           <span className="text-xs font-medium text-ink-3">章节（按时间切片）</span>
           <Button variant="ghost" size="icon" className="h-7 w-7" title="新建章节" onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
-        <div className="flex-1 overflow-auto px-2">
-          {chapters.length === 0 && (
-            <p className="px-2 py-4 text-xs text-ink-3">还没有章节。点右上角 ＋ 新建第一章。</p>
-          )}
+        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+          {chapters.length === 0 && <p className="px-2 py-6 text-center text-xs text-ink-3">还没有章节；点右上角 ＋ 建第一章</p>}
           {chapters.map((c) => (
             <button
               key={c.file}
               onClick={() => setSel(c.file)}
               className={cn(
-                'mb-0.5 w-full rounded-lg px-2.5 py-2 text-left transition-colors',
-                sel === c.file ? 'bg-accent-soft' : 'hover:bg-well'
+                'mb-0.5 block w-full rounded-lg px-3 py-2 text-left transition-colors',
+                sel === c.file ? 'bg-accent-soft' : 'hover:bg-surface'
               )}
             >
               <p className={cn('truncate text-sm', sel === c.file ? 'font-medium text-accent' : 'text-ink')}>
@@ -97,25 +102,31 @@ export default function Novel() {
         </div>
       </aside>
 
-      {/* 正文预览（S2 换成 Milkdown 编辑器） */}
-      <main className="min-w-0 flex-1 overflow-auto bg-paper">
-        {!sel ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-ink-3">
-            <BookOpen className="h-8 w-8" />
-            <p className="text-sm">选择左侧一个章节开始</p>
-            <p className="text-xs">（编辑器将在 S2 接入）</p>
-          </div>
+      <main className="flex min-w-0 flex-1 flex-col">
+        {cur ? (
+          <>
+            <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hair px-4">
+              <span className="truncate text-sm font-medium text-ink">{cur.name}</span>
+              <span className="flex-1" />
+              <span className="text-[11px] text-ink-3">WYSIWYG markdown · ⌘S 保存 · 选中可右键引用（S3）</span>
+            </div>
+            <div className="min-h-0 flex-1">
+              <DocEditor projectId={id} rel={cur.file} withFm extVersion={extVersion} onSave={() => void refresh()} />
+            </div>
+          </>
         ) : (
-          <div className="paper-canvas whitespace-pre-wrap">{content}</div>
+          <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-ink-3">
+            <BookOpen className="h-8 w-8 opacity-30" />
+            <p>没有可编辑的章节。点左侧 ＋ 新建第一章（一章 = 一个时间切片）。</p>
+          </div>
         )}
       </main>
 
-      {/* 新建章节向导 */}
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>新建章节</DialogTitle>
-            <DialogDescription>一章 = 一个时间切片（按你定的规矩）。约定头会写进正文文件顶部。</DialogDescription>
+            <DialogDescription>一章 = 一个时间切片。约定头会写进正文文件顶部，是切片同步的锚。</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
@@ -124,24 +135,20 @@ export default function Novel() {
             </div>
             <div className="space-y-1.5">
               <Label>时间切片名</Label>
-              <Input placeholder="如：第二幕_台风夜（留空则用章号）" value={slice} onChange={(e) => setSlice(e.target.value)} />
+              <Input placeholder="如：第二幕_台风夜（留空用章号）" value={slice} onChange={(e) => setSlice(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label>涉及人物（逗号分隔）</Label>
               <Input placeholder="如：林晚, 顾知远" value={cast} onChange={(e) => setCast(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>一句话梗概（可选）</Label>
-              <Input placeholder="本章大概发生什么…" value={pitch} onChange={(e) => setPitch(e.target.value)} />
+              <Label>本章梗概（可选）</Label>
+              <Input placeholder="一句话——给 agent 上下文用" value={pitch} onChange={(e) => setPitch(e.target.value)} />
             </div>
           </div>
           <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="ghost">取消</Button>
-            </DialogClose>
-            <Button onClick={createChapter} disabled={!title.trim()}>
-              创建章节
-            </Button>
+            <Button variant="outline" onClick={() => setCreating(false)}>取消</Button>
+            <Button onClick={() => void createChapter()} disabled={!title.trim()}>创建</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

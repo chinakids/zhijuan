@@ -1,80 +1,124 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { FileText, Plus } from 'lucide-react'
 import { Button } from '../../components/ui/button'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog'
+import { Input } from '../../components/ui/input'
+import { Label } from '../../components/ui/label'
 import { cn } from '../../lib/utils'
+import DocEditor from '../editor/DocEditor'
+import { useFsEvents } from '../fs/useFsEvents'
 
-interface Props {
+interface DocSectionProps {
   relDir: string
-  overviewFile: string
+  /** 类别下默认存在的总览文件（relative to project） */
+  overviewFile?: string
   addLabel: string
   addHint: string
   emptyHint: string
+  /** 新建文件时写入的模板正文（需返回漏斗与角标即可） */
+  templateFor?: (name: string) => string
+  fileTitle?: (name: string) => string
 }
 
-/**
- * 设定类板块的文档浏览器（S1：只读列表 + 纸面预览；S2 换成 Milkdown 编辑器）。
- * 约定：firstAdd 可再由各页注入，这里只负责展示与选中。
- */
-export default function DocSection({ relDir, overviewFile, addLabel, addHint, emptyHint }: Props) {
-  const { id } = useParams<{ id: string }>()
-  const [files, setFiles] = useState<{ file: string; name: string; mtime: number }[]>([])
-  const [sel, setSel] = useState<string>(overviewFile)
-  const [content, setContent] = useState<string>('')
+export default function DocSection({ relDir, overviewFile, addLabel, addHint, emptyHint, templateFor, fileTitle }: DocSectionProps) {
+  const { id = '' } = useParams()
+  const [files, setFiles] = useState<{ file: string; name: string }[]>([])
+  const [sel, setSel] = useState<string | null>(overviewFile ?? null)
+  const [creating, setCreating] = useState(false)
+  const [name, setName] = useState('')
+  const events = useFsEvents(id)
 
   const refresh = useCallback(async () => {
     if (!id) return
     const list = await window.zhijuan.listDocs(id, relDir)
     setFiles(list)
-    // 默认选中总览文件（若有）
-    if (!list.some((d) => d.file === sel)) {
-      const ov = list.find((d) => d.file === overviewFile)
-      setSel(ov ? ov.file : list[0]?.file ?? '')
-    }
-  }, [id, relDir, overviewFile, sel])
+    setSel((s) => (s && list.some((f) => relDir + '/' + f.file === s) ? s : overviewFile ?? null))
+  }, [id, relDir, overviewFile])
 
   useEffect(() => {
     void refresh()
   }, [refresh])
 
   useEffect(() => {
-    if (!id || !sel) return
-    void window.zhijuan.readDoc(id, sel).then((t) => setContent(t ?? ''))
-  }, [id, sel])
+    const ev = events[events.length - 1]
+    if (ev && ev.path.startsWith(relDir + '/')) void refresh()
+  }, [events, refresh, relDir])
+
+  const extVersion = useMemo(() => (sel ? events.filter((e) => e.path === sel).length : 0), [events, sel])
+
+  async function createDoc() {
+    if (!id || !name.trim()) return
+    const safe = name.trim()
+    const rel = `${relDir}/${safe}.md`
+    await window.zhijuan.writeDoc(id, rel, templateFor ? templateFor(safe) : `# ${safe}\n\n`)
+    setCreating(false)
+    setName('')
+    await refresh()
+    setSel(rel)
+  }
 
   return (
-    <div className="flex h-full">
-      <aside className="flex w-56 shrink-0 flex-col border-r border-hair bg-surface-2">
+    <div className="flex h-full min-h-0">
+      <aside className="flex w-60 shrink-0 flex-col border-r border-hair bg-surface-2">
         <div className="flex items-center justify-between px-3 pb-2 pt-3">
           <span className="text-xs font-medium text-ink-3">文档</span>
-          <Button variant="ghost" size="icon" className="h-7 w-7" title={addHint}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" title={addHint} onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
-        <div className="flex-1 overflow-auto px-2">
-          {files.length === 0 && <p className="px-2 py-4 text-xs text-ink-3">{emptyHint}</p>}
-          {files.map((d) => (
+        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+          {files.length === 0 && <p className="px-2 py-6 text-center text-xs text-ink-3">{emptyHint}</p>}
+          {files.map((f) => (
             <button
-              key={d.file}
-              onClick={() => setSel(d.file)}
+              key={f.file}
+              onClick={() => setSel(relDir + '/' + f.file)}
               className={cn(
-                'mb-0.5 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors',
-                sel === d.file ? 'bg-accent-soft' : 'hover:bg-well'
+                'mb-0.5 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors',
+                sel === relDir + '/' + f.file ? 'bg-accent-soft' : 'hover:bg-surface'
               )}
             >
-              <FileText className="h-3.5 w-3.5 shrink-0 text-ink-3" />
-              <span className={cn('truncate text-sm', sel === d.file ? 'font-medium text-accent' : 'text-ink')}>{d.name}</span>
+              <FileText className={cn('h-3.5 w-3.5 shrink-0', sel === relDir + '/' + f.file ? 'text-accent' : 'text-ink-3')} />
+              <span className={cn('truncate text-sm', sel === relDir + '/' + f.file ? 'font-medium text-accent' : 'text-ink')}>
+                {fileTitle ? fileTitle(f.name) : f.name}
+              </span>
             </button>
           ))}
         </div>
       </aside>
-      <main className="min-w-0 flex-1 overflow-auto bg-paper">
-        {!sel ? (
-          <div className="flex h-full items-center justify-center text-sm text-ink-3">选择左侧一个文档</div>
+
+      <main className="flex min-w-0 flex-1 flex-col">
+        {sel ? (
+          <>
+            <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hair px-4">
+              <span className="truncate text-sm font-medium text-ink">{fileTitle ? fileTitle(sel.split('/').pop()!.replace(/\.md$/, '')) : sel}</span>
+              <span className="flex-1" />
+              <span className="text-[11px] text-ink-3">设定由正文保存时的切片同步维护（S4） · ⌘S 保存</span>
+            </div>
+            <div className="min-h-0 flex-1">
+              <DocEditor projectId={id} rel={sel} extVersion={extVersion} onSave={() => void refresh()} />
+            </div>
+          </>
         ) : (
-          <div className="paper-canvas whitespace-pre-wrap">{content}</div>
+          <div className="flex h-full items-center justify-center text-sm text-ink-3">选择左侧一个文档开始</div>
         )}
       </main>
+
+      <Dialog open={creating} onOpenChange={setCreating}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>新建{addLabel}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label>名字 *</Label>
+            <Input autoFocus placeholder="如：夏晚晴" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreating(false)}>取消</Button>
+            <Button onClick={() => void createDoc()} disabled={!name.trim()}>创建</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -49,6 +49,13 @@ export function serializeFrontMatter(fm: Record<string, unknown>): string {
   return lines.join('\n') + '\n'
 }
 
+/** 把整份文档的正文替换为 newBody，原约定头（若有）原样保留；无约定头则直接返回 newBody */
+export function withBody(raw: string, newBody: string): string {
+  const m = raw.match(FM_RE)
+  if (!m) return newBody
+  return m[0] + newBody
+}
+
 /** 把新 front matter 写回文档（保留正文） */
 export function withFrontMatter(text: string, fm: Record<string, unknown>): string {
   const { body } = extractFrontMatter(text)

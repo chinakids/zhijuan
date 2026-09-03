@@ -144,7 +144,7 @@ const mock = {
 }
 
 export function ensureDevShim() {
-  if (!window.zhijuan) {
-    window.zhijuan = mock as unknown as typeof window.zhijuan
-  }
+  if (window.zhijuan) return
+  ;(window as unknown as { __ZJ_TEST: boolean }).__ZJ_TEST = true
+  window.zhijuan = mock as unknown as typeof window.zhijuan
 }
