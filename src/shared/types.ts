@@ -47,7 +47,7 @@ export interface AppSettings {
   llm: { baseUrl: string; model: string; apiKey: string }
   theme: 'paper' | 'dark'
   collectionEnabled: boolean
-  /** agent 引擎：harness = dsh 边车（有工具）；legacy = 直连 LLM 对话 */
+  /** agent 引擎：harness = dsh 写作引擎（有工具）；legacy = 直连 LLM 对话 */
   agentEngine: 'harness' | 'legacy'
   /** 常用 agent 工具开关（harness 引擎内） */
   agentTools?: { todo?: boolean; askUser?: boolean }

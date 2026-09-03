@@ -36,7 +36,7 @@ export function registerAgentIpc() {
   })
   // 切片同步（设定补丁）
   ipcMain.handle('agent:sync', (_e, projectId: string, chapterRel: string) => runSync(projectId, chapterRel))
-  // 用户回答某个 ask 批次（写答案文件 → 边车插件轮询回灌模型循环）
+  // 用户回答某个 ask 批次（写答案文件 → 写作引擎插件轮询回灌模型循环）
   ipcMain.handle('agent:answer', (_e, batch: string, answers: AskAnswer[]) => {
     if (!batch) return { ok: false, error: 'missing batch' }
     try {

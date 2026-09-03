@@ -1,4 +1,4 @@
-// ===== 织卷 · user-questions 边车插件（zj-questions）=====
+// ===== 织卷 · user-questions 写作引擎插件（zj-questions）=====
 // 给 dsh 的 ask_user_question 工具提供一个织卷主进程可配合的 UI provider：
 // 把问题以 zj/user-ask 会话事件发出（主进程在 session 事件流里看到并转给渲染层），
 // 然后轮询答案目录（主进程把用户答案写成 JSON 文件）回灌给模型循环。

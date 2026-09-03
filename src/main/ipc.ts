@@ -31,7 +31,7 @@ export function registerIpc() {
   ipcMain.handle('settings:get', () => getSettings())
   ipcMain.handle('settings:set', (_e, patch: Partial<AppSettings>) => {
     const next = setSettings(patch)
-    // LLM 端点、引擎或工具集变了：关掉边车，下次请求按新设置重建
+    // LLM 端点、引擎或工具集变了：关掉写作引擎，下次请求按新设置重建
     if (isRuntimeCreated() && (patch.llm || patch.agentEngine || patch.agentTools)) {
       void closeHarness()
     }
@@ -70,6 +70,6 @@ export function registerIpc() {
   ipcMain.handle('proposal:apply', (_e, id: string, pid: string) => applyProposal(libraryRoot(), id, pid))
   ipcMain.handle('proposal:reject', (_e, id: string, pid: string) => rejectProposal(libraryRoot(), id, pid))
 
-  // agent（dsh 边车）
+  // agent（dsh 写作引擎）
   registerAgentIpc()
 }

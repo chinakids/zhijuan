@@ -91,11 +91,11 @@ export default function Settings() {
 
       <Card className="mt-4 p-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-ink-2">Agent 引擎与常用工具</h3>
+          <h3 className="text-sm font-semibold text-ink-2">写作引擎与常用工具</h3>
           <button onClick={() => void refreshStatus()} className="text-[11px] text-ink-3 hover:text-ink">
             {status === null ? '查询引擎状态…' : status.online ? (
               <span className="flex items-center gap-1 text-success">
-                <span className="h-1.5 w-1.5 rounded-full bg-success" /> 边车在线 · {status.model}
+                <span className="h-1.5 w-1.5 rounded-full bg-success" /> 写作引擎在线 · {status.model}
               </span>
             ) : (
               <span className="flex items-center gap-1 text-danger">
@@ -108,11 +108,11 @@ export default function Settings() {
         <div className="flex items-center justify-between pb-4">
           <div>
             <Label>对话引擎</Label>
-            <p className="text-xs text-ink-3">边车（推荐）：走 dsh 边车，模型可在会话里读章节、列计划、向你确认。切换后下次对话生效。</p>
+            <p className="text-xs text-ink-3">后台运行的写作引擎（推荐）：模型可在会话里读章节、列计划、向你确认。切换后下次对话生效。</p>
           </div>
           <div className="flex gap-1 rounded-lg border border-hair p-0.5">
             <Button variant={agentEngine === 'harness' ? 'default' : 'ghost'} size="sm" className="h-7" onClick={() => setAgentEngine('harness')}>
-              边车（有工具）
+              写作引擎（有工具）
             </Button>
             <Button variant={agentEngine === 'legacy' ? 'default' : 'ghost'} size="sm" className="h-7" onClick={() => setAgentEngine('legacy')}>
               直连对话

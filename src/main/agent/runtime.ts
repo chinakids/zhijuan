@@ -1,5 +1,5 @@
-// ===== 织卷 · dsh 边车运行时管理（主进程） =====
-// 定位 dsh-runtime（vendored 引擎）、懒启动 SDK 边车、按设置动态覆写 LLM 端点、会话管理。
+// ===== 织卷 · dsh 写作引擎运行时管理（主进程） =====
+// 定位 dsh-runtime（vendored 引擎）、懒启动 SDK 写作引擎、按设置动态覆写 LLM 端点、会话管理。
 import { app } from 'electron'
 import { createRequire } from 'module'
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'fs'
@@ -15,7 +15,7 @@ function runtimeDir(): string {
 const dshHome = () => join(runtimeDir(), 'dshhome')
 const sdkBin = () => join(runtimeDir(), 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
 
-/** 用户回答的回灌目录（边车插件轮询这里读答案 JSON） */
+/** 用户回答的回灌目录（写作引擎插件轮询这里读答案 JSON） */
 export function answerDir(): string {
   return join(app.getPath('userData'), 'agent-answers')
 }
@@ -30,7 +30,7 @@ function loadSdk() {
   return harnessCtor
 }
 
-/** 边车是否已创建（用于设置变更时重启） */
+/** 写作引擎是否已创建（用于设置变更时重启） */
 export function isRuntimeCreated() {
   return !!harness
 }
@@ -93,7 +93,7 @@ function toolsOverrideArgs(): string[] {
   return ['--patch', patch]
 }
 
-/** 确保边车在跑；失败返回原因字符串，成功返回 undefined */
+/** 确保写作引擎在跑；失败返回原因字符串，成功返回 undefined */
 export async function ensureHarness(): Promise<string | undefined> {
   if (harness) return undefined
   const Sdk = loadSdk()
@@ -121,7 +121,7 @@ export async function ensureHarness(): Promise<string | undefined> {
     try { await harness?.close() } catch {}
     harness = null
     failCount += 1
-    return `边车启动失败（${msg.slice(0, 200)}）`
+    return `写作引擎启动失败（${msg.slice(0, 200)}）`
   }
 }
 
@@ -153,7 +153,7 @@ export async function driveSession(
   try {
     await client.prompt(sid, [{ type: 'text', text }])
     for await (const n of sub) {
-      if (Date.now() > deadline) throw new Error('边车驱动超时')
+      if (Date.now() > deadline) throw new Error('写作引擎驱动超时')
       opts?.onEvent?.(n)
       if (n.method !== 'session.event') {
         if (n.method === 'session.status' && n.params?.sessionId === sid && n.params?.status === 'idle' && stage === 'done') break
@@ -181,7 +181,7 @@ export async function driveSession(
 export const chatSessionId = (projectId: string) => `zj-chat-${projectId}`
 export const syncSessionId = (projectId: string) => `zj-sync-${projectId}`
 
-/** 关闭边车（应用退出时） */
+/** 关闭写作引擎（应用退出时） */
 export async function closeHarness() {
   if (!harness) return
   const h = harness

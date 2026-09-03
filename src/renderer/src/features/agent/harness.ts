@@ -1,4 +1,4 @@
-// ===== 织卷 · agent 渲染层客户端（走主进程 dsh 边车） =====
+// ===== 织卷 · agent 渲染层客户端（走主进程 dsh 写作引擎） =====
 // 事件总线：把主进程 agent:event 分发给本地订阅者；提供一次会话的发送辅助。
 import type { AgentEvent } from '../../../../shared/types'
 

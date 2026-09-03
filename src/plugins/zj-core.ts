@@ -1,8 +1,8 @@
 // ===== 织卷 · dsh 写作域插件（zj-core）=====
-// 给 DeepSeek Harness 边车用的 cordis 插件：把织卷写作工作台的读能力开放给 agent。
+// 给 DeepSeek Harness 写作引擎用的 cordis 插件：把织卷写作工作台的读能力开放给 agent。
 // 事实来源：官方 cookbook docs/cookbook/adding-a-tool.md + references/dsh-integration.md。
 // 本文件自包含（只用 node 内置模块），被 scripts/build-plugins.mjs 用 esbuild 打成
-// mjs 后按包名挂到 dsh-runtime/node_modules/zj-core/ —— 边车加载它。
+// mjs 后按包名挂到 dsh-runtime/node_modules/zj-core/ —— 写作引擎加载它。
 //
 // 所有工具只读、路径钳制到 base（作品根目录）内，写操作一律走 UI 的提案制。
 

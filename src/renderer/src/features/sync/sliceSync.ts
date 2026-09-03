@@ -1,5 +1,5 @@
 // ===== 织卷 S4 · 切片同步：保存正文后把当前切片的设定那几处也一并推进 =====
-// 引擎分流：harness（dsh 边车，模型可用工具读设定）或 legacy（直连 LLM 直出补丁）。
+// 引擎分流：harness（dsh 写作引擎，模型可用工具读设定）或 legacy（直连 LLM 直出补丁）。
 import type { ProposalItem } from '../../../../shared/types'
 import { extractFrontMatter } from '../../../../shared/fmatter'
 import { completeJson } from '../agent/llm'
@@ -58,7 +58,7 @@ export async function runSliceSync(projectId: string, chapterRel: string): Promi
     let clean: ProposalItem[] = []
     let slice = ''
     if (engine === 'harness') {
-      // 走 dsh 边车：模型可用工具读章节与设定，主进程返回解析好的补丁
+      // 走 dsh 写作引擎：模型可用工具读章节与设定，主进程返回解析好的补丁
       const r = await window.zhijuan.agentSync(projectId, chapterRel)
       if (!r.ok) return { ok: false, items: 0, error: r.error || '切片同步失败' }
       clean = r.items ?? []

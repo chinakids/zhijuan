@@ -1,7 +1,7 @@
 // ===== 织卷 · agent 引擎（主进程） =====
-// 把 dsh 边车的会话能力翻译成渲染层事件；提供聊天与切片同步两条任务；支持展示性取消。
+// 把 dsh 写作引擎的会话能力翻译成渲染层事件；提供聊天与切片同步两条任务；支持展示性取消。
 // 会话模型：每一轮用全新 session id（避免 SDK 高层续轮坑），可见历史由渲染层带进 prompt，
-// 上下文完全可控；工具读文件由边车完成。
+// 上下文完全可控；工具读文件由写作引擎完成。
 import { driveSession, type DriveEvent } from './runtime'
 import { projectDir } from '../store'
 import type { ProposalItem } from '../../shared/types'
@@ -92,7 +92,7 @@ export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void
   }
 }
 
-/** 把边车 session.event 翻译成渲染层事件 */
+/** 把写作引擎 session.event 翻译成渲染层事件 */
 function translate(n: DriveEvent, requestId: string, emit: (e: AgentOutEvent) => void) {
   if (n.method !== 'session.event') return
   const ev = n.params?.event as any
