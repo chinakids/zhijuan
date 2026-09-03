@@ -6,6 +6,7 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync
 import { extractFrontMatter, serializeFrontMatter } from '../shared/fmatter'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, DOT_DIR } from '../shared/paths'
 import { sanitizeFile } from '../shared/paths'
+import { WORKSPACE_DOCS } from './workspace-docs'
 import type { AppSettings, ChapterEntry, ChapterFrontMatter, FsEvent, ProjectMeta, ProjectStats, ProjectSummary } from '../shared/types'
 import { DEFAULT_SETTINGS } from '../shared/types'
 
@@ -35,9 +36,24 @@ export function setSettings(patch: Partial<AppSettings>): AppSettings {
 }
 
 // ---------- 路径 ----------
+/** 工作区根目录：设置为空时用 文档/织卷工作区 */
+export function workspaceDir(): string {
+  const w = getSettings().workspace
+  return w && w.trim() ? w.trim() : join(app.getPath('documents'), '织卷工作区')
+}
 export function libraryRoot(): string {
   const r = getSettings().libraryRoot
-  return r && r.trim() ? r : join(app.getPath('documents'), '织卷项目库')
+  if (r && r.trim()) return r.trim()
+  // 老版本默认位（文档/织卷项目库）非空时保持原地，避免已有项目“消失”；全新用户再落新默认（工作区/项目库）
+  const legacy = join(app.getPath('documents'), '织卷项目库')
+  if (existsSync(legacy)) {
+    try {
+      if (readdirSync(legacy).length > 0) return legacy
+    } catch {
+      /* 读不了就按空处理 */
+    }
+  }
+  return join(workspaceDir(), '项目库')
 }
 export function projectDir(id: string): string {
   return join(libraryRoot(), id)
@@ -288,3 +304,41 @@ function mapEvt(t: string): FsEvent['kind'] {
 export function newId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
 }
+
+// ---------- 工作区文档（落档在 <工作区>/文档/，幂等） ----------
+export function workspaceStatus(): { dir: string; inited: boolean; docs: { file: string; name: string }[] } {
+  return { dir: workspaceDir(), inited: existsSync(join(workspaceDir(), '文档')), docs: listWorkspaceDocs() }
+}
+
+export function ensureWorkspaceDocs(): { ok: boolean; created: string[]; docs: string[] } {
+  const ws = workspaceDir()
+  const docDir = join(ws, '文档')
+  mkdirSync(docDir, { recursive: true })
+  mkdirSync(join(ws, '项目库'), { recursive: true })
+  const created: string[] = []
+  for (const [name, content] of Object.entries(WORKSPACE_DOCS)) {
+    const f = join(docDir, name)
+    if (!existsSync(f)) {
+      writeFileSync(f, content, 'utf-8')
+      created.push(name)
+    }
+  }
+  return { ok: true, created, docs: Object.keys(WORKSPACE_DOCS) }
+}
+
+export function listWorkspaceDocs(): { file: string; name: string }[] {
+  const docDir = join(workspaceDir(), '文档')
+  if (!existsSync(docDir)) return []
+  return readdirSync(docDir, { withFileTypes: true })
+    .filter((x) => x.isFile() && x.name.endsWith('.md'))
+    .map((x) => ({ file: x.name, name: x.name.replace(/\.md$/, '') }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'zh'))
+}
+
+export function readWorkspaceDoc(file: string): string | null {
+  const safe = basename(file)
+  const f = join(workspaceDir(), '文档', safe)
+  if (!existsSync(f)) return null
+  return readFileSync(f, 'utf-8')
+}
+

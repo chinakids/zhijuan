@@ -43,6 +43,8 @@ export interface ChapterEntry {
 
 /** 设置（存 app userData） */
 export interface AppSettings {
+  /** 工作区根目录（空则用 文档/织卷工作区）；相关文档与项目库都在其下 */
+  workspace: string
   libraryRoot: string
   llm: { baseUrl: string; model: string; apiKey: string }
   theme: 'paper' | 'dark'
@@ -54,7 +56,8 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  libraryRoot: '', // 为空则用 文档/织卷项目库
+  workspace: '', // 为空则用 文档/织卷工作区
+  libraryRoot: '', // 为空则用 <工作区>/项目库
   llm: { baseUrl: 'http://127.0.0.1:8888', model: 'deepseek-v4-flash-0731', apiKey: '' },
   theme: 'paper',
   collectionEnabled: true,

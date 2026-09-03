@@ -19,6 +19,7 @@ import {
   listChapters,
   watchProject
 } from './store'
+import { workspaceDir, workspaceStatus, ensureWorkspaceDocs, readWorkspaceDoc } from './store'
 
 export function broadcastToAll(evt: FsEvent) {
   for (const w of BrowserWindow.getAllWindows()) {
@@ -27,6 +28,8 @@ export function broadcastToAll(evt: FsEvent) {
 }
 
 export function registerIpc() {
+  // 首次启动自动把说明文档落进工作区（幂等；设置按钮可手动补）
+  ensureWorkspaceDocs()
   // 设置
   ipcMain.handle('settings:get', () => getSettings())
   ipcMain.handle('settings:set', (_e, patch: Partial<AppSettings>) => {
@@ -54,6 +57,11 @@ export function registerIpc() {
     documents: libraryRoot(),
     defaultLibrary: shell ? String(process.env.HOME) : ''
   }))
+
+  // 工作区（设置里的工作区 = 织卷根目录；相关文档落档在 工作区/文档/）
+  ipcMain.handle('workspace:status', () => workspaceStatus())
+  ipcMain.handle('workspace:init', () => ensureWorkspaceDocs())
+  ipcMain.handle('workspace:read', (_e, file: string) => readWorkspaceDoc(file))
 
   // 文档（相对项目根）
   ipcMain.handle('doc:read', (_e, id: string, rel: string) => readDoc(id, rel))

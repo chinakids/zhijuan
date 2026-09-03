@@ -19,6 +19,11 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 export default function Settings() {
   const { settings, loadSettings, updateSettings } = useAppStore()
+  const [workspacePath, setWorkspacePath] = useState('')
+  const [wsInfo, setWsInfo] = useState<{ dir: string; inited: boolean; docs: { file: string; name: string }[] } | null>(null)
+  const [openDoc, setOpenDoc] = useState<string | null>(null)
+  const [openDocBody, setOpenDocBody] = useState('')
+  const [wsMsg, setWsMsg] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [model, setModel] = useState('')
   const [apiKey, setApiKey] = useState('')
@@ -39,12 +44,22 @@ export default function Settings() {
     }
   }, [])
 
+  const refreshWorkspace = useCallback(async () => {
+    try {
+      const st = await window.zhijuan.workspaceStatus()
+      setWsInfo(st)
+    } catch {
+      setWsInfo(null)
+    }
+  }, [])
+
   useEffect(() => {
     void loadSettings()
   }, [loadSettings])
 
   useEffect(() => {
     if (!settings) return
+    setWorkspacePath(settings.workspace)
     setBaseUrl(settings.llm.baseUrl)
     setModel(settings.llm.model)
     setApiKey(settings.llm.apiKey)
@@ -54,10 +69,12 @@ export default function Settings() {
     setAgentEngine(settings.agentEngine)
     setTools({ todo: settings.agentTools?.todo ?? true, askUser: settings.agentTools?.askUser ?? true })
     void refreshStatus()
-  }, [settings, refreshStatus])
+    void refreshWorkspace()
+  }, [settings, refreshStatus, refreshWorkspace])
 
   async function save() {
     await updateSettings({
+      workspace: workspacePath.trim(),
       llm: { baseUrl: baseUrl.trim() || 'http://127.0.0.1:8888', model: model.trim() || 'deepseek-v4-flash-0731', apiKey: apiKey.trim() },
       libraryRoot: libraryRoot.trim(),
       theme,
@@ -68,12 +85,67 @@ export default function Settings() {
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
     void refreshStatus()
+    void refreshWorkspace()
+  }
+
+  async function initWorkspace() {
+    setWsMsg('落档中…')
+    const r = await window.zhijuan.workspaceInit()
+    await refreshWorkspace()
+    setWsMsg(r.created.length ? `已在工作区落档：${r.created.join('、')}` : '说明文档已就位（无需重复创建）')
+    setTimeout(() => setWsMsg(''), 4000)
+  }
+
+  async function viewDoc(file: string) {
+    if (openDoc === file) {
+      setOpenDoc(null)
+      return
+    }
+    const t = await window.zhijuan.workspaceRead(file)
+    setOpenDoc(file)
+    setOpenDocBody(t ?? '')
   }
 
   return (
     <div className="mx-auto max-w-2xl p-8">
       <h2 className="text-lg font-semibold">设置</h2>
       <p className="mt-1 text-sm text-ink-3">全部保存在本机，明文可入 git。</p>
+
+      <Card className="mt-6 p-6">
+        <h3 className="text-sm font-semibold text-ink-2">工作区</h3>
+        <Separator className="my-4" />
+        <Field label="工作区路径" hint="留空用默认：~/Documents/织卷工作区。相关的说明文档、项目库都在这里落档。">
+          <Input value={workspacePath} onChange={(e) => setWorkspacePath(e.target.value)} placeholder="如：~/Documents/织卷工作区" />
+        </Field>
+        <div className="flex items-center justify-between rounded-lg border border-hair bg-surface-2 px-3 py-2">
+          <div className="min-w-0">
+            <p className="truncate text-xs text-ink-2">当前：{wsInfo ? wsInfo.dir : '读取中…'}</p>
+            <p className="text-[11px] text-ink-3">
+              {wsInfo ? (wsInfo.inited ? `已落档 ${wsInfo.docs.length} 篇说明文档` : '尚未落档说明文档') : ''}
+            </p>
+          </div>
+          <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={() => void initWorkspace()}>
+            在工作区落档文档
+          </Button>
+        </div>
+        {wsMsg && <p className="mt-2 text-xs text-success">{wsMsg}</p>}
+        {wsInfo && wsInfo.docs.length > 0 && (
+          <div className="mt-3 space-y-1">
+            {wsInfo.docs.map((d) => (
+              <div key={d.file}>
+                <button className="text-xs text-accent hover:underline" onClick={() => void viewDoc(d.file)}>
+                  {openDoc === d.file ? '▾' : '▸'} {d.name}
+                </button>
+                {openDoc === d.file && (
+                  <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap rounded border border-hair bg-surface-2 p-3 text-[11px] leading-relaxed text-ink-2">
+                    {openDocBody}
+                  </pre>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       <Card className="mt-6 p-6">
         <h3 className="text-sm font-semibold text-ink-2">大模型</h3>
@@ -140,8 +212,8 @@ export default function Settings() {
       <Card className="mt-4 p-6">
         <h3 className="text-sm font-semibold text-ink-2">项目库</h3>
         <Separator className="my-4" />
-        <Field label="库根路径" hint="留空则用默认：~/Documents/织卷项目库">
-          <Input value={libraryRoot} onChange={(e) => setLibraryRoot(e.target.value)} placeholder="/Users/你/Documents/织卷项目库" />
+        <Field label="库根路径" hint="留空则用工作区下的默认位置（工作区/项目库）；现有项目迁移时可直接填老路径。">
+          <Input value={libraryRoot} onChange={(e) => setLibraryRoot(e.target.value)} placeholder="/Users/你/Documents/织卷工作区/项目库" />
         </Field>
       </Card>
 

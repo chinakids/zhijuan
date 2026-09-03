@@ -71,7 +71,14 @@ docs.set(
   ['---', '标签: [桥段, 开头, 失忆]', '---', '', '# 追忆型开头', '', '以一件旧物切入，牵出角色“忘了的事”，用于开篇营造悬念。', ''].join('\n')
 )
 
-const settings: AppSettings = { libraryRoot: '', llm: { baseUrl: 'http://127.0.0.1:8888', model: 'deepseek-v4-flash-0731', apiKey: '' }, theme: 'paper', collectionEnabled: true, agentEngine: 'harness', agentTools: { todo: true, askUser: true } }
+const settings: AppSettings = { workspace: '', libraryRoot: '', llm: { baseUrl: 'http://127.0.0.1:8888', model: 'deepseek-v4-flash-0731', apiKey: '' }, theme: 'paper', collectionEnabled: true, agentEngine: 'harness', agentTools: { todo: true, askUser: true } }
+
+// 工作区落档文档（dev 示范；真机由主进程写盘）
+const WRK_DOCS: Record<string, string> = {
+  '使用说明.md': '# 织卷 · 使用说明（dev 示例）\n\n写长篇的创作工作台：正文是源，设定跟着走。',
+  '约定与结构.md': '# 织卷 · 目录与约定（dev 示例）\n\n正文为源，设定为流；提案制改造设定。'
+}
+const wsDocs = new Map<string, string>()
 
 const projects: ProjectSummary[] = [
   {
@@ -103,6 +110,20 @@ function docsOf(prefix: string): { file: string; name: string; mtime: number }[]
 const mock = {
   getSettings: async () => settings,
   setSettings: async (s: AppSettings) => Object.assign(settings, s),
+
+  // 工作区（dev 模式：内存文档；真机走磁盘）
+  workspaceStatus: async () => {
+    const dir = settings.workspace || '~/Documents/织卷工作区'
+    return { dir, inited: wsDocs.size > 0, docs: [...wsDocs.keys()].map((file) => ({ file, name: file.replace(/\.md$/, '') })) }
+  },
+  workspaceInit: async () => {
+    const created: string[] = []
+    for (const [file, txt] of Object.entries(WRK_DOCS)) {
+      if (!wsDocs.has(file)) { wsDocs.set(file, txt); created.push(file) }
+    }
+    return { ok: true, created, docs: Object.keys(WRK_DOCS) }
+  },
+  workspaceRead: async (file: string) => wsDocs.get(file) ?? null,
   listProjects: async (): Promise<ProjectSummary[]> => projects.slice(),
   createProject: async (name: string, description: string): Promise<ProjectSummary> => {
     const p: ProjectSummary = { id: 'demo-' + name.slice(0, 4), name, description, createdAt: now, updatedAt: now, stats: { chapters: 0, characters: 0, worldviewFiles: 0, materials: 0 } }

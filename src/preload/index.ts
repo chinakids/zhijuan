@@ -6,6 +6,13 @@ const api = {
   getSettings: () => ipcRenderer.invoke('settings:get') as Promise<AppSettings>,
   setSettings: (patch: Partial<AppSettings>) => ipcRenderer.invoke('settings:set', patch) as Promise<AppSettings>,
 
+  // 工作区（相关文档落档）
+  workspaceStatus: () =>
+    ipcRenderer.invoke('workspace:status') as Promise<{ dir: string; inited: boolean; docs: { file: string; name: string }[] }>,
+  workspaceInit: () =>
+    ipcRenderer.invoke('workspace:init') as Promise<{ ok: boolean; created: string[]; docs: string[] }>,
+  workspaceRead: (file: string) => ipcRenderer.invoke('workspace:read', file) as Promise<string | null>,
+
   // 项目
   listProjects: () => ipcRenderer.invoke('project:list') as Promise<ProjectSummary[]>,
   createProject: (name: string, description: string) =>
