@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Plus, BookOpen } from 'lucide-react'
 import type { ChapterEntry } from '../../../shared/types'
 import { serializeFrontMatter } from '../../../shared/fmatter'
 import { Button } from '../components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { cn } from '../lib/utils'
 import DocEditor from '../features/editor/DocEditor'
+import type { ProseApi } from '../features/editor/Prose'
+import AgentPanel from '../features/agent/AgentPanel'
 import { useFsEvents } from '../features/fs/useFsEvents'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog'
 
 export default function Novel() {
   const { id = '' } = useParams()
@@ -21,32 +23,26 @@ export default function Novel() {
   const [cast, setCast] = useState('')
   const [pitch, setPitch] = useState('')
   const events = useFsEvents(id)
+  const apiRef = useRef<ProseApi | null>(null)
 
   const refresh = useCallback(async () => {
     if (!id) return
     const list = await window.zhijuan.listChapters(id)
     setChapters(list)
-    setSel((s) => (s && list.some((c) => c.file === s) ? s : list[0]?.file ?? null))
+    setSel((s) => (s && list.some((c) => c.file === s) ? s : null))
   }, [id])
 
   useEffect(() => {
     void refresh()
   }, [refresh])
 
-  // 磁盘事件：文件新建/删除时刷新章节列表
+  // 文件变化：刷新列表
   useEffect(() => {
     const ev = events[events.length - 1]
-    if (ev && (ev.path.startsWith('正文/') || ev.path === '正文')) void refresh()
+    if (ev && ev.path.startsWith('正文/')) void refresh()
   }, [events, refresh])
 
-  // 当前文件的外部事件版本（供 DocEditor 感知外部修改）
   const extVersion = useMemo(() => (sel ? events.filter((e) => e.path === sel).length : 0), [events, sel])
-
-  const mds = useMemo(() => {
-    const m = new Map<string, ChapterEntry>()
-    for (const c of chapters) m.set(c.file, c)
-    return m
-  }, [chapters])
 
   async function createChapter() {
     if (!id || !title.trim()) return
@@ -54,7 +50,7 @@ export default function Novel() {
     const fm = serializeFrontMatter({
       章号: num,
       题名: title.trim(),
-      切片: slice.trim() || `${num}`,
+      切片: slice.trim() || String(num),
       涉及人物: cast.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
     })
     const name = `第${String(num).padStart(2, '0')}章_${title.trim()}.md`
@@ -66,9 +62,10 @@ export default function Novel() {
     setCast('')
     setPitch('')
     await refresh()
+    setSel(`正文/${name}`)
   }
 
-  const cur = sel ? mds.get(sel) : undefined
+  const cur = chapters.find((c) => c.file === sel)
 
   return (
     <div className="flex h-full min-h-0">
@@ -80,13 +77,13 @@ export default function Novel() {
           </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
-          {chapters.length === 0 && <p className="px-2 py-6 text-center text-xs text-ink-3">还没有章节；点右上角 ＋ 建第一章</p>}
+          {chapters.length === 0 && <p className="px-2 py-6 text-center text-xs text-ink-3">还没有章节，点右上角「+」开始第一章。</p>}
           {chapters.map((c) => (
             <button
               key={c.file}
               onClick={() => setSel(c.file)}
               className={cn(
-                'mb-0.5 block w-full rounded-lg px-3 py-2 text-left transition-colors',
+                'mb-0.5 flex w-full flex-col gap-0.5 rounded-lg px-3 py-2 text-left transition-colors',
                 sel === c.file ? 'bg-accent-soft' : 'hover:bg-surface'
               )}
             >
@@ -103,30 +100,29 @@ export default function Novel() {
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
-        {cur ? (
+        {sel ? (
           <>
             <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hair px-4">
-              <span className="truncate text-sm font-medium text-ink">{cur.name}</span>
+              <span className="truncate text-sm font-medium text-ink">{cur?.name}</span>
               <span className="flex-1" />
-              <span className="text-[11px] text-ink-3">WYSIWYG markdown · ⌘S 保存 · 选中可右键引用（S3）</span>
+              <span className="text-[11px] text-ink-3">选中段落后可用 agent 的「引用选中」· ⌘S 保存</span>
             </div>
             <div className="min-h-0 flex-1">
-              <DocEditor projectId={id} rel={cur.file} withFm extVersion={extVersion} onSave={() => void refresh()} />
+              <DocEditor projectId={id} rel={sel} withFm extVersion={extVersion} editorApiRef={apiRef} onSave={() => void refresh()} />
             </div>
           </>
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-ink-3">
-            <BookOpen className="h-8 w-8 opacity-30" />
-            <p>没有可编辑的章节。点左侧 ＋ 新建第一章（一章 = 一个时间切片）。</p>
-          </div>
+          <div className="flex h-full items-center justify-center text-sm text-ink-3">选择左侧一个章节开始（编辑器已就绪）</div>
         )}
       </main>
+
+      <AgentPanel projectId={id} chapterRel={sel} chapterTitle={cur?.name ?? ''} editorApi={() => apiRef.current} />
 
       <Dialog open={creating} onOpenChange={setCreating}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>新建章节</DialogTitle>
-            <DialogDescription>一章 = 一个时间切片。约定头会写进正文文件顶部，是切片同步的锚。</DialogDescription>
+            <DialogDescription>一章 = 一个时间切片。约定头会写进正文文件顶部，保存正文时按它做切片同步。</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
@@ -135,7 +131,7 @@ export default function Novel() {
             </div>
             <div className="space-y-1.5">
               <Label>时间切片名</Label>
-              <Input placeholder="如：第二幕_台风夜（留空用章号）" value={slice} onChange={(e) => setSlice(e.target.value)} />
+              <Input placeholder="如：第二幕_台风夜（留空则用章号）" value={slice} onChange={(e) => setSlice(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label>涉及人物（逗号分隔）</Label>
@@ -143,7 +139,7 @@ export default function Novel() {
             </div>
             <div className="space-y-1.5">
               <Label>本章梗概（可选）</Label>
-              <Input placeholder="一句话——给 agent 上下文用" value={pitch} onChange={(e) => setPitch(e.target.value)} />
+              <Input placeholder="一句话梗概，会作为引用写进文首" value={pitch} onChange={(e) => setPitch(e.target.value)} />
             </div>
           </div>
           <DialogFooter>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { cn } from '../../lib/utils'
 import Prose, { type ProseApi } from './Prose'
 import { withBody } from '../../../../shared/fmatter'
@@ -9,6 +9,8 @@ interface DocEditorProps {
   projectId: string
   /** 相对项目根的文件路径 */
   rel: string
+  /** 外部想拿到本章编辑器的命令式入口（agent 引用/应用要用） */
+  editorApiRef?: MutableRefObject<ProseApi | null>
   /** 章节类：只编辑约定头之下的正文，保存时保住约定头 */
   withFm?: boolean
   /** 外部文件版本号（父级监听的 fs 事件命中本文档时 +1）；未修改时触发静默重载 */
@@ -18,8 +20,9 @@ interface DocEditorProps {
   className?: string
 }
 
-export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty, onSave, className }: DocEditorProps) {
-  const apiRef = useRef<ProseApi | null>(null)
+export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty, onSave, className, editorApiRef }: DocEditorProps) {
+  const innerApi = useRef<ProseApi | null>(null)
+  const apiRef = editorApiRef ?? innerApi
   const rawRef = useRef('') // 磁盘上的原文（含约定头）
   const savedMdRef = useRef('') // 最近一次保存时的正文
   const [status, setStatus] = useState<DocStatus>('idle')

@@ -78,6 +78,25 @@
   --font-mono: 'Menlo', 'SF Mono', 'JetBrains Mono', monospace;
 }
 
+/* agent 回复区的极简 markdown 样式 */
+.prose { word-break: break-word; }
+.prose > *:first-child { margin-top: 0 }
+.prose > *:last-child { margin-bottom: 0 }
+.prose h1, .prose h2, .prose h3, .prose h4 { margin: 0.6em 0 0.3em; line-height: 1.4; font-weight: 600 }
+.prose h1 { font-size: 1.15em }
+.prose h2 { font-size: 1.05em }
+.prose h3 { font-size: 1em }
+.prose p { margin: 0.4em 0 }
+.prose ul, .prose ol { margin: 0.4em 0; padding-left: 1.4em }
+.prose li { margin: 0.15em 0 }
+.prose a { color: var(--accent) }
+.prose code { background: var(--surface-2); border-radius: 4px; padding: 0.1em 0.35em; font-size: 0.9em; font-family: Menlo, monospace }
+.prose pre { background: var(--surface-2); border: 1px solid var(--hair); border-radius: 8px; padding: 0.6em 0.8em; overflow-x: auto; font-size: 0.85em; line-height: 1.5 }
+.prose pre code { background: none; padding: 0 }
+.prose blockquote { border-left: 3px solid var(--accent); margin: 0.5em 0; padding-left: 0.7em; color: var(--ink-2) }
+.prose table { border-collapse: collapse; margin: 0.5em 0; font-size: 0.9em }
+.prose th, .prose td { border: 1px solid var(--hair); padding: 0.3em 0.6em }
+
 html,
 body,
 #root {

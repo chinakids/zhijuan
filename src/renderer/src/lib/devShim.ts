@@ -71,7 +71,7 @@ docs.set(
   ['---', '标签: [桥段, 开头, 失忆]', '---', '', '# 追忆型开头', '', '以一件旧物切入，牵出角色“忘了的事”，用于开篇营造悬念。', ''].join('\n')
 )
 
-const settings: AppSettings = { libraryRoot: '', llm: { baseUrl: '', model: 'demo', apiKey: '' }, theme: 'paper', collectionEnabled: true }
+const settings: AppSettings = { libraryRoot: '', llm: { baseUrl: 'http://127.0.0.1:8888', model: 'deepseek-v4-flash-0731', apiKey: '' }, theme: 'paper', collectionEnabled: true }
 
 const projects: ProjectSummary[] = [
   {
