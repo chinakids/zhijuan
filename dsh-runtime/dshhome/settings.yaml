@@ -1,0 +1,11 @@
+llm:
+  providers:
+    local-vllm:
+      apiKeyEnv: LOCAL_LLM_KEY
+      api: openai-completions
+      baseURL: http://127.0.0.1:8888/v1
+      compat:
+        supportsDeveloperRole: false
+        maxTokensField: max_tokens
+      models:
+        - id: deepseek-v4-flash-0731

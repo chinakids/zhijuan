@@ -1,0 +1,4 @@
+node_modules/
+dshhome/sessions/
+run/
+*.log

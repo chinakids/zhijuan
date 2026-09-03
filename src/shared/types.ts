@@ -47,13 +47,25 @@ export interface AppSettings {
   llm: { baseUrl: string; model: string; apiKey: string }
   theme: 'paper' | 'dark'
   collectionEnabled: boolean
+  /** agent 引擎：harness = dsh 边车（有工具）；legacy = 直连 LLM 对话 */
+  agentEngine: 'harness' | 'legacy'
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   libraryRoot: '', // 为空则用 文档/织卷项目库
   llm: { baseUrl: 'http://127.0.0.1:8888', model: 'deepseek-v4-flash-0731', apiKey: '' },
   theme: 'paper',
-  collectionEnabled: true
+  collectionEnabled: true,
+  agentEngine: 'harness'
+}
+
+/** agent 流事件（主进程 → 渲染层，按 requestId 认领） */
+export interface AgentEvent {
+  requestId: string
+  type: 'delta' | 'meta' | 'meta-done' | 'final' | 'done' | 'aborted' | 'error'
+  text?: string
+  tool?: string
+  message?: string
 }
 
 /** 文件系统事件（watcher 广播给渲染层） */

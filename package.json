@@ -8,7 +8,8 @@
   "private": true,
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "node scripts/build-plugins.mjs && electron-vite build",
+    "build:plugins": "node scripts/build-plugins.mjs",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
     "verify": "npm run typecheck"

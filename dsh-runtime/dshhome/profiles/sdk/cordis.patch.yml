@@ -1,0 +1,27 @@
+# sdk profile：织卷创作的 agent 边车（DeepSeek Harness SDK runtime）
+# 本文件是静态基础层：jsonrpc 边车 + 织卷写作工具 zj-core。
+# LLM 端点有两层：默认用下方 llm-pi-ai（本机 vLLM），若主进程检测到设置里的
+# 端点不同，会另行生成 run/llm.override.patch.yml 并以 --patch 叠加（后者胜出）。
+- id: llm-pi-ai
+  config:
+    providers:
+      local-vllm:
+        displayName: Local vLLM (127.0.0.1)
+        apiKeyEnv: LOCAL_LLM_KEY
+        api: openai-completions
+        baseURL: http://127.0.0.1:8888/v1
+        compat:
+          supportsDeveloperRole: false
+          maxTokensField: max_tokens
+        models:
+          - id: deepseek-v4-flash-0731
+- id: agent-default-model
+  config:
+    provider: local-vllm
+    model: deepseek-v4-flash-0731
+- insert:
+    - id: jsonrpc
+      name: '@deepseek-ai/dsh-sdk-jsonrpc-server'
+      inject: [agents]
+    - id: zj-core
+      name: 'zj-core'

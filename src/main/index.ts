@@ -1,6 +1,7 @@
 import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { registerIpc } from './ipc'
+import { shutdownAgent } from './agent/ipc'
 import { getSettings } from './store'
 
 const isDev = !!process.env['ELECTRON_RENDERER_URL']
@@ -57,4 +58,8 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
+})
+
+app.on('will-quit', () => {
+  shutdownAgent()
 })

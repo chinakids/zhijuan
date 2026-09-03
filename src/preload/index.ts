@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings, ChapterEntry, FsEvent, ProjectSummary, Proposal, ProposalItem } from '../shared/types'
+import type { AppSettings, AgentEvent, ChapterEntry, FsEvent, ProjectSummary, Proposal, ProposalItem } from '../shared/types'
 
 const api = {
   // 设置
@@ -35,6 +35,22 @@ const api = {
     ipcRenderer.on('fs:event', listener)
     return () => {
       ipcRenderer.removeListener('fs:event', listener)
+    }
+  },
+
+  // agent（harness 引擎；流式事件按 requestId 认领）
+  agentSend: (input: { requestId: string; projectId: string; chapterRel: string | null; chapterTitle: string; prompt: string; quote?: string | null; history?: { role: 'user' | 'assistant'; content: string }[] }) =>
+    ipcRenderer.invoke('agent:send', input) as Promise<{ ok: boolean }>,
+  agentCancel: (requestId: string) => ipcRenderer.invoke('agent:cancel', requestId) as Promise<boolean>,
+  agentSync: (projectId: string, chapterRel: string) =>
+    ipcRenderer.invoke('agent:sync', projectId, chapterRel) as Promise<{ ok: boolean; items: ProposalItem[]; error?: string }>,
+  agentStatus: () =>
+    ipcRenderer.invoke('agent:status') as Promise<{ online: boolean; engine: string; model?: string; message?: string }>,
+  onAgentEvent: (cb: (evt: AgentEvent) => void) => {
+    const listener = (_e: unknown, evt: AgentEvent) => cb(evt)
+    ipcRenderer.on('agent:event', listener)
+    return () => {
+      ipcRenderer.removeListener('agent:event', listener)
     }
   }
 }

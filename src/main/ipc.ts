@@ -2,6 +2,8 @@
 import { ipcMain, shell, BrowserWindow } from 'electron'
 import type { AppSettings, FsEvent, ProposalItem } from '../shared/types'
 import { listProposals, createProposals, applyProposal, rejectProposal } from './proposals'
+import { registerAgentIpc } from './agent/ipc'
+import { isRuntimeCreated, closeHarness } from './agent/runtime'
 import {
   getSettings,
   setSettings,
@@ -27,7 +29,14 @@ export function broadcastToAll(evt: FsEvent) {
 export function registerIpc() {
   // 设置
   ipcMain.handle('settings:get', () => getSettings())
-  ipcMain.handle('settings:set', (_e, patch: Partial<AppSettings>) => setSettings(patch))
+  ipcMain.handle('settings:set', (_e, patch: Partial<AppSettings>) => {
+    const next = setSettings(patch)
+    // LLM 端点或引擎变了：关掉边车，下次请求按新设置重建
+    if (isRuntimeCreated() && (patch.llm || patch.agentEngine)) {
+      void closeHarness()
+    }
+    return next
+  })
 
   // 项目
   ipcMain.handle('project:list', () => listProjects())
@@ -60,4 +69,7 @@ export function registerIpc() {
   ipcMain.handle('proposal:create', (_e, id: string, source: 'slice-sync' | 'agent-chat', chapter: string, slice: string, items: ProposalItem[]) => createProposals(libraryRoot(), id, source, chapter, slice, items))
   ipcMain.handle('proposal:apply', (_e, id: string, pid: string) => applyProposal(libraryRoot(), id, pid))
   ipcMain.handle('proposal:reject', (_e, id: string, pid: string) => rejectProposal(libraryRoot(), id, pid))
+
+  // agent（dsh 边车）
+  registerAgentIpc()
 }

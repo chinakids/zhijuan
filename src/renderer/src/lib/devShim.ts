@@ -1,5 +1,5 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
-import type { AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary } from '../../../shared/types'
+import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary } from '../../../shared/types'
 
 const now = Date.now()
 
@@ -71,7 +71,7 @@ docs.set(
   ['---', '标签: [桥段, 开头, 失忆]', '---', '', '# 追忆型开头', '', '以一件旧物切入，牵出角色“忘了的事”，用于开篇营造悬念。', ''].join('\n')
 )
 
-const settings: AppSettings = { libraryRoot: '', llm: { baseUrl: 'http://127.0.0.1:8888', model: 'deepseek-v4-flash-0731', apiKey: '' }, theme: 'paper', collectionEnabled: true }
+const settings: AppSettings = { libraryRoot: '', llm: { baseUrl: 'http://127.0.0.1:8888', model: 'deepseek-v4-flash-0731', apiKey: '' }, theme: 'paper', collectionEnabled: true, agentEngine: 'harness' }
 
 const projects: ProjectSummary[] = [
   {
@@ -184,7 +184,34 @@ const mock = {
     const p = mock.proposals.find((x) => x.id === pid)
     if (p) p.status = 'rejected'
     return true
-  }
+  },
+
+  // agent（无 Electron：本地模拟流式，驱动 hook 链路可跑）
+  agentListeners: new Set<(e: AgentEvent) => void>(),
+  onAgentEvent: (cb: (e: AgentEvent) => void) => {
+    mock.agentListeners.add(cb)
+    return () => {
+      mock.agentListeners.delete(cb)
+    }
+  },
+  agentSend: async (input: { requestId: string; prompt: string }) => {
+    const rid = input.requestId
+    const emit = (e: AgentEvent) => mock.agentListeners.forEach((h) => h(e))
+    await new Promise((r) => setTimeout(r, 80))
+    emit({ requestId: rid, type: 'meta', tool: 'zj_read_doc' })
+    await new Promise((r) => setTimeout(r, 80))
+    const demo =
+      '（dev 模式模拟回复）\n\n根据当前章节，阿七在雨中攥紧了那盏旧灯 —— 她该回头去灯塔看看。\n\n要不要我把这一段续出去？'
+    for (let i = 0; i < demo.length; i += 8) {
+      emit({ requestId: rid, type: 'delta', text: demo.slice(i, i + 8) })
+      await new Promise((r) => setTimeout(r, 10))
+    }
+    emit({ requestId: rid, type: 'final', text: demo })
+    emit({ requestId: rid, type: 'done' })
+  },
+  agentCancel: async () => true,
+  agentSync: async () => ({ ok: true, items: [] } as { ok: boolean; items: ProposalItem[] }),
+  agentStatus: async () => ({ online: true, engine: 'harness', model: settings.llm.model })
 }
 
 /** devShim 用的锚点写入（与 main 侧同规则：标题下节体替换；无标题则追加） */

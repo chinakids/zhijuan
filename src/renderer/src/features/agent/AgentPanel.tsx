@@ -7,6 +7,7 @@ import { useAppStore } from '../../store/app'
 import { useAgentStore } from './store'
 import { buildAgentContext } from './context'
 import { streamChat, type ChatMessage } from './llm'
+import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
 import { cn } from '../../lib/utils'
 import { Button } from '../../components/ui/button'
 
@@ -18,55 +19,94 @@ interface AgentPanelProps {
 }
 
 const CHAR_LIMIT = 60000 // 上下文预算：首屏截断，超长走尾部
+let ridSeq = 0
+const newRid = () => 'r' + Date.now().toString(36) + (ridSeq++).toString(36)
 
 function useSender(props: AgentPanelProps) {
   const setStreaming = useAgentStore((s) => s.setStreaming)
   const streaming = useAgentStore((s) => s.streaming)
-  const abortRef = useRef<AbortController | null>(null)
+  const abortRef = useRef<{ kind: 'harness' | 'legacy'; rid: string; ctrl?: AbortController } | null>(null)
 
   const send = useCallback(
     async (raw: string, quote: string | null) => {
       const { projectId, chapterRel } = props
       if (streaming || !raw.trim()) return
-      const llm = useAppStore.getState().settings?.llm
+      const settings = useAppStore.getState().settings
+      const llm = settings?.llm
       if (!llm?.baseUrl) {
         useAgentStore.getState().append({ role: 'assistant', content: '还没有配置 LLM 端点：设置 → 大模型（默认 127.0.0.1:8888）。', error: true })
         return
       }
+      const engine = settings?.agentEngine ?? 'harness'
       const content = quote ? `（引用自《${props.chapterTitle}》选中段落）\n> ${quote.replace(/\n/g, '\n> ')}\n\n${raw}` : raw
       useAgentStore.getState().append({ role: 'user', content, quote: quote ?? undefined })
-      const asm = { id: '' }
       useAgentStore.getState().append({ role: 'assistant', content: '' })
       setStreaming(true)
-      const ctrl = new AbortController()
-      abortRef.current = ctrl
+      const rid = newRid()
+      const patch = (t: string, trunc = true) => {
+        const msgs = useAgentStore.getState().messages
+        const last = msgs[msgs.length - 1]
+        if (!last) return
+        const v = trunc && t.length > CHAR_LIMIT ? t.slice(0, CHAR_LIMIT) + '…（截断）' : t
+        useAgentStore.getState().patch(last.id, v)
+      }
+      const fail = (txt: string) => {
+        const msgs = useAgentStore.getState().messages
+        useAgentStore.getState().setError(msgs[msgs.length - 1].id, txt)
+      }
       try {
-        const { prompt } = await buildAgentContext(projectId, chapterRel ?? '')
-        const history: ChatMessage[] = (() => {
-          const msgs = useAgentStore.getState().messages
-          let past = msgs.slice(0, -1).slice(-30).map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
-          return [{ role: 'system', content: prompt }, ...past]
-        })()
-        let out = ''
-        await streamChat({
-          baseUrl: llm.baseUrl,
-          model: llm.model,
-          apiKey: llm.apiKey,
-          messages: history,
-          onToken: (t) => {
-            out += t
-            if (out.length > CHAR_LIMIT) return
+        if (engine === 'harness') {
+          attachAgentBridge()
+          abortRef.current = { kind: 'harness', rid }
+          // 可见历史（去掉刚 push 的最后一条 user + 空 assistant）由引擎拼进上下文
+          const history = useAgentStore
+            .getState()
+            .messages.slice(0, -2)
+            .slice(-20)
+            .map((m) => ({ role: m.role, content: m.content }))
+          const r = await harnessSend(
+            {
+              requestId: rid,
+              projectId,
+              chapterRel: chapterRel ?? null,
+              chapterTitle: props.chapterTitle,
+              prompt: raw,
+              quote: quote ?? null,
+              history
+            },
+            (e) => {
+              if (e.type === 'delta') patch((useAgentStore.getState().messages.at(-1)?.content ?? '') + e.text, false)
+              else if (e.type === 'final') patch(e.text ?? '')
+              else if (e.type === 'error') fail('请求失败：' + (e.message ?? ''))
+            }
+          )
+          if (r === 'aborted') patch((useAgentStore.getState().messages.at(-1)?.content ?? '') + '\n\n（已停止）')
+        } else {
+          // legacy 直连（可随时回切的老引擎）
+          const ctrl = new AbortController()
+          abortRef.current = { kind: 'legacy', rid, ctrl }
+          const { prompt } = await buildAgentContext(projectId, chapterRel ?? '')
+          const history: ChatMessage[] = (() => {
             const msgs = useAgentStore.getState().messages
-            useAgentStore.getState().patch(msgs[msgs.length - 1].id, out)
-          },
-          signal: ctrl.signal
-        })
-        const msgs = useAgentStore.getState().messages
-        if (out.length > CHAR_LIMIT) out = out.slice(0, CHAR_LIMIT) + '…（截断）'
-        useAgentStore.getState().patch(msgs[msgs.length - 1].id, out)
+            const past = msgs.slice(0, -1).slice(-30).map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+            return [{ role: 'system', content: prompt }, ...past]
+          })()
+          let out = ''
+          await streamChat({
+            baseUrl: llm.baseUrl,
+            model: llm.model,
+            apiKey: llm.apiKey,
+            messages: history,
+            onToken: (t) => {
+              out += t
+              patch(out)
+            },
+            signal: ctrl.signal
+          })
+          patch(out)
+        }
       } catch (e) {
-        const msgs = useAgentStore.getState().messages
-        useAgentStore.getState().setError(msgs[msgs.length - 1].id, '请求失败：' + String((e as Error).message || e))
+        fail('请求失败：' + String((e as Error).message || e))
       } finally {
         setStreaming(false)
         abortRef.current = null
@@ -76,7 +116,14 @@ function useSender(props: AgentPanelProps) {
     [props, streaming]
   )
 
-  return { send, stop: () => abortRef.current?.abort(), streaming }
+  const stop = useCallback(() => {
+    const a = abortRef.current
+    if (!a) return
+    if (a.kind === 'harness') cancelAgent(a.rid)
+    else a.ctrl?.abort()
+  }, [])
+
+  return { send, stop, streaming }
 }
 
 export default function AgentPanel(props: AgentPanelProps) {
