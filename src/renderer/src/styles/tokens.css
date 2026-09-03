@@ -56,6 +56,23 @@
 }
 
 @theme inline {
+  /* Shadcn 家族标准名 → 织卷语义变量（让 radix 等组件全家可用） */
+  --color-background: var(--surface);
+  --color-foreground: var(--ink);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--accent-ink);
+  --color-border: var(--hair);
+  --color-input: var(--hair-strong);
+  --color-ring: var(--accent);
+  --color-muted: var(--surface-2);
+  --color-muted-foreground: var(--ink-3);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--ink);
+  --color-secondary: var(--surface-2);
+  --color-secondary-foreground: var(--ink-2);
+  /* 织卷自己的语义色 */
   --color-paper: var(--paper);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);

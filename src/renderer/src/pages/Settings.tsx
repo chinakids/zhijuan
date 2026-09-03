@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useAppStore } from '../store/app'
+import { useAppStore, applyTheme } from '../store/app'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
@@ -290,10 +290,10 @@ export default function Settings() {
                     <p className="text-xs text-ink-3">暖纸（默认）适合长时间写作，深色适合夜间。</p>
                   </div>
                   <div className="flex gap-1 rounded-lg border border-hair p-0.5">
-                    <Button variant={theme === 'paper' ? 'default' : 'ghost'} size="sm" className="h-7" onClick={() => setTheme('paper')}>
+                    <Button variant={theme === 'paper' ? 'default' : 'ghost'} size="sm" className="h-7" onClick={() => { setTheme('paper'); applyTheme('paper') }}>
                       暖纸
                     </Button>
-                    <Button variant={theme === 'dark' ? 'default' : 'ghost'} size="sm" className="h-7" onClick={() => setTheme('dark')}>
+                    <Button variant={theme === 'dark' ? 'default' : 'ghost'} size="sm" className="h-7" onClick={() => { setTheme('dark'); applyTheme('dark') }}>
                       深色
                     </Button>
                   </div>

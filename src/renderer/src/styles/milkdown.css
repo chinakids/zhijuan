@@ -1,0 +1,47 @@
+/* ===== 织卷 · Milkdown 编辑器外壳（套在 theme-nord 上，跟随主题） ===== */
+
+:where(.zj-md) {
+  background: var(--surface);
+  color: var(--ink);
+}
+.zj-md .ProseMirror {
+  color: var(--ink);
+  background: var(--surface);
+  caret-color: var(--accent);
+  padding: 1rem 1.4rem;
+  min-height: 100%;
+}
+.zj-md .ProseMirror:focus { outline: none; }
+.zj-md .ProseMirror::selection { background: var(--selection); }
+.zj-md .ProseMirror h1, .zj-md .ProseMirror h2, .zj-md .ProseMirror h3 { color: var(--ink); }
+
+/* 顶部工具栏 */
+.zj-md-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--hair);
+  background: var(--surface-2);
+}
+.zj-md-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--ink-2);
+  transition: background 120ms, color 120ms;
+}
+.zj-md-toolbar button:hover { background: var(--well); color: var(--ink); }
+.zj-md-toolbar .sep { width: 1px; height: 16px; margin: 0 4px; background: var(--hair); }
+
+/* 深色跟随我们的 tokens */
+.dark .zj-md { background: var(--surface); }
+.dark .zj-md .ProseMirror { color: var(--ink); }
+.dark .zj-md-toolbar { background: var(--surface-2); border-bottom-color: var(--hair); }
+.dark .zj-md-toolbar button { color: var(--ink-2); }
+.dark .zj-md-toolbar button:hover { background: var(--well); color: var(--ink); }

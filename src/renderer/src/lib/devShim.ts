@@ -219,40 +219,48 @@ const mock = {
     const rid = input.requestId
     const emit = (e: AgentEvent) => mock.agentListeners.forEach((h) => h(e))
     await new Promise((r) => setTimeout(r, 60))
-    emit({ requestId: rid, type: 'meta', tool: 'todo_write' })
+    emit({ requestId: rid, type: 'meta', tool: 'zj_read_doc' })
     await new Promise((r) => setTimeout(r, 60))
-    emit({
-      requestId: rid,
-      type: 'todo',
-      items: [
-        { content: '读取当前章节与人物设定', status: 'in_progress' },
-        { content: '给出续写建议', status: 'pending' },
-        { content: '等待确认后应用到正文', status: 'pending' }
-      ]
-    })
-    await new Promise((r) => setTimeout(r, 60))
-    emit({ requestId: rid, type: 'meta', tool: 'ask_user_question' })
-    await new Promise((r) => setTimeout(r, 60))
-    emit({
-      requestId: rid,
-      type: 'ask',
-      batch: 'dev-demo-1',
-      questions: [
-        {
-          id: 'q_style',
-          header: '风格选择',
-          question: '这段续写打算用什么语气？',
-          options: [
-            { label: '保持现状', description: '延续全章的沉郁氛围' },
-            { label: '轻快一些', description: '给角色一个透气的瞬间' }
-          ],
-          multiSelect: false
-        }
-      ]
-    })
-    await new Promise((r) => setTimeout(r, 60))
+    emit({ requestId: rid, type: 'meta-done', tool: '章节已读完', message: '当前章节与相关设定已装配' })
+    // 只有明确提到计划/提问词时才演示卡片（避免平时也冒一堆卡）
+    const needDemo = /计划|todo|任务|问|确认/.test(input.prompt)
+    if (needDemo) {
+      await new Promise((r) => setTimeout(r, 60))
+      emit({ requestId: rid, type: 'meta', tool: 'todo_write' })
+      await new Promise((r) => setTimeout(r, 60))
+      emit({
+        requestId: rid,
+        type: 'todo',
+        items: [
+          { content: '读取当前章节与人物设定', status: 'in_progress' },
+          { content: '给出续写建议', status: 'pending' },
+          { content: '等待确认后应用到正文', status: 'pending' }
+        ]
+      })
+      await new Promise((r) => setTimeout(r, 60))
+      emit({ requestId: rid, type: 'meta', tool: 'ask_user_question' })
+      await new Promise((r) => setTimeout(r, 60))
+      emit({
+        requestId: rid,
+        type: 'ask',
+        batch: 'dev-demo-1',
+        questions: [
+          {
+            id: 'q_style',
+            header: '风格选择',
+            question: '这段续写打算用什么语气？',
+            options: [
+              { label: '保持现状', description: '延续全章的沉郁氛围' },
+              { label: '轻快一些', description: '给角色一个透气的瞬间' }
+            ],
+            multiSelect: false
+          }
+        ]
+      })
+      await new Promise((r) => setTimeout(r, 60))
+    }
     const demo =
-      '（dev 模式模拟回复）\n\n根据当前章节，阿七在雨中攥紧了那盏旧灯 —— 她该回头去灯塔看看。\n\n要不要我把这一段续出去？'
+      '（dev 模式模拟回复）\n\n刚把当前章节和人物相关设定读了一遍。结合现在的进度，建议先从灯入手：让主角在雨夜里再靠近一次那盏旧灯，把「灯语约定」的伏笔再点一下，然后留一个悬念给下一幕。\n\n要不要我直接按这个思路把这一段写出来？'
     for (let i = 0; i < demo.length; i += 8) {
       emit({ requestId: rid, type: 'delta', text: demo.slice(i, i + 8) })
       await new Promise((r) => setTimeout(r, 10))
