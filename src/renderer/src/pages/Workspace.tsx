@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useParams, Outlet, useLocation } from 'react-router-dom'
+import { useParams, Outlet, useLocation, useSearchParams } from 'react-router-dom'
 import type { FsEvent, ProjectSummary } from '../../../shared/types'
 import SectionNav, { type NavCounts } from '../features/nav/SectionNav'
 import { ListChecks } from 'lucide-react'
 import { useProposalStore } from '../store/proposals'
 import ProposalDrawer from '../features/proposals/ProposalDrawer'
+import ProjectGuide from '../features/guide/ProjectGuide'
 
 const sectionTitles: Record<string, string> = {
   novel: '正文创作',
@@ -19,6 +20,8 @@ const emptyCounts: NavCounts = { novel: 0, characters: 0, worldview: 0, library:
 export default function Workspace() {
   const { id } = useParams<{ id: string }>()
   const loc = useLocation()
+  const [sp, setSp] = useSearchParams()
+  const [guideOpen, setGuideOpen] = useState(() => sp.get('guide') === '1')
   const [project, setProject] = useState<ProjectSummary | null>(null)
   const [counts, setCounts] = useState<NavCounts>(emptyCounts)
 
@@ -93,6 +96,15 @@ export default function Workspace() {
       {drawerOpen && (
         <ProposalDrawer projectId={project.id} list={proposals} onChanged={refreshProposals} onClose={() => setDrawerOpen(false)} />
       )}
+      <ProjectGuide
+        projectId={project.id}
+        projectName={project.name}
+        open={guideOpen}
+        onClose={() => {
+          setGuideOpen(false)
+          setSp({}, { replace: true })
+        }}
+      />
     </div>
   )
 }

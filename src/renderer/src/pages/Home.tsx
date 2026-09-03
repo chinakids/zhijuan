@@ -64,7 +64,7 @@ export default function Home() {
     setCreating(false)
     setName('')
     setDesc('')
-    if (p) navigate(`/project/${p.id}`)
+    if (p) navigate(`/project/${p.id}?guide=1`)
   }
 
   async function importDir() {

@@ -6,6 +6,7 @@ import { serializeFrontMatter } from '../../../shared/fmatter'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
+import { Textarea } from '../components/ui/textarea'
 import { cn } from '../lib/utils'
 import DocEditor from '../features/editor/DocEditor'
 import { runSliceSync } from '../features/sync/sliceSync'
@@ -23,7 +24,10 @@ export default function Novel() {
   const [title, setTitle] = useState('')
   const [slice, setSlice] = useState('')
   const [cast, setCast] = useState('')
-  const [pitch, setPitch] = useState('')
+  const [goal, setGoal] = useState('') // 本章目标
+  const [conflict, setConflict] = useState('')
+  const [plot, setPlot] = useState('') // 关键事件
+  const [hook, setHook] = useState('')
   const events = useFsEvents(id)
   const apiRef = useRef<ProseApi | null>(null)
   const [syncMsg, setSyncMsg] = useState('')
@@ -73,13 +77,29 @@ export default function Novel() {
       涉及人物: cast.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
     })
     const name = `第${String(num).padStart(2, '0')}章_${title.trim()}.md`
-    const body = pitch.trim() ? `# ${title.trim()}\n\n> 本章梗概：${pitch.trim()}\n` : `# ${title.trim()}\n`
+    // 故事要素：有任何一项就写入文首指引块（随正文进入切片同步与 agent 上下文）
+    const eles = [
+      { k: '目标', v: goal },
+      { k: '核心冲突', v: conflict },
+      { k: '关键事件', v: plot },
+      { k: '前情呼应', v: hook }
+    ].filter((x) => x.v.trim())
+    const titleLine = `# ${title.trim()}\n`
+    const body = eles.length
+      ? '> == 本章故事要素 ==\n' +
+        eles.map((x) => `> - ${x.k}：${x.v.trim()}`).join('\n') +
+        '\n>\n> （本章写作指引：可随进度修改；保存后随正文进入切片同步与 agent 上下文）\n\n' +
+        titleLine
+      : titleLine
     await window.zhijuan.writeDoc(id, `正文/${name}`, fm + body)
     setCreating(false)
     setTitle('')
     setSlice('')
     setCast('')
-    setPitch('')
+    setGoal('')
+    setConflict('')
+    setPlot('')
+    setHook('')
     await refresh()
     setSel(`正文/${name}`)
   }
@@ -167,8 +187,20 @@ export default function Novel() {
               <Input placeholder="如：林晚, 顾知远" value={cast} onChange={(e) => setCast(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>本章梗概（可选）</Label>
-              <Input placeholder="一句话梗概，会作为引用写进文首" value={pitch} onChange={(e) => setPitch(e.target.value)} />
+              <Label>本章目标</Label>
+              <Textarea rows={1} placeholder="主角在这一章要达成什么（可空，写了会更稳）" value={goal} onChange={(e) => setGoal(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>核心冲突</Label>
+              <Textarea rows={1} placeholder="本段主要矛盾，如：灯塔要正常值守，可守塔人想出海…" value={conflict} onChange={(e) => setConflict(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>关键事件（可多条）</Label>
+              <Textarea rows={1} placeholder="每件一行：如&#10;· 有人来渡口打听旧船&#10;· 主角在行李里翻出一封信" value={plot} onChange={(e) => setPlot(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>前情呼应（可空）</Label>
+              <Textarea rows={1} placeholder="要回应的伏笔 / 要用的设定：如：呼应幕一里的灯语约定" value={hook} onChange={(e) => setHook(e.target.value)} />
             </div>
           </div>
           <DialogFooter>
