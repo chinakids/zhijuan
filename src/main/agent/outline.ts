@@ -2,18 +2,9 @@
 // 逐章跑写作引擎，把「已是事实的正文」回建成标准章卡（一句话定位 / 关键事件 / 人物进展 / 钩子），
 // 落到 大纲/ 目录（每章一张 + 一本索引），让大纲区随正文进度活起来。
 // 与 runAudit 同构：独立 session、无提问、离线出结果；写入走主进程 writeDoc（设定改动仍走提案制，章卡属于写作副产物，直写）。
-import { driveSession } from './runtime'
 import { readDoc, listChapters, listDocs, writeDoc } from '../store'
+import { registerCapability, runOnce, subtaskBlocked, stripFm, type SubtaskDef } from './subtask'
 import type { ChapterEntry, OutlineCard } from '../../shared/types'
-
-let runSeq = 0
-const newSid = (projectId: string) => 'ol-' + Date.now().toString(36) + '-' + (runSeq++).toString(36) + '-' + projectId
-
-/** 正文去掉 front matter（约定头） */
-function stripFm(raw: string): string {
-  const m = raw.match(/^---\n[\s\S]*?\n---\n/)
-  return m ? raw.slice(m[0].length) : raw
-}
 
 /** 章卡对应的落盘文件：大纲/<章节名>.md */
 function outlineRel(c: ChapterEntry): string {
@@ -142,6 +133,25 @@ export type OutlineRebuildResult =
   | { ok: true; cards: OutlineCard[]; written: string[] }
   | { ok: false; error: string }
 
+/** 单章章卡任务：一轮驱动 + 解析（供循环复用） */
+const cardDef: SubtaskDef<{ oneLine: string; beats: string[]; charProgress: string; hooks: string[] }> = {
+  id: 'outline',
+  title: '大纲回建',
+  description: '把已有正文（逐章）回建成章卡，写 大纲/ 目录',
+  maxMs: 5 * 60 * 1000,
+  buildParts: (c) => {
+    const rel = String(c.args?.chapterRel ?? '')
+    const raw = readDoc(c.projectId, rel) ?? ''
+    const body = stripFm(raw)
+    if (!body.trim()) throw new Error('章节没有内容')
+    return [cardSystem(), '【本章正文】\n' + body.slice(0, 24000)]
+  },
+  parse: (text) => extractCard(text)
+}
+registerCapability(cardDef as never)
+
+let outSeq = 0
+
 /** 回建章卡（可只回建指定的正文章节）；慢任务，由 IPC 呼叫方挂起等待 */
 export async function runOutlineRebuild(
   projectId: string,
@@ -153,22 +163,24 @@ export async function runOutlineRebuild(
     chapters = chapters.filter((c) => want.has(c.file))
   }
   if (!chapters.length) return { ok: false, error: '还没有可回建的正文章节。' }
+  const blocked = subtaskBlocked('outline', '大纲回建')
+  if (blocked) return { ok: false, error: blocked }
   const cards: OutlineCard[] = []
   const written: string[] = []
   try {
     for (const c of chapters) {
       opts?.onProgress?.(`正在回建「${c.name}」…`)
-      const raw = readDoc(projectId, '正文/' + c.file) ?? ''
-      const sys = cardSystem()
-      const text = await driveSession(newSid(projectId), sys + '\n\n【本章正文】\n' + stripFm(raw).slice(0, 24000), {
-        maxMs: 5 * 60 * 1000
+      const parsed = await runOnce(cardDef, {
+        projectId,
+        args: { chapterRel: '正文/' + c.file },
+        seq: outSeq++
       })
       const card: OutlineCard = {
         file: '正文/' + c.file,
         no: c.fm?.['章号'],
         title: c.fm?.['题名'] ?? c.name,
         slice: c.fm?.['切片'] ?? '',
-        ...extractCard(text),
+        ...parsed,
         wordCount: c.wordCount
       }
       const rel = outlineRel(c)

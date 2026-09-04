@@ -1,8 +1,8 @@
 // ===== 织卷 · 全卷检查子任务（agent-first：一致性巡查 / 冷读报告） =====
 // 主进程把作品全卷的正文（截段）与全部设定档案整理成材料包，喂给写作引擎一次**写**结构化 JSON，
 // 供 UI 渲染成可逐条转提案的检查报告。和 runSync 同构：独立的 session、无提问、离线出结果。
-import { driveSession } from './runtime'
 import { readDoc, listChapters, listDocs } from '../store'
+import { registerCapability, runSubtask, type SubtaskDef } from './subtask'
 import type {
   ChapterEntry,
   AuditItem,
@@ -15,9 +15,6 @@ import type {
 } from '../../shared/types'
 
 export type { AuditKind, AuditItem, AuditResult }
-
-let runSeq = 0
-const newSid = (projectId: string) => 'aud-' + Date.now().toString(36) + '-' + (runSeq++).toString(36) + '-' + projectId
 
 /** 正文去掉 front matter（约定头） */
 function stripFm(raw: string): string {
@@ -89,21 +86,24 @@ function auditSystem(kind: AuditKind): string {
   )
 }
 
+const auditDef: SubtaskDef<AuditResult> = {
+  id: 'audit',
+  title: '全卷检查',
+  description: '一致性巡查 / 冷读报告：跨全卷对照设定找问题',
+  maxMs: 8 * 60 * 1000,
+  buildParts: (c) => {
+    const kind = c.args?.kind as AuditKind
+    return [auditSystem(kind), volumeBrief(c.projectId), kind === 'consistency' ? '请给出巡查报告 JSON。' : '请给出冷读报告 JSON。']
+  },
+  parse: (text) => extractAudit(text)
+}
+registerCapability(auditDef as never)
+
 export async function runAudit(
   projectId: string,
   kind: AuditKind
 ): Promise<{ ok: true; result: AuditResult } | { ok: false; error: string }> {
-  const parts: string[] = []
-  parts.push(auditSystem(kind))
-  parts.push(volumeBrief(projectId))
-  parts.push(kind === 'consistency' ? '请给出巡查报告 JSON。' : '请给出冷读报告 JSON。')
-  try {
-    const text = await driveSession(newSid(projectId), parts.join('\n\n'), { maxMs: 8 * 60 * 1000 })
-    const result = extractAudit(text)
-    return { ok: true, result }
-  } catch (e: any) {
-    return { ok: false, error: String(e?.message ?? e).slice(0, 300) }
-  }
+  return runSubtask(auditDef, projectId, { kind })
 }
 
 /** 从模型回复里稳健提取审计 JSON 对象 */
@@ -238,27 +238,36 @@ export function extractChapterCheck(text: string, knownTargets?: Set<string>): C
   return { summary: typeof obj?.summary === 'string' ? obj.summary : '', items }
 }
 
+const chapterCheckDef: SubtaskDef<ChapterCheckResult> = {
+  id: 'chapter-check',
+  title: '本章检查',
+  description: '每章短巡查 / 分层修订：沿写作线的小环兜底',
+  maxMs: 6 * 60 * 1000,
+  buildParts: (c) => {
+    const chapterRel = String(c.args?.chapterRel ?? '')
+    const kind = c.args?.kind as ChapterCheckKind
+    const raw = readDoc(c.projectId, chapterRel) ?? ''
+    const body = stripFm(raw)
+    if (!body.trim()) throw new Error('当前章节还没有内容，先写一点再检查。')
+    return [
+      chapterCheckSystem(kind),
+      chapterBrief(c.projectId, chapterRel, body),
+      kind === 'chapter' ? '请给出本章短巡查报告 JSON。' : '请给出分层修订单 JSON。'
+    ]
+  },
+  parse: (text, c) => extractChapterCheck(text, new Set(settingList(c.projectId))),
+  retry: {
+    check: (r) => !r.summary && !r.items.length,
+    prompt:
+      '【提醒】上一次回答没有解析成要求的 JSON。这次请只原样输出一个 JSON 对象，先输出左花括号 {，别的什么也不要写。'
+  }
+}
+registerCapability(chapterCheckDef as never)
+
 export async function runChapterCheck(
   projectId: string,
   chapterRel: string,
   kind: ChapterCheckKind
 ): Promise<{ ok: true; result: ChapterCheckResult } | { ok: false; error: string }> {
-  const raw = readDoc(projectId, chapterRel) ?? ''
-  const body = stripFm(raw)
-  if (!body.trim()) return { ok: false, error: '当前章节还没有内容，先写一点再检查。' }
-  const parts: string[] = [chapterCheckSystem(kind)]
-  parts.push(chapterBrief(projectId, chapterRel, body))
-  parts.push(kind === 'chapter' ? '请给出本章短巡查报告 JSON。' : '请给出分层修订单 JSON。')
-  try {
-    let text = await driveSession(newSid(projectId) + '-ch', parts.join('\n\n'), { maxMs: 6 * 60 * 1000 })
-    let result = extractChapterCheck(text, new Set(settingList(projectId)))
-    // 空结果（即模型跑偏成非 JSON 的散文）时，重试一次并强令只输出 JSON
-    if (!result.summary && !result.items.length) {
-      text = await driveSession(newSid(projectId) + '-ch2', parts.join('\n\n') + '\n\n【提醒】上一次回答没有解析成要求的 JSON。这次请只原样输出一个 JSON 对象，先输出左花括号 {，别的什么也不要写。', { maxMs: 4 * 60 * 1000 })
-      result = extractChapterCheck(text, new Set(settingList(projectId)))
-    }
-    return { ok: true, result }
-  } catch (e: any) {
-    return { ok: false, error: String(e?.message ?? e).slice(0, 300) }
-  }
+  return runSubtask(chapterCheckDef, projectId, { chapterRel, kind })
 }

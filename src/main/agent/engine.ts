@@ -13,8 +13,10 @@ export { closeHarness as shutdown } from './runtime'
 // ---------- 事件协议 ----------
 export type AgentOutEvent =
   | { requestId: string; type: 'delta'; text: string } // 模型文本增量
-  | { requestId: string; type: 'meta'; tool: string } // 工具开始
+  | { requestId: string; type: 'think'; text: string } // 模型思考增量（reasoning 块）
+  | { requestId: string; type: 'meta'; tool: string; args?: string } // 工具开始（带参数摘要）
   | { requestId: string; type: 'meta-done'; tool: string; message: string } // 工具结果摘要
+  | { requestId: string; type: 'edit'; file: string; edits: import('../../shared/types').EditItem[] } // 正文修改提案（IDE 前/>后，待采纳）
   | { requestId: string; type: 'final'; text: string } // 本轮最终答复
   | { requestId: string; type: 'done' }
   | { requestId: string; type: 'aborted' } // 用户点了停止（模型可能在边上跑完）
@@ -37,7 +39,8 @@ function envBlock(projectId: string, chapterRel: string | null): string {
   const lines = [
     '【作品根目录】' + base,
     '【当前打开章节】' + (chapterRel || '（未打开）'),
-    '提示 web_client 工作：需要资料时用 zj_* 工具读，不要猜测。base 永远是上下文给出的【作品根目录】，不要自己编。'
+    '提示 web_client 工作：需要资料时用 zj_* 工具读，不要猜测。base 永远是上下文给出的【作品根目录】，不要自己编。',
+    '要修改或新增正文内容时，用 zj_edit_doc 生成“修改方案”（不写盘，作者在界面上采纳后才会写入）；不要在答复里给出整篇替换文本让作者自己复制。' 
   ]
   return lines.join('\n')
 }
@@ -107,6 +110,23 @@ export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void
 }
 
 /** 把写作引擎 session.event 翻译成渲染层事件 */
+const lastToolName = new Map<string, string>() // requestId → 最近一次工具名（tool/result 认领用）
+function toolArgs(args: unknown): string | undefined {
+  if (!args) return undefined
+  let obj: any = args
+  if (typeof args === 'string') {
+    try { obj = JSON.parse(args) } catch { return String(args).slice(0, 60) }
+  }
+  if (typeof obj !== 'object' || obj === null) return undefined
+  // 展示最有用的一两个参数：读文件的展示 file，搜索展示 query，其余取前几个键值
+  const pick = obj.file ?? obj.query ?? obj.dir
+  if (pick !== undefined) return String(pick)
+  const keys = Object.keys(obj).filter((k) => !['base'].includes(k))
+  if (!keys.length) return undefined
+  const k = keys[0]
+  const v = obj[k]
+  return typeof v === 'string' || typeof v === 'number' ? `${k}=${v}` : k
+}
 function translate(n: DriveEvent, requestId: string, emit: (e: AgentOutEvent) => void) {
   if (n.method !== 'session.event') return
   const ev = n.params?.event as any
@@ -115,19 +135,30 @@ function translate(n: DriveEvent, requestId: string, emit: (e: AgentOutEvent) =>
   if (t === 'assistant/chunk') {
     const c = d.chunk
     if (c?.type === 'text-delta' && c.text) emit({ requestId, type: 'delta', text: c.text })
+    else if (c?.type === 'reasoning-delta' && c.text) emit({ requestId, type: 'think', text: c.text })
   } else if (t === 'tool/call') {
-    emit({ requestId, type: 'meta', tool: String(d.name ?? d.callId ?? '工具') })
+    const name = String(d.name ?? d.callId ?? '工具')
+    lastToolName.set(requestId, name)
+    emit({ requestId, type: 'meta', tool: name, args: toolArgs(d.arguments) })
   } else if (t === 'tool/result') {
     const blocks = d.message?.content ?? []
-    const summary =
-      blocks
-        .map((b: any) => b.content)
-        .flat()
-        .filter((x: any) => x?.type === 'text')
-        .map((x: any) => x.text)
-        .join(' ')
-        .slice(0, 80) || '完成'
-    emit({ requestId, type: 'meta-done', tool: String(d.callId ?? ''), message: summary })
+    const text = blocks
+      .map((b: any) => b.content)
+      .flat()
+      .filter((x: any) => x?.type === 'text')
+      .map((x: any) => x.text)
+      .join(' ')
+    const name = lastToolName.get(requestId) ?? String(d.callId ?? '')
+    // zj_edit_doc：把结构化结果转成正文修改提案（数据来自工具内的 JSON 标记，见 zj-core）
+    if (name === 'zj_edit_doc') {
+      const json = extractEditPayload(text)
+      if (json) {
+        emit({ requestId, type: 'edit', file: String(json.file ?? ''), edits: json.edits })
+        emit({ requestId, type: 'meta-done', tool: name, message: `已生成正文修改方案（${json.edits?.length ?? 0} 处），采纳后写入` })
+        return
+      }
+    }
+    emit({ requestId, type: 'meta-done', tool: name, message: text.slice(0, 80) || '完成' })
   } else if (t === 'todo/write') {
     const todos = Array.isArray(d.todos)
       ? d.todos.map((x: any) => ({ content: String(x?.content ?? ''), status: x?.status }))
@@ -146,6 +177,22 @@ function translate(n: DriveEvent, requestId: string, emit: (e: AgentOutEvent) =>
         }))
       : []
     emit({ requestId, type: 'ask', questions: qs, batch: String(d?.batch ?? '') })
+  }
+}
+
+/** 从 zj_edit_doc 的返回文本里提取结构化载荷（工具会把 JSON 包在 ★ZJ_EDIT★ … ★END★ 里） */
+function extractEditPayload(text: string): { file: string; edits: import('../../shared/types').EditItem[] } | null {
+  const m = text.match(/★ZJ_EDIT★\n([\s\S]*?)\n★ZJ_END★/)
+  const raw = m ? m[1] : text
+  const a = raw.indexOf('{')
+  const b = raw.lastIndexOf('}')
+  if (a < 0 || b <= a) return null
+  try {
+    const obj = JSON.parse(raw.slice(a, b + 1))
+    if (!Array.isArray(obj.edits)) return null
+    return { file: String(obj.file ?? ''), edits: obj.edits }
+  } catch {
+    return null
   }
 }
 

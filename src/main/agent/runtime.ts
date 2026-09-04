@@ -2,10 +2,37 @@
 // 定位 dsh-runtime（vendored 引擎）、懒启动 SDK 写作引擎、按设置动态覆写 LLM 端点、会话管理。
 import { app } from 'electron'
 import { createRequire } from 'module'
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'fs'
+import { execFileSync } from 'child_process'
+import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'fs'
 import { resolve, dirname, join } from 'path'
-import { getSettings } from '../store'
+import { homedir } from 'os'
+import { pathToFileURL } from 'url'
+import { getSettings } from '../settings'
 import { activeProvider, buildLlmOverrideYml } from '../../shared/providers'
+
+// ===== 织卷对“写作引擎”的薄接口（模块设计 §14之 / 评审 E2）=====
+// 现状实现是 dsh（runtime 下面所有函数）；以后实验别的 agent 框架 = 换一个实现，调用方通过本接口访问不感知差异。
+export interface EnginePort {
+  /** 确保引擎在跑；失败返回原因串，成功 undefined */
+  ensureHarness(): Promise<string | undefined>
+  /** 低阶驱动一轮（发提示并泵取事件直到回合结束） */
+  driveSession(sid: string, text: string, opts?: { onEvent?: (n: DriveEvent) => void; maxMs?: number }): Promise<string>
+  /** 关闭引擎（应用退出时） */
+  closeHarness(): Promise<void>
+  /** 拿到（或创建）一个会话句柄 */
+  sessionHandle(key: string): Promise<unknown>
+  /** 引擎是否已在跑 */
+  isRuntimeCreated(): boolean
+  /** 用户问答回灌目录 */
+  answerDir(): string
+  chatSessionId(projectId: string): string
+  syncSessionId(projectId: string): string
+}
+
+export interface DriveEvent {
+  method: string
+  params: Record<string, any>
+}
 
 /** 运行时根目录：默认 <appPath>/dsh-runtime（env 可覆盖，便于无头测试指向临时副本） */
 function runtimeDir(): string {
@@ -21,13 +48,17 @@ export function answerDir(): string {
   return join(app.getPath('userData'), 'agent-answers')
 }
 
-// 动态加载 SDK client（从 dsh-runtime 的依赖树读，主库零新依赖）
+// 动态加载 SDK client（从 dsh-runtime 的依赖树读，主库零新依赖）。
+// 注意：dsh-sdk-client 是 ESM-only（package type: module），主进程是 CJS，必须用动态 import() 加载；
+// 用 require() 会抛 “require() of ES modules”（2026-09-04 修复）。
 let harnessCtor: any = null
-function loadSdk() {
+async function loadSdk() {
   if (harnessCtor) return harnessCtor
   const req = createRequire(join(runtimeDir(), 'package.json'))
-  const mod = req('@deepseek-ai/dsh-sdk-client')
+  const entry = req.resolve('@deepseek-ai/dsh-sdk-client')
+  const mod = (await import(pathToFileURL(entry).href)) as any
   harnessCtor = mod.DeepSeekHarness
+  if (!harnessCtor) throw new Error('SDK 客户端未找到 DeepSeekHarness 导出')
   return harnessCtor
 }
 
@@ -76,15 +107,37 @@ function toolsOverrideArgs(): string[] {
   return ['--patch', patch]
 }
 
+/** 引擎子进程的宿主可执行：优先用上真正的 node——别用 Electron 当 node，它在此环境会吞子进程输出、
+ * 让 SDK 握手干等到超时（2026-09 实测）。探测顺序：PATH 的 node（dev 下即 nvm）→ 常见位置 → nvm
+ * 最新版本 → electron 兜底。 */
+function nodeBin(): string {
+  try {
+    execFileSync('which', ['node'], { stdio: 'ignore' })
+    return 'node' // spawn 会沿 PATH 找到（含 dev 的 nvm）
+  } catch {}
+  for (const c of ['/usr/local/bin/node', '/opt/homebrew/bin/node', '/usr/bin/node']) {
+    if (existsSync(c)) return c
+  }
+  try {
+    const nvmDir = join(homedir(), '.nvm', 'versions', 'node')
+    const vs = readdirSync(nvmDir).sort()
+    for (let i = vs.length - 1; i >= 0; i--) {
+      const p = join(nvmDir, vs[i], 'bin', 'node')
+      if (existsSync(p)) return p
+    }
+  } catch {}
+  return process.execPath
+}
+
 /** 确保写作引擎在跑；失败返回原因字符串，成功返回 undefined */
 export async function ensureHarness(): Promise<string | undefined> {
   if (harness) return undefined
-  const Sdk = loadSdk()
+  const Sdk = await loadSdk()
   const cfg = activeProvider(getSettings())
   // key 优先级：设置里填的 → 宿主环境已有 → 本地给占位 'local'
   const apiKey = cfg.apiKey || process.env[cfg.apiKeyEnv] || (cfg.preset.kind === 'local' ? 'local' : '')
   const launch: any = {
-    command: process.execPath,
+    command: nodeBin(),
     args: [sdkBin(), '--profile', 'sdk', ...llmOverrideArgs(), ...toolsOverrideArgs()],
     cwd: runtimeDir(),
     requestTimeoutMs: 1_200_000
@@ -119,10 +172,6 @@ async function sessionHandle(key: string) {
 }
 
 /** 低阶驱动一轮：发 prompt 并用订阅泵取事件，直到本轮 turn 结束（含历史回放也会被正确跳过）。 */
-export interface DriveEvent {
-  method: string
-  params: Record<string, any>
-}
 
 export async function driveSession(
   sid: string,
@@ -176,3 +225,15 @@ export async function closeHarness() {
 }
 
 export { sessionHandle, runtimeDir, dshHome }
+
+/** E2：以 EnginePort 形式暴露当前 dsh 实现（调用方走接口；以后换引擎 = 换这个单例的实现） */
+export const engine: EnginePort = {
+  ensureHarness,
+  driveSession,
+  closeHarness,
+  sessionHandle,
+  isRuntimeCreated,
+  answerDir,
+  chatSessionId,
+  syncSessionId
+}

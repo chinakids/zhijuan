@@ -23,13 +23,15 @@ function ItemCard({ p, projectId, onChanged }: { p: Proposal; projectId: string;
   const it = p.items[0]
   const [showDiff, setShowDiff] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
   async function doApply() {
     setBusy(true)
+    setErr('')
     try {
       const r = await window.zhijuan.applyProposal(projectId, p.id)
-      if (r.errors?.length) alert('部分写入失败：' + r.errors.join('；'))
+      if (!r.ok || r.errors?.length) setErr((r.errors?.join('；') || '写入失败') + '（可重试或改原地后再接受）')
     } catch (e) {
-      alert('应用提案失败：' + String((e as Error).message || e))
+      setErr(String((e as Error).message || e))
     } finally {
       setBusy(false)
     }
@@ -74,6 +76,7 @@ function ItemCard({ p, projectId, onChanged }: { p: Proposal; projectId: string;
         </Button>
         <span className="text-[10px] text-ink-3">来自：{p.source === 'slice-sync' ? '正文保存同步' : 'agent'}</span>
       </div>
+      {err && <p className="mt-2 rounded-md bg-danger-soft px-2 py-1 text-[11px] text-danger">{err}</p>}
     </div>
   )
 }

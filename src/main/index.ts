@@ -2,7 +2,7 @@ import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { registerIpc } from './ipc'
 import { shutdownAgent } from './agent/ipc'
-import { getSettings } from './store'
+import { getSettings } from './settings'
 
 const isDev = !!process.env['ELECTRON_RENDERER_URL']
 
@@ -15,6 +15,7 @@ function createWindow() {
     minHeight: 700,
     title: '织卷',
     backgroundColor: theme === 'dark' ? '#141414' : '#fbf9f4',
+    ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' as const } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,

@@ -11,10 +11,13 @@ import type {
   ChapterCheckKind,
   ChapterCheckResult,
   OutlineCard,
-  TriageResult
+  TriageResult,
+  SliceEntry
 } from '../shared/types'
 
 const api = {
+  // 平台（renderer 据此做平台差异 UI，如自定义标题栏）
+  platform: process.platform as string,
   // 设置
   getSettings: () => ipcRenderer.invoke('settings:get') as Promise<AppSettings>,
   setSettings: (patch: Partial<AppSettings>) => ipcRenderer.invoke('settings:set', patch) as Promise<AppSettings>,
@@ -38,8 +41,11 @@ const api = {
   // 文档（相对项目根）
   readDoc: (id: string, rel: string) => ipcRenderer.invoke('doc:read', id, rel) as Promise<string | null>,
   writeDoc: (id: string, rel: string, content: string) => ipcRenderer.invoke('doc:write', id, rel, content) as Promise<boolean>,
+  applyDocEdit: (id: string, rel: string, edits: import('../shared/types').EditItem[]) =>
+    ipcRenderer.invoke('doc:applyEdit', id, rel, edits) as Promise<{ ok: boolean; errors?: string[] }>,
   listDocs: (id: string, relDir: string) => ipcRenderer.invoke('doc:list', id, relDir) as Promise<{ file: string; name: string; mtime: number }[]>,
   listChapters: (id: string) => ipcRenderer.invoke('chapter:list', id) as Promise<ChapterEntry[]>,
+  listSlices: (projectId: string) => ipcRenderer.invoke('slices:list', projectId) as Promise<SliceEntry[]>,
 
   // 提案（S4）
   listProposals: (id: string) => ipcRenderer.invoke('proposal:list', id) as Promise<Proposal[]>,
@@ -88,6 +94,10 @@ const api = {
     >,
   agentStatus: () =>
     ipcRenderer.invoke('agent:status') as Promise<{ online: boolean; provider?: string; model?: string; message?: string }>,
+  agentListCapabilities: () =>
+    ipcRenderer.invoke('agent:capabilities') as Promise<{ id: string; title: string; description?: string }[]>,
+  agentSetCapability: (id: string, enabled: boolean) =>
+    ipcRenderer.invoke('agent:setCapability', id, enabled) as Promise<boolean>,
   onAgentEvent: (cb: (evt: AgentEvent) => void) => {
     const listener = (_e: unknown, evt: AgentEvent) => cb(evt)
     ipcRenderer.on('agent:event', listener)

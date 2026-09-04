@@ -1,5 +1,7 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
-import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary } from '../../../shared/types'
+import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary, SliceEntry } from '../../../shared/types'
+import type { EditItem } from '../../../shared/types'
+import { countWords } from '../../../shared/count'
 
 const now = Date.now()
 
@@ -154,6 +156,8 @@ function docsOf(prefix: string): { file: string; name: string; mtime: number }[]
 }
 
 const mock = {
+  // 平台（devShim 默认当作 mac，好让自定义标题栏在无头截图也能看到）
+  platform: 'darwin',
   getSettings: async () => settings,
   setSettings: async (s: AppSettings) => Object.assign(settings, s),
 
@@ -199,12 +203,29 @@ const mock = {
         file: '正文/' + file,
         name: file.replace(/\.md$/, ''),
         fm: { 章号: m ? Number(m[1]) : undefined, 题名: t?.[1]?.trim(), 切片: s?.[1]?.trim() },
-        wordCount: text.replace(/^---\n[\s\S]*?\n---\n/, '').replace(/\s/g, '').length,
+        wordCount: countWords(text),
         mtime: now,
         hasPendingProposal: false
       })
     }
     return out.sort((a, b) => (a.fm?.['章号'] ?? 1e9) - (b.fm?.['章号'] ?? 1e9))
+  },
+  listSlices: async (id: string): Promise<SliceEntry[]> => {
+    const out: SliceEntry[] = []
+    for (const { file } of docsOf(id + '/正文')) {
+      const text = docs.get(id + '/正文/' + file) ?? ''
+      const m = text.match(/^---\n([\s\S]*?)\n---/)
+      if (!m) continue
+      const fm = m[1]
+      const name = (fm.match(/^切片:\s*(.+)$/m) ?? [])[1]?.trim() ?? ''
+      if (!name) continue
+      const chars = ((fm.match(/^涉及人物:\s*\[(.*)\]$/m) ?? [])[1] ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+      out.push({ name, chapter: file.replace(/\.md$/, ''), chars, updatedAt: 0 })
+    }
+    return out
   },
   onFsEvent: () => () => {},
   getPaths: async () => ({ documents: '', libraryRoot: '' }),
@@ -253,6 +274,24 @@ const mock = {
     return true
   },
 
+  // 采纳 agent 的正文修改（dev：改内存文档）
+  applyDocEdit: async (_id: string, rel: string, edits: EditItem[]) => {
+    const key = _id + '/' + rel
+    const cur = docs.get(key)
+    if (cur === undefined) return { ok: false, errors: ['文档已不存在'] }
+    let next = cur
+    const errors: string[] = []
+    for (const ed of edits) {
+      const i = next.indexOf(ed.find)
+      if (i < 0) { errors.push(`未找到原文「${ed.find.slice(0, 24)}…」`); continue }
+      if (next.indexOf(ed.find, i + 1) >= 0) { errors.push(`「${ed.find.slice(0, 24)}…」在文档中不只一处，未应用`); continue }
+      next = next.slice(0, i) + ed.replace + next.slice(i + ed.find.length)
+    }
+    if (errors.length) return { ok: false, errors }
+    docs.set(key, next)
+    return { ok: true }
+  },
+
   // agent（无 Electron：本地模拟流式，驱动 hook 链路可跑）
   agentListeners: new Set<(e: AgentEvent) => void>(),
   onAgentEvent: (cb: (e: AgentEvent) => void) => {
@@ -265,9 +304,34 @@ const mock = {
     const rid = input.requestId
     const emit = (e: AgentEvent) => mock.agentListeners.forEach((h) => h(e))
     await new Promise((r) => setTimeout(r, 60))
-    emit({ requestId: rid, type: 'meta', tool: 'zj_read_doc' })
+    // 思考过程演示
+    emit({ requestId: rid, type: 'think', text: '先看一下当前章节里需要改的位置，再决定怎么改…' })
+    await new Promise((r) => setTimeout(r, 40))
+    // 工具调用：带参数（读了哪个文档）
+    emit({ requestId: rid, type: 'meta', tool: 'zj_read_doc', args: '正文/第01章_雾港.md' })
     await new Promise((r) => setTimeout(r, 60))
-    emit({ requestId: rid, type: 'meta-done', tool: '章节已读完', message: '当前章节与相关设定已装配' })
+    emit({ requestId: rid, type: 'meta-done', tool: 'zj_read_doc', message: '章节已读完' })
+    // 正文修改演示：prompt 提到「改」时给出 IDE 式修改方案
+    if (/改|修|润|错别/.test(input.prompt)) {
+      await new Promise((r) => setTimeout(r, 60))
+      emit({
+        requestId: rid,
+        type: 'edit',
+        file: '正文/第01章_雾港.md',
+        edits: [
+          {
+            id: 'e1',
+            find: '阿七靠着候船厅的柱子，指节发白地攥着那盏旧灯。',
+            replace: '阿七靠着候船厅的柱子，指节发白地攥着那盏旧灯，灯罩里的火苗被雨打灭过一回。',
+            reason: '给旧灯一个具象细节，呼应后文“灯语约定”',
+            before: 'L8 │ 阿七靠着候船厅的柱子，指节发白地攥着那盏旧灯。',
+            after: 'L8 │ 阿七靠着候船厅的柱子，指节发白地攥着那盏旧灯，灯罩里的火苗被雨打灭过一回。'
+          }
+        ]
+      })
+      await new Promise((r) => setTimeout(r, 60))
+      emit({ requestId: rid, type: 'meta-done', tool: 'zj_edit_doc', message: '已生成正文修改方案（1 处），采纳后写入' })
+    }
     // 只有明确提到计划/提问词时才演示卡片（避免平时也冒一堆卡）
     const needDemo = /计划|todo|任务|问|确认/.test(input.prompt)
     if (needDemo) {
@@ -344,6 +408,13 @@ const mock = {
         },
   agentSync: async () => ({ ok: true, items: [] } as { ok: boolean; items: ProposalItem[] }),
   agentStatus: async () => ({ online: true, provider: '本机 vLLM', model: 'deepseek-v4-flash-0731' }),
+  agentListCapabilities: async () => [
+    { id: 'audit', title: '全卷检查', description: '（演示）一致性巡查 / 冷读报告：跨全卷对照设定找问题' },
+    { id: 'chapter-check', title: '本章检查', description: '（演示）每章短巡查 / 分层修订：沿写作线的小环兜底' },
+    { id: 'outline', title: '大纲回建', description: '（演示）把既有正文回建成章卡' },
+    { id: 'triage', title: '素材升格', description: '（演示）素材按语境归类并判可否入档' }
+  ],
+  agentSetCapability: async () => true,
 
   // 本章级小环（每章短巡查 / 分层修订）— dev 模式给固定演示数据
   agentChapterCheck: async (_projectId: string, _chapterRel: string, kind: string) =>

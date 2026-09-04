@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { TodoItem, AskQuestion } from '../../../../shared/types'
+import type { TodoItem, AskQuestion, EditItem } from '../../../../shared/types'
 
 export interface AgentMsg {
   id: string
@@ -8,13 +8,25 @@ export interface AgentMsg {
   quote?: string
   applied?: boolean
   error?: boolean
+  /** 思考过程（本轮 assistant 消息上可折叠展示） */
+  thinking?: string
   /** tool 角色的卡片类型 */
-  kind?: 'todo' | 'ask'
+  kind?: 'todo' | 'ask' | 'meta' | 'edit'
   items?: TodoItem[]
   questions?: AskQuestion[]
   batch?: string
+  /** meta 卡：工具名与参数展示 */
+  tool?: string
+  toolArgs?: string
+  done?: boolean
+  /** edit 卡：目标文件与修改条目 */
+  file?: string
+  edits?: EditItem[]
   /** ask 卡是否已提交 */
   answered?: boolean
+  /** edit 卡：采纳/拒绝态 */
+  editState?: 'pending' | 'applied' | 'rejected' | 'error'
+  editError?: string
 }
 
 interface AgentState {
@@ -27,8 +39,12 @@ interface AgentState {
   patch: (id: string, content: string) => void
   setError: (id: string, text: string) => void
   markApplied: (id: string) => void
-  /** upsert 一个 tool 消息（按 id）：todo 用全量替换，ask 用新增 */
-  upsertTool: (m: Omit<AgentMsg, 'role' | 'content' | 'id'> & { id: string }) => void
+  /** 向消息追加思考增量（assistant 消息；仅在存在时追加） */
+  appendThinking: (id: string, text: string) => void
+  /** upsert 一个 tool 消息（按 id）：todo 用全量替换，ask 用新增，meta 标记工具活动，edit 落正文修改卡 */
+  upsertTool: (m: Omit<AgentMsg, 'role' | 'id' | 'content'> & { id: string; content?: string }) => void
+  /** 标记某个编辑卡的状态 */
+  setEditState: (id: string, state: 'applied' | 'rejected' | 'error', error?: string) => void
   markAsked: (id: string) => void
   reset: () => void
 }
@@ -46,10 +62,11 @@ export const useAgentStore = create<AgentState>((set) => ({
   patch: (id, content) => set((s) => ({ messages: s.messages.map((x) => (x.id === id ? { ...x, content } : x)) })),
   setError: (id, text) => set((s) => ({ messages: s.messages.map((x) => (x.id === id ? { ...x, content: text, error: true } : x)) })),
   markApplied: (id) => set((s) => ({ messages: s.messages.map((x) => (x.id === id ? { ...x, applied: true } : x)) })),
+  appendThinking: (id, text) => set((s) => ({ messages: s.messages.map((x) => (x.id === id ? { ...x, thinking: (x.thinking ?? '') + text } : x)) })),
   upsertTool: (m) =>
     set((s) => {
       const idx = s.messages.findIndex((x) => x.id === m.id)
-      const next = { ...m, role: 'tool' as const, content: '' }
+      const next = { ...m, role: 'tool' as const, content: m.content ?? '' }
       if (idx >= 0) {
         const copy = s.messages.slice()
         copy[idx] = { ...copy[idx], ...next }
@@ -57,6 +74,8 @@ export const useAgentStore = create<AgentState>((set) => ({
       }
       return { messages: [...s.messages, next] }
     }),
+  setEditState: (id, state, error) =>
+    set((s) => ({ messages: s.messages.map((x) => (x.id === id ? { ...x, editState: state, editError: error } : x)) })),
   markAsked: (id) => set((s) => ({ messages: s.messages.map((x) => (x.id === id ? { ...x, answered: true } : x)) })),
   reset: () => set({ messages: [], quote: null })
 }))

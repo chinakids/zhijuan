@@ -205,6 +205,89 @@ const tools: ToolDef[] = [
       if (!hits.length) return `（全文搜索「${args.query}」没有命中）`
       return `【全文搜索「${args.query}」· ${hits.length} 个文件】\n\n` + hits.join('\n\n')
     }
+  },
+  {
+    name: 'zj_edit_doc',
+    description:
+      '为织卷作品生成“正文修改方案”：不直接写盘，而是算出针对某个文档的一处或多处修改（每条 = 在原文中唯一出现的片段 find，替换为 replace），供作者在界面上采纳后写入。file 为相对作品根目录的路径（如 正文/第03章_晨雾.md、人物/阿七.md）。适用范围：改正文文字、修语病、统一称谓、扩充段落等。“新增内容”也可用：find 填要插入位置的前一句原文即可。',
+    parameters: {
+      base: {
+        type: 'string',
+        required: true,
+        description: '作品根目录（绝对路径）'
+      },
+      file: {
+        type: 'string',
+        required: true,
+        description: '相对作品根目录的文档路径'
+      },
+      edits: {
+        type: 'string',
+        required: true,
+        description: '修改条目，直接给 JSON 数组字符串，每条：{"find":"要替换的原文片段（须在全文唯一出现）","replace":"替换成的新文本","reason":"为什么改（可选）"}。示例：edits = [{"find":"夜色很深","replace":"夜色像墨一样深","reason":"强化氛围"}]。find 尽量带足够上下文保证唯一；若 find 出现多次或没找到，本工具会逐条报错让你改。落地整套修改前，应先 zj_read_doc 读一次目标文件。'
+      }
+    },
+    output: { schema: { type: 'string' }, render: (_a, v) => [{ type: 'text', text: String(v) }] },
+    async execute(args, exec) {
+      const base = String(args.base)
+      const file = String(args.file)
+      let edits: any[] = []
+      if (Array.isArray(args.edits)) edits = args.edits
+      else if (typeof args.edits === 'string') {
+        try { edits = JSON.parse(args.edits) } catch { return '（zj_edit_doc 的 edits 须是合法 JSON 数组字符串）' }
+        if (!Array.isArray(edits)) return '（zj_edit_doc 的 edits 须是合法 JSON 数组字符串）'
+      } else return '（zj_edit_doc 缺少 edits）'
+      const full = clamp(base, file)
+      let text: string
+      try {
+        text = await readFile(full, { encoding: 'utf8', signal: exec.signal })
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === 'ENOENT') return `（没有这个文档：${file}）`
+        throw e
+      }
+      const errors: string[] = []
+      const out: { id: string; find: string; replace: string; reason?: string; before?: string; after?: string }[] = []
+      // 逐条替换到“工作副本”上做后续校验，以保证多处修改互不冲突、位置按当前工作副本算
+      let working = text
+      for (let i = 0; i < edits.length; i++) {
+        const e = edits[i]
+        const find = String(e?.find ?? '')
+        const replace = String(e?.replace ?? '')
+        if (!find) {
+          errors.push(`第 ${i + 1} 条缺少 find`)
+          continue
+        }
+        const first = working.indexOf(find)
+        if (first < 0) {
+          errors.push(`第 ${i + 1} 条 find 没找到：${find.slice(0, 40)}`)
+          continue
+        }
+        if (working.indexOf(find, first + 1) >= 0) {
+          errors.push(`第 ${i + 1} 条 find 出现多次，请带更多上下文：${find.slice(0, 40)}`)
+          continue
+        }
+        // 展示用的上下文：圈定整行，并把命中的片段本身高亮标记出来
+        const lines = working.split('\n')
+        let acc = 0
+        let lineIdx = -1
+        for (let li = 0; li < lines.length; li++) {
+          const ll = lines[li] + '\n'
+          if (first < acc + ll.length - 1) { lineIdx = li; break }
+          acc += ll.length
+        }
+        const row = lines[Math.max(0, lineIdx)] ?? ''
+        const before = lineIdx >= 0 ? `L${lineIdx + 1} │ ${row}` : find
+        const afterRow = row.replace(find, replace)
+        const after = lineIdx >= 0 ? `L${lineIdx + 1} │ ${afterRow}` : replace
+        out.push({ id: 'e' + (i + 1), find, replace, ...(e.reason ? { reason: String(e.reason) } : {}), before, after })
+        working = working.slice(0, first) + replace + working.slice(first + find.length)
+      }
+      if (errors.length) {
+        return `（zj_edit_doc 校验未过，请修正后重试）\n` + errors.join('\n') + `\n目标文件：${file}`
+      }
+      const payload = JSON.stringify({ file, edits: out }, null, 2)
+      return `（已为 ${file} 生成修改方案，共 ${out.length} 处；作者采纳后才会写入；完整载荷见下）\n★ZJ_EDIT★\n` + payload + '\n★ZJ_END★'
+    }
   }
 ]
 

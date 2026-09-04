@@ -1,13 +1,12 @@
 // ===== 织卷 V2 · IPC 路由（renderer 唯一入口） =====
 import { ipcMain, shell, BrowserWindow } from 'electron'
-import type { AppSettings, FsEvent, ProposalItem } from '../shared/types'
+import type { AppSettings, FsEvent, ProposalItem, EditItem } from '../shared/types'
 import { listProposals, createProposals, applyProposal, rejectProposal } from './proposals'
+import { listSlices } from './slices'
 import { registerAgentIpc } from './agent/ipc'
 import { isRuntimeCreated, closeHarness } from './agent/runtime'
+import { getSettings, setSettings, libraryRoot } from './settings'
 import {
-  getSettings,
-  setSettings,
-  libraryRoot,
   listProjects,
   createProject,
   removeProject,
@@ -19,7 +18,8 @@ import {
   listChapters,
   watchProject
 } from './store'
-import { workspaceDir, workspaceStatus, ensureWorkspaceDocs, readWorkspaceDoc } from './store'
+import { workspaceStatus, ensureWorkspaceDocs, readWorkspaceDoc } from './store'
+import { workspaceDir } from './settings'
 
 export function broadcastToAll(evt: FsEvent) {
   for (const w of BrowserWindow.getAllWindows()) {
@@ -69,8 +69,29 @@ export function registerIpc() {
     writeDoc(id, rel, content)
     return true
   })
+  // 采纳 agent 的正文修改：按 find 在原文档里唯一替换（读取当前磁盘内容为准），落地后走正常 fs 事件让编辑器静默重载
+  ipcMain.handle('doc:applyEdit', (_e, id: string, rel: string, edits: EditItem[]) => {
+    const cur = readDoc(id, rel)
+    if (cur === null) return { ok: false, errors: ['文档已不存在'] }
+    let next = cur
+    const errors: string[] = []
+    for (const ed of edits) {
+      const find = ed.find
+      if (!find) { errors.push('条目缺少 find'); continue }
+      const i = next.indexOf(find)
+      if (i < 0) { errors.push(`未找到原文「${find.slice(0, 24)}…」`); continue }
+      if (next.indexOf(find, i + 1) >= 0) { errors.push(`「${find.slice(0, 24)}…」在文档中不只一处，未应用`); continue }
+      next = next.slice(0, i) + ed.replace + next.slice(i + find.length)
+    }
+    if (errors.length) return { ok: false, errors }
+    writeDoc(id, rel, next)
+    return { ok: true }
+  })
   ipcMain.handle('doc:list', (_e, id: string, relDir: string) => listDocs(id, relDir))
   ipcMain.handle('chapter:list', (_e, id: string) => listChapters(id))
+
+  // 时间线（切片清单，E4）
+  ipcMain.handle('slices:list', (_e, projectId: string) => listSlices(projectDir(projectId)))
 
   // 提案（S4）
   ipcMain.handle('proposal:list', (_e, id: string) => listProposals(libraryRoot(), id))

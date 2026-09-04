@@ -1,85 +1,17 @@
 // ===== 织卷 V2 · 文档式 fileStore（模块设计 §2.4 / §四） =====
-// 所有项目数据都是明文文件；本模块只做：扫描、骨架、读写、监听、设置。
-import { app, shell } from 'electron'
+// 所有项目数据都是明文文件；本模块只做：扫描、骨架、读写、监听（设置见 settings.ts）。
+import { shell } from 'electron'
 import { join, relative, basename, dirname } from 'path'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync, statSync, watch, FSWatcher } from 'fs'
 import { extractFrontMatter, serializeFrontMatter } from '../shared/fmatter'
+import { countWords } from '../shared/count'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, DOT_DIR } from '../shared/paths'
 import { sanitizeFile } from '../shared/paths'
+import { workspaceDir, libraryRoot } from './settings'
 import { WORKSPACE_DOCS } from './workspace-docs'
-import type { AppSettings, ChapterEntry, ChapterFrontMatter, FsEvent, ProjectMeta, ProjectStats, ProjectSummary } from '../shared/types'
-import { DEFAULT_SETTINGS } from '../shared/types'
+import type { ChapterEntry, ChapterFrontMatter, FsEvent, ProjectMeta, ProjectStats, ProjectSummary } from '../shared/types'
 
-// ---------- 设置 ----------
-function settingsFile(): string {
-  return join(app.getPath('userData'), 'zhijuan-settings.json')
-}
-function readSettings(): AppSettings {
-  try {
-    return normalizeSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(readFileSync(settingsFile(), 'utf-8')) })
-  } catch {
-    return { ...DEFAULT_SETTINGS }
-  }
-}
-
-/** 老版本设置的平滑迁移：扁平 llm { baseUrl, model, apiKey } → llm.providers.local；去掉已废弃的 agentEngine */
-export function normalizeSettings(s: AppSettings): AppSettings {
-  const out: any = { ...s }
-  const llm = out.llm ?? {}
-  if (typeof llm.baseUrl === 'string' || typeof llm.model === 'string') {
-    out.llm = {
-      active: 'local',
-      providers: {
-        local: {
-          ...(typeof llm.baseUrl === 'string' && llm.baseUrl ? { baseUrl: llm.baseUrl } : {}),
-          ...(typeof llm.model === 'string' && llm.model ? { model: llm.model } : {}),
-          ...(typeof llm.apiKey === 'string' && llm.apiKey ? { apiKey: llm.apiKey } : {})
-        }
-      }
-    }
-  } else {
-    out.llm = {
-      active: llm.active === 'local' || llm.active === 'deepseek' || llm.active === 'glm' || llm.active === 'openai' || llm.active === 'claude' || llm.active === 'gemini' ? llm.active : 'local',
-      providers: llm.providers ?? {}
-    }
-  }
-  delete out.agentEngine
-  return out as AppSettings
-}
-function writeSettings(s: AppSettings) {
-  ensureDir(dirname(settingsFile()))
-  writeFileSync(settingsFile(), JSON.stringify(s, null, 2), 'utf-8')
-}
-let settingsCache: AppSettings = readSettings()
-export function getSettings(): AppSettings {
-  return settingsCache
-}
-export function setSettings(patch: Partial<AppSettings>): AppSettings {
-  settingsCache = { ...settingsCache, ...patch }
-  writeSettings(settingsCache)
-  return settingsCache
-}
-
-// ---------- 路径 ----------
-/** 工作区根目录：设置为空时用 文档/织卷工作区 */
-export function workspaceDir(): string {
-  const w = getSettings().workspace
-  return w && w.trim() ? w.trim() : join(app.getPath('documents'), '织卷工作区')
-}
-export function libraryRoot(): string {
-  const r = getSettings().libraryRoot
-  if (r && r.trim()) return r.trim()
-  // 老版本默认位（文档/织卷项目库）非空时保持原地，避免已有项目“消失”；全新用户再落新默认（工作区/项目库）
-  const legacy = join(app.getPath('documents'), '织卷项目库')
-  if (existsSync(legacy)) {
-    try {
-      if (readdirSync(legacy).length > 0) return legacy
-    } catch {
-      /* 读不了就按空处理 */
-    }
-  }
-  return join(workspaceDir(), '项目库')
-}
+// ---------- 设置与工作区路径已拆到 settings.ts（参见 docs/架构评审与调整-2026-09-04.md §二） ----------
 export function projectDir(id: string): string {
   return join(libraryRoot(), id)
 }
@@ -280,7 +212,7 @@ export function listChapters(id: string): ChapterEntry[] {
         file: d.file,
         name: d.name,
         fm: ok ? c : null,
-        wordCount: text.replace(/^---\n[\s\S]*?\n---\n/, '').replace(/\s/g, '').length,
+        wordCount: countWords(text),
         mtime: d.mtime,
         hasPendingProposal: false
       }

@@ -31,6 +31,15 @@ export interface ChapterFrontMatter {
   涉及人物?: string[]
 }
 
+/** 时间切片清单条目（章头 front matter 的 切片 字段；正文为源，清单只是索引，见 main/slices.ts） */
+export interface SliceEntry {
+  name: string
+  chapter: string
+  time?: string
+  chars?: string[]
+  updatedAt: number
+}
+
 /** 目录里扫描到的章节条目 */
 export interface ChapterEntry {
   file: string // 相对项目根，如 正文/第01章_夏夜.md
@@ -67,6 +76,8 @@ export interface AppSettings {
   collectionEnabled: boolean
   /** 常用 agent 工具开关（harness 引擎内） */
   agentTools?: { todo?: boolean; askUser?: boolean }
+  /** agent 能力开关（模块 J / E3）：缺省 = 全开；值为 false 即关闭该能力 */
+  capabilities?: Record<string, boolean>
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -100,12 +111,26 @@ export interface AskAnswer {
   custom?: string
 }
 
+/** 正文修改条目（agent 用 zj_edit_doc 生成，UI 以 IDE 前/>后对比呈现，采纳才写入） */
+export interface EditItem {
+  id: string
+  /** 定位原文（须在文件中唯一出现） */
+  find: string
+  replace: string
+  reason?: string
+  /** 展示用：命中原文的上下文摘要（工具返回时带上，含定位辅助） */
+  before?: string
+  after?: string
+}
+
 /** agent 流事件（主进程 → 渲染层，按 requestId 认领） */
 export interface AgentEvent {
   requestId: string
-  type: 'delta' | 'meta' | 'meta-done' | 'final' | 'done' | 'aborted' | 'error' | 'todo' | 'ask'
+  type: 'delta' | 'meta' | 'meta-done' | 'think' | 'edit' | 'final' | 'done' | 'aborted' | 'error' | 'todo' | 'ask'
   text?: string
   tool?: string
+  /** 工具开始时的参数字符串（如 zj_read_doc 的 file，用于 UI 展示“读了哪个文档”） */
+  args?: string
   message?: string
   /** type = todo 时的全量清单 */
   items?: TodoItem[]
@@ -113,6 +138,10 @@ export interface AgentEvent {
   questions?: AskQuestion[]
   /** type = ask 时的提问批次 id（提交答案时回传） */
   batch?: string
+  /** type = edit 时的目标文件（相对项目根） */
+  file?: string
+  /** type = edit 时的修改条目 */
+  edits?: EditItem[]
 }
 
 /** 文件系统事件（watcher 广播给渲染层） */

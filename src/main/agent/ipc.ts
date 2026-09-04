@@ -5,8 +5,9 @@ import { runAudit, runChapterCheck, type AuditKind } from './audit'
 import { runOutlineRebuild } from './outline'
 import { runMaterialTriage } from './triage'
 import { ensureHarness, closeHarness, answerDir } from './runtime'
+import { listCapabilities } from './subtask'
 import { activeProvider } from '../../shared/providers'
-import { getSettings } from '../store'
+import { getSettings, setSettings } from '../settings'
 import { mkdirSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import type { AskAnswer } from '../../shared/types'
@@ -68,6 +69,13 @@ export function registerAgentIpc() {
     const s = getSettings()
     const cfg = activeProvider(s)
     return { online: !err, provider: cfg.preset.name, model: cfg.model, message: err }
+  })
+  // 能力注册表（模块 J / E3）：枚举 + 设置页开关
+  ipcMain.handle('agent:capabilities', () => listCapabilities())
+  ipcMain.handle('agent:setCapability', (_e, id: string, enabled: boolean) => {
+    const s = getSettings()
+    setSettings({ capabilities: { ...(s.capabilities ?? {}), [id]: enabled } })
+    return true
   })
 }
 

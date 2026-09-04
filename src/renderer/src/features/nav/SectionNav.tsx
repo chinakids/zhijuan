@@ -1,5 +1,14 @@
 import { NavLink } from 'react-router-dom'
-import { PenLine, Users, Globe2, Library as LibraryIcon, ListTree, Settings as SettingsIcon, ArrowLeft } from 'lucide-react'
+import {
+  PenLine,
+  Users,
+  Globe2,
+  Library as LibraryIcon,
+  ListTree,
+  History,
+  Settings as SettingsIcon,
+  ArrowLeft
+} from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 export interface NavCounts {
@@ -16,12 +25,22 @@ interface Props {
   counts: NavCounts
 }
 
-const items = [
-  { to: 'novel', label: '正文创作', icon: PenLine, key: 'novel' as const },
-  { to: 'characters', label: '人物设定', icon: Users, key: 'characters' as const },
-  { to: 'worldview', label: '世界观设定', icon: Globe2, key: 'worldview' as const },
-  { to: 'outline', label: '大纲区', icon: ListTree, key: 'outline' as const },
-  { to: 'library', label: '素材库', icon: LibraryIcon, key: 'library' as const }
+interface NavItem {
+  to: string
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  key: string
+  /** plain = 展示项但不带计数徽标（如时间线） */
+  plain?: boolean
+}
+
+const items: NavItem[] = [
+  { to: 'novel', label: '正文创作', icon: PenLine, key: 'novel' },
+  { to: 'characters', label: '人物设定', icon: Users, key: 'characters' },
+  { to: 'worldview', label: '世界观设定', icon: Globe2, key: 'worldview' },
+  { to: 'outline', label: '大纲区', icon: ListTree, key: 'outline' },
+  { to: 'timeline', label: '时间线', icon: History, key: 'timeline', plain: true },
+  { to: 'library', label: '素材库', icon: LibraryIcon, key: 'library' }
 ]
 
 export default function SectionNav({ projectId, projectName, counts }: Props) {
@@ -52,9 +71,11 @@ export default function SectionNav({ projectId, projectName, counts }: Props) {
               <it.icon className="h-4 w-4" />
               {it.label}
             </span>
-            <span className="rounded-full bg-well px-1.5 py-0.5 text-[10px] leading-none text-ink-3">
-              {counts[it.key]}
-            </span>
+            {!it.plain && (
+              <span className="rounded-full bg-well px-1.5 py-0.5 text-[10px] leading-none text-ink-3">
+                {counts[it.key as keyof NavCounts] ?? 0}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

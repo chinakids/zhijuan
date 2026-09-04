@@ -44,18 +44,10 @@ export default function Settings() {
   const [theme, setTheme] = useState<'paper' | 'dark'>('paper')
   const [collection, setCollection] = useState(true)
   const [tools, setTools] = useState({ todo: true, askUser: true })
-  const [status, setStatus] = useState<{ online: boolean; provider?: string; model?: string; message?: string } | null>(null)
+  const [caps, setCaps] = useState<Record<string, boolean>>({})
+  const [capsMeta, setCapsMeta] = useState<{ id: string; title: string; description?: string }[]>([])
   const [saved, setSaved] = useState(false)
   const [section, setSection] = useState<SectionKey>('workspace')
-
-  const refreshStatus = useCallback(async () => {
-    try {
-      const s = await window.zhijuan.agentStatus()
-      setStatus(s)
-    } catch {
-      setStatus({ online: false, message: '引擎状态查询失败' })
-    }
-  }, [])
 
   const refreshWorkspace = useCallback(async () => {
     try {
@@ -83,11 +75,19 @@ export default function Settings() {
     setTheme(settings.theme)
     setCollection(settings.collectionEnabled)
     setTools({ todo: settings.agentTools?.todo ?? true, askUser: settings.agentTools?.askUser ?? true })
-    void refreshStatus()
+    setCaps(settings.capabilities ?? {})
+    void window.zhijuan.agentListCapabilities().then(setCapsMeta).catch(() => {})
     void refreshWorkspace()
-  }, [settings, refreshStatus, refreshWorkspace])
+  }, [settings, refreshWorkspace])
 
   /** 切换服务商：同时把可编辑字段换成该家已存的值 */
+  /** 即时切换 agent 能力开关（写设置；下次运行该能力时生效） */
+  function toggleCap(id: string, on: boolean) {
+    const next = { ...caps, [id]: on }
+    setCaps(next)
+    void updateSettings({ capabilities: next })
+  }
+
   function selectProvider(id: LlmProviderId) {
     setProvider(id)
     const pc = settings?.llm?.providers?.[id] ?? {}
@@ -115,7 +115,6 @@ export default function Settings() {
     })
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
-    void refreshStatus()
     void refreshWorkspace()
   }
 
@@ -273,20 +272,7 @@ export default function Settings() {
               </Card>
 
       <Card className="mt-4 p-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-ink-2">写作引擎与常用工具</h3>
-          <button onClick={() => void refreshStatus()} className="text-[11px] text-ink-3 hover:text-ink">
-            {status === null ? '查询引擎状态…' : status.online ? (
-              <span className="flex items-center gap-1 text-success">
-                <span className="h-1.5 w-1.5 rounded-full bg-success" /> 写作引擎在线 · {status.provider ?? ''} · {status.model}
-              </span>
-            ) : (
-              <span className="flex items-center gap-1 text-danger">
-                <span className="h-1.5 w-1.5 rounded-full bg-danger" /> 离线 {status.message ? '（' + status.message.slice(0, 40) + '）' : ''}
-              </span>
-            )}
-          </button>
-        </div>
+        <h3 className="text-sm font-semibold text-ink-2">写作引擎与常用工具</h3>
         <Separator className="my-4" />
         <p className="pb-4 text-xs text-ink-3">
           后台写作引擎默认生效（无需开关）：有 zj_* 写作工具、可读章节列计划、可向你确认；开始写一章时自动装配当前章节的创作上下文。
@@ -306,6 +292,24 @@ export default function Settings() {
             </div>
             <Switch checked={tools.askUser} onCheckedChange={(v) => setTools((t) => ({ ...t, askUser: v }))} />
           </div>
+        </div>
+        <Separator className="my-5" />
+        <h4 className="mb-3 text-xs font-medium text-ink-2">检查能力（agent 子任务）</h4>
+        <p className="mb-3 text-xs text-ink-3">这些能力由设置页开关控制；关掉后对应入口会提示先打开。</p>
+        <div className="space-y-3">
+          {capsMeta.length ? (
+            capsMeta.map((c) => (
+              <div key={c.id} className="flex items-center justify-between">
+                <div>
+                  <Label>{c.title}</Label>
+                  <p className="text-xs text-ink-3">{c.description ?? '…'}</p>
+                </div>
+                <Switch checked={caps[c.id] !== false} onCheckedChange={(v) => toggleCap(c.id, v)} />
+              </div>
+            ))
+          ) : (
+            <p className="text-xs text-ink-3">引擎未注册检查能力。</p>
+          )}
         </div>
       </Card>
             </>

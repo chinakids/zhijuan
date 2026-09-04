@@ -98,7 +98,7 @@ export function rejectProposal(root: string, projectId: string, id: string): boo
 }
 
 /** 按锚点把 item.after 写进文档；upsert-section 做「同节替换 / 无节追加」 */
-function applyAnchor(text: string, it: ProposalItem): { ok: boolean; out?: string; msg?: string } {
+export function applyAnchor(text: string, it: ProposalItem): { ok: boolean; out?: string; msg?: string } {
   if (it.kind === 'append') return { ok: true, out: text + '\n\n' + it.after }
   const anchor = (it.anchor || '').replace(/^#+\s*/, '').trim()
   if (!anchor) return { ok: true, out: text + '\n\n### 切片状态\n\n' + it.after }

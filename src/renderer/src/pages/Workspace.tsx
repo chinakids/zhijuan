@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useParams, Outlet, useLocation, useSearchParams } from 'react-router-dom'
+import { useParams, Outlet, useSearchParams } from 'react-router-dom'
 import type { FsEvent, ProjectSummary } from '../../../shared/types'
 import SectionNav, { type NavCounts } from '../features/nav/SectionNav'
 import { ListChecks } from 'lucide-react'
@@ -7,20 +7,10 @@ import { useProposalStore } from '../store/proposals'
 import ProposalDrawer from '../features/proposals/ProposalDrawer'
 import ProjectGuide from '../features/guide/ProjectGuide'
 
-const sectionTitles: Record<string, string> = {
-  novel: '正文创作',
-  characters: '人物设定',
-  worldview: '世界观设定',
-  outline: '大纲区',
-  library: '素材库',
-  settings: '设置'
-}
-
 const emptyCounts: NavCounts = { novel: 0, characters: 0, worldview: 0, outline: 0, library: 0 }
 
 export default function Workspace() {
   const { id } = useParams<{ id: string }>()
-  const loc = useLocation()
   const [sp, setSp] = useSearchParams()
   const [guideOpen, setGuideOpen] = useState(() => sp.get('guide') === '1')
   const [project, setProject] = useState<ProjectSummary | null>(null)
@@ -57,9 +47,6 @@ export default function Workspace() {
     return off
   }, [id, refreshAll])
 
-  const seg = loc.pathname.split('/').filter(Boolean)
-  const section = seg[1] ?? 'novel'
-  const title = sectionTitles[section] ?? '织卷'
   const proposals = useProposalStore((s) => s.list)
   const tick = useProposalStore((s) => s.tick)
   const pending = proposals.filter((p) => p.status === 'pending').length
@@ -81,17 +68,15 @@ export default function Workspace() {
     <div className="flex h-full">
       <SectionNav projectId={project.id} projectName={project.name} counts={counts} />
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* 顶栏 */}
-        <header className="flex h-12 shrink-0 items-center gap-3 border-b border-hair bg-surface px-4">
-          <h2 className="text-sm font-medium">{title}</h2>
-          <div className="flex-1" />
-          {pending > 0 && (
-            <button onClick={() => setDrawerOpen(true)} className="flex items-center gap-1.5 rounded-full bg-warn-soft px-2.5 py-1 text-xs text-warn transition-colors hover:brightness-95">
+        {/* 顶栏：不再放区块标题标签（左侧导航已有高亮）；仅在有待确认提案时出一行入口 */}
+        {pending > 0 && (
+          <header className="flex h-10 shrink-0 items-center justify-end border-b border-hair bg-surface px-4">
+            <button onClick={() => setDrawerOpen(true)} className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-warn-soft px-2.5 py-1 text-xs text-warn transition-colors hover:brightness-95">
               <ListChecks className="h-3.5 w-3.5" />
               待确认提案 {pending}
             </button>
-          )}
-        </header>
+          </header>
+        )}
         <div className="min-h-0 flex-1">
           <Outlet />
         </div>

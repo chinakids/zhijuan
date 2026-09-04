@@ -42,7 +42,10 @@ export function serializeFrontMatter(fm: Record<string, unknown>): string {
   const lines = ['---']
   for (const [k, v] of Object.entries(fm)) {
     if (v === undefined || v === null || v === '') continue
-    if (Array.isArray(v)) lines.push(`${k}: [${v.map((x) => String(x).trim()).join(', ')}]`)
+    if (Array.isArray(v)) {
+      if (v.length === 0) continue
+      lines.push(`${k}: [${v.map((x) => String(x).trim()).join(', ')}]`)
+    }
     else lines.push(`${k}: ${String(v)}`)
   }
   lines.push('---')

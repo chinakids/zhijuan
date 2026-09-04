@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Plus, BookOpen, ShieldAlert } from 'lucide-react'
+import { Plus, BookOpen } from 'lucide-react'
 import type { ChapterEntry } from '../../../shared/types'
 import { serializeFrontMatter } from '../../../shared/fmatter'
 import { Button } from '../components/ui/button'
@@ -140,33 +140,9 @@ export default function Novel() {
         </div>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main className="relative flex min-w-0 flex-1 flex-col">
         {sel ? (
           <>
-            <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hair px-4">
-              <span className="truncate text-sm font-medium text-ink">{cur?.name}</span>
-              {syncMsg && (
-                <span
-                  className={cn(
-                    'rounded-full px-2.5 py-0.5 text-[11px]',
-                    syncMsg.startsWith('✓') ? 'bg-[#e6f0ee] text-success' : syncMsg.startsWith('✗') ? 'bg-danger-soft text-danger' : 'bg-accent-soft text-accent'
-                  )}
-                >
-                  {syncMsg}
-                </span>
-              )}
-              <span className="flex-1" />
-              <button
-                onClick={() => setCheckOpen(true)}
-                disabled={!sel}
-                title="本章小环：短巡查 / 分层修订（沿写作线兜底）"
-                className="mr-3 flex items-center gap-1 rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
-              >
-                <ShieldAlert className="h-3 w-3" />
-                本章小环
-              </button>
-              <span className="text-[11px] text-ink-3">选中段落后可用 agent 的「引用选中」· ⌘S 保存</span>
-            </div>
             <div className="min-h-0 flex-1">
               <DocEditor projectId={id} rel={sel} withFm extVersion={extVersion} editorApiRef={apiRef} onSave={() => { void refresh(); void handleChapterSaved(sel) }} />
             </div>
@@ -174,9 +150,17 @@ export default function Novel() {
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-ink-3">选择左侧一个章节开始（编辑器已就绪）</div>
         )}
+        {/* 切片同步结果：浮动提示，不占版面 */}
+        {syncMsg && (
+          <div className="pointer-events-none absolute right-24 top-11 z-10 rounded-full border border-hair bg-surface px-3 py-1 text-[11px] shadow-md">
+            <span className={syncMsg.startsWith('✓') ? 'text-success' : syncMsg.startsWith('✗') ? 'text-danger' : 'text-accent'}>
+              {syncMsg}
+            </span>
+          </div>
+        )}
       </main>
 
-      <AgentPanel projectId={id} chapterRel={sel} chapterTitle={cur?.name ?? ''} editorApi={() => apiRef.current} />
+      <AgentPanel projectId={id} chapterRel={sel} chapterTitle={cur?.name ?? ''} editorApi={() => apiRef.current} onChapterCheck={() => setCheckOpen(true)} />
 
       <ChapterCheckDrawer projectId={id} chapter={sel} chapterTitle={cur?.name ?? ''} open={checkOpen} onClose={() => setCheckOpen(false)} />
 

@@ -1,18 +1,9 @@
 // ===== 织卷 · 素材→设定升格（agent-first：素材库按语境归类 + 判可否入档） =====
 // 把素材库正式类别下的素材卡按语境逐条归类，并判每条「可入档与否」，给出建议去向；
 // 结果为结构化 JSON，UI 渲染成清单，可把 verdict=promote 且有 target 的条目一键转提案（沿用提案需确认再写入）。
-import { driveSession } from './runtime'
 import { readDoc, listDocs } from '../store'
+import { registerCapability, runSubtask, clip, type SubtaskDef } from './subtask'
 import type { TriageResult, TriageVerdict } from '../../shared/types'
-
-let runSeq = 0
-const newSid = (projectId: string) => 'tr-' + Date.now().toString(36) + '-' + (runSeq++).toString(36) + '-' + projectId
-
-/** 素材卡超长截段 */
-function clip(text: string, head = 1200, tail = 400): string {
-  if (text.length <= head + tail) return text
-  return text.slice(0, head) + '\n……（此处为节省篇幅省略中部）……\n' + text.slice(-tail)
-}
 
 /** 素材库正式类别下的素材清单（排除采集池任务卡与索引） */
 function materialList(projectId: string): { file: string; name: string }[] {
@@ -79,32 +70,43 @@ export function extractTriage(text: string, known: Set<string>): TriageResult {
   return { summary: typeof obj?.summary === 'string' ? obj.summary : '', items }
 }
 
+const triageDef: SubtaskDef<TriageResult> = {
+  id: 'triage',
+  title: '素材升格',
+  description: '把素材库正式类下的素材卡按语境归类并判可否入档',
+  maxMs: 7 * 60 * 1000,
+  buildParts: (c) => {
+    const mats = materialList(c.projectId)
+    if (!mats.length) throw new Error('素材库还没有正式素材卡（采集池里的任务卡不算）。')
+    const known = mats.map((m) => m.file)
+    const settings = settingList(c.projectId)
+    c.args = { ...c.args, known, settings }
+    const parts: string[] = [triageSystem()]
+    parts.push('【素材库素材卡】')
+    for (const m of mats) {
+      const t = readDoc(c.projectId, m.file) ?? ''
+      if (!t.trim()) continue
+      parts.push(`\n### ${m.file}\n${clip(t)}`)
+    }
+    parts.push('\n【现有设定档案清单】')
+    parts.push(settings.map((f) => '- ' + f).join('\n') || '（暂无人物/世界观档案）')
+    parts.push('请给出素材升格清单 JSON。')
+    return parts
+  },
+  parse: (text, c) => extractTriage(text, new Set((c.args?.known as string[]) ?? [])),
+  postprocess: (result, c) => {
+    // 校验：target 必须是现有设定档案（防模型编造或写错路径）
+    if (result.items.length) {
+      const settings = new Set((c.args?.settings as string[]) ?? [])
+      result.items = result.items.map((it) => (it.target && settings.has(it.target) ? it : { ...it, target: undefined }))
+    }
+    return result
+  }
+}
+registerCapability(triageDef as never)
+
 export async function runMaterialTriage(
   projectId: string
 ): Promise<{ ok: true; result: TriageResult } | { ok: false; error: string }> {
-  const mats = materialList(projectId)
-  if (!mats.length) return { ok: false, error: '素材库还没有正式素材卡（采集池里的任务卡不算）。' }
-  const known = new Set(mats.map((m) => m.file))
-  const settings = new Set(settingList(projectId))
-  const parts: string[] = [triageSystem()]
-  parts.push('【素材库素材卡】')
-  for (const m of mats) {
-    const t = readDoc(projectId, m.file) ?? ''
-    if (!t.trim()) continue
-    parts.push(`\n### ${m.file}\n${clip(t)}`)
-  }
-  parts.push('\n【现有设定档案清单】')
-  parts.push(settingList(projectId).map((f) => '- ' + f).join('\n') || '（暂无人物/世界观档案）')
-  parts.push('请给出素材升格清单 JSON。')
-  try {
-    const text = await driveSession(newSid(projectId), parts.join('\n\n'), { maxMs: 7 * 60 * 1000 })
-    const result = extractTriage(text, known)
-    // 校验：target 必须是现有设定档案（防模型编造或写错路径）
-    if (result.items.length) {
-      result.items = result.items.map((it) => (it.target && settings.has(it.target) ? it : { ...it, target: undefined }))
-    }
-    return { ok: true, result }
-  } catch (e: any) {
-    return { ok: false, error: String(e?.message ?? e).slice(0, 300) }
-  }
+  return runSubtask(triageDef, projectId)
 }

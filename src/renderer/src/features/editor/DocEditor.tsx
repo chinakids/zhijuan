@@ -134,7 +134,7 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
           apiRef={apiRef}
           value={savedMdRef.current}
           onEdit={(md) => setStatus(md === savedMdRef.current ? 'idle' : 'dirty')}
-          className="mx-auto h-full w-full max-w-3xl"
+          className="h-full w-full"
         />
       </div>
       <div className="flex h-7 items-center gap-2 border-t border-hair px-4 text-xs">
