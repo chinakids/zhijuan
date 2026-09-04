@@ -5,6 +5,7 @@ import { runAudit, runChapterCheck, type AuditKind } from './audit'
 import { runOutlineRebuild } from './outline'
 import { runMaterialTriage } from './triage'
 import { ensureHarness, closeHarness, answerDir } from './runtime'
+import { activeProvider } from '../../shared/providers'
 import { getSettings } from '../store'
 import { mkdirSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
@@ -65,7 +66,8 @@ export function registerAgentIpc() {
   ipcMain.handle('agent:status', async () => {
     const err = await ensureHarness()
     const s = getSettings()
-    return { online: !err, engine: s.agentEngine, model: s.llm?.model, message: err }
+    const cfg = activeProvider(s)
+    return { online: !err, provider: cfg.preset.name, model: cfg.model, message: err }
   })
 }
 

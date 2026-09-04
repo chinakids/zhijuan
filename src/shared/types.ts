@@ -41,16 +41,30 @@ export interface ChapterEntry {
   hasPendingProposal: boolean
 }
 
+/** 可对接的模型厂商（模型适配接入层，见 src/main/agent/providers.ts） */
+export type LlmProviderId = 'local' | 'deepseek' | 'glm' | 'openai' | 'claude' | 'gemini'
+
+/** 某一家的覆盖配置（baseUrl/model 不填用厂商预设默认；apiKey 只存本机 settings） */
+export interface LlmProviderCfg {
+  apiKey?: string
+  baseUrl?: string
+  model?: string
+}
+
+/** 模型适配层设置：active = 当前服务商；providers = 各家的覆盖项 */
+export interface LlmSettings {
+  active: LlmProviderId
+  providers: Partial<Record<LlmProviderId, LlmProviderCfg>>
+}
+
 /** 设置（存 app userData） */
 export interface AppSettings {
   /** 工作区根目录（空则用 文档/织卷工作区）；相关文档与项目库都在其下 */
   workspace: string
   libraryRoot: string
-  llm: { baseUrl: string; model: string; apiKey: string }
+  llm: LlmSettings
   theme: 'paper' | 'dark'
   collectionEnabled: boolean
-  /** agent 引擎：harness = dsh 写作引擎（有工具）；legacy = 直连 LLM 对话 */
-  agentEngine: 'harness' | 'legacy'
   /** 常用 agent 工具开关（harness 引擎内） */
   agentTools?: { todo?: boolean; askUser?: boolean }
 }
@@ -58,10 +72,9 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   workspace: '', // 为空则用 文档/织卷工作区
   libraryRoot: '', // 为空则用 <工作区>/项目库
-  llm: { baseUrl: 'http://127.0.0.1:8888', model: 'deepseek-v4-flash-0731', apiKey: '' },
+  llm: { active: 'local', providers: {} },
   theme: 'paper',
   collectionEnabled: true,
-  agentEngine: 'harness',
   agentTools: { todo: true, askUser: true }
 }
 

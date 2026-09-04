@@ -5,6 +5,7 @@ import { createRequire } from 'module'
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'fs'
 import { resolve, dirname, join } from 'path'
 import { getSettings } from '../store'
+import { activeProvider, buildLlmOverrideYml } from '../../shared/providers'
 
 /** 运行时根目录：默认 <appPath>/dsh-runtime（env 可覆盖，便于无头测试指向临时副本） */
 function runtimeDir(): string {
@@ -45,36 +46,16 @@ let harness: any = null // DeepSeekHarness 实例
 let bootArgs = { provider: '', model: '' }
 let failCount = 0
 
-const LLM_DEFAULTS = { baseUrl: 'http://127.0.0.1:8888', model: 'deepseek-v4-flash-0731' }
-
-/** 按当前设置的 LLM 端点生成动态 patch（与默认不同才写盘）；返回需追加的 --patch 参数 */
+/** 按当前活跃的模型厂商生成动态 patch（默认本地也会写，幂等，一次路径）；返回需追加的 --patch 参数 */
 function llmOverrideArgs(): string[] {
-  const s = getSettings()
-  const llm = s.llm ?? ({} as any)
-  const baseUrl = (llm.baseUrl || LLM_DEFAULTS.baseUrl).replace(/\/+$/, '')
-  const model = llm.model || LLM_DEFAULTS.model
-  if (baseUrl === LLM_DEFAULTS.baseUrl && model === LLM_DEFAULTS.model) return []
+  const cfg = activeProvider(getSettings())
   const run = join(runtimeDir(), 'run')
   mkdirSync(run, { recursive: true })
   const patch = join(run, 'llm.override.patch.yml')
-  const body =
-    '- id: llm-pi-ai\n' +
-    '  config:\n' +
-    '    providers:\n' +
-    '      local-vllm:\n' +
-    '        api: openai-completions\n' +
-    `        baseURL: ${baseUrl}/v1\n` +
-    '        apiKeyEnv: LOCAL_LLM_KEY\n' +
-    '        compat:\n' +
-    '          supportsDeveloperRole: false\n' +
-    '          maxTokensField: max_tokens\n' +
-    '        models:\n' +
-    `          - id: ${JSON.stringify(model)}\n` +
-    '- id: agent-default-model\n' +
-    '  config:\n' +
-    '    provider: local-vllm\n' +
-    `    model: ${JSON.stringify(model)}\n`
-  if (readFileSync(patch, 'utf-8') !== body) writeFileSync(patch, body, 'utf-8')
+  const body = buildLlmOverrideYml(cfg)
+  let cur = ''
+  try { cur = readFileSync(patch, 'utf-8') } catch {}
+  if (cur !== body) writeFileSync(patch, body, 'utf-8')
   return ['--patch', patch]
 }
 
@@ -89,7 +70,9 @@ function toolsOverrideArgs(): string[] {
   mkdirSync(run, { recursive: true })
   const patch = join(run, 'tools.override.patch.yml')
   const body = rows.join('')
-  if (readFileSync(patch, 'utf-8') !== body) writeFileSync(patch, body, 'utf-8')
+  let cur = ''
+  try { cur = readFileSync(patch, 'utf-8') } catch {}
+  if (cur !== body) writeFileSync(patch, body, 'utf-8')
   return ['--patch', patch]
 }
 
@@ -97,23 +80,26 @@ function toolsOverrideArgs(): string[] {
 export async function ensureHarness(): Promise<string | undefined> {
   if (harness) return undefined
   const Sdk = loadSdk()
-  const s = getSettings()
-  const llm = s.llm ?? ({} as any)
-  const provider = 'local-vllm'
-  const model = llm.model || LLM_DEFAULTS.model
-  const apiKey = process.env.LOCAL_LLM_KEY ?? (llm.apiKey || 'local')
+  const cfg = activeProvider(getSettings())
+  // key 优先级：设置里填的 → 宿主环境已有 → 本地给占位 'local'
+  const apiKey = cfg.apiKey || process.env[cfg.apiKeyEnv] || (cfg.preset.kind === 'local' ? 'local' : '')
   const launch: any = {
     command: process.execPath,
     args: [sdkBin(), '--profile', 'sdk', ...llmOverrideArgs(), ...toolsOverrideArgs()],
     cwd: runtimeDir(),
     requestTimeoutMs: 1_200_000
   }
-  // 子进程环境：父环境 + DSH_HOME + LLM key + 用户问答回灌目录（env 传对象会整体替换父环境）
-  launch.env = { ...process.env, DSH_HOME: dshHome(), LOCAL_LLM_KEY: String(apiKey), ZJ_USER_ANSWER_DIR: answerDir() }
+  // 子进程环境：父环境 + DSH_HOME + 当前厂商 key（按 apiKeyEnv 注入）+ 用户问答回灌目录（env 传对象会整体替换父环境）
+  launch.env = {
+    ...process.env,
+    DSH_HOME: dshHome(),
+    [cfg.apiKeyEnv]: String(apiKey),
+    ZJ_USER_ANSWER_DIR: answerDir()
+  }
   try {
-    harness = new Sdk({ launch, provider, model, maxTokens: 8192 })
+    harness = new Sdk({ launch, provider: cfg.route, model: cfg.model, maxTokens: 8192 })
     await harness.start()
-    bootArgs = { provider, model }
+    bootArgs = { provider: cfg.route, model: cfg.model }
     failCount = 0
     return undefined
   } catch (e: any) {

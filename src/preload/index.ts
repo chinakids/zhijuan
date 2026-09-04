@@ -87,7 +87,7 @@ const api = {
       | { ok: false; error: string }
     >,
   agentStatus: () =>
-    ipcRenderer.invoke('agent:status') as Promise<{ online: boolean; engine: string; model?: string; message?: string }>,
+    ipcRenderer.invoke('agent:status') as Promise<{ online: boolean; provider?: string; model?: string; message?: string }>,
   onAgentEvent: (cb: (evt: AgentEvent) => void) => {
     const listener = (_e: unknown, evt: AgentEvent) => cb(evt)
     ipcRenderer.on('agent:event', listener)

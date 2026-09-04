@@ -4,10 +4,7 @@ import remarkGfm from 'remark-gfm'
 import { Loader2, Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck } from 'lucide-react'
 import type { ProseApi } from '../editor/Prose'
 import type { AuditKind } from '../../../../shared/types'
-import { useAppStore } from '../../store/app'
 import { useAgentStore } from './store'
-import { buildAgentContext } from './context'
-import { streamChat, type ChatMessage } from './llm'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
 import TodoCard from './TodoCard'
 import AskCard from './AskCard'
@@ -29,19 +26,12 @@ const newRid = () => 'r' + Date.now().toString(36) + (ridSeq++).toString(36)
 function useSender(props: AgentPanelProps) {
   const setStreaming = useAgentStore((s) => s.setStreaming)
   const streaming = useAgentStore((s) => s.streaming)
-  const abortRef = useRef<{ kind: 'harness' | 'legacy'; rid: string; ctrl?: AbortController } | null>(null)
+  const abortRef = useRef<{ rid: string } | null>(null)
 
   const send = useCallback(
     async (raw: string, quote: string | null) => {
       const { projectId, chapterRel } = props
       if (streaming || !raw.trim()) return
-      const settings = useAppStore.getState().settings
-      const llm = settings?.llm
-      if (!llm?.baseUrl) {
-        useAgentStore.getState().append({ role: 'assistant', content: '还没有配置 LLM 端点：设置 → 大模型（默认 127.0.0.1:8888）。', error: true })
-        return
-      }
-      const engine = settings?.agentEngine ?? 'harness'
       const content = quote ? `（引用自《${props.chapterTitle}》选中段落）\n> ${quote.replace(/\n/g, '\n> ')}\n\n${raw}` : raw
       useAgentStore.getState().append({ role: 'user', content, quote: quote ?? undefined })
       useAgentStore.getState().append({ role: 'assistant', content: '' })
@@ -59,62 +49,38 @@ function useSender(props: AgentPanelProps) {
         useAgentStore.getState().setError(msgs[msgs.length - 1].id, txt)
       }
       try {
-        if (engine === 'harness') {
-          attachAgentBridge()
-          abortRef.current = { kind: 'harness', rid }
-          // 可见历史（去掉刚 push 的最后一条 user + 空 assistant、以及 tool 卡片）由引擎拼进上下文
-          const history = useAgentStore
-            .getState()
-            .messages.slice(0, -2)
-            .filter((m): m is { role: 'user' | 'assistant'; content: string; id: string } => m.role !== 'tool')
-            .slice(-20)
-            .map((m) => ({ role: m.role, content: m.content }))
-          const r = await harnessSend(
-            {
-              requestId: rid,
-              projectId,
-              chapterRel: chapterRel ?? null,
-              chapterTitle: props.chapterTitle,
-              prompt: raw,
-              quote: quote ?? null,
-              history
-            },
-            (e) => {
-              if (e.type === 'delta') patch((useAgentStore.getState().messages.at(-1)?.content ?? '') + e.text, false)
-              else if (e.type === 'final') patch(e.text ?? '')
-              else if (e.type === 'error') fail('请求失败：' + (e.message ?? ''))
-              else if (e.type === 'todo') useAgentStore.getState().upsertTool({ id: rid, kind: 'todo', items: e.items ?? [] })
-              else if (e.type === 'ask')
-                useAgentStore
-                  .getState()
-                  .upsertTool({ id: rid + '-a-' + (e.batch ?? ''), kind: 'ask', questions: e.questions ?? [], batch: e.batch ?? '' })
-            }
-          )
-          if (r === 'aborted') patch((useAgentStore.getState().messages.at(-1)?.content ?? '') + '\n\n（已停止）')
-        } else {
-          // legacy 直连（可随时回切的老引擎）
-          const ctrl = new AbortController()
-          abortRef.current = { kind: 'legacy', rid, ctrl }
-          const { prompt } = await buildAgentContext(projectId, chapterRel ?? '')
-          const history: ChatMessage[] = (() => {
-            const msgs = useAgentStore.getState().messages
-            const past = msgs.slice(0, -1).slice(-30).map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
-            return [{ role: 'system', content: prompt }, ...past]
-          })()
-          let out = ''
-          await streamChat({
-            baseUrl: llm.baseUrl,
-            model: llm.model,
-            apiKey: llm.apiKey,
-            messages: history,
-            onToken: (t) => {
-              out += t
-              patch(out)
-            },
-            signal: ctrl.signal
-          })
-          patch(out)
-        }
+        attachAgentBridge()
+        abortRef.current = { rid }
+        // 可见历史（去掉刚 push 的最后一条 user + 空 assistant、以及 tool 卡片）由引擎拼进上下文；
+        // 当前章与相关设定的装配由主进程注入，见 src/main/agent/context.ts
+        const history = useAgentStore
+          .getState()
+          .messages.slice(0, -2)
+          .filter((m): m is { role: 'user' | 'assistant'; content: string; id: string } => m.role !== 'tool')
+          .slice(-20)
+          .map((m) => ({ role: m.role, content: m.content }))
+        const r = await harnessSend(
+          {
+            requestId: rid,
+            projectId,
+            chapterRel: chapterRel ?? null,
+            chapterTitle: props.chapterTitle,
+            prompt: raw,
+            quote: quote ?? null,
+            history
+          },
+          (e) => {
+            if (e.type === 'delta') patch((useAgentStore.getState().messages.at(-1)?.content ?? '') + e.text, false)
+            else if (e.type === 'final') patch(e.text ?? '')
+            else if (e.type === 'error') fail('请求失败：' + (e.message ?? ''))
+            else if (e.type === 'todo') useAgentStore.getState().upsertTool({ id: rid, kind: 'todo', items: e.items ?? [] })
+            else if (e.type === 'ask')
+              useAgentStore
+                .getState()
+                .upsertTool({ id: rid + '-a-' + (e.batch ?? ''), kind: 'ask', questions: e.questions ?? [], batch: e.batch ?? '' })
+          }
+        )
+        if (r === 'aborted') patch((useAgentStore.getState().messages.at(-1)?.content ?? '') + '\n\n（已停止）')
       } catch (e) {
         fail('请求失败：' + String((e as Error).message || e))
       } finally {
@@ -127,10 +93,7 @@ function useSender(props: AgentPanelProps) {
   )
 
   const stop = useCallback(() => {
-    const a = abortRef.current
-    if (!a) return
-    if (a.kind === 'harness') cancelAgent(a.rid)
-    else a.ctrl?.abort()
+    if (abortRef.current) cancelAgent(abortRef.current.rid)
   }, [])
 
   return { send, stop, streaming }
@@ -167,7 +130,7 @@ export default function AgentPanel(props: AgentPanelProps) {
       <aside className="flex h-full w-80 shrink-0 flex-col border-l border-hair bg-surface-2">
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hair px-4">
         <span className="text-sm font-medium text-ink">Agent</span>
-        <span className="text-[11px] text-ink-3">本地模型 · 上下文按章节装配</span>
+        <span className="text-[11px] text-ink-3">创作 Agent · 上下文按章节装配</span>
         <span className="flex-1" />
         <button
           title="一致性巡查：按设定档案检查全卷"

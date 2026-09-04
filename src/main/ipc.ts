@@ -34,8 +34,8 @@ export function registerIpc() {
   ipcMain.handle('settings:get', () => getSettings())
   ipcMain.handle('settings:set', (_e, patch: Partial<AppSettings>) => {
     const next = setSettings(patch)
-    // LLM 端点、引擎或工具集变了：关掉写作引擎，下次请求按新设置重建
-    if (isRuntimeCreated() && (patch.llm || patch.agentEngine || patch.agentTools)) {
+    // 模型服务商、工具集变了：关掉写作引擎，下次请求按新设置重建
+    if (isRuntimeCreated() && (patch.llm || patch.agentTools)) {
       void closeHarness()
     }
     return next

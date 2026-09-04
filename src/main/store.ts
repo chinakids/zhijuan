@@ -16,10 +16,35 @@ function settingsFile(): string {
 }
 function readSettings(): AppSettings {
   try {
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(readFileSync(settingsFile(), 'utf-8')) }
+    return normalizeSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(readFileSync(settingsFile(), 'utf-8')) })
   } catch {
     return { ...DEFAULT_SETTINGS }
   }
+}
+
+/** 老版本设置的平滑迁移：扁平 llm { baseUrl, model, apiKey } → llm.providers.local；去掉已废弃的 agentEngine */
+export function normalizeSettings(s: AppSettings): AppSettings {
+  const out: any = { ...s }
+  const llm = out.llm ?? {}
+  if (typeof llm.baseUrl === 'string' || typeof llm.model === 'string') {
+    out.llm = {
+      active: 'local',
+      providers: {
+        local: {
+          ...(typeof llm.baseUrl === 'string' && llm.baseUrl ? { baseUrl: llm.baseUrl } : {}),
+          ...(typeof llm.model === 'string' && llm.model ? { model: llm.model } : {}),
+          ...(typeof llm.apiKey === 'string' && llm.apiKey ? { apiKey: llm.apiKey } : {})
+        }
+      }
+    }
+  } else {
+    out.llm = {
+      active: llm.active === 'local' || llm.active === 'deepseek' || llm.active === 'glm' || llm.active === 'openai' || llm.active === 'claude' || llm.active === 'gemini' ? llm.active : 'local',
+      providers: llm.providers ?? {}
+    }
+  }
+  delete out.agentEngine
+  return out as AppSettings
 }
 function writeSettings(s: AppSettings) {
   ensureDir(dirname(settingsFile()))

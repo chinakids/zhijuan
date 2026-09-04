@@ -4,6 +4,7 @@
 // 上下文完全可控；工具读文件由写作引擎完成。
 import { driveSession, type DriveEvent } from './runtime'
 import { projectDir } from '../store'
+import { buildWritingContext } from './context'
 import type { ProposalItem } from '../../shared/types'
 
 // 关停入口（应用退出 / 冒烟脚本收尾用）
@@ -58,6 +59,19 @@ export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void
   const parts: string[] = []
   parts.push('你是「织卷」创作工作台的创作 agent，协助作者（用户）写作。')
   parts.push(envBlock(input.projectId, input.chapterRel))
+  if (input.chapterRel) {
+    try {
+      const ctx = await buildWritingContext(input.projectId, input.chapterRel)
+      if (ctx.blocks.length) {
+        parts.push(
+          '【当前创作上下文】以下是当前章节与其相关设定的装配内容，可直接作为事实使用；需要看更完整的文件时再用 zj_* 工具读取对应的【作品根目录】下路径。\n' +
+            ctx.blocks.join('\n\n')
+        )
+      }
+    } catch {
+      // 装配失败不阻断创作
+    }
+  }
   if (input.history && input.history.length) {
     const sliced = input.history.slice(-20) // 最多带最近 20 条可见历史
     parts.push('【对话历史】\n' + sliced.map((m) => `${m.role === 'user' ? '用户' : '织卷'}：${m.content.slice(0, 4000)}`).join('\n'))
@@ -140,7 +154,7 @@ function syncSystem(): string {
   return (
     '你是织卷的「时间切片同步器」。根据章节正文，把这一章对应时间切片的人物状态、世界观变化、环境状态，写成一份设定补丁。\n' +
     '要求：\n' +
-    '1. 先用 zj_read_doc 读当前章节正文（路径见环境块），再用 zj_* 工具读取相关人物档案与世界观切片，确认变化。\n' +
+    '1. 当前章节与相关设定已作为【当前创作上下文】直接给出，据此判断变化；如需核对更完整内容，再用 zj_read_doc 读取对应文件。\n' +
     '2. 只在正文确有变化时输出；没有任何变化就输出 []。\n' +
     '3. 每条补丁为：{"target":"相对项目根的文件路径","anchor":"要更新小节对应的标题文本（目标文档无此小节则填空串，我们把它作为新小节追加）","kind":"upsert-section","before":"原状态的一句话要点","after":"本小节要写入的完整新内容（markdown 列表即可）","reason":"一句话理由"}\n' +
     '4. target 优先：人物档案用 人物/<姓名>.md；世界/环境变化用 世界观/<切片名>.md。只允许这两个目录里已有的文件。\n' +
@@ -157,6 +171,14 @@ export async function runSync(
   const parts: string[] = []
   parts.push(syncSystem())
   parts.push(envBlock(projectId, chapterRel))
+  try {
+    const ctx = await buildWritingContext(projectId, chapterRel)
+    if (ctx.blocks.length) {
+      parts.push('【当前创作上下文】（以下是当前章节与其相关设定的装配内容，可直接作为事实；需要核对时用 zj_* 工具读取对应文件）\n' + ctx.blocks.join('\n\n'))
+    }
+  } catch {
+    // 装配失败不阻断同步
+  }
   parts.push(`当前需要同步的章节：${chapterRel}。请按上面的要求输出设定补丁 JSON。`)
   try {
     const text = await driveSession(newSid(projectId), parts.join('\n\n'), { maxMs: 10 * 60 * 1000 })

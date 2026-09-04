@@ -110,7 +110,14 @@ docs.set(
   ['---', '状态: 已回建', '---', '', '# 大纲区 · 章卡索引', '', '共 1 章已回建章卡。', '', '## 第1章 · 雾港', '', '> 定位：用一盏旧灯和一张泛黄船票，把失忆的主角和「忘了的事」焊进主线。', '', '- 关键事件：阿七提旧灯出现；沈藏点破灯是阿七自己熄的；十年前船票出现', ''].join('\n')
 )
 
-const settings: AppSettings = { workspace: '', libraryRoot: '', llm: { baseUrl: 'http://127.0.0.1:8888', model: 'deepseek-v4-flash-0731', apiKey: '' }, theme: 'paper', collectionEnabled: true, agentEngine: 'harness', agentTools: { todo: true, askUser: true } }
+const settings: AppSettings = {
+  workspace: '',
+  libraryRoot: '',
+  llm: { active: 'local', providers: {} },
+  theme: 'paper',
+  collectionEnabled: true,
+  agentTools: { todo: true, askUser: true }
+}
 
 // 工作区落档文档（dev 示范；真机由主进程写盘）
 const WRK_DOCS: Record<string, string> = {
@@ -336,7 +343,7 @@ const mock = {
           }
         },
   agentSync: async () => ({ ok: true, items: [] } as { ok: boolean; items: ProposalItem[] }),
-  agentStatus: async () => ({ online: true, engine: 'harness', model: settings.llm.model }),
+  agentStatus: async () => ({ online: true, provider: '本机 vLLM', model: 'deepseek-v4-flash-0731' }),
 
   // 本章级小环（每章短巡查 / 分层修订）— dev 模式给固定演示数据
   agentChapterCheck: async (_projectId: string, _chapterRel: string, kind: string) =>

@@ -7,6 +7,8 @@ import { Separator } from '../components/ui/separator'
 import { Switch } from '../components/ui/switch'
 import { Card } from '../components/ui/card'
 import { cn } from '../lib/utils'
+import { PROVIDER_PRESETS, providerById } from '../../../shared/providers'
+import type { LlmProviderId } from '../../../shared/types'
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -34,15 +36,15 @@ export default function Settings() {
   const [openDoc, setOpenDoc] = useState<string | null>(null)
   const [openDocBody, setOpenDocBody] = useState('')
   const [wsMsg, setWsMsg] = useState('')
-  const [baseUrl, setBaseUrl] = useState('')
-  const [model, setModel] = useState('')
-  const [apiKey, setApiKey] = useState('')
+  const [provider, setProvider] = useState<LlmProviderId>('local')
+  const [provApiKey, setProvApiKey] = useState('')
+  const [provBaseUrl, setProvBaseUrl] = useState('')
+  const [provModel, setProvModel] = useState('')
   const [libraryRoot, setLibraryRoot] = useState('')
   const [theme, setTheme] = useState<'paper' | 'dark'>('paper')
   const [collection, setCollection] = useState(true)
-  const [agentEngine, setAgentEngine] = useState<'harness' | 'legacy'>('harness')
   const [tools, setTools] = useState({ todo: true, askUser: true })
-  const [status, setStatus] = useState<{ online: boolean; engine?: string; model?: string; message?: string } | null>(null)
+  const [status, setStatus] = useState<{ online: boolean; provider?: string; model?: string; message?: string } | null>(null)
   const [saved, setSaved] = useState(false)
   const [section, setSection] = useState<SectionKey>('workspace')
 
@@ -71,26 +73,44 @@ export default function Settings() {
   useEffect(() => {
     if (!settings) return
     setWorkspacePath(settings.workspace)
-    setBaseUrl(settings.llm.baseUrl)
-    setModel(settings.llm.model)
-    setApiKey(settings.llm.apiKey)
+    const llm = settings.llm ?? { active: 'local' as LlmProviderId, providers: {} }
+    setProvider(llm.active)
+    const pc = llm.providers?.[llm.active] ?? {}
+    setProvApiKey(pc.apiKey ?? '')
+    setProvBaseUrl(pc.baseUrl ?? '')
+    setProvModel(pc.model ?? '')
     setLibraryRoot(settings.libraryRoot)
     setTheme(settings.theme)
     setCollection(settings.collectionEnabled)
-    setAgentEngine(settings.agentEngine)
     setTools({ todo: settings.agentTools?.todo ?? true, askUser: settings.agentTools?.askUser ?? true })
     void refreshStatus()
     void refreshWorkspace()
   }, [settings, refreshStatus, refreshWorkspace])
 
+  /** 切换服务商：同时把可编辑字段换成该家已存的值 */
+  function selectProvider(id: LlmProviderId) {
+    setProvider(id)
+    const pc = settings?.llm?.providers?.[id] ?? {}
+    setProvApiKey(pc.apiKey ?? '')
+    setProvBaseUrl(pc.baseUrl ?? '')
+    setProvModel(pc.model ?? '')
+  }
+
   async function save() {
+    const cur = settings?.llm ?? { active: 'local' as LlmProviderId, providers: {} }
+    const providers = { ...(cur.providers ?? {}) }
+    // 空字段不落盘：用厂商预设默认；被清空的 apiKey 即从本机移除
+    providers[provider] = {
+      ...(provApiKey.trim() ? { apiKey: provApiKey.trim() } : {}),
+      ...(provBaseUrl.trim() ? { baseUrl: provBaseUrl.trim() } : {}),
+      ...(provModel.trim() ? { model: provModel.trim() } : {})
+    }
     await updateSettings({
       workspace: workspacePath.trim(),
-      llm: { baseUrl: baseUrl.trim() || 'http://127.0.0.1:8888', model: model.trim() || 'deepseek-v4-flash-0731', apiKey: apiKey.trim() },
+      llm: { active: provider, providers },
       libraryRoot: libraryRoot.trim(),
       theme,
       collectionEnabled: collection,
-      agentEngine,
       agentTools: tools
     })
     setSaved(true)
@@ -217,17 +237,40 @@ export default function Settings() {
             <>
               <Card className="mt-6 p-6">
                 <h3 className="text-sm font-semibold text-ink-2">大模型</h3>
-        <Separator className="my-4" />
-        <Field label="端点地址" hint="本地 vLLM 或其他 OpenAI 兼容端点">
-          <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="http://127.0.0.1:8888" />
-        </Field>
-        <Field label="模型名">
-          <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder="deepseek-v4-flash-0731" />
-        </Field>
-        <Field label="API Key（如需要）">
-          <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="留空即可（本地端点一般不要）" />
-        </Field>
-      </Card>
+                <Separator className="my-4" />
+                <Field
+                  label="服务商"
+                  hint="写作引擎始终走你选中的这家；切换即完成远程模型对接。保存后下一次对话生效（本机为默认，无需任何配置）。"
+                >
+                  <div className="flex flex-wrap gap-1 rounded-lg border border-hair p-1">
+                    {PROVIDER_PRESETS.map((p) => (
+                      <Button key={p.id} variant={provider === p.id ? 'default' : 'ghost'} size="sm" className="h-7" onClick={() => selectProvider(p.id)}>
+                        {p.name}
+                      </Button>
+                    ))}
+                  </div>
+                </Field>
+                {(() => {
+                  const p = providerById(provider)
+                  if (!p) return null
+                  return (
+                    <>
+                      <Field label="模型名" hint={p.kind === 'local' ? '本机 vLLM 部署的模型名。' : '默认给出该家官方公开型号，可改写成你的订阅 / 专属型号。'}>
+                        <Input value={provModel} onChange={(e) => setProvModel(e.target.value)} placeholder={p.models[0]?.id} list="zj-model-suggest" />
+                      </Field>
+                      <datalist id="zj-model-suggest">{p.models.map((m) => <option key={m.id} value={m.id}>{m.note ?? ''}</option>)}</datalist>
+                      {p.kind === 'remote' && (
+                        <Field label="API Key" hint={p.keyHint}>
+                          <Input type="password" value={provApiKey} onChange={(e) => setProvApiKey(e.target.value)} placeholder="粘贴该家的 API Key" />
+                        </Field>
+                      )}
+                      <Field label="接入地址（高级，留空用官方默认）" hint={`默认：${p.baseURL}。改了走自定义网关 / 代理。`}>
+                        <Input value={provBaseUrl} onChange={(e) => setProvBaseUrl(e.target.value)} placeholder={p.baseURL} />
+                      </Field>
+                    </>
+                  )
+                })()}
+              </Card>
 
       <Card className="mt-4 p-6">
         <div className="flex items-center justify-between">
@@ -235,7 +278,7 @@ export default function Settings() {
           <button onClick={() => void refreshStatus()} className="text-[11px] text-ink-3 hover:text-ink">
             {status === null ? '查询引擎状态…' : status.online ? (
               <span className="flex items-center gap-1 text-success">
-                <span className="h-1.5 w-1.5 rounded-full bg-success" /> 写作引擎在线 · {status.model}
+                <span className="h-1.5 w-1.5 rounded-full bg-success" /> 写作引擎在线 · {status.provider ?? ''} · {status.model}
               </span>
             ) : (
               <span className="flex items-center gap-1 text-danger">
@@ -245,20 +288,9 @@ export default function Settings() {
           </button>
         </div>
         <Separator className="my-4" />
-        <div className="flex items-center justify-between pb-4">
-          <div>
-            <Label>对话引擎</Label>
-            <p className="text-xs text-ink-3">后台运行的写作引擎（推荐）：模型可在会话里读章节、列计划、向你确认。切换后下次对话生效。</p>
-          </div>
-          <div className="flex gap-1 rounded-lg border border-hair p-0.5">
-            <Button variant={agentEngine === 'harness' ? 'default' : 'ghost'} size="sm" className="h-7" onClick={() => setAgentEngine('harness')}>
-              写作引擎（有工具）
-            </Button>
-            <Button variant={agentEngine === 'legacy' ? 'default' : 'ghost'} size="sm" className="h-7" onClick={() => setAgentEngine('legacy')}>
-              直连对话
-            </Button>
-          </div>
-        </div>
+        <p className="pb-4 text-xs text-ink-3">
+          后台写作引擎默认生效（无需开关）：有 zj_* 写作工具、可读章节列计划、可向你确认；开始写一章时自动装配当前章节的创作上下文。
+        </p>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
