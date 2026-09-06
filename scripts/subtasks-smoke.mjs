@@ -14,6 +14,7 @@ writeFileSync(
   entry,
   [
     `import { runChapterCheck } from '${root}/src/main/agent/audit'`,
+    `import { runAudit } from '${root}/src/main/agent/audit'`,
     `import { runOutlineRebuild } from '${root}/src/main/agent/outline'`,
     `import { runMaterialTriage } from '${root}/src/main/agent/triage'`,
     `import { closeHarness } from '${root}/src/main/agent/runtime'`,
@@ -34,6 +35,7 @@ writeFileSync(
     '',
     "await step('本章短巡查 chapter', () => runChapterCheck(PJ, CH, 'chapter'))",
     "await step('分层修订 revision', () => runChapterCheck(PJ, CH, 'revision'))",
+    "await step('多视角审视 perspectives', () => runAudit(PJ, 'perspectives'))",
     "await step('大纲回建 outline', () => runOutlineRebuild(PJ))",
     "await step('素材升格 triage', () => runMaterialTriage(PJ))",
     'await closeHarness()',

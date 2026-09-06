@@ -5,7 +5,10 @@ import { cn } from '../../lib/utils'
 
 const TYPE_TXT: Record<string, string> = {
   'setting-conflict': '设定冲突', timeline: '时间线', foreshadow: '伏笔', 'character-drift': '人物漂移',
-  structure: '结构', pacing: '节奏', character: '人物', prose: '行文'
+  structure: '结构', pacing: '节奏', character: '人物', prose: '行文', setting: '设定', misc: '其他'
+}
+const VIEWER_TXT: Record<string, string> = {
+  '角色粉': '角色粉视角', '设定党': '设定党视角', '节奏读者': '节奏读者视角'
 }
 const SEV_CN: Record<AuditItem['severity'], string> = {
   high: 'bg-danger text-white',
@@ -72,7 +75,7 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab }: Pr
       >
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
           <ShieldAlert className="h-4 w-4 text-accent" />
-          <span className="text-sm font-semibold">{tab === 'consistency' ? '一致性巡查' : '冷读报告'}</span>
+          <span className="text-sm font-semibold">{tab === 'consistency' ? '一致性巡查' : tab === 'review' ? '冷读报告' : '多视角审视'}</span>
           <span className="flex-1" />
           <button
             onClick={() => onTab('consistency')}
@@ -85,6 +88,12 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab }: Pr
             className={cn('rounded-md px-2.5 py-1 text-xs', tab === 'review' ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface-2')}
           >
             冷读
+          </button>
+          <button
+            onClick={() => onTab('perspectives')}
+            className={cn('rounded-md px-2.5 py-1 text-xs', tab === 'perspectives' ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface-2')}
+          >
+            视角
           </button>
           <button onClick={onClose} className="text-ink-3 hover:text-ink">
             <X className="h-4 w-4" />
@@ -127,6 +136,9 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab }: Pr
               <div className="flex items-center gap-2">
                 <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', SEV_CN[it.severity])}>{it.severity}</span>
                 <span className="text-[11px] font-medium text-accent">{TYPE_TXT[it.type] ?? it.type}</span>
+                {it.viewer && (
+                  <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-3">{VIEWER_TXT[it.viewer] ?? it.viewer}</span>
+                )}
                 <span className="flex-1" />
                 {it.target && (
                   made.has(i) ? (

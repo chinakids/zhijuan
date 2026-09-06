@@ -8,6 +8,7 @@ import type {
   Proposal,
   ProposalItem,
   AuditItem,
+  AuditKind,
   ChapterCheckKind,
   ChapterCheckResult,
   OutlineCard,
@@ -72,7 +73,7 @@ const api = {
     ipcRenderer.invoke('agent:sync', projectId, chapterRel) as Promise<{ ok: boolean; items: ProposalItem[]; error?: string }>,
   agentAnswer: (batch: string, answers: { id: string; selected: string[]; custom?: string }[]) =>
     ipcRenderer.invoke('agent:answer', batch, answers) as Promise<{ ok: boolean; error?: string }>,
-  agentAudit: (projectId: string, kind: 'consistency' | 'review') =>
+  agentAudit: (projectId: string, kind: AuditKind) =>
     ipcRenderer.invoke('agent:audit', projectId, kind) as Promise<
       | { ok: true; result: { summary: string; items: AuditItem[] } }
       | { ok: false; error: string }

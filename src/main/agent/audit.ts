@@ -103,8 +103,79 @@ export async function runAudit(
   projectId: string,
   kind: AuditKind
 ): Promise<{ ok: true; result: AuditResult } | { ok: false; error: string }> {
+  // 多视角审视是独立能力，参数不同（无 kind），单独路由
+  if (kind === 'perspectives') return runSubtask(perspectiveDef, projectId)
   return runSubtask(auditDef, projectId, { kind })
 }
+
+// ===== 多视角审视（agent-first P2）：三种立场的读者各通读一遍，交叉找问题 =====
+// 一个人的盲区往往正是另一个人的执念：角色粉看人设、设定党看自洽、节奏读者看可读性。
+// 与巡查同骨架（独立 session + 结构化 JSON），复用 volumeBrief 材料包，零新接线。
+function perspectiveSystem(): string {
+  return (
+    '你是织卷的「多视角审读团」。下面给出了这部作品的正文摘录与现有设定档案。\n' +
+      '请以三种立场，各自代表一位真实读者把全文各读一遍，找出这种立场下最值得写的问题：\n' +
+      '- viewer=角色粉：只关心人物立不立得住——行为是否与档案相符、动机是否牵强、关系是否写得含糊；\n' +
+      '- viewer=设定党：只关心设定自洽——设定冲突、时间线破损、伏笔不回收；\n' +
+      '- viewer=节奏读者：只关心读得顺不顺——节奏拖沓、信息重复、该收不收。\n' +
+      '要求：每条都要能回到上面材料，不要臆测；同一条只归到最合适的一位；每条各字段用一句自然话说清，不要展开成段落；最多给 10 条。\n' +
+      '格式纪律（重要）：你的整个回答只能是下面这个 JSON 对象，一个字都不要写在 JSON 之外（不要 markdown 围栏、不要开头结尾的话）：\n' +
+      '{"summary":"一句话：三重眼光看完后全书最值得先处理的一件事","items":[' +
+      '{"viewer":"角色粉|设定党|节奏读者","severity":"high|medium|low",' +
+      '"type":"character|setting|pacing|structure|foreshadow",' +
+      '"where":"出现位置（尽量给到能定位的信息）","what":"问题的一句话现象","suggest":"一句话改法",' +
+      '"target":"若这条关联到某个设定文件给路径（人物/… 或 世界观/…），否则给空串"}]}\n' +
+      '没有发现就整体输出 {"summary":"","items":[]}。'
+  )
+}
+
+/** 从模型回复里稳健提取多视角审读 JSON（viewer 保留；target 只在现有设定档案里才留，防编造） */
+export function extractPerspective(text: string, knownTargets?: Set<string>): AuditResult {
+  const clean = text.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+  let obj: any = null
+  try {
+    obj = JSON.parse(clean)
+  } catch {}
+  if (!obj) {
+    const a = clean.indexOf('{')
+    const b = clean.lastIndexOf('}')
+    if (a >= 0 && b > a) {
+      try {
+        obj = JSON.parse(clean.slice(a, b + 1))
+      } catch {}
+    }
+  }
+  const viewers = ['角色粉', '设定党', '节奏读者']
+  const items = Array.isArray(obj?.items)
+    ? (obj.items as any[])
+        .filter((x) => x && typeof x === 'object' && typeof x.what === 'string')
+        .map((x) => ({
+          severity: x.severity === 'high' ? 'high' : x.severity === 'low' ? 'low' : 'medium',
+          type: typeof x.type === 'string' ? x.type : 'misc',
+          ...(x.viewer ? { viewer: String(x.viewer) } : {}),
+          where: typeof x.where === 'string' ? x.where : '',
+          what: x.what,
+          suggest: typeof x.suggest === 'string' ? x.suggest : '',
+          ...(typeof x.target === 'string' && x.target && (!knownTargets || knownTargets.has(x.target)) ? { target: x.target } : {})
+        })) as AuditItem[]
+    : []
+  return { summary: typeof obj?.summary === 'string' ? obj.summary : '', items }
+}
+
+const perspectiveDef: SubtaskDef<AuditResult> = {
+  id: 'perspectives',
+  title: '多视角审视',
+  description: '以角色粉 / 设定党 / 节奏读者三种立场各通读一遍，交叉找问题',
+  maxMs: 8 * 60 * 1000,
+  buildParts: (c) => [perspectiveSystem(), volumeBrief(c.projectId), '请给出多视角审读报告 JSON。'],
+  parse: (text, c) => extractPerspective(text, new Set(settingList(c.projectId))),
+  retry: {
+    check: (r) => !r.summary && !r.items.length,
+    prompt:
+      '【提醒】上一次回答没有解析成要求的 JSON。这次请只原样输出一个 JSON 对象，先输出左花括号 {，别的什么也不要写。'
+  }
+}
+registerCapability(perspectiveDef as never)
 
 /** 从模型回复里稳健提取审计 JSON 对象 */
 export function extractAudit(text: string): AuditResult {

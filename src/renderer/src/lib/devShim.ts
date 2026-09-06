@@ -396,20 +396,33 @@ const mock = {
             ]
           }
         }
-      : {
-          ok: true,
-          result: {
-            summary: '（演示）开篇节奏可以再快一点。',
-            items: [
-              { severity: 'high', type: 'pacing', where: '第1章 · 雾港之夜', what: '进入第一个事件太慢，背景铺垫多', suggest: '让第一个事件提前一页，细节后置到冲突里补', target: '' },
-              { severity: 'medium', type: 'structure', where: '全书', what: '第3章和第4章是同一天的两条线，读者易混', suggest: '在章节头标注同一天下的不同地点', target: '世界观/切片_灯塔.md' }
-            ]
+      : kind === 'perspectives'
+        ? {
+            ok: true,
+            result: {
+              summary: '（演示）设定党最在意的一处：第 4 章里灯塔重新点灯，但世界观档写它二十年前就废弃了。',
+              items: [
+                { severity: 'high', type: 'setting', viewer: '设定党', where: '第4章 · 灯塔重明（正文/第04章_灯塔重明.md）', what: '灯塔被写“重新点灯”，但世界观切片从未提过它可以再用', suggest: '补一段设定或在正文里加入“重新启用”的交代', target: '世界观/切片_灯塔.md' },
+                { severity: 'medium', type: 'character', viewer: '角色粉', where: '第2章 · 灯塔夜访', what: '顾岸明明怕水，这里却主动要在夜潮里走', suggest: '给一个由头（比如有人落水）或让他在岸上等', target: '人物/顾岸.md' },
+                { severity: 'low', type: 'pacing', viewer: '节奏读者', where: '第3章', what: '开头用一整段慢慢描天气，主线三章没推进', suggest: '把天气细节并进动作里，主线事件提前半页' }
+              ]
+            }
           }
-        },
+        : {
+            ok: true,
+            result: {
+              summary: '（演示）开篇节奏可以再快一点。',
+              items: [
+                { severity: 'high', type: 'pacing', where: '第1章 · 雾港之夜', what: '进入第一个事件太慢，背景铺垫多', suggest: '让第一个事件提前一页，细节后置到冲突里补', target: '' },
+                { severity: 'medium', type: 'structure', where: '全书', what: '第3章和第4章是同一天的两条线，读者易混', suggest: '在章节头标注同一天下的不同地点', target: '世界观/切片_灯塔.md' }
+              ]
+            }
+          },
   agentSync: async () => ({ ok: true, items: [] } as { ok: boolean; items: ProposalItem[] }),
   agentStatus: async () => ({ online: true, provider: '本机 vLLM', model: 'deepseek-v4-flash-0731' }),
   agentListCapabilities: async () => [
     { id: 'audit', title: '全卷检查', description: '（演示）一致性巡查 / 冷读报告：跨全卷对照设定找问题' },
+    { id: 'perspectives', title: '多视角审视', description: '（演示）以角色粉 / 设定党 / 节奏读者三种立场各通读一遍，交叉找问题' },
     { id: 'chapter-check', title: '本章检查', description: '（演示）每章短巡查 / 分层修订：沿写作线的小环兜底' },
     { id: 'outline', title: '大纲回建', description: '（演示）把既有正文回建成章卡' },
     { id: 'triage', title: '素材升格', description: '（演示）素材按语境归类并判可否入档' }

@@ -184,14 +184,17 @@ export interface CollectionTask {
   error?: string
 }
 
-/** 全卷检查（agent-first）：一致性巡查 / 冷读报告 */
-export type AuditKind = 'consistency' | 'review'
+/** 全卷检查（agent-first）：一致性巡查 / 冷读报告 / 多视角审视 */
+export type AuditKind = 'consistency' | 'review' | 'perspectives'
 export interface AuditItem {
   severity: 'high' | 'medium' | 'low'
   type: string
   where: string
   what: string
   suggest: string
+  /** 多视角审视：这条是哪一位立场读者找到的（角色粉 / 设定党 / 节奏读者）；其他检查不带 */
+  viewer?: string
+  /** 建议写进的目标设定文件（人物/… 或 世界观/…）；给得出才带，用于转提案 */
   target?: string
 }
 export interface AuditResult {
