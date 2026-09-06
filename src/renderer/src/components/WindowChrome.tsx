@@ -17,7 +17,7 @@ export default function WindowChrome() {
     >
       <span className="mr-3 text-xs font-semibold tracking-[0.2em] text-ink-2">织卷</span>
       <span className="text-[10px] text-ink-3">ZHĪJUǍN</span>
-      <div className="flex flex-1 items-center justify-end" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      <div className="flex flex-1 items-center justify-end pr-4" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <EngineBadge />
       </div>
     </div>

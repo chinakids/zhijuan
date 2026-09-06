@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Loader2, Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText } from 'lucide-react'
+import { Loader2, Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight } from 'lucide-react'
 import type { ProseApi } from '../editor/Prose'
 import type { AuditKind, EditItem } from '../../../../shared/types'
 import { useAgentStore } from './store'
@@ -34,8 +34,8 @@ function ToolActivity({ tool, args, done, summary }: { tool: string; args?: stri
         <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent" />
       )}
       <span className="shrink-0 font-medium text-ink-2">{toolLabel(tool)}</span>
-      {args && <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-ink-3" title={args}>{args}</span>}
-      {done && summary && <span className="shrink-0 truncate text-ink-3">{summary}</span>}
+      {args && <span className="flex-1 break-all font-mono text-[10px] leading-4 text-ink-3" title={args}>{args}</span>}
+      {done && summary && <span className="shrink-0 whitespace-nowrap text-ink-3">{summary}</span>}
     </div>
   )
 }
@@ -114,15 +114,23 @@ function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
   )
 }
 
-/* ---------- 思考过程（可折叠） ---------- */
-function ThinkingBlock({ text }: { text: string }) {
+/* ---------- 思考过程（可折叠但思考中自动展开并实时可见） ---------- */
+function ThinkingBlock({ text, active }: { text: string; active?: boolean }) {
+  const [open, setOpen] = useState(!active)
+  // 思考中保持展开，让过程实时可见；结束后可手点收起
+  useEffect(() => {
+    if (active) setOpen(true)
+  }, [active])
   return (
-    <details className="mb-2 group">
+    <details open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)} className="mb-2 group">
       <summary className="flex cursor-pointer select-none items-center gap-1 text-[11px] text-ink-3 hover:text-ink">
-        <Brain className="h-3 w-3" /> 思考过程
-        <span className="ml-auto text-[10px] opacity-0 transition-opacity group-open:opacity-0">（点击展开）</span>
+        <Brain className="h-3 w-3" />
+        <span>{active ? '思考中…' : '思考过程'}</span>
+        <ChevronRight className="h-3 w-3 transition-transform" />
       </summary>
-      <div className="mt-1.5 whitespace-pre-wrap rounded bg-surface-2 px-2 py-1.5 text-[11px] leading-5 text-ink-2">{text}</div>
+      <div className="mt-1.5 max-h-48 overflow-y-auto whitespace-pre-wrap rounded bg-surface-2 px-2 py-1.5 text-[11px] leading-5 text-ink-2">
+        {text || '（正在思考…）'}
+      </div>
     </details>
   )
 }
@@ -397,10 +405,10 @@ export default function AgentPanel(props: AgentPanelProps) {
                       {m.quote.length > 300 ? '…' : ''}
                     </blockquote>
                   )}
-                  {m.role === 'assistant' && m.thinking && <ThinkingBlock text={m.thinking} />}
+                  {m.role === 'assistant' && m.thinking && <ThinkingBlock text={m.thinking} active={streaming} />}
                   {m.role === 'assistant' ? (
                     <div className="prose">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content || (m.error ? '' : '…')}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content || (m.error ? '' : streaming ? '正在生成…' : '')}</ReactMarkdown>
                       {m.error && <span className="text-danger">（{m.content}）</span>}
                     </div>
                   ) : (
