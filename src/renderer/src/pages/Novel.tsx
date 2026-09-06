@@ -107,6 +107,8 @@ export default function Novel() {
   }
 
   const cur = chapters.find((c) => c.file === sel)
+  // 章卡的 file 是相对 正文/ 的裸名；凡要当项目根相对路径传给主进程处，统一在此拼前缀（见本技能 listDocs 坑）
+  const chapterRel = sel ? '正文/' + sel : ''
 
   return (
     <div className="flex h-full min-h-0">
@@ -144,7 +146,7 @@ export default function Novel() {
         {sel ? (
           <>
             <div className="min-h-0 flex-1">
-              <DocEditor projectId={id} rel={sel} withFm extVersion={extVersion} editorApiRef={apiRef} onSave={() => { void refresh(); void handleChapterSaved(sel) }} />
+              <DocEditor projectId={id} rel={chapterRel} withFm extVersion={extVersion} editorApiRef={apiRef} onSave={() => { void refresh(); void handleChapterSaved(chapterRel) }} />
             </div>
           </>
         ) : (
@@ -160,9 +162,9 @@ export default function Novel() {
         )}
       </main>
 
-      <AgentPanel projectId={id} chapterRel={sel} chapterTitle={cur?.name ?? ''} editorApi={() => apiRef.current} onChapterCheck={() => setCheckOpen(true)} />
+      <AgentPanel projectId={id} chapterRel={chapterRel || null} chapterTitle={cur?.name ?? ''} editorApi={() => apiRef.current} onChapterCheck={() => setCheckOpen(true)} />
 
-      <ChapterCheckDrawer projectId={id} chapter={sel} chapterTitle={cur?.name ?? ''} open={checkOpen} onClose={() => setCheckOpen(false)} />
+      <ChapterCheckDrawer projectId={id} chapter={chapterRel || null} chapterTitle={cur?.name ?? ''} open={checkOpen} onClose={() => setCheckOpen(false)} />
 
       <Dialog open={creating} onOpenChange={setCreating}>
         <DialogContent className="sm:max-w-md">

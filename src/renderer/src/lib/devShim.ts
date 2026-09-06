@@ -211,7 +211,7 @@ const mock = {
       const t = text.match(/题名:\s*(.+)/)
       const s = text.match(/切片:\s*(.+)/)
       out.push({
-        file: '正文/' + file,
+        file,
         name: file.replace(/\.md$/, ''),
         fm: { 章号: m ? Number(m[1]) : undefined, 题名: t?.[1]?.trim(), 切片: s?.[1]?.trim() },
         wordCount: countWords(text),
@@ -573,6 +573,25 @@ const mock = {
       '---\n状态: 分幕草稿\n题名: ' + name + '\n---\n\n# ' + name + '（分幕草稿）\n\n> 由「分幕生成」按导演板情绪弧分段逐段写出（演示数据）。确认后把下面的正文部分搬进正文文件即可。\n\n' + body
     )
     return { ok: true, written: rel, acts: 2, words: 128 }
+  },
+  // 采纳分幕草稿为本章正文（dev 模式：与主进程同语义的简易实现，方便无头验证入口）
+  adoptActs: async (projectId: string, chapterRel: string, draftRel: string) => {
+    const cur = docs.get(projectId + '/' + chapterRel)
+    if (cur == null) return { ok: false, error: '章节正文已不存在' }
+    const draft = docs.get(projectId + '/' + draftRel)
+    if (draft == null) return { ok: false, error: '分幕草稿已不存在' }
+    const stripped = draft.replace(/^---\n[\s\S]*?\n---\s*(\n|$)/, '')
+    const body = stripped
+      .split('\n')
+      .filter((l) => !(l.startsWith('# ') && l.includes('分幕草稿')) && !l.startsWith('> 由「分幕生成」'))
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+    if (!body) return { ok: false, error: '分幕草稿里没有可用的正文内容' }
+    const fm = String(cur.match(/^---\n[\s\S]*?\n---/) ?? '')
+    const name = chapterRel.replace(/^正文\//, '').replace(/\.md$/, '')
+    docs.set(projectId + '/' + chapterRel, fm + '\n\n# ' + name + '\n\n' + body + '\n')
+    return { ok: true, words: body.length }
   },
   // 素材→设定升格（dev 模式：固定演示判定）
   agentTriage: async () => ({
