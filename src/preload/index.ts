@@ -100,6 +100,11 @@ const api = {
       | { ok: true; result: DirectorCheckResult }
       | { ok: false; error: string }
     >,
+  agentActs: (projectId: string, chapterRel: string) =>
+    ipcRenderer.invoke('agent:acts', projectId, chapterRel) as Promise<
+      | { ok: true; written: string; acts: number; words: number }
+      | { ok: false; error: string }
+    >,
   agentTriage: (projectId: string) =>
     ipcRenderer.invoke('agent:triage', projectId) as Promise<
       | { ok: true; result: TriageResult }

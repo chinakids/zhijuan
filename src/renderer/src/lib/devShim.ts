@@ -554,6 +554,26 @@ const mock = {
       }
     }
   },
+  // 分幕生成（dev 模式：有导演板就写一份演示分幕草稿）
+  agentActs: async (projectId: string, chapterRel: string) => {
+    const name = chapterRel.replace(/^正文\//, '').replace(/\.md$/, '')
+    const boardRel = '大纲/' + name + '_导演.md'
+    if (!docs.has(projectId + '/' + boardRel)) {
+      return { ok: false, error: '本章还没有导演板。先在「大纲区」点「导演本章」生成一张，再回来分幕生成。' }
+    }
+    const rel = '大纲/' + name + '_分幕.md'
+    const body = [
+      '『演示分幕草稿』第一段：候船厅的灯慢慢暗下来时，阿七在墙角的杂物筐里摸到一串锈钥匙，每一把都缠着蜡线——最旧的那把，齿形正好对着灯塔锁孔。',
+      '',
+      '他还没把钥匙掂热，守塔人就从身后的阴影里伸出手，把柜台上那盏唯一的油灯吹熄了。整个海湾沉进一片静里，只剩码头下的浪还在一下一下推着船帮。',
+      ''
+    ].join('\n')
+    docs.set(
+      projectId + '/' + rel,
+      '---\n状态: 分幕草稿\n题名: ' + name + '\n---\n\n# ' + name + '（分幕草稿）\n\n> 由「分幕生成」按导演板情绪弧分段逐段写出（演示数据）。确认后把下面的正文部分搬进正文文件即可。\n\n' + body
+    )
+    return { ok: true, written: rel, acts: 2, words: 128 }
+  },
   // 素材→设定升格（dev 模式：固定演示判定）
   agentTriage: async () => ({
     ok: true,

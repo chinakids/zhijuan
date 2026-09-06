@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { BookMarked, CheckCircle2, CircleDashed, Clapperboard, Hammer, ListTree, Loader2, RefreshCw, ScrollText, ShieldCheck } from 'lucide-react'
+import { BookMarked, CheckCircle2, CircleDashed, Clapperboard, Hammer, ListTree, Loader2, PenLine, RefreshCw, ScrollText, ShieldCheck } from 'lucide-react'
 import type { ChapterEntry } from '../../../shared/types'
 import { cn } from '../lib/utils'
 import DocEditor from '../features/editor/DocEditor'
@@ -17,6 +17,7 @@ export default function Outline() {
   const [sel, setSel] = useState<string | null>('大纲/索引.md')
   const [building, setBuilding] = useState(false)
   const [directing, setDirecting] = useState(false)
+  const [acting, setActing] = useState(false)
   const [checkOpen, setCheckOpen] = useState(false)
   const [msg, setMsg] = useState('')
   const events = useFsEvents(id)
@@ -42,8 +43,10 @@ export default function Outline() {
 
   const cardRel = (c: ChapterEntry) => '大纲/' + c.name + '.md'
   const boardRel = (c: ChapterEntry) => '大纲/' + c.name + '_导演.md'
+  const actsRel = (c: ChapterEntry) => '大纲/' + c.name + '_分幕.md'
   const hasCard = (c: ChapterEntry) => outlineFiles.includes(cardRel(c))
   const hasBoard = (c: ChapterEntry) => outlineFiles.includes(boardRel(c))
+  const hasActs = (c: ChapterEntry) => outlineFiles.includes(actsRel(c))
   // 导演板比正文更旧（正文在导完之后又被改过）的章：兑现检查会对照旧承诺，需轻提示建议重导
   const staleBoards = new Set<string>()
   for (const c of chapters) {
@@ -52,7 +55,7 @@ export default function Outline() {
   }
   const missing = chapters.filter((c) => !hasCard(c))
   // 当前选中对应的章节（章卡或导演板都可映射回），供「导演本章」定位
-  const selName = sel?.replace(/^大纲\//, '').replace(/\.md$/, '').replace(/_导演$/, '') ?? ''
+  const selName = sel?.replace(/^大纲\//, '').replace(/\.md$/, '').replace(/_(导演|分幕)$/, '') ?? ''
   const selChapter = chapters.find((c) => c.name === selName) ?? null
 
   const build = async (only?: string[]) => {
@@ -91,6 +94,30 @@ export default function Outline() {
     }
   }
 
+  const act = async () => {
+    if (!id || acting) return
+    if (!selChapter) {
+      setMsg('先在左侧选中一章（章卡或导演板），再点「分幕生成」')
+      return
+    }
+    if (!hasBoard(selChapter)) {
+      setMsg('本章还没有导演板，先点「导演本章」生成一张，再来分幕。')
+      return
+    }
+    setActing(true)
+    setMsg('')
+    try {
+      const r = await window.zhijuan.agentActs(id, '正文/' + selChapter.file)
+      if (r.ok) setMsg(`✓ 已按导演板分 ${r.acts} 段起草「${selChapter.name}」，草稿约 ${r.words} 字，落 ${r.written}`)
+      else setMsg('✗ ' + r.error)
+      await refresh()
+    } catch (e: any) {
+      setMsg('✗ ' + String(e?.message ?? e))
+    } finally {
+      setActing(false)
+    }
+  }
+
   const extVersion = useMemo(() => (sel ? events.filter((e) => e.path === sel).length : 0), [events, sel])
 
   return (
@@ -100,7 +127,7 @@ export default function Outline() {
           <BookMarked className="h-4 w-4 text-accent" />
           <span className="text-xs font-semibold text-ink">章卡</span>
           <span className="flex-1" />
-          <span className="text-[10px] text-ink-3">{chapters.length} 章 · {outlineFiles.filter((f) => !f.endsWith('索引.md') && !f.endsWith('_导演.md')).length} 已回建</span>
+          <span className="text-[10px] text-ink-3">{chapters.length} 章 · {outlineFiles.filter((f) => !f.endsWith('索引.md') && !f.endsWith('_导演.md') && !f.endsWith('_分幕.md')).length} 已回建</span>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
           <button
@@ -152,6 +179,18 @@ export default function Outline() {
                     )}
                   </button>
                 )}
+                {hasActs(c) && (
+                  <button
+                    onClick={() => setSel(actsRel(c))}
+                    className={cn(
+                      'ml-5 flex w-[calc(100%-1.25rem)] items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors',
+                      sel === actsRel(c) ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface'
+                    )}
+                  >
+                    <PenLine className="h-3 w-3 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">分幕草稿</span>
+                  </button>
+                )}
               </div>
             )
           })}
@@ -162,7 +201,7 @@ export default function Outline() {
         <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hair px-4">
           <ListTree className="h-3.5 w-3.5 text-ink-3" />
           <span className="truncate text-sm font-medium text-ink">
-            {sel === '大纲/索引.md' ? '章卡索引' : sel?.replace('大纲/', '').replace(/\.md$/, '')}
+            {sel === '大纲/索引.md' ? '章卡索引' : sel?.replace('大纲/', '').replace(/\.md$/, '').replace(/_(导演|分幕)$/, '')}
           </span>
           <span className="flex-1" />
           {msg && <span className={cn('max-w-[40vw] truncate rounded-full px-2.5 py-0.5 text-[11px]', msg.startsWith('✓') ? 'bg-[#e6f0ee] text-success' : msg.startsWith('✗') ? 'bg-danger-soft text-danger' : 'bg-accent-soft text-accent')}>{msg}</span>}
@@ -199,6 +238,19 @@ export default function Outline() {
             title={selChapter && hasBoard(selChapter) ? `对照「${selChapter.name}」的导演板核对本章（动笔后用，只读不改稿）` : selChapter ? '本章还没有导演板，先点「导演本章」' : '先在左侧选中一章'}
           >
             <ShieldCheck className="h-3 w-3" /> 兑现检查
+          </button>
+          {acting && (
+            <span className="flex items-center gap-1 text-[11px] text-accent">
+              <Loader2 className="h-3 w-3 animate-spin" /> 写作引擎分幕起草中…（每段约一两分钟）
+            </span>
+          )}
+          <button
+            onClick={() => void act()}
+            disabled={acting || !selChapter || !hasBoard(selChapter)}
+            className="flex items-center gap-1 rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+            title={selChapter && hasBoard(selChapter) ? `按「${selChapter.name}」导演板的情绪弧分幕，逐段起草整章草稿（落 大纲/）` : selChapter ? '本章还没有导演板，先点「导演本章」' : '先在左侧选中一章'}
+          >
+            <PenLine className="h-3 w-3" /> 分幕生成
           </button>
           <button
             onClick={() => void build()}
