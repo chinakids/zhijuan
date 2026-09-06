@@ -105,6 +105,31 @@ describe('buildWritingContext（写作上下文装配）', () => {
     expect(ghost.sources).toEqual(['正文/第9章_z.md'])
   })
 
+  it('导演板（若已有）随行注入：剥 front matter、带硬指令说明、进 sources；front matter 不泄漏', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      const table: Record<string, string> = {
+        '正文/第2章_雾.md': FM_2 + '第二章正文',
+        '大纲/第2章_雾.md': '章卡一句话',
+        '大纲/第2章_雾_导演.md':
+          ['---', '章号: 2', '题名: 雾', '切片: 第二幕', '状态: 已生成', '---', '', '## 情绪弧分段', '1. **推进**：abc', '', '## 波峰', '', '第 3 段 · 高潮', '', '## 人物行为轴', '', '- **林晚（试探）**：步步靠近', '', '## 写作红线（不许破）', '', '- 不揭穿旧事', ''].join('\n') + '\n',
+        '素材库/索引.md': '索引路标'
+      }
+      return table[rel] ?? null
+    })
+    listChaptersMock.mockReturnValue([] as never)
+
+    const { blocks, sources } = await buildWritingContext('p', '正文/第2章_雾.md')
+
+    expect(sources).toContain('大纲/第2章_雾_导演.md')
+    const board = blocks.find((b) => b.includes('本章导演板'))
+    expect(board).toBeTruthy()
+    expect(board).toContain('情绪弧分段')
+    expect(board).toContain('硬指令')
+    // 导演板自己的 front matter 不泄漏进上下文
+    expect(board).not.toContain('状态:')
+    expect(board).not.toContain('题名:')
+  })
+
   it('读不到的内容静默跳过，绝不抛错', async () => {
     readDocMock.mockReturnValue(null)
     listChaptersMock.mockReturnValue([] as never)

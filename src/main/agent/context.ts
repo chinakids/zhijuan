@@ -1,6 +1,6 @@
 // ===== 织卷 · 创作上下文装配（主进程；模块设计 §11.1「系统侧写自动带上」在 harness 下的真正落地） =====
 // 给 harness 的创作路径（runChat / runSync）在系统侧**直接注入 ** 当前章相关的写作半径：
-// 当前章正文 + 上一章尾部 + 涉及人物档案 + 当前切片世界观 + 本章章卡 + 素材库索引。
+// 当前章正文 + 上一章尾部 + 涉及人物档案 + 当前切片世界观 + 本章章卡 + 本章导演板 + 素材库索引。
 // 模型开写就有事实，不必每轮都靠 zj_* 工具现读；要看更多细节仍可再读对应文件。
 // 预算硬控（沿 ROADMAP M1.3）：正文 ≤8000、前情 ≤3000、人物 ≤4000、切片 ≤4000、章卡 ≤2000、素材索引 ≤1200。
 import { readDoc, listChapters } from '../store'
@@ -11,7 +11,7 @@ export interface WritingContext {
   sources: string[]
 }
 
-const CAP = { chapter: 8000, prevTail: 3000, char: 4000, slice: 4000, card: 2000, material: 1200, maxChars: 4 }
+const CAP = { chapter: 8000, prevTail: 3000, char: 4000, slice: 4000, card: 2000, director: 2500, material: 1200, maxChars: 4 }
 
 function firstLineName(rel: string): string {
   return rel.replace(/^(正文|大纲)\//, '').replace(/\.md$/, '')
@@ -75,6 +75,16 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
     if (t.trim()) {
       blocks.push(`【本章章卡：${firstLineName(chapterRel)}】\n${t.slice(0, CAP.card)}`)
       sources.push(cardRel)
+    }
+  }
+
+  // 5b. 本章导演板（若有：情绪弧分段 + 行为轴 + 写作红线 + 钩子 → 硬指令：正文必须沿它走）
+  if (chapterRel) {
+    const dirRel = '大纲/' + chapterRel.replace(/^正文\//, '').replace(/\.md$/, '') + '_导演.md'
+    const t = stripFrontMatter(read(dirRel))
+    if (t.trim()) {
+      blocks.push(`【本章导演板：${firstLineName(chapterRel)}】（硬指令：本段正文的情绪推进、人物行为必须沿导演板的情绪弧分段与行为轴写，红线不许破，钩子到结尾要还）\n${t.slice(0, CAP.director)}`)
+      sources.push(dirRel)
     }
   }
 
