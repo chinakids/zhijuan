@@ -277,3 +277,25 @@ export interface DirectorSheet {
   /** 本章应兑现的旧钩子 / 可新埋的钩子（最多 3 条） */
   hooks: string[]
 }
+
+/** 导演兑现检查（V1 兑现检查回接）：动笔后对照导演板核对本章是否兑现了导演承诺 */
+export interface DirectorCheckItem {
+  /** 导演板里被核对的原文（段落戏剧任务 / 行为轴 / 红线 / 钩子各一句） */
+  ref: string
+  /** 按类别取对应状态，见各类 Status 类型 */
+  status: string
+  /** 一句依据：对照正文哪里怎么判的 */
+  note: string
+}
+export interface DirectorCheckResult {
+  /** 一段话：本章整体兑现得如何，最需要回头补的那一处 */
+  summary: string
+  /** 情绪弧分段核对：done 兑现 / partial 部分兑现 / missed 没兑现（最多对应 arcs 段数） */
+  arcs: DirectorCheckItem[]
+  /** 行为轴核对：aligned 守位 / drifted 漂移 / absent 正文没写到（人物只留本章涉事清单内） */
+  axes: DirectorCheckItem[]
+  /** 红线核对：kept 守住 / broken 被破 */
+  redlines: DirectorCheckItem[]
+  /** 钩子核对：paid 已还 / open 仍悬着 / new 新埋 */
+  hooks: DirectorCheckItem[]
+}

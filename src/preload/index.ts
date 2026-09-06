@@ -14,7 +14,8 @@ import type {
   OutlineCard,
   TriageResult,
   SliceEntry,
-  DirectorSheet
+  DirectorSheet,
+  DirectorCheckResult
 } from '../shared/types'
 
 const api = {
@@ -92,6 +93,11 @@ const api = {
   agentDirector: (projectId: string, chapterRel: string) =>
     ipcRenderer.invoke('agent:director', projectId, chapterRel) as Promise<
       | { ok: true; written: string; sheet: DirectorSheet }
+      | { ok: false; error: string }
+    >,
+  agentDirectorCheck: (projectId: string, chapterRel: string) =>
+    ipcRenderer.invoke('agent:directorCheck', projectId, chapterRel) as Promise<
+      | { ok: true; result: DirectorCheckResult }
       | { ok: false; error: string }
     >,
   agentTriage: (projectId: string) =>

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { BookMarked, CheckCircle2, CircleDashed, Clapperboard, Hammer, Loader2, ListTree, RefreshCw, ScrollText } from 'lucide-react'
+import { BookMarked, CheckCircle2, CircleDashed, Clapperboard, Hammer, ListTree, Loader2, RefreshCw, ScrollText, ShieldCheck } from 'lucide-react'
 import type { ChapterEntry } from '../../../shared/types'
 import { cn } from '../lib/utils'
 import DocEditor from '../features/editor/DocEditor'
+import DirectorCheckDrawer from '../features/check/DirectorCheckDrawer'
 import { useFsEvents } from '../features/fs/useFsEvents'
 
 /** 大纲区：agent 把已有正文回建成章卡，画布随进度活起来。 */
@@ -14,6 +15,7 @@ export default function Outline() {
   const [sel, setSel] = useState<string | null>('大纲/索引.md')
   const [building, setBuilding] = useState(false)
   const [directing, setDirecting] = useState(false)
+  const [checkOpen, setCheckOpen] = useState(false)
   const [msg, setMsg] = useState('')
   const events = useFsEvents(id)
 
@@ -179,6 +181,14 @@ export default function Outline() {
             <Clapperboard className="h-3 w-3" /> 导演本章
           </button>
           <button
+            onClick={() => setCheckOpen(true)}
+            disabled={!selChapter || !hasBoard(selChapter)}
+            className="flex items-center gap-1 rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+            title={hasBoard(selChapter!) ? `对照「${selChapter!.name}」的导演板核对本章（动笔后用，只读不改稿）` : '本章还没有导演板，先点「导演本章」'}
+          >
+            <ShieldCheck className="h-3 w-3" /> 兑现检查
+          </button>
+          <button
             onClick={() => void build()}
             disabled={building}
             className="flex items-center gap-1 rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
@@ -197,6 +207,12 @@ export default function Outline() {
           )}
         </div>
       </main>
+      <DirectorCheckDrawer
+        projectId={id}
+        chapter={selChapter ? { name: selChapter.name, file: selChapter.file } : null}
+        open={checkOpen}
+        onClose={() => setCheckOpen(false)}
+      />
     </div>
   )
 }

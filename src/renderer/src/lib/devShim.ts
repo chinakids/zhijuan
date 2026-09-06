@@ -426,6 +426,7 @@ const mock = {
     { id: 'chapter-check', title: '本章检查', description: '（演示）每章短巡查 / 分层修订：沿写作线的小环兜底' },
     { id: 'outline', title: '大纲回建', description: '（演示）把既有正文回建成章卡' },
     { id: 'director', title: '章节导演', description: '（演示）动笔前先出一张本章导演板' },
+    { id: 'director-check', title: '导演兑现检查', description: '（演示）动笔后对照导演板核对本章承诺兑没兑现' },
     { id: 'triage', title: '素材升格', description: '（演示）素材按语境归类并判可否入档' }
   ],
   agentSetCapability: async () => true,
@@ -511,6 +512,36 @@ const mock = {
     }
     docs.set(projectId + '/' + rel, '# 导演板 · ' + name + '（演示数据）\n\n## 本章戏剧任务\n' + sheet.premise + '\n')
     return { ok: true, written: rel, sheet }
+  },
+  // 导演兑现检查（dev 模式：固定演示核对报告，对照上面的演示导演板）
+  agentDirectorCheck: async (_projectId: string, chapterRel: string) => {
+    const name = chapterRel.replace(/^正文\//, '').replace(/\.md$/, '')
+    const rel = '大纲/' + name + '_导演.md'
+    if (!docs.has(_projectId + '/' + rel)) {
+      return { ok: false, error: '本章还没有导演板。先在「大纲区」点「导演本章」生成一张，再回来做兑现检查。' }
+    }
+    return {
+      ok: true,
+      result: {
+        summary: '（演示）本章整体兑现得不错，但有两条要回头补：沈藏的行为轴有漂移，灯芯的钩子还没还。',
+        arcs: [
+          { ref: '推进：阿七在候船厅翻到一串旧钥匙，认出是灯塔的', status: 'done', note: '开篇即出现钥匙手记，对应上了' },
+          { ref: '白热化：守塔人当面把灯再一次熄灭，阿七当夜抢船出海', status: 'partial', note: '灭灯有写到，但抢船出海被略过成了“次日清晨”' },
+          { ref: '拉锯：在塔底与守塔人对峙，两个人都要对方先开口', status: 'done', note: '塔底对峙整段都在，嘴硬程度够' }
+        ],
+        axes: [
+          { character: '阿七', ref: '从被动被回忆咬住，转为主动抓住旧钥匙不放', status: 'aligned', note: '摸到钥匙开始主动翻查，行为轴成立' },
+          { character: '沈藏', ref: '继续用淡漠当壳，但最后一次退让落在要不要灭灯上', status: 'drifted', note: '沈藏这章说了很多心里话，壳快太多了' }
+        ],
+        redlines: [
+          { ref: '不要把守塔人写成单纯的恶人', status: 'kept', note: '灭灯保留了“规矩”的动机，没脸谱化' }
+        ],
+        hooks: [
+          { ref: '灯芯带回来要呼应', status: 'open', note: '灯芯提了但没让它在结尾起作用' },
+          { ref: '旧钥匙的来历下一章揭', status: 'new', note: '钥匙来历被新埋进守塔人的半句话里' }
+        ]
+      }
+    }
   },
   // 素材→设定升格（dev 模式：固定演示判定）
   agentTriage: async () => ({

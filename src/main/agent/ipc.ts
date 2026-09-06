@@ -5,6 +5,7 @@ import { runAudit, runChapterCheck, type AuditKind } from './audit'
 import { runOutlineRebuild } from './outline'
 import { runMaterialTriage } from './triage'
 import { runDirector } from './director'
+import { runDirectorCheck } from './director-check'
 import { ensureHarness, closeHarness, answerDir } from './runtime'
 import { listCapabilities } from './subtask'
 import { activeProvider } from '../../shared/providers'
@@ -64,6 +65,8 @@ export function registerAgentIpc() {
   ipcMain.handle('agent:outlineRebuild', (_e, projectId: string, only: string[] | undefined) => runOutlineRebuild(projectId, { only }))
   // 章节导演（动笔前给一章先导演板，写 大纲/<章>_导演.md）
   ipcMain.handle('agent:director', (_e, projectId: string, chapterRel: string) => runDirector(projectId, chapterRel))
+  // 导演兑现检查（动笔后对照导演板核对本章，结果回 UI 不落盘）
+  ipcMain.handle('agent:directorCheck', (_e, projectId: string, chapterRel: string) => runDirectorCheck(projectId, chapterRel))
   // 素材→设定升格判定
   ipcMain.handle('agent:triage', (_e, projectId: string) => runMaterialTriage(projectId))
   // 引擎状态（设置页用）
