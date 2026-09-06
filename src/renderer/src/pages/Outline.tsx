@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { BookMarked, CheckCircle2, CircleDashed, Hammer, Loader2, ListTree, RefreshCw, ScrollText } from 'lucide-react'
+import { BookMarked, CheckCircle2, CircleDashed, Clapperboard, Hammer, Loader2, ListTree, RefreshCw, ScrollText } from 'lucide-react'
 import type { ChapterEntry } from '../../../shared/types'
 import { cn } from '../lib/utils'
 import DocEditor from '../features/editor/DocEditor'
@@ -13,6 +13,7 @@ export default function Outline() {
   const [outlineFiles, setOutlineFiles] = useState<string[]>([])
   const [sel, setSel] = useState<string | null>('大纲/索引.md')
   const [building, setBuilding] = useState(false)
+  const [directing, setDirecting] = useState(false)
   const [msg, setMsg] = useState('')
   const events = useFsEvents(id)
 
@@ -35,8 +36,13 @@ export default function Outline() {
   }, [events, refresh])
 
   const cardRel = (c: ChapterEntry) => '大纲/' + c.name + '.md'
+  const boardRel = (c: ChapterEntry) => '大纲/' + c.name + '_导演.md'
   const hasCard = (c: ChapterEntry) => outlineFiles.includes(cardRel(c))
+  const hasBoard = (c: ChapterEntry) => outlineFiles.includes(boardRel(c))
   const missing = chapters.filter((c) => !hasCard(c))
+  // 当前选中对应的章节（章卡或导演板都可映射回），供「导演本章」定位
+  const selName = sel?.replace(/^大纲\//, '').replace(/\.md$/, '').replace(/_导演$/, '') ?? ''
+  const selChapter = chapters.find((c) => c.name === selName) ?? null
 
   const build = async (only?: string[]) => {
     if (!id || building) return
@@ -54,6 +60,26 @@ export default function Outline() {
     }
   }
 
+  const direct = async () => {
+    if (!id || directing) return
+    if (!selChapter) {
+      setMsg('先在左侧选中一章（章卡或导演板），再点「导演本章」')
+      return
+    }
+    setDirecting(true)
+    setMsg('')
+    try {
+      const r = await window.zhijuan.agentDirector(id, '正文/' + selChapter.file)
+      if (r.ok) setMsg(`✓ 已为「${selChapter.name}」生成本章导演板（${r.written}），可重导覆盖`)
+      else setMsg('✗ ' + r.error)
+      await refresh()
+    } catch (e: any) {
+      setMsg('✗ ' + String(e?.message ?? e))
+    } finally {
+      setDirecting(false)
+    }
+  }
+
   const extVersion = useMemo(() => (sel ? events.filter((e) => e.path === sel).length : 0), [events, sel])
 
   return (
@@ -63,7 +89,7 @@ export default function Outline() {
           <BookMarked className="h-4 w-4 text-accent" />
           <span className="text-xs font-semibold text-ink">章卡</span>
           <span className="flex-1" />
-          <span className="text-[10px] text-ink-3">{chapters.length} 章 · {outlineFiles.filter((f) => !f.endsWith('索引.md')).length} 已回建</span>
+          <span className="text-[10px] text-ink-3">{chapters.length} 章 · {outlineFiles.filter((f) => !f.endsWith('索引.md') && !f.endsWith('_导演.md')).length} 已回建</span>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
           <button
@@ -82,24 +108,37 @@ export default function Outline() {
           {chapters.map((c) => {
             const done = hasCard(c)
             return (
-              <button
-                key={c.file}
-                onClick={() => setSel(cardRel(c))}
-                className={cn(
-                  'mb-0.5 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors',
-                  sel === cardRel(c) ? 'bg-accent-soft' : 'hover:bg-surface'
+              <div key={c.file} className="mb-0.5">
+                <button
+                  onClick={() => setSel(cardRel(c))}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors',
+                    sel === cardRel(c) ? 'bg-accent-soft' : 'hover:bg-surface'
+                  )}
+                >
+                  {done ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
+                  ) : (
+                    <CircleDashed className="h-3.5 w-3.5 shrink-0 text-ink-3" />
+                  )}
+                  <span className={cn('truncate text-sm', sel === cardRel(c) ? 'font-medium text-accent' : 'text-ink')}>
+                    {c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}
+                  </span>
+                  {!done && <span className="ml-auto rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn">待回建</span>}
+                </button>
+                {hasBoard(c) && (
+                  <button
+                    onClick={() => setSel(boardRel(c))}
+                    className={cn(
+                      'ml-5 flex w-[calc(100%-1.25rem)] items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors',
+                      sel === boardRel(c) ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface'
+                    )}
+                  >
+                    <Clapperboard className="h-3 w-3 shrink-0" />
+                    <span className="truncate">导演板</span>
+                  </button>
                 )}
-              >
-                {done ? (
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
-                ) : (
-                  <CircleDashed className="h-3.5 w-3.5 shrink-0 text-ink-3" />
-                )}
-                <span className={cn('truncate text-sm', sel === cardRel(c) ? 'font-medium text-accent' : 'text-ink')}>
-                  {c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}
-                </span>
-                {!done && <span className="ml-auto rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn">待回建</span>}
-              </button>
+              </div>
             )
           })}
         </div>
@@ -125,6 +164,19 @@ export default function Outline() {
             title={missing.length ? `回建缺失的 ${missing.length} 张章卡` : '所有章节都已回建'}
           >
             <Hammer className="h-3 w-3" /> 回建缺失 {missing.length > 0 ? `(${missing.length})` : ''}
+          </button>
+          {directing && (
+            <span className="flex items-center gap-1 text-[11px] text-accent">
+              <Loader2 className="h-3 w-3 animate-spin" /> 写作引擎导演中…（约一两分钟）
+            </span>
+          )}
+          <button
+            onClick={() => void direct()}
+            disabled={directing || !selChapter}
+            className="flex items-center gap-1 rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+            title={selChapter ? `给「${selChapter.name}」导出一张导演板（动笔前用，可重导覆盖）` : '先在左侧选中一章'}
+          >
+            <Clapperboard className="h-3 w-3" /> 导演本章
           </button>
           <button
             onClick={() => void build()}

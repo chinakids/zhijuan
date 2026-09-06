@@ -4,6 +4,7 @@ import { runChat, runSync, abortRequest, type AgentOutEvent } from './engine'
 import { runAudit, runChapterCheck, type AuditKind } from './audit'
 import { runOutlineRebuild } from './outline'
 import { runMaterialTriage } from './triage'
+import { runDirector } from './director'
 import { ensureHarness, closeHarness, answerDir } from './runtime'
 import { listCapabilities } from './subtask'
 import { activeProvider } from '../../shared/providers'
@@ -61,6 +62,8 @@ export function registerAgentIpc() {
   )
   // 大纲回建（把已有正文回建成章卡，写 大纲/ 目录；only：只回建指定的正文章节）
   ipcMain.handle('agent:outlineRebuild', (_e, projectId: string, only: string[] | undefined) => runOutlineRebuild(projectId, { only }))
+  // 章节导演（动笔前给一章先导演板，写 大纲/<章>_导演.md）
+  ipcMain.handle('agent:director', (_e, projectId: string, chapterRel: string) => runDirector(projectId, chapterRel))
   // 素材→设定升格判定
   ipcMain.handle('agent:triage', (_e, projectId: string) => runMaterialTriage(projectId))
   // 引擎状态（设置页用）

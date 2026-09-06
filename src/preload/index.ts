@@ -13,7 +13,8 @@ import type {
   ChapterCheckResult,
   OutlineCard,
   TriageResult,
-  SliceEntry
+  SliceEntry,
+  DirectorSheet
 } from '../shared/types'
 
 const api = {
@@ -86,6 +87,11 @@ const api = {
   agentOutlineRebuild: (projectId: string, only?: string[]) =>
     ipcRenderer.invoke('agent:outlineRebuild', projectId, only) as Promise<
       | { ok: true; cards: OutlineCard[]; written: string[] }
+      | { ok: false; error: string }
+    >,
+  agentDirector: (projectId: string, chapterRel: string) =>
+    ipcRenderer.invoke('agent:director', projectId, chapterRel) as Promise<
+      | { ok: true; written: string; sheet: DirectorSheet }
       | { ok: false; error: string }
     >,
   agentTriage: (projectId: string) =>

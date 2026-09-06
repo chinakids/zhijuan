@@ -259,3 +259,21 @@ export interface TriageResult {
   summary: string
   items: TriageItem[]
 }
+
+/** 章节导演（V1 导演引擎回接）：一章一板，先设定后成文的引擎核心 */
+export type DirectorTask = '推进' | '白热化' | '拉锯' | '低谷'
+export type DirectorAxisLevel = '被压' | '试探' | '放开'
+export interface DirectorSheet {
+  /** 本章戏剧任务一句话：这一章在全书里干什么、要把人物推到什么位置 */
+  premise: string
+  /** 情绪弧分段（最多 5 段）：每段的戏剧任务与要走到哪 */
+  arcs: { task: DirectorTask; goal: string }[]
+  /** 波峰：在哪一段、建议一个具体事件 */
+  climax: { at: number; idea: string }
+  /** 涉及人物的行为轴要求（人物必须真实存在档案） */
+  axes: { character: string; line: string; level: DirectorAxisLevel }[]
+  /** 写作红线（最多 5 条）：不许破的线 */
+  redlines: string[]
+  /** 本章应兑现的旧钩子 / 可新埋的钩子（最多 3 条） */
+  hooks: string[]
+}

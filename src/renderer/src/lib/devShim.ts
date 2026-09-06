@@ -425,6 +425,7 @@ const mock = {
     { id: 'perspectives', title: '多视角审视', description: '（演示）以角色粉 / 设定党 / 节奏读者三种立场各通读一遍，交叉找问题' },
     { id: 'chapter-check', title: '本章检查', description: '（演示）每章短巡查 / 分层修订：沿写作线的小环兜底' },
     { id: 'outline', title: '大纲回建', description: '（演示）把既有正文回建成章卡' },
+    { id: 'director', title: '章节导演', description: '（演示）动笔前先出一张本章导演板' },
     { id: 'triage', title: '素材升格', description: '（演示）素材按语境归类并判可否入档' }
   ],
   agentSetCapability: async () => true,
@@ -487,6 +488,29 @@ const mock = {
     }
     docs.set(projectId + '/大纲/索引.md', '# 大纲区 · 章卡索引\n\n共 ' + cards.length + ' 章已回建章卡。\n')
     return { ok: true, cards, written: writes }
+  },
+  // 章节导演（dev 模式：写 mock 的 大纲/<章>_导演.md 并返回导演板）
+  agentDirector: async (projectId: string, chapterRel: string) => {
+    const name = chapterRel.replace(/^正文\//, '').replace(/\.md$/, '')
+    const rel = '大纲/' + name + '_导演.md'
+    const sheet = {
+      premise: '把阿七从“被记忆咬住”推到“决定主动去查”，用一个旧钥匙串串起灯塔与候船厅两条线。',
+      arcs: [
+        { task: '推进', goal: '阿七在候船厅翻到一串旧钥匙，认出是灯塔的' },
+        { task: '白热化', goal: '守塔人当面把灯再一次熄灭，阿七当夜抢船出海' },
+        { task: '拉锯', goal: '在塔底与守塔人对峙，两个人都要对方先开口' },
+        { task: '推进', goal: '阿七决定带着钥匙和疑问回来，但带走了一根灯芯' }
+      ],
+      climax: { at: 2, idea: '守塔人当着阿七的面吹灭唯一的光，整片海湾瞬间沉进黑里（可留下“灯为什么必须灭”的空间）' },
+      axes: [
+        { character: '阿七', line: '从被动被回忆咬住，转为主动抓住旧钥匙不放', level: '试探' },
+        { character: '沈藏', line: '继续用淡漠当壳，但最后一次退让落在“要不要灭灯”上', level: '被压' }
+      ],
+      redlines: ['不要把守塔人写成单纯的恶人', '钥匙不能提前解释来历，先落一个钩子'],
+      hooks: ['灯芯带回来要呼应', '旧钥匙的来历下一章揭' ]
+    }
+    docs.set(projectId + '/' + rel, '# 导演板 · ' + name + '（演示数据）\n\n## 本章戏剧任务\n' + sheet.premise + '\n')
+    return { ok: true, written: rel, sheet }
   },
   // 素材→设定升格（dev 模式：固定演示判定）
   agentTriage: async () => ({

@@ -17,6 +17,7 @@ writeFileSync(
     `import { runAudit } from '${root}/src/main/agent/audit'`,
     `import { runOutlineRebuild } from '${root}/src/main/agent/outline'`,
     `import { runMaterialTriage } from '${root}/src/main/agent/triage'`,
+    `import { runDirector } from '${root}/src/main/agent/director'`,
     `import { closeHarness } from '${root}/src/main/agent/runtime'`,
     '',
     "const PJ = '织卷smoke'",
@@ -38,6 +39,7 @@ writeFileSync(
     "await step('多视角审视 perspectives', () => runAudit(PJ, 'perspectives'))",
     "await step('大纲回建 outline', () => runOutlineRebuild(PJ))",
     "await step('素材升格 triage', () => runMaterialTriage(PJ))",
+    "await step('章节导演 director', () => runDirector(PJ, CH))",
     'await closeHarness()',
     'process.exit(0)'
   ].join('\n'),
