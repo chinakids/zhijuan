@@ -1,6 +1,8 @@
 // ===== 织卷 V2 · IPC 路由（renderer 唯一入口） =====
 import { ipcMain, shell, BrowserWindow } from 'electron'
 import type { AppSettings, FsEvent, ProposalItem, EditItem } from '../shared/types'
+import { adoptActsChapter } from '../shared/actsAdopt'
+import { countWords } from '../shared/count'
 import { listProposals, createProposals, applyProposal, rejectProposal } from './proposals'
 import { listSlices } from './slices'
 import { registerAgentIpc } from './agent/ipc'
@@ -86,6 +88,18 @@ export function registerIpc() {
     if (errors.length) return { ok: false, errors }
     writeDoc(id, rel, next)
     return { ok: true }
+  })
+  // 采纳「分幕草稿」为本章正文：保留本章原约定头与题名，正文主体换成分幕草稿段落（草稿本身保留）
+  ipcMain.handle('doc:adoptActs', (_e, id: string, chapterRel: string, draftRel: string) => {
+    const cur = readDoc(id, chapterRel)
+    if (cur === null) return { ok: false, error: '章节正文已不存在' }
+    const draft = readDoc(id, draftRel)
+    if (draft === null) return { ok: false, error: '分幕草稿已不存在' }
+    const name = chapterRel.replace(/^正文\//, '').replace(/\.md$/, '')
+    const r = adoptActsChapter(cur, draft, name)
+    if ('error' in r) return { ok: false, error: r.error }
+    writeDoc(id, chapterRel, r.next)
+    return { ok: true, words: countWords(r.body) }
   })
   ipcMain.handle('doc:list', (_e, id: string, relDir: string) => listDocs(id, relDir))
   ipcMain.handle('chapter:list', (_e, id: string) => listChapters(id))

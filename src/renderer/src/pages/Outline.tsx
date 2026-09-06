@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { BookMarked, CheckCircle2, CircleDashed, Clapperboard, Hammer, ListTree, Loader2, PenLine, RefreshCw, ScrollText, ShieldCheck } from 'lucide-react'
+import { BookMarked, CheckCheck, CheckCircle2, CircleDashed, Clapperboard, Hammer, ListTree, Loader2, PenLine, RefreshCw, ScrollText, ShieldCheck } from 'lucide-react'
 import type { ChapterEntry } from '../../../shared/types'
 import { cn } from '../lib/utils'
 import DocEditor from '../features/editor/DocEditor'
@@ -18,6 +18,8 @@ export default function Outline() {
   const [building, setBuilding] = useState(false)
   const [directing, setDirecting] = useState(false)
   const [acting, setActing] = useState(false)
+  const [adopting, setAdopting] = useState(false)
+  const [confirmAdopt, setConfirmAdopt] = useState(false)
   const [checkOpen, setCheckOpen] = useState(false)
   const [msg, setMsg] = useState('')
   const events = useFsEvents(id)
@@ -40,6 +42,11 @@ export default function Outline() {
     const ev = events[events.length - 1]
     if (ev && ev.path.startsWith('大纲/')) void refresh()
   }, [events, refresh])
+
+  // 切换所选文档时，把「再点一次确认」的两击状态复位
+  useEffect(() => {
+    setConfirmAdopt(false)
+  }, [sel])
 
   const cardRel = (c: ChapterEntry) => '大纲/' + c.name + '.md'
   const boardRel = (c: ChapterEntry) => '大纲/' + c.name + '_导演.md'
@@ -119,6 +126,27 @@ export default function Outline() {
   }
 
   const extVersion = useMemo(() => (sel ? events.filter((e) => e.path === sel).length : 0), [events, sel])
+
+  const adopt = async () => {
+    if (!id || adopting || !selChapter || !hasActs(selChapter)) return
+    if (!confirmAdopt) {
+      setConfirmAdopt(true)
+      return
+    }
+    setConfirmAdopt(false)
+    setAdopting(true)
+    setMsg('')
+    try {
+      const r = await window.zhijuan.adoptActs(id, '正文/' + selChapter.file, actsRel(selChapter))
+      if (r.ok) setMsg(`✓ 已把「${selChapter.name}」的正文换成当前分幕草稿（${r.words} 字）；草稿仍保留在 大纲/，可再改再采纳`)
+      else setMsg('✗ ' + r.error)
+      await refresh()
+    } catch (e: any) {
+      setMsg('✗ ' + String(e?.message ?? e))
+    } finally {
+      setAdopting(false)
+    }
+  }
 
   return (
     <div className="flex h-full min-h-0">
@@ -251,6 +279,32 @@ export default function Outline() {
             title={selChapter && hasBoard(selChapter) ? `按「${selChapter.name}」导演板的情绪弧分幕，逐段起草整章草稿（落 大纲/）` : selChapter ? '本章还没有导演板，先点「导演本章」' : '先在左侧选中一章'}
           >
             <PenLine className="h-3 w-3" /> 分幕生成
+          </button>
+          {adopting && (
+            <span className="flex items-center gap-1 text-[11px] text-accent">
+              <Loader2 className="h-3 w-3 animate-spin" /> 采纳为正文中…
+            </span>
+          )}
+          <button
+            onClick={() => void adopt()}
+            disabled={adopting || !selChapter || !hasActs(selChapter)}
+            className={cn(
+              'flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors disabled:opacity-40',
+              confirmAdopt
+                ? 'border-danger bg-danger-soft text-danger hover:border-danger'
+                : 'border-hair text-ink-2 hover:border-accent hover:text-accent'
+            )}
+            title={
+              selChapter && hasActs(selChapter)
+                ? confirmAdopt
+                  ? `再点一次：把「${selChapter.name}」的正文整体替换为当前分幕草稿（保留约定头，草稿文件仍保留）`
+                  : `把「${selChapter.name}」的正文换成当前分幕草稿（保留约定头与题名，草稿仍保留在 大纲/）`
+                : selChapter
+                  ? '本章还没有分幕草稿，先点「分幕生成」'
+                  : '先在左侧选中一章'
+            }
+          >
+            <CheckCheck className="h-3 w-3" /> {confirmAdopt ? '再点一次确认采纳' : '采纳为正文'}
           </button>
           <button
             onClick={() => void build()}

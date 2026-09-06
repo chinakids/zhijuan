@@ -46,6 +46,11 @@ const api = {
   writeDoc: (id: string, rel: string, content: string) => ipcRenderer.invoke('doc:write', id, rel, content) as Promise<boolean>,
   applyDocEdit: (id: string, rel: string, edits: import('../shared/types').EditItem[]) =>
     ipcRenderer.invoke('doc:applyEdit', id, rel, edits) as Promise<{ ok: boolean; errors?: string[] }>,
+  adoptActs: (id: string, chapterRel: string, draftRel: string) =>
+    ipcRenderer.invoke('doc:adoptActs', id, chapterRel, draftRel) as Promise<
+      | { ok: true; words: number }
+      | { ok: false; error: string }
+    >,
   listDocs: (id: string, relDir: string) => ipcRenderer.invoke('doc:list', id, relDir) as Promise<{ file: string; name: string; mtime: number }[]>,
   listChapters: (id: string) => ipcRenderer.invoke('chapter:list', id) as Promise<ChapterEntry[]>,
   listSlices: (projectId: string) => ipcRenderer.invoke('slices:list', projectId) as Promise<SliceEntry[]>,
