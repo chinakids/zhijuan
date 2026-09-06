@@ -6,12 +6,14 @@ import { cn } from '../lib/utils'
 import DocEditor from '../features/editor/DocEditor'
 import DirectorCheckDrawer from '../features/check/DirectorCheckDrawer'
 import { useFsEvents } from '../features/fs/useFsEvents'
+import { isBoardStale } from '../../../shared/boardAge'
 
 /** 大纲区：agent 把已有正文回建成章卡，画布随进度活起来。 */
 export default function Outline() {
   const { id = '' } = useParams()
   const [chapters, setChapters] = useState<ChapterEntry[]>([])
   const [outlineFiles, setOutlineFiles] = useState<string[]>([])
+  const [outlineMtimes, setOutlineMtimes] = useState<Record<string, number>>({})
   const [sel, setSel] = useState<string | null>('大纲/索引.md')
   const [building, setBuilding] = useState(false)
   const [directing, setDirecting] = useState(false)
@@ -25,6 +27,7 @@ export default function Outline() {
     setChapters(chs)
     const files = docs.map((d) => '大纲/' + d.file)
     setOutlineFiles(files)
+    setOutlineMtimes(Object.fromEntries(docs.map((d) => ['大纲/' + d.file, d.mtime])))
     setSel((s) => (s && files.includes(s) ? s : files.includes('大纲/索引.md') ? '大纲/索引.md' : null))
   }, [id])
 
@@ -41,6 +44,12 @@ export default function Outline() {
   const boardRel = (c: ChapterEntry) => '大纲/' + c.name + '_导演.md'
   const hasCard = (c: ChapterEntry) => outlineFiles.includes(cardRel(c))
   const hasBoard = (c: ChapterEntry) => outlineFiles.includes(boardRel(c))
+  // 导演板比正文更旧（正文在导完之后又被改过）的章：兑现检查会对照旧承诺，需轻提示建议重导
+  const staleBoards = new Set<string>()
+  for (const c of chapters) {
+    const bm = outlineMtimes[boardRel(c)]
+    if (bm != null && isBoardStale(bm, c.mtime)) staleBoards.add(c.name)
+  }
   const missing = chapters.filter((c) => !hasCard(c))
   // 当前选中对应的章节（章卡或导演板都可映射回），供「导演本章」定位
   const selName = sel?.replace(/^大纲\//, '').replace(/\.md$/, '').replace(/_导演$/, '') ?? ''
@@ -137,7 +146,10 @@ export default function Outline() {
                     )}
                   >
                     <Clapperboard className="h-3 w-3 shrink-0" />
-                    <span className="truncate">导演板</span>
+                    <span className="min-w-0 flex-1 truncate">导演板</span>
+                    {staleBoards.has(c.name) && (
+                      <span className="shrink-0 rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn">偏旧</span>
+                    )}
                   </button>
                 )}
               </div>
@@ -184,7 +196,7 @@ export default function Outline() {
             onClick={() => setCheckOpen(true)}
             disabled={!selChapter || !hasBoard(selChapter)}
             className="flex items-center gap-1 rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
-            title={hasBoard(selChapter!) ? `对照「${selChapter!.name}」的导演板核对本章（动笔后用，只读不改稿）` : '本章还没有导演板，先点「导演本章」'}
+            title={selChapter && hasBoard(selChapter) ? `对照「${selChapter.name}」的导演板核对本章（动笔后用，只读不改稿）` : selChapter ? '本章还没有导演板，先点「导演本章」' : '先在左侧选中一章'}
           >
             <ShieldCheck className="h-3 w-3" /> 兑现检查
           </button>
@@ -197,6 +209,12 @@ export default function Outline() {
             <RefreshCw className="h-3 w-3" /> 全部回建
           </button>
         </div>
+        {selChapter && staleBoards.has(selChapter.name) && (
+          <div className="flex shrink-0 items-center gap-1.5 border-b border-hair bg-warn-soft px-4 py-1 text-[11px] text-warn">
+            <Clapperboard className="h-3 w-3 shrink-0" />
+            <span className="truncate">本章导演板早于正文：兑现检查对照的是旧承诺，正文有改动建议点「导演本章」重导。</span>
+          </div>
+        )}
         <div className="min-h-0 flex-1">
           {sel ? (
             <DocEditor projectId={id} rel={sel} extVersion={extVersion} onSave={() => void refresh()} />

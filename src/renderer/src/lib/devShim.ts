@@ -111,6 +111,12 @@ docs.set(
   'demo-aseya/大纲/索引.md',
   ['---', '状态: 已回建', '---', '', '# 大纲区 · 章卡索引', '', '共 1 章已回建章卡。', '', '## 第1章 · 雾港', '', '> 定位：用一盏旧灯和一张泛黄船票，把失忆的主角和「忘了的事」焊进主线。', '', '- 关键事件：阿七提旧灯出现；沈藏点破灯是阿七自己熄的；十年前船票出现', ''].join('\n')
 )
+// dev 演示：补一张比正文更旧的导演板（docsOf 会把 _导演 文件的 mtime 模拟成一天前），
+// 让「导演板偏旧 → 建议重导」的轻提示在演示页自然出现。
+docs.set(
+  'demo-aseya/大纲/第01章_雾港_导演.md',
+  ['---', '章号: 1', '题名: 雾港', '切片: 第一幕_雾港之夜', '状态: 已生成', '---', '', '# 导演板 · 第1章 雾港', '', '> （dev 示例）这张板子在正文初稿之前生成，正文后来又有改动，所以它比正文更旧。', '', '## 情绪弧分段', '', '1. **推进**：阿七借旧灯，确认失忆的裂缝开始松动', '', '## 人物行为轴', '', '- **阿七（试探）**：从什么也不记得，转为揪着船票不放', '', '## 写作红线（不许破）', '', '- 不要把沈藏写成全知的解谜工具', '', '## 钩子（要还的债 / 可新埋）', '', '- 灯是谁熄的（可新埋）', ''].join('\n')
+)
 
 const settings: AppSettings = {
   workspace: '',
@@ -152,7 +158,12 @@ const projects: ProjectSummary[] = [
 function docsOf(prefix: string): { file: string; name: string; mtime: number }[] {
   return [...docs.keys()]
     .filter((k) => k.startsWith(prefix + '/'))
-    .map((k) => ({ file: k.slice(prefix.length + 1), name: k.split('/').pop()!, mtime: now }))
+    .map((k) => {
+      const file = k.slice(prefix.length + 1)
+      // dev 演示：导演板一律模拟为一天前写的（比正文旧），方便看「导演板偏旧」轻提示
+      const mtime = file.endsWith('_导演.md') ? now - 86400_000 : now
+      return { file, name: file.split('/').pop()!, mtime }
+    })
 }
 
 const mock = {
