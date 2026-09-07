@@ -167,9 +167,18 @@ describe('parseDirectorSheet（导演板逆解析）', () => {
 })
 
 describe('actPrompt（分幕段落指令）', () => {
-  it('第一段给章节前情，不给前文承接', () => {
-    const p = actPrompt(actArg({ index: 1, prevTail: '（不应出现）' }))
+  it('首章第一段给章节前情，无上一章尾则不挂承接', () => {
+    const p = actPrompt(actArg({ index: 1 }))
     expect(p).toContain('【章节前情】')
+    expect(p).not.toContain('【上一章结尾】')
+    expect(p).not.toContain('【前文承接】')
+  })
+  it('非首章第一段：章节前情与上一章结尾都带（承接但不算前文承接）', () => {
+    const tail = '雾更浓了。两个人并肩站着，谁也没再说话。'
+    const p = actPrompt(actArg({ index: 1, prevTail: tail }))
+    expect(p).toContain('【章节前情】')
+    expect(p).toContain('【上一章结尾】')
+    expect(p).toContain(tail)
     expect(p).not.toContain('【前文承接】')
   })
   it('后续段给前文承接，不再给章节前情', () => {
@@ -236,6 +245,38 @@ describe('runActs（分幕生成主流程）', () => {
     expect(doc).toContain('阿七在候船厅摸到一串旧钥匙')
     expect(doc).toContain('守塔人把灯吹熄')
     expect(doc).toContain('分幕草稿')
+  })
+  it('非首章：首段请求带上一章结尾（剥约定头后的末段正文），后续段仍走前文承接', async () => {
+    const prevCh: ChapterEntry = {
+      file: '第00章_起航.md',
+      name: '第00章_起航',
+      fm: { 章号: 0, 题名: '起航', 切片: '序幕', 涉及人物: ['阿七'] },
+      wordCount: 100,
+      mtime: 12,
+      hasPendingProposal: false
+    }
+    const ch2: ChapterEntry = { ...ch, file: '第02章_灯下.md', name: '第02章_灯下', fm: { ...(ch.fm ?? {}), 章号: 2 } }
+    listChaptersMock.mockReturnValue([prevCh, ch2])
+    const prevBody =
+      '---\n章号: 0\n题名: 起航\n---\n' +
+      '前情正文。'.repeat(20) +
+      '起航之后，船头劈开浓雾，阿七攥着钥匙的手一直没松开。这是上一章的结尾。'
+    readMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === directorRel(ch2)) return directorToDoc(sheet, ch2)
+      if (rel === '正文/' + prevCh.file) return prevBody
+      if (rel === '正文/' + ch2.file) return '---\n章号: 2\n题名: 灯下\n---\n旧正文'
+      return null
+    })
+    driveMock.mockImplementation(async () => pad('首段成文'))
+    const r = await runActs('p1', '正文/' + ch2.file)
+    expect(r.ok).toBe(true)
+    const first = driveMock.mock.calls[0][1]
+    expect(first).toContain('【上一章结尾】')
+    expect(first).toContain('阿七攥着钥匙的手一直没松开')
+    expect(first).toContain('【章节前情】')
+    expect(first).not.toContain('【前文承接】')
+    // 第二段是段内承接，不是上一章结尾
+    expect(driveMock.mock.calls[1][1]).toContain('【前文承接】')
   })
   it('能力被设置页关闭 → 直接被拦', async () => {
     setSettings({ capabilities: { acts: false }, workspace: '', libraryRoot: '' })

@@ -2,9 +2,8 @@
 // 「先设定后成文」的收笔：有了导演板后，把全章按导演板情绪弧分段**逐段**交给写作引擎成文——
 // 一段一个独立请求（真正的外部续写上下文），本段的戏剧任务是硬指令，段尾文末承接下一段，
 // 最后把各段拼成本章**定稿草稿**落 大纲/<章>_分幕.md（与章卡/导演板同约定：写作副产物·直写）。
-// 草稿不进正文：正文仍是作者的地盘，改正文始终走 zj_edit_doc → EditCard 的采纳口径，
-// 作者认可草稿后自行把正文搬进 正文/<章>.md（后续可加「采纳为正文」走 doc:applyEdit）。
-// 请求小而准：每段材料只有 本段指令＋全章红线＋前段末文（或板子上下文），不叠 buildWritingContext。
+// 草稿不进正文：正文仍是作者的地盘，改正文始终走 zj_edit_doc → EditCard 的采纳口径，「采纳为正文」也已接上（doc:adoptActs）。
+// 请求小而准：每段材料只有 本段指令＋全章红线＋前段末文（或板子上下文）＋**首段另带上一章结尾**，不叠 buildWritingContext。
 import { readDoc, listChapters, writeDoc } from '../store'
 import { registerCapability, runOnce, subtaskBlocked, type SubtaskDef } from './subtask'
 import { directorRel } from './director'
@@ -54,6 +53,11 @@ export function actPrompt(a: ActArg): string {
   }
   if (a.index === 1) {
     if (a.premise) lines.push(`【章节前情】本章戏剧任务一句话：${a.premise}`)
+    if (a.prevTail) {
+      lines.push(
+        `【上一章结尾】(上一章的结尾约 ${TAIL} 字。本章从它接着往下写：延续上一章末尾的情景、在场与情绪继续推进，别把上一章发生过的事当背景重新叙述，也别从更早的时间点重新开场)\n${a.prevTail}`
+      )
+    }
   } else if (a.prevTail) {
     lines.push(`【前文承接】（上一段的结尾约 ${TAIL} 字，从它接着往后写，别重复前面的内容）\n${a.prevTail}`)
   }
@@ -96,7 +100,20 @@ export async function runActs(projectId: string, chapterRel: string, maxActs?: n
     const arcs = sheet.arcs.slice(0, Math.min(MAX_ACTS, maxActs && maxActs > 0 ? maxActs : MAX_ACTS))
     const redlines = sheet.redlines
     const segs: string[] = []
+    // 首段是分段链里唯一没有自带承接的位置：其余各段都有前段末文，首段若只给一句话前情，非首章会冷启动接不上气。
+    // 因此首段的 prevTail 用**上一章的结尾**（剥约定头后取末 TAIL 字），让「先设定后成文」从上一章末尾真正续写下去；
+    // 写段循环里每段写完会把 prevTail 换成自己末文，接续自然移交。
     let prevTail = ''
+    const chNo = ch.fm?.['章号']
+    if (typeof chNo === 'number') {
+      const prev = listChapters(projectId)
+        .filter((x) => x.file !== ch.file && (x.fm?.['章号'] ?? Number.MAX_SAFE_INTEGER) < chNo)
+        .sort((a, b) => (b.fm?.['章号'] ?? 0) - (a.fm?.['章号'] ?? 0))[0]
+      if (prev) {
+        const rawPrev = readDoc(projectId, '正文/' + prev.file) ?? ''
+        prevTail = (extractFrontMatter(rawPrev).body ?? '').trim().slice(-TAIL)
+      }
+    }
     for (let i = 0; i < arcs.length; i++) {
       const seg = await runOnce<string>(actDef, {
         projectId,
