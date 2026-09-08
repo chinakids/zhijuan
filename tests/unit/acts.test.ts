@@ -278,6 +278,38 @@ describe('runActs（分幕生成主流程）', () => {
     // 第二段是段内承接，不是上一章结尾
     expect(driveMock.mock.calls[1][1]).toContain('【前文承接】')
   })
+  it('回归：上一章 fm 章号为字符串（extractFrontMatter 真实现返回）时，首段仍带上一章结尾', async () => {
+    // 真机 store 归一前曾把 章号 以字符串回传，typeof 判断被架空 → 首段承接整段失效（devShim 是数字把坑盖住）
+    const prevCh: ChapterEntry = {
+      file: '第00章_起航.md',
+      name: '第00章_起航',
+      // @ts-expect-error 刻意植入字符串章号（真实文件的约定头就是字符串）
+      fm: { 章号: '0', 题名: '起航', 切片: '序幕', 涉及人物: ['阿七'] },
+      wordCount: 100,
+      mtime: 12,
+      hasPendingProposal: false
+    }
+    const ch2: ChapterEntry = {
+      ...ch,
+      file: '第02章_灯下.md',
+      name: '第02章_灯下',
+      // @ts-expect-error 同上
+      fm: { ...(ch.fm ?? {}), 章号: '2' }
+    }
+    listChaptersMock.mockReturnValue([prevCh, ch2])
+    readMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === directorRel(ch2)) return directorToDoc(sheet, ch2)
+      if (rel === '正文/' + prevCh.file) return '---\n章号: 0\n---\n上一章的结尾要留在这里。结尾的尾巴。'
+      if (rel === '正文/' + ch2.file) return '---\n章号: 2\n题名: 灯下\n---\n旧正文'
+      return null
+    })
+    driveMock.mockImplementation(async () => pad('首段成文'))
+    const r = await runActs('p1', '正文/' + ch2.file)
+    expect(r.ok).toBe(true)
+    const first = driveMock.mock.calls[0][1]
+    expect(first).toContain('【上一章结尾】')
+    expect(first).toContain('上一章的结尾要留在这里')
+  })
   it('能力被设置页关闭 → 直接被拦', async () => {
     setSettings({ capabilities: { acts: false }, workspace: '', libraryRoot: '' })
     const r = await runActs('p1', '正文/第01章_雾港.md')

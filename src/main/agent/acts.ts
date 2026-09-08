@@ -104,8 +104,9 @@ export async function runActs(projectId: string, chapterRel: string, maxActs?: n
     // 因此首段的 prevTail 用**上一章的结尾**（剥约定头后取末 TAIL 字），让「先设定后成文」从上一章末尾真正续写下去；
     // 写段循环里每段写完会把 prevTail 换成自己末文，接续自然移交。
     let prevTail = ''
-    const chNo = ch.fm?.['章号']
-    if (typeof chNo === 'number') {
+    // 章号按数值取（extractFrontMatter 常以字符串返回，见 store.listChapters 的归一；这里再兜一道与 context.ts 同款）
+    const chNo = Number(ch.fm?.['章号'])
+    if (Number.isFinite(chNo)) {
       const prev = listChapters(projectId)
         .filter((x) => x.file !== ch.file && (x.fm?.['章号'] ?? Number.MAX_SAFE_INTEGER) < chNo)
         .sort((a, b) => (b.fm?.['章号'] ?? 0) - (a.fm?.['章号'] ?? 0))[0]

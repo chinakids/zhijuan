@@ -208,6 +208,12 @@ export function listChapters(id: string): ChapterEntry[] {
       const c = fm as unknown as ChapterFrontMatter | null
       // 约定头键是中文（章号/切片…）；有任一关键字段才算合法约定头
       const ok = !!c && (c['章号'] !== undefined || c['切片'] !== undefined || c['题名'] !== undefined)
+      if (ok && c) {
+        // extractFrontMatter 一律按字符串返回；章号在此**归一成数值**一次（与类型 章号?: number 对齐），
+        // 下游按数值比较才有意义（acts 找上一章、devShim 早就是数字，真机此前一直是字符串——对照线的老坑）
+        const n = Number(c['章号'])
+        if (Number.isFinite(n)) c['章号'] = n
+      }
       return {
         file: d.file,
         name: d.name,

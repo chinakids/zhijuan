@@ -97,7 +97,7 @@ describe('项目全流程（临时目录真实落盘）', () => {
     const chs = store.listChapters(p.id)
     expect(chs).toHaveLength(3)
     expect(chs.map((c) => c.name)).toEqual(['第2章_乙', '第10章_甲', '无头'])
-    expect(chs[0].fm?.['章号']).toBe('2')
+    expect(chs[0].fm?.['章号']).toBe(2) // extractFrontMatter 按字符串返回，此处应被归一成数值（对照线：真机此前一直是字符串，acts 找上一章因此失效）
     expect(chs[0].wordCount).toBe(3)
     expect(chs[1].wordCount).toBe(2) // 两个「十」之间有个空格，被去掉
     expect(chs[2].fm).toBeNull()
