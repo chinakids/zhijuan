@@ -69,7 +69,7 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'answer-err', error: String(e?.message || e) }))
       }
     } else if (msg.type === 'status') {
-      try { ws.send(JSON.stringify({ type: 'status', data: { online: true, engine: 'bridge->harness', model: 'deepseek-v4-flash-0731' } })) } catch {}
+      try { ws.send(JSON.stringify({ type: 'status', data: { online: true, engine: 'bridge->harness', model: 'deepseek-v4-flash-vision-exp-uncensored' } })) } catch {}
     }
   })
 })

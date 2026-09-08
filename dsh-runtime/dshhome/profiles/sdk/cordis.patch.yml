@@ -13,8 +13,11 @@
         compat:
           supportsDeveloperRole: false
           maxTokensField: max_tokens
+          chatTemplateKwargs:
+            thinking: false
         models:
           - id: deepseek-v4-flash-vision-exp-uncensored
+            reasoningEfforts: false
 - id: agent-default-model
   config:
     provider: local-vllm

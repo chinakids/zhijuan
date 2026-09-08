@@ -34,7 +34,7 @@ const patch = `
   }
   api.agentCancel = async (rid) => { bridge.send(JSON.stringify({ type: 'cancel', requestId: rid })); return true }
   api.agentAnswer = async (batch, answers) => { bridge.send(JSON.stringify({ type: 'answer', batch, answers })); return { ok: true } }
-  api.agentStatus = async () => ({ online: true, provider: 'bridge->harness', model: 'deepseek-v4-flash-0731' })
+  api.agentStatus = async () => ({ online: true, provider: 'bridge->harness', model: 'deepseek-v4-flash-vision-exp-uncensored' })
   bridge.onmessage = (ev) => {
     const m = JSON.parse(ev.data)
     if (m.type === 'event') {

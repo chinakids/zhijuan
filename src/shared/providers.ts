@@ -16,7 +16,15 @@ export interface ProviderPreset {
   needsKey: boolean
   keyHint: string
   compat?: Record<string, unknown>
-  models: { id: string; note?: string }[]
+  models: ModelEntry[]
+}
+
+/** 模型条目：id + 可选的 dsh 引擎级声明（如 reasoningEfforts:false=按非推理模型处，关掉超长思考流） */
+export interface ModelEntry {
+  id: string
+  note?: string
+  /** 声明模型支持的思考档位；false=非推理模型（请求不开启 thinking，直接出正文） */
+  reasoningEfforts?: false | Record<string, string | null>
 }
 
 export const PROVIDER_PRESETS: ProviderPreset[] = [
@@ -29,9 +37,16 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     apiKeyEnv: 'LOCAL_LLM_KEY',
     needsKey: false,
     keyHint: '本机局域网内的 vLLM 服务，默认无需 key',
-    compat: { supportsDeveloperRole: false, maxTokensField: 'max_tokens' },
-    // 模型 id 以 127.0.0.1:8888 实际服务的为准（vLLM 于 2026-09 重启换为 vision-exp-uncensored；旧的 0731 id 已 404/空返）
-    models: [{ id: 'deepseek-v4-flash-vision-exp-uncensored' }]
+    compat: {
+      supportsDeveloperRole: false,
+      maxTokensField: 'max_tokens',
+      // vLLM 上该模型模板默认开思考：实测单轮输出 1.5 万字 reasoning 才落笔（8 分钟驱动超时）。写作要快速产出，
+      // 显式 chat_template_kwargs.thinking=false 关思考；reasoningEfforts:false 只声明 off 档=不传参，vLLM 默认仍开，单独不够。
+      chatTemplateKwargs: { thinking: false }
+    },
+    // 模型 id 以 127.0.0.1:8888 实际服务的为准（vLLM 于 2026-09 重启换为 vision-exp-uncensored；旧的 0731 id 已 404/空返）。
+    // reasoningEfforts:false = 按非推理模型处：该模型深度思考极长（实测单轮 1.5 万字 reasoning 才落笔），写作场景要快速产出，不开启 thinking。
+    models: [{ id: 'deepseek-v4-flash-vision-exp-uncensored', reasoningEfforts: false }]
   },
   {
     id: 'deepseek',
@@ -126,6 +141,8 @@ export interface ActiveProvider {
   model: string
   apiKey: string
   apiKeyEnv: string
+  /** 当前生效模型在预设里的完整条目（含引擎级声明；用户自定义 id 时 undefined） */
+  modelEntry?: ModelEntry
 }
 
 /** 从设置解析当前活跃厂商（含用户覆盖的 baseUrl/model/apiKey） */
@@ -133,13 +150,15 @@ export function activeProvider(s: AppSettings): ActiveProvider {
   const id: LlmProviderId = PROVIDER_IDS.includes(s.llm?.active) ? s.llm.active : 'local'
   const preset = providerById(id) ?? providerById('local')!
   const cfg: LlmProviderCfg = s.llm?.providers?.[id] ?? {}
+  const model = cfg.model?.trim() || preset.models[0]?.id || ''
   return {
     preset,
     route: routeId(id),
     baseUrl: cfg.baseUrl?.trim() || preset.baseURL,
-    model: cfg.model?.trim() || preset.models[0]?.id || '',
+    model,
     apiKey: cfg.apiKey ?? '',
-    apiKeyEnv: preset.apiKeyEnv
+    apiKeyEnv: preset.apiKeyEnv,
+    modelEntry: preset.models.find((m) => m.id === model)
   }
 }
 
@@ -162,9 +181,20 @@ export function buildLlmOverrideYml(p: ActiveProvider): string {
     compat +
     '        models:\n' +
     `          - id: ${js(p.model)}\n` +
+    modelDeclYaml(p.modelEntry) +
     '- id: agent-default-model\n' +
     '  config:\n' +
     `    provider: ${p.route}\n` +
     `    model: ${js(p.model)}\n`
   )
+}
+
+/** 模型条目的引擎级声明（YAML 行）：当前只有 reasoningEfforts（false=按非推理模型处；对象=声明各档位 wire 值） */
+function modelDeclYaml(m?: ModelEntry): string {
+  if (!m || m.reasoningEfforts === undefined) return ''
+  const v =
+    typeof m.reasoningEfforts === 'object'
+      ? JSON.stringify(m.reasoningEfforts)
+      : String(m.reasoningEfforts)
+  return `            reasoningEfforts: ${v}\n`
 }

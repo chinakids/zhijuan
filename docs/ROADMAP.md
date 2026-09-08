@@ -32,7 +32,7 @@
 - 项目库：`~/Documents/织卷项目库/<id>/project.json`，纯 JSON、本地方便入 git
 - 数据模型：Worldview / Character（自由字段）/ Chapter（elements、premise、curves、beats、content）/ SeriesCurve / PlotBeat
 - 曲线采样：把曲线 0~100 分 8 段算出趋势（骤升/缓升/平缓/猛跌）+ 情节点定位，结构化进 prompt
-- 生成：拼整包 prompt → 本地 vLLM（127.0.0.1:8888，deepseek-v4-flash-0731，1M 上下文）；`content || reasoning` 双保险已在
+- 生成：拼整包 prompt → 本地 vLLM（127.0.0.1:8888，deepseek-v4-flash-vision-exp-uncensored，1M 上下文；2026-09 vLLM 重启换名，旧 id 0731 已 404/空返）；`content || reasoning` 双保险已在
 - 章节导出 md
 
 ### 短板（对应两个痛点）
