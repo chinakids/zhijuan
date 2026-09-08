@@ -10,6 +10,7 @@ import { directorRel } from './director'
 import { parseDirectorSheet } from '../../shared/boardParse'
 import { extractFrontMatter, serializeFrontMatter } from '../../shared/fmatter'
 import { countWords } from '../../shared/count'
+import { renderActsSegs, splitActsBody, parseActsWarn, type ActSeg } from '../../shared/actsSeg'
 import type { ChapterEntry } from '../../shared/types'
 
 /** 分幕草稿落盘位置：大纲/<章名>_分幕.md（与章卡、导演板平级，写作副产物） */
@@ -83,13 +84,21 @@ registerCapability(actDef as never)
 
 let actsSeq = 0
 
+/** 分幕运行选项：only 指定只重写这几个段号；onlyFailed 从现有草稿读缺段警示自动重写失败段。
+ *  两者都要求草稿已按段标记（## 第 N 段）写出——旧版无标记草稿会提示重跑全量。 */
+export interface ActsRunOpts {
+  only?: number[]
+  onlyFailed?: boolean
+}
+
 /** 按导演板情绪弧分段逐段起草整章，拼成定稿草稿落 大纲/<章>_分幕.md；maxActs 仅供调试/冒烟限段；
  *  onPrompt 是只读观测钩子（冒烟/排障用）：每段请求拼好提示词后回调（index 从 1 起），不参与流程。 */
 export async function runActs(
   projectId: string,
   chapterRel: string,
   maxActs?: number,
-  onPrompt?: (index: number, prompt: string) => void
+  onPrompt?: (index: number, prompt: string) => void,
+  opts?: ActsRunOpts
 ): Promise<ActsResult> {
   try {
     const blocked = subtaskBlocked('acts', '分幕生成')
@@ -105,13 +114,10 @@ export async function runActs(
     if (!sheet.arcs.length) return { ok: false, error: '导演板里没有可用分段的情绪弧，先重新「导演本章」。' }
     const arcs = sheet.arcs.slice(0, Math.min(MAX_ACTS, maxActs && maxActs > 0 ? maxActs : MAX_ACTS))
     const redlines = sheet.redlines
-    const segs: string[] = []
-    const failed: number[] = []
-    // 首段是分段链里唯一没有自带承接的位置：其余各段都有前段末文，首段若只给一句话前情，非首章会冷启动接不上气。
-    // 因此首段的 prevTail 用**上一章的结尾**（剥约定头后取末 TAIL 字），让「先设定后成文」从上一章末尾真正续写下去；
-    // 写段循环里每段写完会把 prevTail 换成自己末文，接续自然移交。
-    let prevTail = ''
-    // 章号按数值取（extractFrontMatter 常以字符串返回，见 store.listChapters 的归一；这里再兜一道与 context.ts 同款）
+    const isRepair = !!(opts?.only || opts?.onlyFailed)
+
+    // 上一章结尾（剥约定头后取末 TAIL 字）：首段唯一没有自带承接的位置，非首章冷启动从这里接上气
+    let prevChTail = ''
     const chNo = Number(ch.fm?.['章号'])
     if (Number.isFinite(chNo)) {
       const prev = listChapters(projectId)
@@ -119,20 +125,22 @@ export async function runActs(
         .sort((a, b) => (b.fm?.['章号'] ?? 0) - (a.fm?.['章号'] ?? 0))[0]
       if (prev) {
         const rawPrev = readDoc(projectId, '正文/' + prev.file) ?? ''
-        prevTail = (extractFrontMatter(rawPrev).body ?? '').trim().slice(-TAIL)
+        prevChTail = (extractFrontMatter(rawPrev).body ?? '').trim().slice(-TAIL)
       }
     }
-    for (let i = 0; i < arcs.length; i++) {
+
+    /** 单段生成：拼指令→驱动→清洗；达到 MIN_ACT 才算写成，否则返回 null（runOnce 内部已重试一次） */
+    const genSeg = async (index: number, prevTail: string): Promise<string | null> => {
       const arg: ActArg = {
-        index: i + 1,
+        index,
         total: arcs.length,
-        arc: arcs[i],
+        arc: arcs[index - 1],
         redlines,
         premise: sheet.premise,
-        atClimax: sheet.climax.at === i + 1,
+        atClimax: sheet.climax.at === index,
         prevTail
       }
-      onPrompt?.(i + 1, actPrompt(arg))
+      onPrompt?.(index, actPrompt(arg))
       const seg = await runOnce<string>(actDef, {
         projectId,
         args: arg as unknown as Record<string, unknown>,
@@ -141,26 +149,78 @@ export async function runActs(
       let t = (seg ?? '').trim()
       // 模型偶尔还是会带标题行或围栏，清掉再拼
       t = t.replace(/^```(?:markdown)?\s*$/gm, '').replace(/^```\s*$/gm, '').replace(/^#+\s+.*$/gm, '').trim()
-      // 写成了且达到本段质量基线才收：短于 MIN_ACT 视为没写好（与 retry.check 同一口径），
-      // 记入 failed 而不是把残段塞进草稿——否则草稿会带着空洞被当成品采纳（曾踩：静默跳过段）。
-      if (t.length >= MIN_ACT) {
-        segs.push(t)
-        prevTail = t.slice(-TAIL)
-      } else {
-        failed.push(i + 1)
+      return t.length >= MIN_ACT ? t : null
+    }
+
+    let finalSegs: ActSeg[] = []
+    const failed: number[] = []
+
+    if (isRepair) {
+      // ── 补写缺段：只重写失败段，已写成的段原样保留（每段生成约一轮完整请求，重跑全量太浪费） ──
+      const draftRaw = readDoc(projectId, actsRel(ch)) ?? ''
+      const existing = splitActsBody(extractFrontMatter(draftRaw).body ?? '')
+      const warnMissing = opts?.onlyFailed ? parseActsWarn(draftRaw) : []
+      if (!existing.size && warnMissing.length) {
+        return { ok: false, error: '这份分幕草稿是旧格式（没有分段标记），无法只补缺段：请重新「分幕生成」。' }
+      }
+      const targets = (opts?.only ?? warnMissing)
+        .filter((n) => Number.isFinite(n) && n >= 1 && n <= arcs.length)
+        .sort((a, b) => a - b)
+      if (!targets.length) {
+        return { ok: false, error: '没有缺段可补：草稿完整，或不是「分幕生成」产出的缺段草稿。' }
+      }
+      const segMap = new Map(existing)
+      const stillFailed: number[] = []
+      for (const idx of targets) {
+        // 承接：前一个已存在（或本批刚写好）且编号更小的段末文；重写首段则用上一章结尾
+        let pt = ''
+        if (idx === 1) {
+          pt = prevChTail
+        } else {
+          for (let j = idx - 1; j >= 1; j--) {
+            const s = segMap.get(j)
+            if (s) {
+              pt = s.slice(-TAIL)
+              break
+            }
+          }
+        }
+        const t = await genSeg(idx, pt)
+        if (t) segMap.set(idx, t)
+        else stillFailed.push(idx)
+      }
+      finalSegs = [...segMap.entries()]
+        .filter(([idx]) => idx >= 1 && idx <= arcs.length)
+        .map(([index, text]) => ({ index, text: text.trim() }))
+        .sort((a, b) => a.index - b.index)
+      failed.push(...stillFailed)
+    } else {
+      // ── 全量分幕：按板子弧数逐段起草 ──
+      let prevTail = prevChTail
+      for (let i = 0; i < arcs.length; i++) {
+        const t = await genSeg(i + 1, prevTail)
+        if (t) {
+          finalSegs.push({ index: i + 1, text: t })
+          prevTail = t.slice(-TAIL)
+        } else {
+          failed.push(i + 1)
+        }
       }
     }
-    if (!segs.length)
+
+    if (!finalSegs.length)
       return { ok: false, error: `各段都没有写成内容（第 ${failed.join('、')} 段失败），换个模型或再试一次。` }
-    const body = segs.join('\n\n')
+    const body = renderActsSegs(finalSegs)
     const src = readDoc(projectId, chapterRel) ?? ''
     const fm = extractFrontMatter(src).fm ?? {}
-    const draft = buildActsDoc(ch, body, fm, failed.length ? failedNote(failed, arcs.length) : '')
+    const draft = buildActsDoc(ch, finalSegs, fm, failed.length ? failedNote(failed, arcs.length) : '')
     const written = actsRel(ch)
     writeDoc(projectId, written, draft)
+    // 字数口径只计段文本本身（段标记「第 N 段」不是正文，不计入）
+    const words = finalSegs.reduce((a, s) => a + countWords(s.text), 0)
     return failed.length
-      ? { ok: true, written, acts: segs.length, words: countWords(body), failed }
-      : { ok: true, written, acts: segs.length, words: countWords(body) }
+      ? { ok: true, written, acts: finalSegs.length, words, failed }
+      : { ok: true, written, acts: finalSegs.length, words }
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e).slice(0, 300) }
   }
@@ -168,13 +228,14 @@ export async function runActs(
 
 /** 缺段警示注记：写进草稿开头，让「有洞的草稿」在文件里就被看见，而不是靠人记。 */
 export function failedNote(failed: number[], total: number): string {
-  return `> ⚠️ 第 ${failed.join('、')} 段未按导演板写成，草稿只含 ${total - failed.length}/${total} 段（缺段处情节会断）。请勿直接采纳：先重新「分幕生成」，或手动补齐缺段。`
+  return `> ⚠️ 第 ${failed.join('、')} 段未按导演板写成，草稿只含 ${total - failed.length}/${total} 段（缺段处情节会断）。请勿直接采纳：先点「补写缺段」只重写失败段，或手动补齐缺段。`
 }
 
-/** 草稿文档：沿用原章约定头（可直接当正文用），正文前带一行来源注记；warn 非空时加一行缺段警示 */
+/** 草稿文档：沿用原章约定头（可直接当正文用），正文前带一行来源注记；warn 非空时加一行缺段警示；
+ *  正文按「## 第 N 段」标记渲染（actsSeg 约定），可反解析供「补写缺段」定位。 */
 export function buildActsDoc(
   c: ChapterEntry,
-  body: string,
+  segs: ActSeg[],
   fm: Record<string, unknown>,
   warn = ''
 ): string {
@@ -190,7 +251,7 @@ export function buildActsDoc(
     '> 由「分幕生成」按导演板情绪弧分段逐段写出。确认后把下面的正文部分搬进正文文件即可。\n' +
     (warn ? warn + '\n' : '') +
     '\n' +
-    body +
+    renderActsSegs(segs) +
     '\n'
   )
 }

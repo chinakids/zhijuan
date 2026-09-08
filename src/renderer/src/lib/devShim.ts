@@ -554,8 +554,8 @@ const mock = {
       }
     }
   },
-  // 分幕生成（dev 模式：有导演板就写一份演示分幕草稿）
-  agentActs: async (projectId: string, chapterRel: string) => {
+  // 分幕生成（dev 模式：有导演板就写一份演示分幕草稿；opts 仅保持契约，演示数据无缺段）
+  agentActs: async (projectId: string, chapterRel: string, _opts?: { only?: number[]; onlyFailed?: boolean }) => {
     const name = chapterRel.replace(/^正文\//, '').replace(/\.md$/, '')
     const boardRel = '大纲/' + name + '_导演.md'
     if (!docs.has(projectId + '/' + boardRel)) {
@@ -563,7 +563,11 @@ const mock = {
     }
     const rel = '大纲/' + name + '_分幕.md'
     const body = [
+      '## 第 1 段',
+      '',
       '『演示分幕草稿』第一段：候船厅的灯慢慢暗下来时，阿七在墙角的杂物筐里摸到一串锈钥匙，每一把都缠着蜡线——最旧的那把，齿形正好对着灯塔锁孔。',
+      '',
+      '## 第 2 段',
       '',
       '他还没把钥匙掂热，守塔人就从身后的阴影里伸出手，把柜台上那盏唯一的油灯吹熄了。整个海湾沉进一片静里，只剩码头下的浪还在一下一下推着船帮。',
       ''

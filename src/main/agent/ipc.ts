@@ -6,7 +6,7 @@ import { runOutlineRebuild } from './outline'
 import { runMaterialTriage } from './triage'
 import { runDirector } from './director'
 import { runDirectorCheck } from './director-check'
-import { runActs } from './acts'
+import { runActs, type ActsRunOpts } from './acts'
 import { ensureHarness, closeHarness, answerDir } from './runtime'
 import { listCapabilities } from './subtask'
 import { activeProvider } from '../../shared/providers'
@@ -68,8 +68,11 @@ export function registerAgentIpc() {
   ipcMain.handle('agent:director', (_e, projectId: string, chapterRel: string) => runDirector(projectId, chapterRel))
   // 导演兑现检查（动笔后对照导演板核对本章，结果回 UI 不落盘）
   ipcMain.handle('agent:directorCheck', (_e, projectId: string, chapterRel: string) => runDirectorCheck(projectId, chapterRel))
-  // 分幕生成（按导演板情绪弧分段逐段起草整章，拼成定稿草稿落 大纲/<章>_分幕.md）
-  ipcMain.handle('agent:acts', (_e, projectId: string, chapterRel: string) => runActs(projectId, chapterRel))
+  // 分幕生成（按导演板情绪弧分段逐段起草整章，拼成定稿草稿落 大纲/<章>_分幕.md；
+  // opts.onlyFailed 补写缺段：只重写草稿里未写成的段，已写成段原样保留）
+  ipcMain.handle('agent:acts', (_e, projectId: string, chapterRel: string, opts?: ActsRunOpts) =>
+    runActs(projectId, chapterRel, undefined, undefined, opts)
+  )
   // 素材→设定升格判定
   ipcMain.handle('agent:triage', (_e, projectId: string) => runMaterialTriage(projectId))
   // 引擎状态（设置页用）

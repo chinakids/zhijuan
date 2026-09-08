@@ -3,8 +3,9 @@
 // 剥约定头、剥草稿自己的「（分幕草稿）」标题行、剥来源注记（> 由「分幕生成」…）；
 // 采纳时保留本章原有约定头与题名标题，只换正文主体（草稿本身保留，可再改再采纳）。
 import { extractFrontMatter, serializeFrontMatter } from './fmatter'
+import { ACT_SEG_TITLE, ACT_WARN_LINE } from './actsSeg'
 
-/** 从分幕草稿里提出纯正文段（剥约定头＋「（分幕草稿）」题名行＋来源注记） */
+/** 从分幕草稿里提出纯正文段（剥约定头＋「（分幕草稿）」题名行＋来源注记/缺段警示＋「## 第 N 段」段标记） */
 export function extractActsBody(draft: string): string {
   const { body } = extractFrontMatter(draft)
   const lines = body.split('\n')
@@ -16,8 +17,10 @@ export function extractActsBody(draft: string): string {
       droppedTitle = true
       continue
     }
-    // 剥来源注记（> 由「分幕生成」…）；正文里如果恰好有 > 引用（对话等）不会误删
-    if (/^>\s*由「分幕生成」/.test(line)) continue
+    // 剥来源注记（> 由「分幕生成」…）与缺段警示（> ⚠️ …）；正文里如果恰好有 > 引用（对话等）不会误删
+    if (/^>\s*由「分幕生成」/.test(line) || ACT_WARN_LINE.test(line)) continue
+    // 剥段标记「## 第 N 段」，采纳进正文时不带分幕痕迹
+    if (ACT_SEG_TITLE.test(line)) continue
     out.push(line)
   }
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trim()

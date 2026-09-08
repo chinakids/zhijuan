@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { BookMarked, CheckCheck, CheckCircle2, CircleDashed, Clapperboard, Hammer, ListTree, Loader2, PenLine, RefreshCw, ScrollText, ShieldCheck } from 'lucide-react'
+import { BookMarked, CheckCheck, CheckCircle2, CircleDashed, Clapperboard, Hammer, ListTree, Loader2, PenLine, RefreshCw, ScrollText, ShieldCheck, Wrench } from 'lucide-react'
 import type { ChapterEntry } from '../../../shared/types'
 import { cn } from '../lib/utils'
 import DocEditor from '../features/editor/DocEditor'
 import DirectorCheckDrawer from '../features/check/DirectorCheckDrawer'
 import { useFsEvents } from '../features/fs/useFsEvents'
 import { isBoardStale } from '../../../shared/boardAge'
+import { parseActsWarn } from '../../../shared/actsSeg'
 
 /** 大纲区：agent 把已有正文回建成章卡，画布随进度活起来。 */
 export default function Outline() {
@@ -18,10 +19,13 @@ export default function Outline() {
   const [building, setBuilding] = useState(false)
   const [directing, setDirecting] = useState(false)
   const [acting, setActing] = useState(false)
+  const [repairing, setRepairing] = useState(false)
   const [adopting, setAdopting] = useState(false)
   const [confirmAdopt, setConfirmAdopt] = useState(false)
   const [checkOpen, setCheckOpen] = useState(false)
   const [msg, setMsg] = useState('')
+  // 当前选中章节的分幕草稿里「未写成」的段号（>0 时显示「补写缺段」按钮）
+  const [draftMissing, setDraftMissing] = useState<number[]>([])
   const events = useFsEvents(id)
 
   const refresh = useCallback(async () => {
@@ -64,6 +68,22 @@ export default function Outline() {
   // 当前选中对应的章节（章卡或导演板都可映射回），供「导演本章」定位
   const selName = sel?.replace(/^大纲\//, '').replace(/\.md$/, '').replace(/_(导演|分幕)$/, '') ?? ''
   const selChapter = chapters.find((c) => c.name === selName) ?? null
+
+  // 选中章的分幕草稿若有缺段警示（> ⚠️ 第 X 段未按导演板写成…），显示「补写缺段」入口
+  useEffect(() => {
+    let alive = true
+    if (!id || !selChapter || !outlineFiles.includes(actsRel(selChapter))) {
+      setDraftMissing([])
+      return
+    }
+    void window.zhijuan.readDoc(id, actsRel(selChapter)).then((draft) => {
+      if (alive) setDraftMissing(draft ? parseActsWarn(draft) : [])
+    })
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, selChapter, outlineFiles])
 
   const build = async (only?: string[]) => {
     if (!id || building) return
@@ -118,7 +138,7 @@ export default function Outline() {
       if (r.ok) {
         if (r.failed?.length)
           setMsg(
-            `⚠ 「${selChapter.name}」第 ${r.failed.join('、')} 段没写成，草稿只有 ${r.acts} 段（缺段处会断戏）：请重新分幕生成或手动补；落 ${r.written}`
+            `⚠ 「${selChapter.name}」第 ${r.failed.join('、')} 段没写成，草稿只有 ${r.acts} 段（缺段处会断戏）：右上角会出现「补写缺段」，只重写失败段；落 ${r.written}`
           )
         else setMsg(`✓ 已按导演板分 ${r.acts} 段起草「${selChapter.name}」，草稿约 ${r.words} 字，落 ${r.written}`)
       } else setMsg('✗ ' + r.error)
@@ -127,6 +147,32 @@ export default function Outline() {
       setMsg('✗ ' + String(e?.message ?? e))
     } finally {
       setActing(false)
+    }
+  }
+
+  // 补写缺段：只重写草稿里未写成的段（已写成的段原样保留），不重跑全章
+  const repair = async () => {
+    if (!id || repairing || !selChapter) return
+    setRepairing(true)
+    setMsg('')
+    try {
+      const r = await window.zhijuan.agentActs(id, '正文/' + selChapter.file, { onlyFailed: true })
+      if (r.ok) {
+        if (r.failed?.length)
+          setMsg(
+            `⚠ 「${selChapter.name}」第 ${r.failed.join('、')} 段重写后仍没写成（草稿现 ${r.acts} 段）：可再点「补写缺段」重试，或手动补；落 ${r.written}`
+          )
+        else
+          setMsg(
+            `✓ 已补写「${selChapter.name}」缺段，草稿现为完整 ${r.acts} 段（约 ${r.words} 字），可「采纳为正文」；落 ${r.written}`
+          )
+        setDraftMissing(r.failed ?? [])
+      } else setMsg('✗ ' + r.error)
+      await refresh()
+    } catch (e: any) {
+      setMsg('✗ ' + String(e?.message ?? e))
+    } finally {
+      setRepairing(false)
     }
   }
 
@@ -272,19 +318,34 @@ export default function Outline() {
           >
             <ShieldCheck className="h-3 w-3" /> 兑现检查
           </button>
-          {acting && (
+          {(acting || repairing) && (
             <span className="flex items-center gap-1 text-[11px] text-accent">
-              <Loader2 className="h-3 w-3 animate-spin" /> 写作引擎分幕起草中…（每段约一两分钟）
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {repairing ? '写作引擎补写缺段中…（每段约一两分钟）' : '写作引擎分幕起草中…（每段约一两分钟）'}
             </span>
           )}
           <button
             onClick={() => void act()}
-            disabled={acting || !selChapter || !hasBoard(selChapter)}
-            className="flex items-center gap-1 rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+            disabled={acting || repairing || !selChapter || !hasBoard(selChapter)}
+            className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
             title={selChapter && hasBoard(selChapter) ? `按「${selChapter.name}」导演板的情绪弧分幕，逐段起草整章草稿（落 大纲/）` : selChapter ? '本章还没有导演板，先点「导演本章」' : '先在左侧选中一章'}
           >
             <PenLine className="h-3 w-3" /> 分幕生成
           </button>
+          {draftMissing.length > 0 && (
+            <button
+              onClick={() => void repair()}
+              disabled={repairing || acting || !selChapter}
+              className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-warn px-2 py-1 text-[11px] text-warn transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+              title={
+                selChapter
+                  ? `只重写「${selChapter.name}」第 ${draftMissing.join('、')} 段（已写成的段保留），不重跑全章`
+                  : '先在左侧选中一章'
+              }
+            >
+              <Wrench className="h-3 w-3" /> 补写缺段
+            </button>
+          )}
           {adopting && (
             <span className="flex items-center gap-1 text-[11px] text-accent">
               <Loader2 className="h-3 w-3 animate-spin" /> 采纳为正文中…

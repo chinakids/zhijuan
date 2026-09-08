@@ -13,7 +13,11 @@ const draft = [
   '',
   '> 由「分幕生成」按导演板情绪弧分段逐段写出。确认后把下面的正文部分搬进正文文件即可。',
   '',
+  '## 第 1 段',
+  '',
   '第一段正文：灯下的路忽明忽暗，林晓的脚步跟着那盏灯一起晃。',
+  '',
+  '## 第 2 段',
   '',
   '第二段正文：两人在暗处并肩站住，谁也没有先开口。',
   ''
@@ -33,13 +37,25 @@ const chapter = [
 ].join('\n')
 
 describe('extractActsBody', () => {
-  it('剥约定头、草稿题名行与来源注记，只留正文段', () => {
+  it('剥约定头、草稿题名行、来源注记与「## 第 N 段」标记，只留正文段', () => {
     const body = extractActsBody(draft)
     expect(body).not.toContain('章号')
     expect(body).not.toContain('分幕草稿）')
     expect(body).not.toContain('由「分幕生成」')
+    expect(body).not.toContain('## 第 1 段')
+    expect(body).not.toContain('## 第 2 段')
     expect(body).toContain('第一段正文')
     expect(body).toContain('第二段正文')
+    // 段间仍保留换行分隔，不粘连
+    expect(body).toContain('第一段正文：灯下的路忽明忽暗，林晓的脚步跟着那盏灯一起晃。\n\n第二段正文')
+  })
+
+  it('缺段警示（> ⚠️ …）不进采纳正文', () => {
+    const d = draft.replace('\n> 由「分幕生成」', `\n> 由「分幕生成」\n> ⚠️ 第 2 段未按导演板写成，草稿只含 1/2 段（缺段处情节会断）。请勿直接采纳：先点「补写缺段」只重写失败段，或手动补齐缺段。`)
+    const body = extractActsBody(d)
+    expect(body).not.toContain('⚠️')
+    expect(body).not.toContain('请勿直接采纳')
+    expect(body).toContain('第一段正文')
   })
 
   it('正文自身的 > 引用（如下水道的对话）不会被误删', () => {
