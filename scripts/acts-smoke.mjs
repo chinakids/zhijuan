@@ -22,11 +22,12 @@ writeFileSync(
     "const CH = '正文/第02章_灯下.md'",
     "const W = '大纲/第02章_灯下_分幕.md'",
     "const MAX = Number(process.env.ZJ_ACTS_MAX || '2')",
+    "const prompts = []",
     '',
     "console.log('== 分幕生成 acts（真模型，先 ' + MAX + ' 段）==', CH)",
     'const t = Date.now()',
     'try {',
-    '  const r = await runActs(PJ, CH, MAX)',
+    "  const r = await runActs(PJ, CH, MAX, (i, p) => { prompts.push({ i, p }); console.log('[act ' + i + '] 提示词 ' + p.length + ' 字，等待引擎…') })",
     "  console.log('[OK ' + ((Date.now() - t) / 1000).toFixed(1) + 's] ' + JSON.stringify(r).slice(0, 600))",
     '  if (r.ok) {',
     "    const got = readDoc(PJ, W) ?? ''",
@@ -34,7 +35,10 @@ writeFileSync(
     "    const hasFm = got.includes('分幕草稿')",
     "    const words = r.words",
     "    console.log('[核对] acts=' + r.acts + ' words=' + words + ' 约定头=分幕草稿:' + hasFm)",
-    "    process.exit(r.acts >= 1 && words > 200 && hasFm ? 0 : 3)",
+    "    const first = prompts.find((x) => x.i === 1)",
+    "    const hasPrevTail = !!first && first.p.includes('【上一章结尾】') && first.p.includes('谁也没再说话')",
+    "    console.log('[核对] 首段提示词带上一章结尾:' + hasPrevTail + (first ? '（提示词 ' + first.p.length + ' 字）' : '（未捕获）'))",
+    "    process.exit(r.acts >= 1 && words > 200 && hasFm && hasPrevTail ? 0 : 3)",
     '  } else process.exit(1)',
     '} catch (e) {',
     "  console.log('[ERR ' + ((Date.now() - t) / 1000).toFixed(1) + 's] ' + String(e?.message || e).slice(0, 400))",
@@ -61,7 +65,7 @@ await esbuild({
 const r = spawnSync('node', ['/tmp/zj-acts-bundle.mjs'], {
   env: { ...process.env, LOCAL_LLM_KEY: 'local', ZJ_USERDATA: process.env.ZJ_USERDATA },
   encoding: 'utf-8',
-  timeout: 12 * 60 * 1000
+  timeout: 20 * 60 * 1000
 })
 process.stdout.write(r.stdout || '')
 if (r.stderr) process.stderr.write(r.stderr?.toString() || '')

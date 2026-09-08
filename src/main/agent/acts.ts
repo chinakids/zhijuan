@@ -83,8 +83,14 @@ registerCapability(actDef as never)
 
 let actsSeq = 0
 
-/** 按导演板情绪弧分段逐段起草整章，拼成定稿草稿落 大纲/<章>_分幕.md；maxActs 仅供调试/冒烟限段 */
-export async function runActs(projectId: string, chapterRel: string, maxActs?: number): Promise<ActsResult> {
+/** 按导演板情绪弧分段逐段起草整章，拼成定稿草稿落 大纲/<章>_分幕.md；maxActs 仅供调试/冒烟限段；
+ *  onPrompt 是只读观测钩子（冒烟/排障用）：每段请求拼好提示词后回调（index 从 1 起），不参与流程。 */
+export async function runActs(
+  projectId: string,
+  chapterRel: string,
+  maxActs?: number,
+  onPrompt?: (index: number, prompt: string) => void
+): Promise<ActsResult> {
   try {
     const blocked = subtaskBlocked('acts', '分幕生成')
     if (blocked) return { ok: false, error: blocked }
@@ -116,17 +122,19 @@ export async function runActs(projectId: string, chapterRel: string, maxActs?: n
       }
     }
     for (let i = 0; i < arcs.length; i++) {
+      const arg: ActArg = {
+        index: i + 1,
+        total: arcs.length,
+        arc: arcs[i],
+        redlines,
+        premise: sheet.premise,
+        atClimax: sheet.climax.at === i + 1,
+        prevTail
+      }
+      onPrompt?.(i + 1, actPrompt(arg))
       const seg = await runOnce<string>(actDef, {
         projectId,
-        args: {
-          index: i + 1,
-          total: arcs.length,
-          arc: arcs[i],
-          redlines,
-          premise: sheet.premise,
-          atClimax: sheet.climax.at === i + 1,
-          prevTail
-        } as unknown as Record<string, unknown>,
+        args: arg as unknown as Record<string, unknown>,
         seq: actsSeq++
       })
       let t = (seg ?? '').trim()

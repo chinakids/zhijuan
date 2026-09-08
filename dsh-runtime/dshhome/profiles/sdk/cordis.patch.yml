@@ -14,11 +14,11 @@
           supportsDeveloperRole: false
           maxTokensField: max_tokens
         models:
-          - id: deepseek-v4-flash-0731
+          - id: deepseek-v4-flash-vision-exp-uncensored
 - id: agent-default-model
   config:
     provider: local-vllm
-    model: deepseek-v4-flash-0731
+    model: deepseek-v4-flash-vision-exp-uncensored
 - insert:
     - id: jsonrpc
       name: '@deepseek-ai/dsh-sdk-jsonrpc-server'

@@ -30,7 +30,8 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     needsKey: false,
     keyHint: '本机局域网内的 vLLM 服务，默认无需 key',
     compat: { supportsDeveloperRole: false, maxTokensField: 'max_tokens' },
-    models: [{ id: 'deepseek-v4-flash-0731' }]
+    // 模型 id 以 127.0.0.1:8888 实际服务的为准（vLLM 于 2026-09 重启换为 vision-exp-uncensored；旧的 0731 id 已 404/空返）
+    models: [{ id: 'deepseek-v4-flash-vision-exp-uncensored' }]
   },
   {
     id: 'deepseek',
