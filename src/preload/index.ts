@@ -107,7 +107,7 @@ const api = {
     >,
   agentActs: (projectId: string, chapterRel: string) =>
     ipcRenderer.invoke('agent:acts', projectId, chapterRel) as Promise<
-      | { ok: true; written: string; acts: number; words: number }
+      | { ok: true; written: string; acts: number; words: number; failed?: number[] }
       | { ok: false; error: string }
     >,
   agentTriage: (projectId: string) =>

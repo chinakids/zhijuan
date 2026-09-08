@@ -23,7 +23,7 @@ vi.mock('../../src/main/agent/runtime', () => ({ driveSession: vi.fn() }))
 
 import { parseDirectorSheet } from '../../src/shared/boardParse'
 import { directorToDoc, directorRel, type DirectorSheet } from '../../src/main/agent/director'
-import { runActs, buildActsDoc, actsRel, actPrompt, type ActArg } from '../../src/main/agent/acts'
+import { runActs, buildActsDoc, actsRel, actPrompt, failedNote, type ActArg } from '../../src/main/agent/acts'
 import { driveSession } from '../../src/main/agent/runtime'
 import { readDoc, listChapters, writeDoc } from '../../src/main/store'
 import { setSettings } from '../../src/main/settings'
@@ -203,6 +203,20 @@ describe('buildActsDoc（草稿文档装配）', () => {
     expect(doc.startsWith('---')).toBe(true)
     expect(parseDirectorSheet(doc)).not.toBeNull()
   })
+  it('warn 非空 → 缺段警示注记进草稿；为空 → 与原来一致（无警示行）', () => {
+    const doc = buildActsDoc(ch, '正文', { 章号: 1, 题名: '雾港' }, failedNote([2], 3))
+    expect(doc).toContain('第 2 段未按导演板写成')
+    expect(doc).toContain('请勿直接采纳')
+    const plain = buildActsDoc(ch, '正文', { 章号: 1, 题名: '雾港' })
+    expect(plain).not.toContain('请勿直接采纳')
+  })
+})
+
+describe('failedNote（缺段警示文案）', () => {
+  it('含失败段号与成功段数信息', () => {
+    expect(failedNote([2, 4], 5)).toContain('第 2、4 段')
+    expect(failedNote([2, 4], 5)).toContain('3/5 段')
+  })
 })
 
 describe('runActs（分幕生成主流程）', () => {
@@ -309,6 +323,51 @@ describe('runActs（分幕生成主流程）', () => {
     const first = driveMock.mock.calls[0][1]
     expect(first).toContain('【上一章结尾】')
     expect(first).toContain('上一章的结尾要留在这里')
+  })
+  it('某段重试后仍太短 → 结果带 failed、草稿注入缺段警示且残段不入草稿', async () => {
+    listChaptersMock.mockReturnValue([ch])
+    readMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === directorRel(ch)) return directorToDoc(sheet, ch)
+      if (rel === '正文/' + ch.file) return '---\n章号: 1\n题名: 雾港\n---\n旧正文'
+      return null
+    })
+    driveMock.mockImplementation(async (_sid: string, prompt: string) => {
+      if (prompt.includes('第 1 / 3 段')) return pad('第一段成文')
+      if (prompt.includes('第 2 / 3 段')) return '太短' // 重试后仍不够 MIN_ACT
+      return pad('第三段成文')
+    })
+    const r = await runActs('p1', '正文/第01章_雾港.md')
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.failed).toEqual([2])
+      expect(r.acts).toBe(2)
+      expect(r.words).toBeGreaterThan(0)
+    }
+    // 第 2 段短文触发了 1 次重试（共 4 次请求），仍失败后草稿无残段但有警示
+    expect(driveMock.mock.calls).toHaveLength(4)
+    expect(driveMock.mock.calls[2][1]).toContain('写得太短')
+    const doc = writeMock.mock.calls.find((c) => c[1] === actsRel(ch))?.[2] ?? ''
+    expect(doc).toContain('第一段成文')
+    expect(doc).toContain('第三段成文')
+    expect(doc).not.toContain('太短')
+    expect(doc).toContain('第 2 段未按导演板写成')
+    expect(doc).toContain('请勿直接采纳')
+  })
+  it('全部段都失败 → ok:false 且提示哪些段失败', async () => {
+    listChaptersMock.mockReturnValue([ch])
+    readMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === directorRel(ch)) return directorToDoc(sheet, ch)
+      if (rel === '正文/' + ch.file) return '---\n章号: 1\n题名: 雾港\n---\n旧正文'
+      return null
+    })
+    driveMock.mockImplementation(async () => '没有了')
+    const r = await runActs('p1', '正文/第01章_雾港.md')
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.error).toContain('第 1、2、3 段')
+      expect(r.error).toContain('失败')
+    }
+    expect(writeMock).not.toHaveBeenCalled()
   })
   it('能力被设置页关闭 → 直接被拦', async () => {
     setSettings({ capabilities: { acts: false }, workspace: '', libraryRoot: '' })

@@ -115,8 +115,13 @@ export default function Outline() {
     setMsg('')
     try {
       const r = await window.zhijuan.agentActs(id, '正文/' + selChapter.file)
-      if (r.ok) setMsg(`✓ 已按导演板分 ${r.acts} 段起草「${selChapter.name}」，草稿约 ${r.words} 字，落 ${r.written}`)
-      else setMsg('✗ ' + r.error)
+      if (r.ok) {
+        if (r.failed?.length)
+          setMsg(
+            `⚠ 「${selChapter.name}」第 ${r.failed.join('、')} 段没写成，草稿只有 ${r.acts} 段（缺段处会断戏）：请重新分幕生成或手动补；落 ${r.written}`
+          )
+        else setMsg(`✓ 已按导演板分 ${r.acts} 段起草「${selChapter.name}」，草稿约 ${r.words} 字，落 ${r.written}`)
+      } else setMsg('✗ ' + r.error)
       await refresh()
     } catch (e: any) {
       setMsg('✗ ' + String(e?.message ?? e))

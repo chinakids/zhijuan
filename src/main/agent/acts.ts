@@ -18,7 +18,7 @@ export function actsRel(c: ChapterEntry): string {
 }
 
 export type ActsResult =
-  | { ok: true; written: string; acts: number; words: number }
+  | { ok: true; written: string; acts: number; words: number; failed?: number[] }
   | { ok: false; error: string }
 
 export interface ActArg {
@@ -106,6 +106,7 @@ export async function runActs(
     const arcs = sheet.arcs.slice(0, Math.min(MAX_ACTS, maxActs && maxActs > 0 ? maxActs : MAX_ACTS))
     const redlines = sheet.redlines
     const segs: string[] = []
+    const failed: number[] = []
     // 首段是分段链里唯一没有自带承接的位置：其余各段都有前段末文，首段若只给一句话前情，非首章会冷启动接不上气。
     // 因此首段的 prevTail 用**上一章的结尾**（剥约定头后取末 TAIL 字），让「先设定后成文」从上一章末尾真正续写下去；
     // 写段循环里每段写完会把 prevTail 换成自己末文，接续自然移交。
@@ -140,26 +141,43 @@ export async function runActs(
       let t = (seg ?? '').trim()
       // 模型偶尔还是会带标题行或围栏，清掉再拼
       t = t.replace(/^```(?:markdown)?\s*$/gm, '').replace(/^```\s*$/gm, '').replace(/^#+\s+.*$/gm, '').trim()
-      if (t) {
+      // 写成了且达到本段质量基线才收：短于 MIN_ACT 视为没写好（与 retry.check 同一口径），
+      // 记入 failed 而不是把残段塞进草稿——否则草稿会带着空洞被当成品采纳（曾踩：静默跳过段）。
+      if (t.length >= MIN_ACT) {
         segs.push(t)
         prevTail = t.slice(-TAIL)
+      } else {
+        failed.push(i + 1)
       }
     }
-    if (!segs.length) return { ok: false, error: '各段都没有写成内容，换个模型或再试一次。' }
+    if (!segs.length)
+      return { ok: false, error: `各段都没有写成内容（第 ${failed.join('、')} 段失败），换个模型或再试一次。` }
     const body = segs.join('\n\n')
     const src = readDoc(projectId, chapterRel) ?? ''
     const fm = extractFrontMatter(src).fm ?? {}
-    const draft = buildActsDoc(ch, body, fm)
+    const draft = buildActsDoc(ch, body, fm, failed.length ? failedNote(failed, arcs.length) : '')
     const written = actsRel(ch)
     writeDoc(projectId, written, draft)
-    return { ok: true, written, acts: segs.length, words: countWords(body) }
+    return failed.length
+      ? { ok: true, written, acts: segs.length, words: countWords(body), failed }
+      : { ok: true, written, acts: segs.length, words: countWords(body) }
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e).slice(0, 300) }
   }
 }
 
-/** 草稿文档：沿用原章约定头（可直接当正文用），正文前带一行来源注记 */
-export function buildActsDoc(c: ChapterEntry, body: string, fm: Record<string, unknown>): string {
+/** 缺段警示注记：写进草稿开头，让「有洞的草稿」在文件里就被看见，而不是靠人记。 */
+export function failedNote(failed: number[], total: number): string {
+  return `> ⚠️ 第 ${failed.join('、')} 段未按导演板写成，草稿只含 ${total - failed.length}/${total} 段（缺段处情节会断）。请勿直接采纳：先重新「分幕生成」，或手动补齐缺段。`
+}
+
+/** 草稿文档：沿用原章约定头（可直接当正文用），正文前带一行来源注记；warn 非空时加一行缺段警示 */
+export function buildActsDoc(
+  c: ChapterEntry,
+  body: string,
+  fm: Record<string, unknown>,
+  warn = ''
+): string {
   const fmOut: Record<string, unknown> = {
     ...fm,
     状态: '分幕草稿'
@@ -169,7 +187,9 @@ export function buildActsDoc(c: ChapterEntry, body: string, fm: Record<string, u
     serializeFrontMatter(fmOut) +
     '\n' +
     `# ${title}（分幕草稿）\n\n` +
-    '> 由「分幕生成」按导演板情绪弧分段逐段写出。确认后把下面的正文部分搬进正文文件即可。\n\n' +
+    '> 由「分幕生成」按导演板情绪弧分段逐段写出。确认后把下面的正文部分搬进正文文件即可。\n' +
+    (warn ? warn + '\n' : '') +
+    '\n' +
     body +
     '\n'
   )
