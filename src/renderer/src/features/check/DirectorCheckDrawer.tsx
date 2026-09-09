@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, Clapperboard, Loader2, RefreshCw, ShieldCheck, X } from 'lucide-react'
 import type { DirectorCheckResult } from '../../../../shared/types'
 import { cn } from '../../lib/utils'
+import { toast } from '../../components/ui/toast'
+import { countTrouble } from './trouble'
 
 const SECTIONS: {
   key: keyof DirectorCheckResult
@@ -55,16 +57,34 @@ export default function DirectorCheckDrawer({ projectId, chapter, open, onClose,
   const [running, setRunning] = useState(false)
   const [err, setErr] = useState('')
 
+  // 抽屉是否在看的实时镜像：跑核对时用户可能关掉抽屉（组件不卸载、state 保留），
+  // 完成后若抽屉已不在看，把「有 N 处未兑现/失败」用全局 toast 带到外面（HIG：当前视图已呈现则前台不通知）。
+  const openRef = useRef(open)
+  useEffect(() => {
+    openRef.current = open
+  }, [open])
+
   const run = useCallback(async () => {
     if (!chapter) return
     setRunning(true)
     setErr('')
     try {
       const r = await window.zhijuan.agentDirectorCheck(projectId, '正文/' + chapter.file)
-      if (r.ok) setRes(r.result)
-      else setErr(r.error ?? '兑现检查失败')
+      if (r.ok) {
+        setRes(r.result)
+        if (!openRef.current) {
+          const n = countTrouble(r.result)
+          if (n > 0)
+            toast.add({ kind: 'warning', title: `兑现检查：${n} 处未兑现`, description: '重开「兑现检查」抽屉可看明细' })
+        }
+      } else {
+        setErr(r.error ?? '兑现检查失败')
+        if (!openRef.current) toast.add({ kind: 'error', title: '兑现检查失败', description: r.error ?? '未知原因' })
+      }
     } catch (e: any) {
-      setErr(String(e?.message ?? e))
+      const msg = String(e?.message ?? e)
+      setErr(msg)
+      if (!openRef.current) toast.add({ kind: 'error', title: '兑现检查失败', description: msg })
     } finally {
       setRunning(false)
     }

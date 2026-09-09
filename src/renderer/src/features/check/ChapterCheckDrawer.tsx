@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Check, ClipboardCopy, Loader2, RefreshCw, ShieldAlert, Sparkles, X } from 'lucide-react'
 import type { ChapterCheckItem, ChapterCheckKind, ChapterCheckResult, RevisionLayer } from '../../../../shared/types'
 import { cn } from '../../lib/utils'
+import { toast } from '../../components/ui/toast'
 
 const TYPE_TXT: Record<string, string> = {
   'setting-conflict': '设定冲突', timeline: '时间线', foreshadow: '伏笔', 'character-drift': '人物漂移',
@@ -37,16 +38,34 @@ export default function ChapterCheckDrawer({ projectId, chapter, chapterTitle, o
   const [made, setMade] = useState<Set<string>>(new Set())
   const [copied, setCopied] = useState<string | null>(null)
 
+  // 抽屉是否在看的实时镜像：跑检查时用户可能关掉抽屉（组件不卸载、state 保留），
+  // 完成后若抽屉已不在看，把结果要点用全局 toast 带到外面（HIG：当前视图已呈现则前台不通知）。
+  const openRef = useRef(open)
+  useEffect(() => {
+    openRef.current = open
+  }, [open])
+
   const run = useCallback(async () => {
     if (!chapter) return
     setRunning(true)
     setErr('')
     try {
       const r = await window.zhijuan.agentChapterCheck(projectId, chapter, tab)
-      if (r.ok) setRes((m) => ({ ...m, [tab]: r.result }))
-      else setErr(r.error ?? '本章检查失败')
+      if (r.ok) {
+        setRes((m) => ({ ...m, [tab]: r.result }))
+        if (!openRef.current) {
+          const n = r.result.items.length
+          if (n > 0)
+            toast.add({ kind: 'warning', title: `本章小环发现 ${n} 条`, description: '结果已保留，重开「本章小环」抽屉可查看' })
+        }
+      } else {
+        setErr(r.error ?? '本章检查失败')
+        if (!openRef.current) toast.add({ kind: 'error', title: '本章检查失败', description: r.error ?? '未知原因' })
+      }
     } catch (e: any) {
-      setErr(String(e?.message ?? e))
+      const msg = String(e?.message ?? e)
+      setErr(msg)
+      if (!openRef.current) toast.add({ kind: 'error', title: '本章检查失败', description: msg })
     } finally {
       setRunning(false)
     }
