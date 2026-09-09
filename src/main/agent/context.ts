@@ -5,6 +5,7 @@
 // 预算硬控（沿 ROADMAP M1.3）：正文 ≤8000、前情 ≤3000、人物 ≤4000、切片 ≤4000、章卡 ≤2000、素材索引 ≤1200。
 import { readDoc, listChapters } from '../store'
 import { extractFrontMatter } from '../../shared/fmatter'
+import { worldSliceFile } from '../../shared/paths'
 
 export interface WritingContext {
   blocks: string[]
@@ -58,13 +59,13 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
     }
   }
 
-  // 4. 当前时间切片设定
+  // 4. 当前时间切片设定（文件名约定 世界观/切片_<切片名>.md；兼容早期无「切片_」前缀的文件）
   const slice = String(fm?.['切片'] ?? '')
   if (slice) {
-    const t = read(`世界观/${slice}.md`)
+    const t = read(worldSliceFile(slice)) || read(`世界观/${slice}.md`)
     if (t.trim()) {
       blocks.push(`【当前切片设定：${slice}】\n${t.slice(0, CAP.slice)}`)
-      sources.push(`世界观/${slice}.md`)
+      sources.push(worldSliceFile(slice))
     }
   }
 

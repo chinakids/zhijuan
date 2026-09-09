@@ -33,7 +33,7 @@ const steps = [
   { icon: PartyPopper, label: '完成' }
 ]
 
-/** 角色档案模板（正文保存时切片同步会把各章新状态补进成长轨迹） */
+/** 角色档案模板（正文保存时切片同步会把各章新状态补进「## 切片：<切片名>」小节） */
 function charDoc(name: string, role: string, traits: string): string {
   return (
     `# ${name}\n\n` +
@@ -41,8 +41,7 @@ function charDoc(name: string, role: string, traits: string): string {
     `> 关键特征：${traits}\n\n` +
     `## 基础档案\n\n` +
     `（年龄 / 外貌 / 背景 / 性格取向，按需补写）\n\n` +
-    `## 成长轨迹（按时间切片）\n\n` +
-    `<!-- 正文保存时，切片同步会把 TA 在本章的新状态补进对应小节。 -->\n`
+    `<!-- 正文保存时，切片同步会把 TA 在本章的新状态写入「## 切片：<切片名>」小节（没有则自动追加）；基础档案是长期设定，请在这里手动维护，勿与切片小节混写。 -->\n`
   )
 }
 

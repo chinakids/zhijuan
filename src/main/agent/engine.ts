@@ -5,6 +5,10 @@
 import { driveSession, type DriveEvent } from './runtime'
 import { projectDir } from '../store'
 import { buildWritingContext } from './context'
+import { normalizeSyncItems, ensureWorldSliceFile } from './syncAnchor'
+import { extractFrontMatter } from '../../shared/fmatter'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 import type { ProposalItem } from '../../shared/types'
 
 // 关停入口（应用退出 / 冒烟脚本收尾用）
@@ -203,9 +207,12 @@ function syncSystem(): string {
     '要求：\n' +
     '1. 当前章节与相关设定已作为【当前创作上下文】直接给出，据此判断变化；如需核对更完整内容，再用 zj_read_doc 读取对应文件。\n' +
     '2. 只在正文确有变化时输出；没有任何变化就输出 []。\n' +
-    '3. 每条补丁为：{"target":"相对项目根的文件路径","anchor":"要更新小节对应的标题文本（目标文档无此小节则填空串，我们把它作为新小节追加）","kind":"upsert-section","before":"原状态的一句话要点","after":"本小节要写入的完整新内容（markdown 列表即可）","reason":"一句话理由"}\n' +
-    '4. target 优先：人物档案用 人物/<姓名>.md；世界/环境变化用 世界观/<切片名>.md。只允许这两个目录里已有的文件。\n' +
-    '5. after 是该小节完整的新内容，不含标题行。\n' +
+    '3. 每条补丁为：{"target":"相对项目根的文件路径","anchor":"要写入的小节标题文本（不含#号）","kind":"upsert-section","before":"原状态的一句话要点（无则空串）","after":"本小节要写入的完整新内容（markdown 列表即可）","reason":"一句话理由"}\n' +
+    '4. target 与 anchor 规则（重要）：\n' +
+    '   - 人物状态：target=人物/<姓名>.md（只许用 人物/ 下真实存在的文件）；anchor 一律为「切片：<本片切片名>」——人物档案里该小节已存在则整节替换，不存在则作为新小节追加；**禁止把「基础档案」「基础设定」「成长轨迹」「定位」等长期小节当 anchor**（那是作者手动维护的只读区，你的产物写进去会覆盖别人的设定）。\n' +
+    '   - 世界/环境变化：target=世界观/切片_<本片切片名>.md（系统会在同步前自动确保该文件存在，直接使用）；anchor 同上为「切片：<本片切片名>」。**不要写 世界观/总纲.md**（总纲是长期不变项）。\n' +
+    '   - 本切片切片名以【当前打开章节】约定头里的「切片」字段为准。\n' +
+    '5. after 是该小节完整的新内容（仅该小节），不含标题行。\n' +
     '6. 只输出 JSON 数组本身：不加注释、不加 markdown 围栏、不加任何前后缀文字。\n' +
     '7. 不要用 ask_user_question 或任何提问工具：本任务离线执行，直接按文件决定即可。'
   )
@@ -215,6 +222,15 @@ export async function runSync(
   projectId: string,
   chapterRel: string
 ): Promise<{ ok: true; items: ProposalItem[] } | { ok: false; error: string }> {
+  // 先读约定头拿切片名：世界状态一律进 世界观/切片_<切片名>.md（不存在则创建模板），anchor 也按它归一
+  let sliceName = ''
+  try {
+    const ch = readFileSync(join(projectDir(projectId), chapterRel), 'utf-8')
+    sliceName = String(extractFrontMatter(ch).fm?.['切片'] ?? '')
+  } catch {
+    // 章节读不到就不做切片文件；不影响同步本身
+  }
+  if (sliceName) ensureWorldSliceFile(projectDir(projectId), sliceName)
   const parts: string[] = []
   parts.push(syncSystem())
   parts.push(envBlock(projectId, chapterRel))
@@ -229,7 +245,7 @@ export async function runSync(
   parts.push(`当前需要同步的章节：${chapterRel}。请按上面的要求输出设定补丁 JSON。`)
   try {
     const text = await driveSession(newSid(projectId), parts.join('\n\n'), { maxMs: 10 * 60 * 1000 })
-    const items = extractItems(text)
+    const items = normalizeSyncItems(extractItems(text), sliceName)
     return { ok: true, items }
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e).slice(0, 300) }

@@ -35,7 +35,7 @@ describe('buildWritingContext（写作上下文装配）', () => {
         '人物/周守.md': '周守档案',
         '人物/顾知远.md': '顾知远档案',
         '人物/苏禾.md': '苏禾档案',
-        '世界观/第二幕.md': '切片设定',
+        '世界观/切片_第二幕.md': '切片设定',
         '大纲/第2章_雾.md': '章卡一句话',
         '素材库/索引.md': '索引路标'
       }
@@ -53,7 +53,7 @@ describe('buildWritingContext（写作上下文装配）', () => {
       '人物/周守.md',
       '人物/顾知远.md',
       '人物/苏禾.md',
-      '世界观/第二幕.md',
+      '世界观/切片_第二幕.md',
       '大纲/第2章_雾.md',
       '素材库/索引.md'
     ])
@@ -69,7 +69,7 @@ describe('buildWritingContext（写作上下文装配）', () => {
     readDocMock.mockImplementation((_id: string, rel: string) => {
       if (rel === '正文/第1章_b.md') return FM_1 + '甲'.repeat(9000)
       if (rel === '人物/林晚.md') return '乙'.repeat(5000)
-      if (rel === '世界观/第一幕.md') return '丙'.repeat(5000)
+      if (rel === '世界观/切片_第一幕.md') return '丙'.repeat(5000)
       if (rel === '素材库/索引.md') return '丁'.repeat(3000)
       return null
     })
@@ -128,6 +128,20 @@ describe('buildWritingContext（写作上下文装配）', () => {
     // 导演板自己的 front matter 不泄漏进上下文
     expect(board).not.toContain('状态:')
     expect(board).not.toContain('题名:')
+  })
+
+  it('旧无「切片_」前缀的世界文件仍可装配（兼容旧项目数据）', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === '正文/第1章_a.md') return FM_1 + '第一章正文'
+      if (rel === '世界观/第一幕.md') return '旧名切片设定'
+      return null
+    })
+    listChaptersMock.mockReturnValue([] as never)
+
+    const { blocks, sources } = await buildWritingContext('p', '正文/第1章_a.md')
+    const sl = blocks.find((b) => b.includes('当前切片设定'))
+    expect(sl).toContain('旧名切片设定')
+    expect(sources).toContain('世界观/切片_第一幕.md')
   })
 
   it('读不到的内容静默跳过，绝不抛错', async () => {

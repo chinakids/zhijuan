@@ -33,3 +33,8 @@ export const SKELETON_DIRS: string[] = [
 export function sanitizeFile(s: string): string {
   return s.replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 60) || '未命名'
 }
+
+/** 世界切片文件：世界观/切片_<切片名>.md（模块设计 §8；正文保存时切片同步写入，每切片一个） */
+export function worldSliceFile(slice: string): string {
+  return `${DIR.worldview}/切片_${slice}.md`
+}
