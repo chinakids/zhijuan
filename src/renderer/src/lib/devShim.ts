@@ -325,6 +325,8 @@ const mock = {
     // 正文修改演示：prompt 提到「改」时给出 IDE 式修改方案
     if (/改|修|润|错别/.test(input.prompt)) {
       await new Promise((r) => setTimeout(r, 60))
+      emit({ requestId: rid, type: 'meta', tool: 'zj_edit_doc', args: '正文/第01章_雾港.md' })
+      await new Promise((r) => setTimeout(r, 60))
       emit({
         requestId: rid,
         type: 'edit',

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, BookOpenCheck, Check, Loader2, RefreshCw, ShieldAlert, Sparkles, X } from 'lucide-react'
+import { AlertTriangle, BookOpenCheck, Check, Loader2, RefreshCw, Send, ShieldAlert, Sparkles, X } from 'lucide-react'
 import type { AuditItem, AuditKind, AuditResult } from '../../../../shared/types'
+import { auditItemToAgentPrompt } from '../../../../shared/auditToAgent'
 import { cn } from '../../lib/utils'
 
 const TYPE_TXT: Record<string, string> = {
@@ -21,10 +22,14 @@ interface Props {
   tab: AuditKind
   onClose: () => void
   onTab: (t: AuditKind) => void
+  /** 「让 agent 改」：把审计条目作为指令发给 agent 区（由父级关闭抽屉并送入对话） */
+  onToAgent?: (text: string) => void
+  /** agent 区正在生成时禁用「让 agent 改」 */
+  toAgentBusy?: boolean
 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-export default function AuditDrawer({ projectId, open, tab, onClose, onTab }: Props) {
+export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onToAgent, toAgentBusy }: Props) {
   const [res, setRes] = useState<Partial<Record<AuditKind, AuditResult>>>({})
   const [saved, setSaved] = useState<Partial<Record<AuditKind, string>>>({})
   const [running, setRunning] = useState(false)
@@ -147,6 +152,16 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab }: Pr
                   <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-3">{VIEWER_TXT[it.viewer] ?? it.viewer}</span>
                 )}
                 <span className="flex-1" />
+                {onToAgent && (
+                  <button
+                    onClick={() => onToAgent(auditItemToAgentPrompt(it))}
+                    disabled={toAgentBusy}
+                    title={toAgentBusy ? 'agent 正在生成，稍候再试' : '把这条审读发现发给 agent 修改正文（走 zj_edit_doc 修改卡）'}
+                    className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-warn px-2 py-0.5 text-[11px] text-warn transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Send className="h-3 w-3" /> 让 agent 改
+                  </button>
+                )}
                 {it.target && (
                   made.has(i) ? (
                     <span className="flex items-center gap-1 text-[11px] text-success"><Check className="h-3 w-3" /> 已建提案</span>

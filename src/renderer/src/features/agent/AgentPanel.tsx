@@ -457,6 +457,11 @@ export default function AgentPanel(props: AgentPanelProps) {
         tab={audit.tab}
         onClose={() => setAudit((a) => ({ ...a, open: false }))}
         onTab={(t) => setAudit((a) => ({ ...a, tab: t }))}
+        onToAgent={(text) => {
+          setAudit((a) => ({ ...a, open: false }))
+          void send(text, null)
+        }}
+        toAgentBusy={sending}
       />
     </>
   )
