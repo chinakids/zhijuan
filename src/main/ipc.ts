@@ -20,7 +20,7 @@ import {
   listChapters,
   watchProject
 } from './store'
-import { workspaceStatus, ensureWorkspaceDocs, readWorkspaceDoc } from './store'
+import { workspaceStatus, ensureWorkspaceDocs, readWorkspaceDoc } from './workspace'
 import { workspaceDir } from './settings'
 
 export function broadcastToAll(evt: FsEvent) {

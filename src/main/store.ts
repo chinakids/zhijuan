@@ -1,5 +1,5 @@
 // ===== 织卷 V2 · 文档式 fileStore（模块设计 §2.4 / §四） =====
-// 所有项目数据都是明文文件；本模块只做：扫描、骨架、读写、监听（设置见 settings.ts）。
+// 所有项目数据都是明文文件；本模块只做：扫描、骨架、读写、监听（设置见 settings.ts，工作区见 workspace.ts）。
 import { shell } from 'electron'
 import { join, relative, basename, dirname } from 'path'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync, statSync, watch, FSWatcher } from 'fs'
@@ -7,8 +7,7 @@ import { extractFrontMatter, serializeFrontMatter } from '../shared/fmatter'
 import { countWords } from '../shared/count'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, DOT_DIR } from '../shared/paths'
 import { sanitizeFile } from '../shared/paths'
-import { workspaceDir, libraryRoot } from './settings'
-import { WORKSPACE_DOCS } from './workspace-docs'
+import { libraryRoot } from './settings'
 import type { ChapterEntry, ChapterFrontMatter, FsEvent, ProjectMeta, ProjectStats, ProjectSummary } from '../shared/types'
 
 // ---------- 设置与工作区路径已拆到 settings.ts（参见 docs/架构评审与调整-2026-09-04.md §二） ----------
@@ -266,42 +265,5 @@ function mapEvt(t: string): FsEvent['kind'] {
 
 export function newId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
-}
-
-// ---------- 工作区文档（落档在 <工作区>/文档/，幂等） ----------
-export function workspaceStatus(): { dir: string; inited: boolean; docs: { file: string; name: string }[] } {
-  return { dir: workspaceDir(), inited: existsSync(join(workspaceDir(), '文档')), docs: listWorkspaceDocs() }
-}
-
-export function ensureWorkspaceDocs(): { ok: boolean; created: string[]; docs: string[] } {
-  const ws = workspaceDir()
-  const docDir = join(ws, '文档')
-  mkdirSync(docDir, { recursive: true })
-  mkdirSync(join(ws, '项目库'), { recursive: true })
-  const created: string[] = []
-  for (const [name, content] of Object.entries(WORKSPACE_DOCS)) {
-    const f = join(docDir, name)
-    if (!existsSync(f)) {
-      writeFileSync(f, content, 'utf-8')
-      created.push(name)
-    }
-  }
-  return { ok: true, created, docs: Object.keys(WORKSPACE_DOCS) }
-}
-
-export function listWorkspaceDocs(): { file: string; name: string }[] {
-  const docDir = join(workspaceDir(), '文档')
-  if (!existsSync(docDir)) return []
-  return readdirSync(docDir, { withFileTypes: true })
-    .filter((x) => x.isFile() && x.name.endsWith('.md'))
-    .map((x) => ({ file: x.name, name: x.name.replace(/\.md$/, '') }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'zh'))
-}
-
-export function readWorkspaceDoc(file: string): string | null {
-  const safe = basename(file)
-  const f = join(workspaceDir(), '文档', safe)
-  if (!existsSync(f)) return null
-  return readFileSync(f, 'utf-8')
 }
 
