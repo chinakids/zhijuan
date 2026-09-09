@@ -96,7 +96,7 @@
 - 三道门：`npm run typecheck` ✅ / `npm run build` ✅ / `npm test` **146 例全过**（138+8：listedFrom 1、presenceCheck 6、runPresence 1）。
 - **无头 UI 冒烟**（锁屏下，CDP 9224 + out/renderer）`scripts/presence-ui-smoke.mjs` **PASS**：正文页 Agent 面板出现「人物在场核查」按钮 → 点击 → 抽屉标题「人物在场核查」+ 状态行「本地规则核查：共列 1 条」+ 演示条目（含「让 agent 改」）渲染。
 - **真数据层冒烟**：esbuild bundle audit.ts（alias electron=scripts/electron-stub.mjs）→ node 直跑 `runPresence('织卷smoke')`（真实项目库）→ `ok:true`，2 章全部与约定头「涉及人物」一致（真库 front matter 解析链路验证）。
-- 提交：**<提交号占位>**（feat(check)）。
+- 提交：**f68ca2f**（feat(check)）。
 
 ### 下一步（候选，未拍板）
 
