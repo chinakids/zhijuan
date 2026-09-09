@@ -22,7 +22,7 @@ vi.mock('../../src/main/store', () => ({
 }))
 vi.mock('../../src/main/agent/runtime', () => ({ driveSession: vi.fn() }))
 
-import { listedFrom, presenceCheck } from '../../src/shared/presence'
+import { listedFrom, parseAliases, presenceCheck } from '../../src/shared/presence'
 import { runPresence } from '../../src/main/agent/audit'
 import { setSettings } from '../../src/main/settings'
 import { readDoc, listDocs } from '../../src/main/store'
@@ -118,6 +118,65 @@ describe('presenceCheck（人物在场核查纯函数）', () => {
   })
 })
 
+describe('parseAliases（人物档案约定头「别名」解析）', () => {
+  it('数组写法 / 字符串写法 / [a, b] 字符串写法 / 缺省都收', () => {
+    expect(parseAliases({ '别名': ['小七', '七爷'] })).toEqual(['小七', '七爷'])
+    expect(parseAliases({ '别名': '小七' })).toEqual(['小七'])
+    expect(parseAliases({ '别名': '[小七, 七爷]' })).toEqual(['小七', '七爷'])
+    expect(parseAliases({})).toEqual([])
+    expect(parseAliases(null)).toEqual([])
+  })
+})
+
+describe('presenceCheck 别名规则（机械层第三块·称谓一致性）', () => {
+  const chapter = (file: string, listed: string[] | string, body: string) => ({
+    file,
+    raw: fm(listed) + body
+  })
+
+  it('missing 豁免：涉及人物列了、本名未出现但登记别名出现 → 不报（角色在场，只用别名）', () => {
+    const r = presenceCheck({
+      knownChars: ['阿七'],
+      aliasMap: { 阿七: ['小七'] },
+      chapters: [chapter('正文/第02章_灯塔.md', ['阿七'], '小七低着头，没有说话。')]
+    })
+    expect(r.items).toHaveLength(0)
+    expect(r.summary).toContain('全部与约定头「涉及人物」一致')
+  })
+
+  it('unlisted（别名命中）：正文出现别名、约定头未列 → low，what 指明别名归属', () => {
+    const r = presenceCheck({
+      knownChars: ['沈藏'],
+      aliasMap: { 沈藏: ['沈爷'] },
+      chapters: [chapter('正文/第01章_雾港.md', ['阿七'], '阿七回头。沈爷点了根烟。')]
+    })
+    expect(r.items).toHaveLength(1)
+    expect(r.items[0]).toMatchObject({ severity: 'low' })
+    expect(String(r.items[0].what)).toContain('沈爷')
+    expect(String(r.items[0].what)).toContain('沈藏')
+  })
+
+  it('别名冲突：同一别名被两个及以上人物登记 → medium 一条（与章无关）', () => {
+    const r = presenceCheck({
+      knownChars: ['阿七', '沈藏'],
+      aliasMap: { 阿七: ['老七'], 沈藏: ['老七'] },
+      chapters: [chapter('正文/第01章_雾港.md', ['阿七'], '阿七提着灯。')]
+    })
+    const conflict = r.items.find((i) => i.what.includes('别名'))
+    expect(conflict).toBeDefined()
+    expect(conflict).toMatchObject({ severity: 'medium', where: expect.stringContaining('阿七、沈藏') })
+    expect(r.summary).toContain('别名冲突 1 处')
+  })
+
+  it('未登记别称仍不参与（口径不变）：无 aliasMap 时行为同旧版', () => {
+    const r = presenceCheck({
+      knownChars: ['阿七'],
+      chapters: [chapter('正文/第02章_灯塔.md', ['阿七'], '小七低着头，没有说话。')]
+    })
+    expect(r.items).toHaveLength(1) // 未登记「小七」→ 仍报 missing
+  })
+})
+
 describe('runPresence（主进程：读人物档案题名 + 全卷正文后交给纯函数）', () => {
   it('过滤总览、子目录取末段、跳过空正文；正常输出 ok', () => {
     listDocsMock.mockImplementation((_id: string, dir: string) =>
@@ -135,6 +194,26 @@ describe('runPresence（主进程：读人物档案题名 + 全卷正文后交�
     if (r.ok) {
       expect(r.result.items).toHaveLength(0) // 阿七已列且出现；沈藏未出现
       expect(r.result.summary).toContain('全部与约定头「涉及人物」一致')
+    }
+  })
+
+  it('读取人物档案约定头「别名」，别名命中未列 → unlisted', () => {
+    listDocsMock.mockImplementation((_id: string, dir: string) =>
+      dir === '人物'
+        ? [{ file: '沈藏.md', name: '沈藏', mtime: 1 }]
+        : [{ file: '第01章_雾港.md', name: '第01章_雾港', mtime: 1 }]
+    )
+    readMock.mockImplementation((_id: string, rel: string) => {
+      if (rel.startsWith('人物/')) return '---\n姓名: 沈藏\n别名: [沈爷]\n---\n# 沈藏\n'
+      if (rel.startsWith('正文/')) return fm(['阿七']) + '阿七回头。沈爷点了根烟。'
+      return null
+    })
+    const r = runPresence('demo')
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.result.items).toHaveLength(1)
+      expect(String(r.result.items[0].what)).toContain('沈爷')
+      expect(r.result.items[0].severity).toBe('low')
     }
   })
 })

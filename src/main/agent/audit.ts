@@ -2,7 +2,8 @@
 // 主进程把作品全卷的正文（截段）与全部设定档案整理成材料包，喂给写作引擎一次**写**结构化 JSON，
 // 供 UI 渲染成可逐条转提案的检查报告。和 runSync 同构：独立的 session、无提问、离线出结果。
 import { readDoc, listChapters, listDocs, writeDoc } from '../store'
-import { presenceCheck } from '../../shared/presence'
+import { presenceCheck, parseAliases } from '../../shared/presence'
+import { extractFrontMatter } from '../../shared/fmatter'
 import { chapterOrderCheck } from '../../shared/chapterorder'
 import { registerCapability, runSubtask, type SubtaskDef } from './subtask'
 import type {
@@ -53,14 +54,20 @@ export function runPresence(
 ): { ok: true; result: AuditResult } | { ok: false; error: string } {
   try {
     const knownChars: string[] = []
+    const aliasMap: Record<string, string[]> = {}
     for (const d of listDocs(projectId, '人物')) {
       // 文件可能带子目录（人物/某组/角色.md），取末段；过滤总览/索引类
       const base = d.file.split('/').pop() ?? d.file
       const name = base.replace(/\.md$/i, '').trim()
-      if (name && !['总览', '索引'].includes(name)) knownChars.push(name)
+      if (name && !['总览', '索引'].includes(name)) {
+        knownChars.push(name)
+        const raw = readDoc(projectId, '人物/' + d.file) ?? ''
+        const al = parseAliases(extractFrontMatter(raw).fm)
+        if (al.length) aliasMap[name] = al
+      }
     }
     const chapters = readVolumeChapters(projectId)
-    return { ok: true, result: presenceCheck({ knownChars, chapters }) }
+    return { ok: true, result: presenceCheck({ knownChars, chapters, aliasMap }) }
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e) }
   }

@@ -97,7 +97,7 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
           <ShieldAlert className="h-4 w-4 text-accent" />
           <span className="text-sm font-semibold">
-            {tab === 'consistency' ? '一致性巡查' : tab === 'review' ? '冷读报告' : tab === 'perspectives' ? '多视角审视' : tab === 'presence' ? '人物在场核查' : '切片时序核查'}
+            {tab === 'consistency' ? '一致性巡查' : tab === 'review' ? '冷读报告' : tab === 'perspectives' ? '多视角审视' : tab === 'presence' ? '人物在场与称谓核查' : '切片时序核查'}
           </span>
           <span className="flex-1" />
           <button

@@ -19,9 +19,11 @@ interface DocSectionProps {
   /** 新建文件时写入的模板正文（需返回漏斗与角标即可） */
   templateFor?: (name: string) => string
   fileTitle?: (name: string) => string
+  /** 编辑时剥离 front matter（如人物档案已有「别名」约定头） */
+  withFm?: boolean
 }
 
-export default function DocSection({ relDir, overviewFile, addLabel, addHint, emptyHint, templateFor, fileTitle }: DocSectionProps) {
+export default function DocSection({ relDir, overviewFile, addLabel, addHint, emptyHint, templateFor, fileTitle, withFm }: DocSectionProps) {
   const { id = '' } = useParams()
   const [files, setFiles] = useState<{ file: string; name: string }[]>([])
   const [sel, setSel] = useState<string | null>(overviewFile ?? null)
@@ -96,7 +98,7 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
               <span className="text-[11px] text-ink-3">设定由正文保存时的切片同步维护（S4） · ⌘S 保存</span>
             </div>
             <div className="min-h-0 flex-1">
-              <DocEditor projectId={id} rel={sel} extVersion={extVersion} onSave={() => void refresh()} />
+              <DocEditor projectId={id} rel={sel} withFm={withFm} extVersion={extVersion} onSave={() => void refresh()} />
             </div>
           </>
         ) : (
