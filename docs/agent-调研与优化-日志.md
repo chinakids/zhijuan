@@ -60,4 +60,49 @@
 - 验证：三道门 138 例全绿；无头 UI 冒烟 `scripts/audit-toagent-ui-smoke.mjs` PASS（真实点击链：抽屉→按钮→指令进对话→EditCard 到达）。
 - 剩余候选：**报告间对比**（两份存档 diff，「上次的问题这次还在不在」）——待存档积累两版后做。
 
+## 2026-09-09 16:00 ｜ 调研主题：确定性（规则/统计）审查 vs LLM 审查——业界如何分层 & 织卷缺的「机械层」
+
+### 调研背景
+
+织卷审计阵容（一致性巡查/冷读/多视角/本章小环/让 agent 改）全部是 **LLM 审查**：每次几分钟 + token，天然不适合高频重复。主推进器下一步候选是「报告间对比」，但它依赖存档积累；在本轮先补上 LLM 审查下面的「确定性审查层」——这类检查无需模型、秒级、可重复，是「常驻巡查」的低成本形态。围绕「同类工具把哪些检查做成了确定性计算」做真实调研。
+
+### 来源清单（URL，均可回溯）
+
+- **Novelcrafter · Discover all the features**：https://www.novelcrafter.com/features （其「Review」版块）
+- **Novelcrafter · Codex / Help docs**：https://www.novelcrafter.com/help/docs/codex/series-codex 等（由 features 页 404 的 /codex 页指引）
+- **Sudowrite · Plugins 市场**：https://www.sudowrite.com/plugins （Chapter Recap / Character Simulator / Dialogue Distinctifier 等）
+- （抓取方式：本机 web_search 后端 searxng 本轮空返，改 `curl r.jina.ai/<url>` 取回 Markdown，与既往轮一致）
+
+### 调研结论（要点）
+
+1. **Novelcrafter 把「Review」做成了确定性统计审查**：Appearance Heatmap（人物/元素在场景中的出现热力图，「发现隐藏联系」）、Characters per Scene（发现拥挤场景与缺席角色）、Word Statistics——全是可计算的量化指标，**不消耗 LLM**，与它的 Codex（设定库）分层：Codex 管「是什么」，Review 管「出现频率/分布是否健康」。LLM 审查（它的 chat/scene 评审）是另一层。
+2. **Sudowrite 插件生态与织卷已实现功能几乎一一对位**：Chapter Recap（分析一章记录重要进展 ≈ 织卷章卡回建）、Character Simulator（从角色获取反馈 ≈ 多视角/角色视角）、Dialogue Distinctifier（对话区分度检查）——**业界该有的 LLM 功能织卷都有了**，缺口不在功能而在「低成本确定性检查层」。
+3. **确定性审查的最大价值是「沿写作线高频兜底」**：LLM 巡查几分钟一次、贵，作者不会每章跑；而「涉及人物约定头 vs 正文实际出现」这类检查是**机器可判定的**（子串匹配 + 已知名单），真·秒级、零成本、无模型变数，正合适做成默认常驻的一环。它守护的正是 V2 核心「正文为源、设定为流」的**锚点一致性**——约定头「涉及人物」是切片同步、正文章卡、agent 上下文半径的数据源，清单漂移会污染下游。
+
+### 收敛出的优化点（本轮做）
+
+**人物在场核查（人物 Presence Check）**：逐章对照约定头「涉及人物」与正文实际署名出现，输出两类问题——清单列了但正文未出现（missing，medium）、正文出现但清单没列（unlisted，low）。审计抽屉新增「在场」Tab（与巡查/冷读/视角并排），纯本地规则、零模型、不落盘（高频重跑噪音大，与本章小环同策略）。
+
+- 为什么现在做：业界把「可计算的检查」从 LLM 里分离出来（Review=统计层）；织卷缺这一层，且它守护 V2 数据锚点（涉及人物清单），是与「切片同步」互补的校验面；小步（一个纯函数 + 一个 Tab）、一行可验、单测可覆盖。
+- 怎么做（沿现有架构，无新依赖）：
+  - `src/shared/presence.ts` 纯函数 `presenceCheck`（输入 全部章节 + 人物档案题名 → AuditResult，与审计抽屉同构；`listedFrom` 兼容字符串/数组两种约定头写法）；单字名、别名、指代不参与机械匹配（机械层承认局限，summary 里注明口径）。
+  - `src/main/agent/audit.ts`：`runPresence(projectId)`（listDocs 人物/正文 + readDoc → 纯函数；过滤总览/索引、子目录取末段）；`runAudit('presence')` 特判，不走写作引擎、不落盘。
+  - UI：AuditDrawer 加「在场」Tab（标题/状态行区分「本地规则核查·秒级」）；AgentPanel 头部新增按钮（UserCheck 图标）；devShim mock 对齐主进程语义（presence 不落盘）。
+- 涉及模块：src/shared/presence.ts、src/shared/types.ts、src/main/agent/audit.ts、AuditDrawer.tsx、AgentPanel.tsx、lib/devShim.ts、tests/unit/presence.test.ts、scripts/presence-ui-smoke.mjs。
+- 小取舍：条目不做「转提案」（问题在正文/约定头本体，不在设定文件）；保留「让 agent 改」（模型可用 zj_edit_doc 改约定头或补写正文——与审读条目同哲学）。
+
+### 验证结果（真实跑通）
+
+- 三道门：`npm run typecheck` ✅ / `npm run build` ✅ / `npm test` **146 例全过**（138+8：listedFrom 1、presenceCheck 6、runPresence 1）。
+- **无头 UI 冒烟**（锁屏下，CDP 9224 + out/renderer）`scripts/presence-ui-smoke.mjs` **PASS**：正文页 Agent 面板出现「人物在场核查」按钮 → 点击 → 抽屉标题「人物在场核查」+ 状态行「本地规则核查：共列 1 条」+ 演示条目（含「让 agent 改」）渲染。
+- **真数据层冒烟**：esbuild bundle audit.ts（alias electron=scripts/electron-stub.mjs）→ node 直跑 `runPresence('织卷smoke')`（真实项目库）→ `ok:true`，2 章全部与约定头「涉及人物」一致（真库 front matter 解析链路验证）。
+- 提交：**<提交号占位>**（feat(check)）。
+
+### 下一步（候选，未拍板）
+
+1. **unlisted 联动「切片同步前置校验」**：保存正文时若有「人物出现但未列清单」，可在切片同步前提示补列（避免同步上下文缺人）——但涉及保存热路径，先看使用体验。
+2. **报告间对比**（调研日志候选 3，主推进器候选）：存档是覆盖式、只有最新一版，需先解决「历史版本留存」（如存档也写 git 或改带日期文件名）再谈 diff。
+3. **角色视角的确定性核查扩展**：称谓一致性（同一人物在正文中的称呼变体统计）、时间切片顺序核查（章号 vs 切片时间）——同属机械层，逐个加。
+4. 回写 zhijuan-app 技能（本 job 边界只动织卷仓库，留给拥有技能写权限的会话/主推进器）。
+
 ---

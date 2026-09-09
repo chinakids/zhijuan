@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Loader2, Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, Users } from 'lucide-react'
+import { Loader2, Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, Users, UserCheck } from 'lucide-react'
 import type { ProseApi } from '../editor/Prose'
 import type { AuditKind, EditItem } from '../../../../shared/types'
 import { useAgentStore } from './store'
@@ -343,6 +343,13 @@ export default function AgentPanel(props: AgentPanelProps) {
             className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
           >
             <Users className="h-3.5 w-3.5" />
+          </button>
+          <button
+            title="人物在场核查：约定头「涉及人物」vs 正文实际出现（本地规则·秒级·零模型）"
+            onClick={() => setAudit({ open: true, tab: 'presence' })}
+            className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
+          >
+            <UserCheck className="h-3.5 w-3.5" />
           </button>
           <button title="清空对话" onClick={() => useAgentStore.getState().reset()} className="text-ink-3 hover:text-ink">
             <RotateCcw className="h-3.5 w-3.5" />

@@ -184,8 +184,8 @@ export interface CollectionTask {
   error?: string
 }
 
-/** 全卷检查（agent-first）：一致性巡查 / 冷读报告 / 多视角审视 */
-export type AuditKind = 'consistency' | 'review' | 'perspectives'
+/** 全卷检查（agent-first）：一致性巡查 / 冷读报告 / 多视角审视；presence=本地规则「人物在场核查」（零模型） */
+export type AuditKind = 'consistency' | 'review' | 'perspectives' | 'presence'
 export interface AuditItem {
   severity: 'high' | 'medium' | 'low'
   type: string

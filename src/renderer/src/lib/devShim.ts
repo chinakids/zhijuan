@@ -398,9 +398,19 @@ const mock = {
   },
   agentAudit: async (projectId: string, kind: string) => {
     // 与主进程同语义：审计成功后把结论落盘 大纲/审读_<名>.md（供无头 UI 冒烟断言「已存档」与大纲区「审读存档」）
-    const name = kind === 'consistency' ? '一致性巡查' : kind === 'perspectives' ? '多视角审视' : '冷读报告'
+    const name = kind === 'consistency' ? '一致性巡查' : kind === 'perspectives' ? '多视角审视' : kind === 'presence' ? '人物在场核查' : '冷读报告'
     const res =
-      kind === 'consistency'
+      kind === 'presence'
+        ? {
+            ok: true as const,
+            result: {
+              summary: '（演示）人物在场核查：共 2 章，1 章与「涉及人物」不一致——清单列了却未署名出场 1 处。匹配口径为 2 字及以上署名，别名/单字名不参与。',
+              items: [
+                { severity: 'medium' as const, type: 'character', where: '灯塔（正文/第02章_灯塔.md）', what: '「涉及人物」列了「阿七」，但本章正文未出现 TA 的署名（可能已删戏，或只用了别名/指代）。', suggest: '确认本章是否真需要「阿七」出场：需要则在正文补写该角色，不需要就把 TA 移出本章约定头的「涉及人物」。' }
+              ]
+            }
+          }
+        : kind === 'consistency'
         ? {
             ok: true as const,
             result: {
@@ -434,6 +444,8 @@ const mock = {
                 ]
               }
             }
+    // 人物在场核查：主进程同语义——本地规则结果，不落盘（高频重跑噪音大）
+    if (kind === 'presence') return res
     const rel = '大纲/审读_' + name + '.md'
     const md = '# 审读报告 · ' + name + '\n\n> 织卷写作引擎 · 演示存档\n\n## 一句话结论\n\n' + res.result.summary + '\n\n## 条目（' + res.result.items.length + '）\n'
     docs.set(projectId + '/' + rel, md)

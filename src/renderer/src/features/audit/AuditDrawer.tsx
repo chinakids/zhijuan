@@ -82,7 +82,9 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
       >
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
           <ShieldAlert className="h-4 w-4 text-accent" />
-          <span className="text-sm font-semibold">{tab === 'consistency' ? '一致性巡查' : tab === 'review' ? '冷读报告' : '多视角审视'}</span>
+          <span className="text-sm font-semibold">
+            {tab === 'consistency' ? '一致性巡查' : tab === 'review' ? '冷读报告' : tab === 'perspectives' ? '多视角审视' : '人物在场核查'}
+          </span>
           <span className="flex-1" />
           <button
             onClick={() => onTab('consistency')}
@@ -102,6 +104,12 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
           >
             视角
           </button>
+          <button
+            onClick={() => onTab('presence')}
+            className={cn('rounded-md px-2.5 py-1 text-xs', tab === 'presence' ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface-2')}
+          >
+            在场
+          </button>
           <button onClick={onClose} className="text-ink-3 hover:text-ink">
             <X className="h-4 w-4" />
           </button>
@@ -110,11 +118,17 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
         <div className="flex items-center gap-2 border-b border-hair px-4 py-2 text-[11px] text-ink-3">
           <BookOpenCheck className="h-3.5 w-3.5" />
           {(running || !cur) && !err ? (
-            <span className="flex items-center gap-1 text-accent"><Loader2 className="h-3 w-3 animate-spin" /> 写作引擎通读全卷…（几分钟）</span>
+            <span className="flex items-center gap-1 text-accent">
+              <Loader2 className="h-3 w-3 animate-spin" /> {tab === 'presence' ? '本地规则核查中…' : '写作引擎通读全卷…（几分钟）'}
+            </span>
           ) : err ? (
             <span className="text-danger">{err}</span>
           ) : (
-            <span>全卷读完，共列 {cur!.items.length} 条。可逐条转提案再决定是否采纳。</span>
+            <span>
+              {tab === 'presence'
+                ? `本地规则核查：共列 ${cur!.items.length} 条（零模型·秒级，可随时重跑）。`
+                : `全卷读完，共列 ${cur!.items.length} 条。可逐条转提案再决定是否采纳。`}
+            </span>
           )}
           <span className="flex-1" />
           {saved[tab] && !running && !err && (
