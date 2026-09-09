@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, ArrowRightLeft, Check, Loader2, RefreshCw, Sparkles, X } from 'lucide-react'
 import type { TriageItem, TriageResult } from '../../../../shared/types'
 import { cn } from '../../lib/utils'
+import { toast } from '../../components/ui/toast'
 
 const VERDICT_CN: Record<TriageItem['verdict'], string> = {
   promote: 'bg-success text-white',
@@ -34,10 +35,23 @@ export default function TriageDrawer({ projectId, open, onClose }: Props) {
     setErr('')
     try {
       const r = await window.zhijuan.agentTriage(projectId)
-      if (r.ok) setRes(r.result)
-      else setErr(r.error ?? '升格检查失败')
+      if (r.ok) {
+        setRes(r.result)
+        const pc = r.result.items.filter((x) => x.verdict === 'promote').length
+        toast.add({
+          kind: 'success',
+          title: '素材升格检查完成',
+          description: r.result.items.length
+            ? `共 ${r.result.items.length} 条素材归类，${pc} 条建议直接入档`
+            : '素材库还是空的，先去采集或建素材卡'
+        })
+      } else {
+        setErr(r.error ?? '升格检查失败')
+        toast.add({ kind: 'error', title: '素材升格检查失败', description: r.error ?? '未知原因' })
+      }
     } catch (e: any) {
       setErr(String(e?.message ?? e))
+      toast.add({ kind: 'error', title: '素材升格检查失败', description: String(e?.message ?? e) })
     } finally {
       setRunning(false)
     }

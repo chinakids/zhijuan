@@ -14,6 +14,7 @@ import Timeline from './pages/Timeline'
 import Library from './pages/Library'
 import Settings from './pages/Settings'
 import CommandPalette from './features/command/CommandPalette'
+import { Toaster } from './components/ui/toast'
 
 function Boot() {
   const loadSettings = useAppStore((s) => s.loadSettings)
@@ -64,6 +65,8 @@ export default function App() {
           </HashRouter>
         </div>
       </div>
+      {/* 全局通知堆栈：右上角，层级高于面板/抽屉，透明不挡交互 */}
+      <Toaster />
     </TooltipProvider>
   )
 }

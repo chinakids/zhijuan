@@ -3,10 +3,14 @@ import { AlertTriangle, BookOpenCheck, Check, Loader2, RefreshCw, Send, ShieldAl
 import type { AuditItem, AuditKind, AuditResult } from '../../../../shared/types'
 import { auditItemToAgentPrompt } from '../../../../shared/auditToAgent'
 import { cn } from '../../lib/utils'
+import { toast } from '../../components/ui/toast'
 
 const TYPE_TXT: Record<string, string> = {
   'setting-conflict': '设定冲突', timeline: '时间线', foreshadow: '伏笔', 'character-drift': '人物漂移',
   structure: '结构', pacing: '节奏', character: '人物', prose: '行文', setting: '设定', misc: '其他'
+}
+const K_TITLE: Partial<Record<AuditKind, string>> = {
+  consistency: '一致性巡查', review: '冷读报告', perspectives: '多视角审视', presence: '人物在场核查', order: '切片时序核查'
 }
 const VIEWER_TXT: Record<string, string> = {
   '角色粉': '角色粉视角', '设定党': '设定党视角', '节奏读者': '节奏读者视角'
@@ -44,11 +48,21 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
       if (r.ok) {
         setRes((m) => ({ ...m, [tab]: r.result }))
         if (r.savedReport) setSaved((m) => ({ ...m, [tab]: r.savedReport }))
+        const name = K_TITLE[tab] ?? '检查'
+        toast.add({
+          kind: 'success',
+          title: name + '完成',
+          description: r.result.items.length
+            ? `共列 ${r.result.items.length} 条${r.savedReport ? '，报告已存档到 大纲/' : '，可逐条转提案'}`
+            : '这一遍没有发现问题'
+        })
       } else {
         setErr(r.error ?? '巡查失败')
+        toast.add({ kind: 'error', title: (K_TITLE[tab] ?? '检查') + '失败', description: r.error ?? '未知原因' })
       }
     } catch (e: any) {
       setErr(String(e?.message ?? e))
+      toast.add({ kind: 'error', title: (K_TITLE[tab] ?? '检查') + '失败', description: String(e?.message ?? e) })
     } finally {
       setRunning(false)
     }

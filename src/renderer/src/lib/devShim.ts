@@ -2,6 +2,7 @@
 import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
 import { countWords } from '../../../shared/count'
+import { toast } from '../store/toasts'
 
 const now = Date.now()
 
@@ -689,4 +690,6 @@ export function ensureDevShim() {
   if (window.zhijuan) return
   ;(window as unknown as { __ZJ_TEST: boolean }).__ZJ_TEST = true
   window.zhijuan = mock as unknown as typeof window.zhijuan
+  // 无头冒烟用：暴露全局 Toast API（与 __ZJ_EDITORS 同级的测试面，仅 devShim 存在）
+  ;(window as unknown as { __ZJ_TOAST: typeof toast }).__ZJ_TOAST = toast
 }

@@ -9,6 +9,7 @@ import { useFsEvents } from '../features/fs/useFsEvents'
 import { isBoardStale } from '../../../shared/boardAge'
 import { parseActsWarn } from '../../../shared/actsSeg'
 import { runSliceSync } from '../features/sync/sliceSync'
+import { toast } from '../components/ui/toast'
 
 /** 大纲区：agent 把已有正文回建成章卡，画布随进度活起来。 */
 export default function Outline() {
@@ -98,11 +99,17 @@ export default function Outline() {
     setMsg('')
     try {
       const r = await window.zhijuan.agentOutlineRebuild(id, only)
-      if (r.ok) setMsg(`✓ 已回建 ${r.written.length} 张章卡（写作引擎逐章读正文，结果已落到 大纲/ 目录）`)
-      else setMsg('✗ ' + r.error)
+      if (r.ok) {
+        setMsg(`✓ 已回建 ${r.written.length} 张章卡（写作引擎逐章读正文，结果已落到 大纲/ 目录）`)
+        toast.add({ kind: 'success', title: '章卡回建完成', description: `已回建 ${r.written.length} 张，落 大纲/ 目录` })
+      } else {
+        setMsg('✗ ' + r.error)
+        toast.add({ kind: 'error', title: '章卡回建失败', description: r.error })
+      }
       await refresh()
     } catch (e: any) {
       setMsg('✗ ' + String(e?.message ?? e))
+      toast.add({ kind: 'error', title: '章卡回建失败', description: String(e?.message ?? e) })
     } finally {
       setBuilding(false)
     }
@@ -118,11 +125,17 @@ export default function Outline() {
     setMsg('')
     try {
       const r = await window.zhijuan.agentDirector(id, '正文/' + selChapter.file)
-      if (r.ok) setMsg(`✓ 已为「${selChapter.name}」生成本章导演板（${r.written}），可重导覆盖`)
-      else setMsg('✗ ' + r.error)
+      if (r.ok) {
+        setMsg(`✓ 已为「${selChapter.name}」生成本章导演板（${r.written}），可重导覆盖`)
+        toast.add({ kind: 'success', title: '导演板已生成', description: `「${selChapter.name}」落 ${r.written}，可重导覆盖` })
+      } else {
+        setMsg('✗ ' + r.error)
+        toast.add({ kind: 'error', title: '导演板生成失败', description: r.error })
+      }
       await refresh()
     } catch (e: any) {
       setMsg('✗ ' + String(e?.message ?? e))
+      toast.add({ kind: 'error', title: '导演板生成失败', description: String(e?.message ?? e) })
     } finally {
       setDirecting(false)
     }
@@ -143,15 +156,23 @@ export default function Outline() {
     try {
       const r = await window.zhijuan.agentActs(id, '正文/' + selChapter.file)
       if (r.ok) {
-        if (r.failed?.length)
+        if (r.failed?.length) {
           setMsg(
             `⚠ 「${selChapter.name}」第 ${r.failed.join('、')} 段没写成，草稿只有 ${r.acts} 段（缺段处会断戏）：右上角会出现「补写缺段」，只重写失败段；落 ${r.written}`
           )
-        else setMsg(`✓ 已按导演板分 ${r.acts} 段起草「${selChapter.name}」，草稿约 ${r.words} 字，落 ${r.written}`)
-      } else setMsg('✗ ' + r.error)
+          toast.add({ kind: 'warning', title: '分幕草稿有缺段', description: `「${selChapter.name}」第 ${r.failed.join('、')} 段没写成，可点「补写缺段」；落 ${r.written}` })
+        } else {
+          setMsg(`✓ 已按导演板分 ${r.acts} 段起草「${selChapter.name}」，草稿约 ${r.words} 字，落 ${r.written}`)
+          toast.add({ kind: 'success', title: '分幕草稿已生成', description: `「${selChapter.name}」共 ${r.acts} 段约 ${r.words} 字，落 ${r.written}` })
+        }
+      } else {
+        setMsg('✗ ' + r.error)
+        toast.add({ kind: 'error', title: '分幕生成失败', description: r.error })
+      }
       await refresh()
     } catch (e: any) {
       setMsg('✗ ' + String(e?.message ?? e))
+      toast.add({ kind: 'error', title: '分幕生成失败', description: String(e?.message ?? e) })
     } finally {
       setActing(false)
     }
@@ -165,19 +186,26 @@ export default function Outline() {
     try {
       const r = await window.zhijuan.agentActs(id, '正文/' + selChapter.file, { onlyFailed: true })
       if (r.ok) {
-        if (r.failed?.length)
+        if (r.failed?.length) {
           setMsg(
             `⚠ 「${selChapter.name}」第 ${r.failed.join('、')} 段重写后仍没写成（草稿现 ${r.acts} 段）：可再点「补写缺段」重试，或手动补；落 ${r.written}`
           )
-        else
+          toast.add({ kind: 'warning', title: '补写后仍有缺段', description: `「${selChapter.name}」第 ${r.failed.join('、')} 段仍没写成，可再点「补写缺段」重试；落 ${r.written}` })
+        } else {
           setMsg(
             `✓ 已补写「${selChapter.name}」缺段，草稿现为完整 ${r.acts} 段（约 ${r.words} 字），可「采纳为正文」；落 ${r.written}`
           )
+          toast.add({ kind: 'success', title: '缺段已补写', description: `「${selChapter.name}」草稿现为完整 ${r.acts} 段（约 ${r.words} 字，落 ${r.written}），可「采纳为正文」` })
+        }
         setDraftMissing(r.failed ?? [])
-      } else setMsg('✗ ' + r.error)
+      } else {
+        setMsg('✗ ' + r.error)
+        toast.add({ kind: 'error', title: '补写缺段失败', description: r.error })
+      }
       await refresh()
     } catch (e: any) {
       setMsg('✗ ' + String(e?.message ?? e))
+      toast.add({ kind: 'error', title: '补写缺段失败', description: String(e?.message ?? e) })
     } finally {
       setRepairing(false)
     }
@@ -192,16 +220,26 @@ export default function Outline() {
     try {
       const r = await window.zhijuan.agentActs(id, '正文/' + selChapter.file, { only: [seg] })
       if (r.ok) {
-        setMsg(
-          r.failed?.length
-            ? `⚠ 「${selChapter.name}」第 ${seg} 段重写后仍没写够（草稿其余段保留）：可再点「重写」重试，或手动补；落 ${r.written}`
-            : `✓ 已重写「${selChapter.name}」第 ${seg} 段（其余段保留）。可再点「兑现检查」重查，或「采纳为正文」；落 ${r.written}`
-        )
+        if (r.failed?.length) {
+          setMsg(
+            `⚠ 「${selChapter.name}」第 ${seg} 段重写后仍没写够（草稿其余段保留）：可再点「重写」重试，或手动补；落 ${r.written}`
+          )
+          toast.add({ kind: 'warning', title: '分段重写后仍未写好', description: `「${selChapter.name}」第 ${seg} 段仍没写够，可再点「重写」重试；落 ${r.written}` })
+        } else {
+          setMsg(
+            `✓ 已重写「${selChapter.name}」第 ${seg} 段（其余段保留）。可再点「兑现检查」重查，或「采纳为正文」；落 ${r.written}`
+          )
+          toast.add({ kind: 'success', title: '分段已重写', description: `「${selChapter.name}」第 ${seg} 段已重写（其余段保留，落 ${r.written}）` })
+        }
         setDraftMissing(r.failed ?? [])
-      } else setMsg('✗ ' + r.error)
+      } else {
+        setMsg('✗ ' + r.error)
+        toast.add({ kind: 'error', title: '分段重写失败', description: r.error })
+      }
       await refresh()
     } catch (e: any) {
       setMsg('✗ ' + String(e?.message ?? e))
+      toast.add({ kind: 'error', title: '分段重写失败', description: String(e?.message ?? e) })
     } finally {
       setRewriting(false)
     }
@@ -223,17 +261,29 @@ export default function Outline() {
       if (r.ok) {
         setMsg(`✓ 已把「${selChapter.name}」的正文换成当前分幕草稿（${r.words} 字）；草稿仍保留在 大纲/，可再改再采纳。切片同步中…`)
         // 采纳=整章正文被替换（正文为源、设定为流）：与「保存正文」同口径，完成后触发切片同步出新提案
+        const tid = toast.add({ kind: 'success', title: '已采纳为正文', description: `「${selChapter.name}」正文已替换（${r.words} 字），切片同步中…`, duration: 0 })
         void runSliceSync(id, '正文/' + selChapter.file).then((s) => {
           if (s.ok) {
-            setMsg(s.items > 0 ? `✓ 已替换正文并生成 ${s.items} 条切片提案（待确认）` : '✓ 已替换正文；切片同步：无设定变化')
+            if (s.items > 0) {
+              setMsg(`✓ 已替换正文并生成 ${s.items} 条切片提案（待确认）`)
+              toast.update(tid, { kind: 'info', title: '切片提案待确认', description: `正文替换完成，生成 ${s.items} 条切片提案` })
+            } else {
+              setMsg('✓ 已替换正文；切片同步：无设定变化')
+              toast.update(tid, { kind: 'success', title: '切片同步完成', description: '正文替换完成，无设定变化' })
+            }
           } else {
             setMsg(`✗ 正文已替换，但切片同步失败：${s.error ?? '未知原因'}（可稍后在正文页再保存一次触发）`)
+            toast.update(tid, { kind: 'error', title: '切片同步失败', description: s.error ?? '未知原因' })
           }
         })
-      } else setMsg('✗ ' + r.error)
+      } else {
+        setMsg('✗ ' + r.error)
+        toast.add({ kind: 'error', title: '采纳为正文失败', description: r.error })
+      }
       await refresh()
     } catch (e: any) {
       setMsg('✗ ' + String(e?.message ?? e))
+      toast.add({ kind: 'error', title: '采纳为正文失败', description: String(e?.message ?? e) })
     } finally {
       setAdopting(false)
     }
