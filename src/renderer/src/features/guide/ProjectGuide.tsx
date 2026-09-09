@@ -24,7 +24,8 @@ interface Props {
   projectId: string
   projectName: string
   open: boolean
-  onClose: (completed: boolean) => void
+  /** action: 'start-chapter' = 完成引导后直接进入新建第一章；'guide-done' = 仅关闭引导 */
+  onClose: (action: 'start-chapter' | 'guide-done') => void
 }
 
 const steps = [
@@ -99,7 +100,7 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
     setChars((cs) => (cs.length === 1 ? [{ name: '', role: '', traits: '' }] : cs.filter((_, idx) => idx !== i)))
 
   return (
-    <Dialog open onOpenChange={(v) => !v && !changed && onClose(false)}>
+    <Dialog open onOpenChange={(v) => !v && !changed && onClose('guide-done')}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>开始《{projectName}》</DialogTitle>
@@ -180,7 +181,7 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
         <DialogFooter className="flex items-center justify-between">
           <div className="flex-1 text-left">
             {step < 2 && (
-              <Button variant="ghost" size="sm" onClick={() => onClose(false)}>以后补充</Button>
+              <Button variant="ghost" size="sm" onClick={() => onClose('guide-done')}>以后补充</Button>
             )}
           </div>
           <div className="flex gap-2">
@@ -194,7 +195,10 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
               <Button size="sm" onClick={() => void finish()} disabled={saving}>{saving ? '写入中…' : '完成，进入正文'}</Button>
             )}
             {step === 2 && (
-              <Button size="sm" onClick={() => onClose(true)}>知道了，开始写</Button>
+              <>
+                <Button size="sm" variant="outline" onClick={() => onClose('guide-done')}>稍后再说</Button>
+                <Button size="sm" onClick={() => onClose('start-chapter')}>现在新建第一章</Button>
+              </>
             )}
           </div>
         </DialogFooter>

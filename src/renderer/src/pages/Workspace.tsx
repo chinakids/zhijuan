@@ -13,6 +13,8 @@ export default function Workspace() {
   const { id } = useParams<{ id: string }>()
   const [sp, setSp] = useSearchParams()
   const [guideOpen, setGuideOpen] = useState(() => sp.get('guide') === '1')
+  // 引导「现在新建第一章」信号：递增计数传给 Outlet context，Novel 据此打开建章对话框
+  const [newChapterReq, setNewChapterReq] = useState(0)
   const [project, setProject] = useState<ProjectSummary | null>(null)
   const [counts, setCounts] = useState<NavCounts>(emptyCounts)
 
@@ -78,7 +80,7 @@ export default function Workspace() {
           </header>
         )}
         <div className="min-h-0 flex-1">
-          <Outlet />
+          <Outlet context={{ newChapterReq }} />
         </div>
       </div>
       {drawerOpen && (
@@ -88,9 +90,10 @@ export default function Workspace() {
         projectId={project.id}
         projectName={project.name}
         open={guideOpen}
-        onClose={() => {
+        onClose={(action) => {
           setGuideOpen(false)
           setSp({}, { replace: true })
+          if (action === 'start-chapter') setNewChapterReq((n) => n + 1)
         }}
       />
     </div>

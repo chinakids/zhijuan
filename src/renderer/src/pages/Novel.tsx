@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams, useOutletContext } from 'react-router-dom'
 import { Plus, BookOpen } from 'lucide-react'
 import type { ChapterEntry, UnlistedHit } from '../../../shared/types'
 import { serializeFrontMatter, addFrontMatterListItem } from '../../../shared/fmatter'
@@ -33,6 +33,12 @@ export default function Novel() {
   const apiRef = useRef<ProseApi | null>(null)
   const [syncMsg, setSyncMsg] = useState('')
   const [checkOpen, setCheckOpen] = useState(false)
+  // 项目引导「现在新建第一章」：Workspace 经 Outlet context 发信号（递增计数），打开建章对话框
+  const outletCtx = useOutletContext<{ newChapterReq?: number }>()
+  const newChapterReq = outletCtx?.newChapterReq ?? 0
+  useEffect(() => {
+    if (newChapterReq > 0) setCreating(true)
+  }, [newChapterReq])
   // 保存时的「名单外出场」前置提示（本地规则·零模型）：命中且未忽略才显示；忽略记本会话内不再提示本章
   const [unlistedCard, setUnlistedCard] = useState<{ rel: string; items: UnlistedHit[] } | null>(null)
   const dismissedUnlisted = useRef(new Set<string>())
