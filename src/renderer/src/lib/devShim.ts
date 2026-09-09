@@ -554,7 +554,7 @@ const mock = {
       }
     }
   },
-  // 分幕生成（dev 模式：有导演板就写一份演示分幕草稿；opts 仅保持契约，演示数据无缺段）
+  // 分幕生成（dev 模式：有导演板就写一份演示分幕草稿；opts.only 只重写指定段、其余段保留——与主进程同语义的简化实现）
   agentActs: async (projectId: string, chapterRel: string, _opts?: { only?: number[]; onlyFailed?: boolean }) => {
     const name = chapterRel.replace(/^正文\//, '').replace(/\.md$/, '')
     const boardRel = '大纲/' + name + '_导演.md'
@@ -562,6 +562,26 @@ const mock = {
       return { ok: false, error: '本章还没有导演板。先在「大纲区」点「导演本章」生成一张，再回来分幕生成。' }
     }
     const rel = '大纲/' + name + '_分幕.md'
+    const only = (_opts?.only ?? []).filter((n) => Number.isFinite(n) && n >= 1)
+    if (only.length) {
+      const cur = docs.get(projectId + '/' + rel)
+      if (cur == null) return { ok: false, error: '本章还没有分幕草稿：先点「分幕生成」写出一版，再来只重写指定段。' }
+      const fmPart = cur.match(/^---\n[\s\S]*?\n---\s*(\n|$)/)?.[0] ?? ''
+      const body = cur.slice(fmPart.length)
+      const segRe = /## 第 (\d+) 段\n\n([\s\S]*?)(?=\n\n## 第 \d+ 段|$)/g
+      let replaced = 0
+      const out = body.replace(segRe, (m, num, text) => {
+        const n = Number(num)
+        if (only.includes(n)) {
+          replaced++
+          return `## 第 ${n} 段\n\n${text.trim()}\n\n【演示：第 ${n} 段已重写】`
+        }
+        return m
+      })
+      if (!replaced) return { ok: false, error: '草稿里没有要求重写的段落（第 ' + only.join('、') + ' 段）。' }
+      docs.set(projectId + '/' + rel, fmPart + out)
+      return { ok: true, written: rel, acts: replaced, words: 100 }
+    }
     const body = [
       '## 第 1 段',
       '',

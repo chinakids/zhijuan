@@ -514,6 +514,50 @@ describe('runActs 补写缺段（onlyFailed / only）', () => {
     if (!r.ok) expect(r.error).toContain('旧格式')
   })
 
+  it('only 指定段号：还没有分幕草稿 → 报错且不发请求、不写盘（不静默盖出只有目标段的空草稿）', async () => {
+    listChaptersMock.mockReturnValue([ch])
+    setupDraft('')
+    const r = await runActs('p1', '正文/第01章_雾港.md', undefined, undefined, { only: [2] })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toContain('还没有分幕草稿')
+    expect(driveMock).not.toHaveBeenCalled()
+    expect(writeMock).not.toHaveBeenCalled()
+  })
+
+  it('only 指定段号：旧格式草稿（无分段标记）→ 提示重新分幕生成，原稿不被覆盖', async () => {
+    listChaptersMock.mockReturnValue([ch])
+    setupDraft('---\n章号: 1\n题名: 雾港\n状态: 分幕草稿\n---\n\n# 雾港（分幕草稿）\n\n旧格式正文没有段标记')
+    const r = await runActs('p1', '正文/第01章_雾港.md', undefined, undefined, { only: [1] })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toContain('旧格式')
+    expect(driveMock).not.toHaveBeenCalled()
+    expect(writeMock).not.toHaveBeenCalled()
+  })
+
+  it('only 指定段号：重写已存在段 → 该段文本被替换、其余段原样保留', async () => {
+    listChaptersMock.mockReturnValue([ch])
+    setupDraft(
+      buildActsDoc(
+        ch,
+        [
+          { index: 1, text: pad('第一段成文') },
+          { index: 2, text: pad('第二段成文') }
+        ],
+        { 章号: 1, 题名: '雾港' }
+      )
+    )
+    driveMock.mockImplementation(async () => pad('重写后的第二段'))
+    const r = await runActs('p1', '正文/第01章_雾港.md', undefined, undefined, { only: [2] })
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.acts).toBe(2)
+    expect(driveMock.mock.calls).toHaveLength(1)
+    expect(driveMock.mock.calls[0][1]).toContain('第 2 / 3 段')
+    const doc = writeMock.mock.calls.find((c) => c[1] === actsRel(ch))?.[2] ?? ''
+    expect(doc).toContain('第一段成文')
+    expect(doc).toContain('重写后的第二段')
+    expect(doc).not.toContain('第二段成文')
+  })
+
   it('only 指定段号：重写首段用上一章结尾承接（非首章），其余段保留', async () => {
     const prevCh: ChapterEntry = {
       file: '第00章_起航.md',

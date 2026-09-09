@@ -156,13 +156,18 @@ export async function runActs(
     const failed: number[] = []
 
     if (isRepair) {
-      // ── 补写缺段：只重写失败段，已写成的段原样保留（每段生成约一轮完整请求，重跑全量太浪费） ──
+      // ── 补写缺段/重写指定段：只动目标段，已写成的段原样保留（每段生成约一轮完整请求，重跑全量太浪费） ──
+      // 只重写是「在现有草稿上动刀」：没有草稿、或草稿是旧格式（无分段标记无法定位）都直接报错，
+      // 绝不静默地用只含目标段的空草稿把原稿盖掉。
       const draftRaw = readDoc(projectId, actsRel(ch)) ?? ''
-      const existing = splitActsBody(extractFrontMatter(draftRaw).body ?? '')
-      const warnMissing = opts?.onlyFailed ? parseActsWarn(draftRaw) : []
-      if (!existing.size && warnMissing.length) {
-        return { ok: false, error: '这份分幕草稿是旧格式（没有分段标记），无法只补缺段：请重新「分幕生成」。' }
+      if (!draftRaw.trim()) {
+        return { ok: false, error: '本章还没有分幕草稿：先点「分幕生成」写出一版，再来只重写指定段。' }
       }
+      const existing = splitActsBody(extractFrontMatter(draftRaw).body ?? '')
+      if (!existing.size) {
+        return { ok: false, error: '这份分幕草稿是旧格式（没有分段标记），无法只补/重写指定段：请重新「分幕生成」。' }
+      }
+      const warnMissing = opts?.onlyFailed ? parseActsWarn(draftRaw) : []
       const targets = (opts?.only ?? warnMissing)
         .filter((n) => Number.isFinite(n) && n >= 1 && n <= arcs.length)
         .sort((a, b) => a - b)

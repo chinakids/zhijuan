@@ -41,10 +41,16 @@ interface Props {
   chapter: { name: string; file: string } | null
   open: boolean
   onClose: () => void
+  /** 本章是否已有分幕草稿（没有时「重写该段」不可用：先分幕生成） */
+  actsExists?: boolean
+  /** 用户点「重写第 N 段」：只重写该分幕段（与补写缺段同一条 only 通道），由大纲区执行并刷新 */
+  onRewriteSeg?: (seg: number) => void
+  /** 重写进行中（按钮转圈/禁用） */
+  rewriting?: boolean
 }
 
 /** 导演兑现检查：写完一章后对照导演板核对承诺兑没兑现（情绪弧 / 行为轴 / 红线 / 钩子） */
-export default function DirectorCheckDrawer({ projectId, chapter, open, onClose }: Props) {
+export default function DirectorCheckDrawer({ projectId, chapter, open, onClose, actsExists = false, onRewriteSeg, rewriting = false }: Props) {
   const [res, setRes] = useState<DirectorCheckResult | null>(null)
   const [running, setRunning] = useState(false)
   const [err, setErr] = useState('')
@@ -138,6 +144,24 @@ export default function DirectorCheckDrawer({ projectId, chapter, open, onClose 
                               {it.ref}
                             </p>
                             <p className="mt-1 text-[11px] text-ink-2">{it.note}</p>
+                            {sec.key === 'arcs' && (it.status === 'missed' || it.status === 'partial') && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onRewriteSeg?.(i + 1)
+                                }}
+                                disabled={rewriting || !actsExists}
+                                title={
+                                  actsExists
+                                    ? `只重写「第 ${i + 1} 段」的草稿（其余段保留），写好后可再点「兑现检查」重查`
+                                    : '本章还没有分幕草稿：先在左侧点「分幕生成」，再来重写这一段'
+                                }
+                                className="mt-1.5 flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-warn px-1.5 py-0.5 text-[10px] text-warn transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+                              >
+                                <RefreshCw className={cn('h-2.5 w-2.5', rewriting && 'animate-spin')} />
+                                {rewriting ? '重写中…' : `重写第 ${i + 1} 段`}
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>

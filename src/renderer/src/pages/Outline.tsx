@@ -21,6 +21,7 @@ export default function Outline() {
   const [directing, setDirecting] = useState(false)
   const [acting, setActing] = useState(false)
   const [repairing, setRepairing] = useState(false)
+  const [rewriting, setRewriting] = useState(false)
   const [adopting, setAdopting] = useState(false)
   const [confirmAdopt, setConfirmAdopt] = useState(false)
   const [checkOpen, setCheckOpen] = useState(false)
@@ -174,6 +175,30 @@ export default function Outline() {
       setMsg('✗ ' + String(e?.message ?? e))
     } finally {
       setRepairing(false)
+    }
+  }
+
+  // 兑现检查「没兑现/部分兑现」→ 重写对应分幕段：只重写该段号（草稿其余段原样保留），
+  // 与「补写缺段」同一条 only 通道；段号=导演板情绪弧顺序，与检查报告 arcs 顺序一一对应
+  const rewriteSeg = async (seg: number) => {
+    if (!id || rewriting || !selChapter) return
+    setRewriting(true)
+    setMsg('')
+    try {
+      const r = await window.zhijuan.agentActs(id, '正文/' + selChapter.file, { only: [seg] })
+      if (r.ok) {
+        setMsg(
+          r.failed?.length
+            ? `⚠ 「${selChapter.name}」第 ${seg} 段重写后仍没写够（草稿其余段保留）：可再点「重写」重试，或手动补；落 ${r.written}`
+            : `✓ 已重写「${selChapter.name}」第 ${seg} 段（其余段保留）。可再点「兑现检查」重查，或「采纳为正文」；落 ${r.written}`
+        )
+        setDraftMissing(r.failed ?? [])
+      } else setMsg('✗ ' + r.error)
+      await refresh()
+    } catch (e: any) {
+      setMsg('✗ ' + String(e?.message ?? e))
+    } finally {
+      setRewriting(false)
     }
   }
 
@@ -412,6 +437,9 @@ export default function Outline() {
         chapter={selChapter ? { name: selChapter.name, file: selChapter.file } : null}
         open={checkOpen}
         onClose={() => setCheckOpen(false)}
+        actsExists={!!selChapter && hasActs(selChapter)}
+        onRewriteSeg={(seg) => void rewriteSeg(seg)}
+        rewriting={rewriting}
       />
     </div>
   )
