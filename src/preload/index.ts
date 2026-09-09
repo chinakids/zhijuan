@@ -82,7 +82,7 @@ const api = {
     ipcRenderer.invoke('agent:answer', batch, answers) as Promise<{ ok: boolean; error?: string }>,
   agentAudit: (projectId: string, kind: AuditKind) =>
     ipcRenderer.invoke('agent:audit', projectId, kind) as Promise<
-      | { ok: true; result: { summary: string; items: AuditItem[] } }
+      | { ok: true; result: { summary: string; items: AuditItem[] }; savedReport?: string }
       | { ok: false; error: string }
     >,
   agentChapterCheck: (projectId: string, chapterRel: string, kind: ChapterCheckKind) =>

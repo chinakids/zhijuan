@@ -1,7 +1,7 @@
 // ===== 织卷 · 全卷检查子任务（agent-first：一致性巡查 / 冷读报告） =====
 // 主进程把作品全卷的正文（截段）与全部设定档案整理成材料包，喂给写作引擎一次**写**结构化 JSON，
 // 供 UI 渲染成可逐条转提案的检查报告。和 runSync 同构：独立的 session、无提问、离线出结果。
-import { readDoc, listChapters, listDocs } from '../store'
+import { readDoc, listChapters, listDocs, writeDoc } from '../store'
 import { registerCapability, runSubtask, type SubtaskDef } from './subtask'
 import type {
   ChapterEntry,
@@ -15,6 +15,71 @@ import type {
 } from '../../shared/types'
 
 export type { AuditKind, AuditItem, AuditResult }
+
+// ===== 审读存档（2026-09-09）：全卷审计结论自动落盘 大纲/ 区 =====
+// 调研结论（docs/agent-调研与优化-日志.md）：同类 agent-native 长篇工具把「AI Review/审读结果」当项目持久资产
+// （可回查、可对比），审读一次即弃=重跑重花时间且无法回答「上次说过什么、改了吗」。
+// 设计：覆盖式（每类一个文件，最新一次为准）、写作副产物直写（与章卡/导演板同约定）、空结果也留档证明跑过。
+const AUDIT_NAMES: Record<AuditKind, string> = {
+  consistency: '一致性巡查',
+  review: '冷读报告',
+  perspectives: '多视角审视'
+}
+
+/** 审计结果存档的相对路径：大纲/审读_<名>.md */
+export function auditReportRel(kind: AuditKind): string {
+  return '大纲/审读_' + AUDIT_NAMES[kind] + '.md'
+}
+
+const TYPE_CN: Record<string, string> = {
+  'setting-conflict': '设定冲突',
+  timeline: '时间线',
+  foreshadow: '伏笔',
+  'character-drift': '人物漂移',
+  structure: '结构',
+  pacing: '节奏',
+  character: '人物',
+  prose: '行文',
+  setting: '设定',
+  misc: '其他'
+}
+const SEV_CN: Record<AuditItem['severity'], string> = { high: '高', medium: '中', low: '低' }
+
+/** 审计结果 → 可入 git 的 markdown 存档（纯函数，可单测） */
+export function auditToMarkdown(
+  result: AuditResult,
+  kind: AuditKind,
+  opts: { now?: string } = {}
+): string {
+  const now = opts.now ?? new Date().toLocaleString('zh-CN', { hour12: false })
+  const lines: string[] = []
+  lines.push(`# 审读报告 · ${AUDIT_NAMES[kind]}`)
+  lines.push('')
+  lines.push(`> 织卷写作引擎 · ${now} · 每次重跑覆盖本文件，历史版本在 git 可回溯`)
+  lines.push('')
+  lines.push('## 一句话结论')
+  lines.push('')
+  lines.push(result.summary.trim() ? result.summary.trim() : '（无总结）')
+  lines.push('')
+  lines.push(`## 条目（${result.items.length}）`)
+  lines.push('')
+  if (!result.items.length) {
+    lines.push('这一遍没有发现问题。')
+  } else {
+    result.items.forEach((it, i) => {
+      const viewer = it.viewer ? ` · ${it.viewer}` : ''
+      lines.push(`### ${i + 1} · [${SEV_CN[it.severity]}] ${TYPE_CN[it.type] ?? it.type}${viewer}`, '')
+      lines.push(`- 位置：${it.where}`)
+      lines.push(`- 现象：${it.what}`)
+      lines.push(`- 建议：${it.suggest}`)
+      if (it.target) lines.push(`- 关联档案：${it.target}`)
+      lines.push('')
+    })
+  }
+  lines.push('---', '')
+  lines.push('*本报告由织卷全卷检查自动生成；条目可在「Agent 面板 → 全卷检查」逐条转提案。*', '')
+  return lines.join('\n')
+}
 
 /** 正文去掉 front matter（约定头） */
 function stripFm(raw: string): string {
@@ -102,10 +167,23 @@ registerCapability(auditDef as never)
 export async function runAudit(
   projectId: string,
   kind: AuditKind
-): Promise<{ ok: true; result: AuditResult } | { ok: false; error: string }> {
+): Promise<{ ok: true; result: AuditResult; savedReport?: string } | { ok: false; error: string }> {
   // 多视角审视是独立能力，参数不同（无 kind），单独路由
-  if (kind === 'perspectives') return runSubtask(perspectiveDef, projectId)
-  return runSubtask(auditDef, projectId, { kind })
+  const r =
+    kind === 'perspectives'
+      ? await runSubtask(perspectiveDef, projectId)
+      : await runSubtask(auditDef, projectId, { kind })
+  if (!r.ok) return r
+  // 审读存档：结论落盘（覆盖式），失败不阻断审计结果本身
+  let savedReport: string | undefined
+  try {
+    const rel = auditReportRel(kind)
+    writeDoc(projectId, rel, auditToMarkdown(r.result, kind))
+    savedReport = rel
+  } catch {
+    /* 盘写失败不阻断 */
+  }
+  return savedReport ? { ok: true, result: r.result, savedReport } : { ok: true, result: r.result }
 }
 
 // ===== 多视角审视（agent-first P2）：三种立场的读者各通读一遍，交叉找问题 =====

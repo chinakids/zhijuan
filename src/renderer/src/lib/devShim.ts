@@ -394,41 +394,49 @@ const mock = {
     console.log('[devShim] agent answer', JSON.stringify(answers))
     return { ok: true }
   },
-  agentAudit: async (_projectId: string, kind: string) =>
-    kind === 'consistency'
-      ? {
-          ok: true,
-          result: {
-            summary: '（演示）发现有 2 处设定需要再看一眼。',
-            items: [
-              { severity: 'high', type: 'setting-conflict', where: '第2章 · 灯塔夜访（正文/第02章_灯塔夜访.md）', what: '“顾岸的旧车”前文是烟青色，这里写成了黑色', suggest: '统一为烟青色并顺手修正后文描写', target: '人物/顾岸.md' },
-              { severity: 'low', type: 'foreshadow', where: '第1章 · 雾港之夜', what: '墙角提到一封信，之后没有回收', suggest: '后续任一章节提一笔，或在文中删掉', target: '' },
-              { severity: 'medium', type: 'character-drift', where: '第3章', what: '沈确的称呼在“你”与“您”之间跳了两次', suggest: '保持对这个人物的固定称呼（建议互称）', target: '人物/沈确.md' }
-            ]
-          }
-        }
-      : kind === 'perspectives'
+  agentAudit: async (projectId: string, kind: string) => {
+    // 与主进程同语义：审计成功后把结论落盘 大纲/审读_<名>.md（供无头 UI 冒烟断言「已存档」与大纲区「审读存档」）
+    const name = kind === 'consistency' ? '一致性巡查' : kind === 'perspectives' ? '多视角审视' : '冷读报告'
+    const res =
+      kind === 'consistency'
         ? {
-            ok: true,
+            ok: true as const,
             result: {
-              summary: '（演示）设定党最在意的一处：第 4 章里灯塔重新点灯，但世界观档写它二十年前就废弃了。',
+              summary: '（演示）发现有 2 处设定需要再看一眼。',
               items: [
-                { severity: 'high', type: 'setting', viewer: '设定党', where: '第4章 · 灯塔重明（正文/第04章_灯塔重明.md）', what: '灯塔被写“重新点灯”，但世界观切片从未提过它可以再用', suggest: '补一段设定或在正文里加入“重新启用”的交代', target: '世界观/切片_灯塔.md' },
-                { severity: 'medium', type: 'character', viewer: '角色粉', where: '第2章 · 灯塔夜访', what: '顾岸明明怕水，这里却主动要在夜潮里走', suggest: '给一个由头（比如有人落水）或让他在岸上等', target: '人物/顾岸.md' },
-                { severity: 'low', type: 'pacing', viewer: '节奏读者', where: '第3章', what: '开头用一整段慢慢描天气，主线三章没推进', suggest: '把天气细节并进动作里，主线事件提前半页' }
+                { severity: 'high' as const, type: 'setting-conflict', where: '第2章 · 灯塔夜访（正文/第02章_灯塔夜访.md）', what: '“顾岸的旧车”前文是烟青色，这里写成了黑色', suggest: '统一为烟青色并顺手修正后文描写', target: '人物/顾岸.md' },
+                { severity: 'low' as const, type: 'foreshadow', where: '第1章 · 雾港之夜', what: '墙角提到一封信，之后没有回收', suggest: '后续任一章节提一笔，或在文中删掉', target: '' },
+                { severity: 'medium' as const, type: 'character-drift', where: '第3章', what: '沈确的称呼在“你”与“您”之间跳了两次', suggest: '保持对这个人物的固定称呼（建议互称）', target: '人物/沈确.md' }
               ]
             }
           }
-        : {
-            ok: true,
-            result: {
-              summary: '（演示）开篇节奏可以再快一点。',
-              items: [
-                { severity: 'high', type: 'pacing', where: '第1章 · 雾港之夜', what: '进入第一个事件太慢，背景铺垫多', suggest: '让第一个事件提前一页，细节后置到冲突里补', target: '' },
-                { severity: 'medium', type: 'structure', where: '全书', what: '第3章和第4章是同一天的两条线，读者易混', suggest: '在章节头标注同一天下的不同地点', target: '世界观/切片_灯塔.md' }
-              ]
+        : kind === 'perspectives'
+          ? {
+              ok: true as const,
+              result: {
+                summary: '（演示）设定党最在意的一处：第 4 章里灯塔重新点灯，但世界观档写它二十年前就废弃了。',
+                items: [
+                  { severity: 'high' as const, type: 'setting', viewer: '设定党', where: '第4章 · 灯塔重明（正文/第04章_灯塔重明.md）', what: '灯塔被写“重新点灯”，但世界观切片从未提过它可以再用', suggest: '补一段设定或在正文里加入“重新启用”的交代', target: '世界观/切片_灯塔.md' },
+                  { severity: 'medium' as const, type: 'character', viewer: '角色粉', where: '第2章 · 灯塔夜访', what: '顾岸明明怕水，这里却主动要在夜潮里走', suggest: '给一个由头（比如有人落水）或让他在岸上等', target: '人物/顾岸.md' },
+                  { severity: 'low' as const, type: 'pacing', viewer: '节奏读者', where: '第3章', what: '开头用一整段慢慢描天气，主线三章没推进', suggest: '把天气细节并进动作里，主线事件提前半页' }
+                ]
+              }
             }
-          },
+          : {
+              ok: true as const,
+              result: {
+                summary: '（演示）开篇节奏可以再快一点。',
+                items: [
+                  { severity: 'high' as const, type: 'pacing', where: '第1章 · 雾港之夜', what: '进入第一个事件太慢，背景铺垫多', suggest: '让第一个事件提前一页，细节后置到冲突里补', target: '' },
+                  { severity: 'medium' as const, type: 'structure', where: '全书', what: '第3章和第4章是同一天的两条线，读者易混', suggest: '在章节头标注同一天下的不同地点', target: '世界观/切片_灯塔.md' }
+                ]
+              }
+            }
+    const rel = '大纲/审读_' + name + '.md'
+    const md = '# 审读报告 · ' + name + '\n\n> 织卷写作引擎 · 演示存档\n\n## 一句话结论\n\n' + res.result.summary + '\n\n## 条目（' + res.result.items.length + '）\n'
+    docs.set(projectId + '/' + rel, md)
+    return { ...res, savedReport: rel }
+  },
   agentSync: async () => ({ ok: true, items: [] } as { ok: boolean; items: ProposalItem[] }),
   agentStatus: async () => ({ online: true, provider: '本机 vLLM', model: 'deepseek-v4-flash-vision-exp-uncensored' }),
   agentListCapabilities: async () => [

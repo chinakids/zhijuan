@@ -26,6 +26,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 export default function AuditDrawer({ projectId, open, tab, onClose, onTab }: Props) {
   const [res, setRes] = useState<Partial<Record<AuditKind, AuditResult>>>({})
+  const [saved, setSaved] = useState<Partial<Record<AuditKind, string>>>({})
   const [running, setRunning] = useState(false)
   const [err, setErr] = useState('')
   const [made, setMade] = useState<Set<number>>(new Set())
@@ -37,6 +38,7 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab }: Pr
       const r = await window.zhijuan.agentAudit(projectId, tab)
       if (r.ok) {
         setRes((m) => ({ ...m, [tab]: r.result }))
+        if (r.savedReport) setSaved((m) => ({ ...m, [tab]: r.savedReport }))
       } else {
         setErr(r.error ?? '巡查失败')
       }
@@ -110,6 +112,11 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab }: Pr
             <span>全卷读完，共列 {cur!.items.length} 条。可逐条转提案再决定是否采纳。</span>
           )}
           <span className="flex-1" />
+          {saved[tab] && !running && !err && (
+            <span className="flex shrink-0 items-center gap-1 text-success" title={'已存档：' + saved[tab]}>
+              <Check className="h-3 w-3" /> 已存档
+            </span>
+          )}
           {cur && !running && (
             <button
               onClick={() => { /* 重新跑 */ setRes((m) => ({ ...m, [tab]: undefined })); setErr(''); void run() }}
