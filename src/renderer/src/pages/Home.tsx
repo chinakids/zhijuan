@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BookText, FolderOpen, Plus, Trash2, MoreHorizontal } from 'lucide-react'
-import type { ProjectSummary } from '../../../shared/types'
+import type { ProjectSummary, ProjectTemplate } from '../../../shared/types'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
@@ -16,6 +16,7 @@ import {
 } from '../components/ui/dialog'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,6 +48,12 @@ export default function Home() {
   const [name, setName] = useState('')
   const [desc, setDesc] = useState('')
   const [folder, setFolder] = useState('')
+  const [templates, setTemplates] = useState<ProjectTemplate[]>([])
+  const [template, setTemplate] = useState('')
+
+  useEffect(() => {
+    void window.zhijuan.listTemplates().then(setTemplates)
+  }, [])
 
   const refresh = useCallback(async () => {
     const list = await window.zhijuan.listProjects()
@@ -60,7 +67,7 @@ export default function Home() {
 
   async function create() {
     if (!name.trim()) return
-    const p = await window.zhijuan.createProject(name.trim(), desc.trim())
+    const p = await window.zhijuan.createProject(name.trim(), desc.trim(), template || undefined)
     setCreating(false)
     setName('')
     setDesc('')
@@ -184,6 +191,23 @@ export default function Home() {
             <div className="space-y-1.5">
               <Label>一句话简介（可选）</Label>
               <Input placeholder="讲讲这本书是什么…" value={desc} onChange={(e) => setDesc(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>初始内容（可选）</Label>
+              <Select value={template} onValueChange={setTemplate}>
+                <SelectTrigger>
+                  <SelectValue placeholder="空白（仅目录骨架）" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">空白（仅目录骨架）</SelectItem>
+                  {templates.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.builtin ? `示例（${t.name}）` : t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-ink-3">选「示例」会带一份角色档案、切片设定和一章示例正文，可随时删除；自定义模板放在 工作区/模板/项目模板/ 下。</p>
             </div>
           </div>
           <DialogFooter>

@@ -8,6 +8,7 @@ import { countWords } from '../shared/count'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, DOT_DIR } from '../shared/paths'
 import { sanitizeFile } from '../shared/paths'
 import { libraryRoot } from './settings'
+import { applyTemplate } from './templates'
 import type { ChapterEntry, ChapterFrontMatter, FsEvent, ProjectMeta, ProjectStats, ProjectSummary } from '../shared/types'
 
 // ---------- 设置与工作区路径已拆到 settings.ts（参见 docs/架构评审与调整-2026-09-04.md §二） ----------
@@ -70,7 +71,7 @@ export function ensureSkeleton(id: string) {
 const newProjectBody = `\n## 时间线总纲\n\n（本作品的故事时间线。每个章节 = 一个时间切片，切片名写在该章正文的约定头里。）\n\n## 目录约定\n\n- 正文：\`正文/第NN章_题名.md\`，每章开头有一段 front matter（章号/题名/切片/涉及人物）。\n- 人物：每角色一个 \`人物/<角色名>.md\`，基础设定 + 按切片的状态小节。\n- 世界观：\`世界观/总纲.md\` + 每个切片的 \`世界观/切片_<切片名>.md\`。\n- 素材库：按类别目录存放素材文档；联网采集的原始任务在 \`素材库/采集池/\`。\n- 工具数据（提案、会话）在 \`.zhijuan/\`，不是设定本体。\n`
 
 // ---------- 项目操作 ----------
-export function createProject(name: string, description: string): ProjectSummary | null {
+export function createProject(name: string, description: string, template?: string): ProjectSummary | null {
   const root = libraryRoot()
   ensureDir(root)
   let id = sanitizeFile(name)
@@ -81,6 +82,8 @@ export function createProject(name: string, description: string): ProjectSummary
   const f = projectFile(id)
   writeFileSync(f, readFileSync(f, 'utf-8') + newProjectBody, 'utf-8')
   ensureSkeleton(id)
+  // 「初始内容」模板：补充复制示例/用户模板文档（跳过已存在文件，不覆盖骨架与 project.md）
+  if (template) applyTemplate(template, projectDir(id))
   return summarize(id)
 }
 

@@ -22,6 +22,13 @@ export interface ProjectSummary extends ProjectMeta {
   lastChapter?: string
 }
 
+/** 项目模板（新建项目时的「初始内容」选项） */
+export interface ProjectTemplate {
+  id: string
+  name: string
+  builtin: boolean
+}
+
 /** 章节约定头（模块设计 §2.3，全文唯一半结构化约定；键为中文，与磁盘文件一致） */
 export interface ChapterFrontMatter {
   章号?: number

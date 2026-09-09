@@ -1,5 +1,5 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
-import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary, SliceEntry } from '../../../shared/types'
+import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
 import { countWords } from '../../../shared/count'
 
@@ -186,11 +186,12 @@ const mock = {
   },
   workspaceRead: async (file: string) => wsDocs.get(file) ?? null,
   listProjects: async (): Promise<ProjectSummary[]> => projects.slice(),
-  createProject: async (name: string, description: string): Promise<ProjectSummary> => {
+  createProject: async (name: string, description: string, _template?: string): Promise<ProjectSummary> => {
     const p: ProjectSummary = { id: 'demo-' + name.slice(0, 4), name, description, createdAt: now, updatedAt: now, stats: { chapters: 0, characters: 0, worldviewFiles: 0, materials: 0 } }
     projects.unshift(p)
     return p
   },
+  listTemplates: async (): Promise<ProjectTemplate[]> => [{ id: '示例', name: '示例', builtin: true }],
   importProject: async () => ({ ok: true }),
   removeProject: async (id: string) => {
     const i = projects.findIndex((p) => p.id === id)

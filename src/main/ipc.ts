@@ -21,6 +21,7 @@ import {
   watchProject
 } from './store'
 import { workspaceStatus, ensureWorkspaceDocs, readWorkspaceDoc } from './workspace'
+import { listTemplates } from './templates'
 import { workspaceDir } from './settings'
 
 export function broadcastToAll(evt: FsEvent) {
@@ -45,7 +46,8 @@ export function registerIpc() {
 
   // 项目
   ipcMain.handle('project:list', () => listProjects())
-  ipcMain.handle('project:create', (_e, name: string, description: string) => createProject(name, description))
+  ipcMain.handle('project:create', (_e, name: string, description: string, template?: string) => createProject(name, description, template))
+  ipcMain.handle('project:templates', () => listTemplates())
   ipcMain.handle('project:remove', (_e, id: string) => removeProject(id))
   ipcMain.handle('project:import', (_e, dir: string) => importProject(dir))
   ipcMain.handle('project:reveal', (_e, id: string) => {

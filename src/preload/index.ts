@@ -5,6 +5,7 @@ import type {
   ChapterEntry,
   FsEvent,
   ProjectSummary,
+  ProjectTemplate,
   Proposal,
   ProposalItem,
   AuditItem,
@@ -34,8 +35,9 @@ const api = {
 
   // 项目
   listProjects: () => ipcRenderer.invoke('project:list') as Promise<ProjectSummary[]>,
-  createProject: (name: string, description: string) =>
-    ipcRenderer.invoke('project:create', name, description) as Promise<ProjectSummary | null>,
+  createProject: (name: string, description: string, template?: string) =>
+    ipcRenderer.invoke('project:create', name, description, template) as Promise<ProjectSummary | null>,
+  listTemplates: () => ipcRenderer.invoke('project:templates') as Promise<ProjectTemplate[]>,
   removeProject: (id: string) => ipcRenderer.invoke('project:remove', id) as Promise<{ ok: boolean; error?: string }>,
   importProject: (dir: string) => ipcRenderer.invoke('project:import', dir) as Promise<ProjectSummary | null>,
   revealProject: (id: string) => ipcRenderer.invoke('project:reveal', id),
