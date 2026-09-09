@@ -8,6 +8,7 @@ import DirectorCheckDrawer from '../features/check/DirectorCheckDrawer'
 import { useFsEvents } from '../features/fs/useFsEvents'
 import { isBoardStale } from '../../../shared/boardAge'
 import { parseActsWarn } from '../../../shared/actsSeg'
+import { runSliceSync } from '../features/sync/sliceSync'
 
 /** 大纲区：agent 把已有正文回建成章卡，画布随进度活起来。 */
 export default function Outline() {
@@ -189,8 +190,17 @@ export default function Outline() {
     setMsg('')
     try {
       const r = await window.zhijuan.adoptActs(id, '正文/' + selChapter.file, actsRel(selChapter))
-      if (r.ok) setMsg(`✓ 已把「${selChapter.name}」的正文换成当前分幕草稿（${r.words} 字）；草稿仍保留在 大纲/，可再改再采纳`)
-      else setMsg('✗ ' + r.error)
+      if (r.ok) {
+        setMsg(`✓ 已把「${selChapter.name}」的正文换成当前分幕草稿（${r.words} 字）；草稿仍保留在 大纲/，可再改再采纳。切片同步中…`)
+        // 采纳=整章正文被替换（正文为源、设定为流）：与「保存正文」同口径，完成后触发切片同步出新提案
+        void runSliceSync(id, '正文/' + selChapter.file).then((s) => {
+          if (s.ok) {
+            setMsg(s.items > 0 ? `✓ 已替换正文并生成 ${s.items} 条切片提案（待确认）` : '✓ 已替换正文；切片同步：无设定变化')
+          } else {
+            setMsg(`✗ 正文已替换，但切片同步失败：${s.error ?? '未知原因'}（可稍后在正文页再保存一次触发）`)
+          }
+        })
+      } else setMsg('✗ ' + r.error)
       await refresh()
     } catch (e: any) {
       setMsg('✗ ' + String(e?.message ?? e))
