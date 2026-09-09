@@ -51,6 +51,12 @@ function ItemCard({ p, projectId, onChanged }: { p: Proposal; projectId: string;
         <span className={cn('rounded-full px-2 py-0.5 text-[10px]', st.cls)}>{st.text}</span>
       </div>
       <p className="mt-1.5 text-xs text-ink-2">理由：{it?.reason}</p>
+      {(p.chapter || p.slice) && (
+        <p className="mt-1 flex items-center gap-2 text-[10px] text-ink-3">
+          {p.chapter && <span className="truncate">章：{p.chapter}</span>}
+          {p.slice && <span className="truncate">切片：{p.slice}</span>}
+        </p>
+      )}
       <button onClick={() => setShowDiff((v) => !v)} className="mt-2 flex items-center gap-1 text-[11px] text-ink-3 hover:text-ink">
         <GitCompare className="h-3 w-3" /> 前后对照
         <ChevronDown className={cn('h-3 w-3 transition-transform', showDiff && 'rotate-180')} />

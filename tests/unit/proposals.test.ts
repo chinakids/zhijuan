@@ -67,6 +67,20 @@ describe('applyAnchor（锚点写入核心算法）', () => {
 })
 
 describe('createProposals', () => {
+  it('slice 字段必随提案落库并可回读（防回归：早期产物 slice 被丢成空串）', () => {
+    const [p] = createProposals(root, 'p', 'slice-sync', '第1章', '第一幕_夏夜', [item({})])
+    expect(p.slice).toBe('第一幕_夏夜')
+    const back = listProposals(root, 'p')[0]
+    expect(back.slice).toBe('第一幕_夏夜')
+    expect(back.chapter).toBe('第1章')
+    expect(back.status).toBe('pending')
+    // 不同章的切片互不串
+    createProposals(root, 'p', 'slice-sync', '第2章', '第二幕_台风夜', [item({})])
+    const all = listProposals(root, 'p')
+    expect(all.find((x) => x.chapter === '第2章')?.slice).toBe('第二幕_台风夜')
+    expect(all.find((x) => x.chapter === '第1章')?.slice).toBe('第一幕_夏夜')
+  })
+
   it('同章旧的 pending 置 stale；每 item 一条提案；不同章互不影响', () => {
     const p1 = createProposals(root, 'p', 'slice-sync', '第1章', '切片A', [item({ after: '一' }), item({ after: '二' })])
     expect(p1).toHaveLength(2)

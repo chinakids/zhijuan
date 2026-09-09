@@ -60,13 +60,34 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
   }
 
   // 4. 当前时间切片设定（文件名约定 世界观/切片_<切片名>.md；兼容早期无「切片_」前缀的文件）
+  //    本切片尚无设定文件时按模块设计 §6.5 逐级回退：上一章切片状态 → 总纲（长期不变项），
+  //    保证「先文沉淀」的世界状态能从上一章流进本章上下文（否则第二幕建模时看不到第一幕的雾）。
   const slice = String(fm?.['切片'] ?? '')
+  const readWorldState = (name: string): { text: string; rel: string } => {
+    const rel = worldSliceFile(name)
+    const text = read(rel) || read(`世界观/${name}.md`) || ''
+    return { text, rel }
+  }
+  let world: { text: string; rel: string; label: string } | null = null
   if (slice) {
-    const t = read(worldSliceFile(slice)) || read(`世界观/${slice}.md`)
-    if (t.trim()) {
-      blocks.push(`【当前切片设定：${slice}】\n${t.slice(0, CAP.slice)}`)
-      sources.push(worldSliceFile(slice))
+    const w = readWorldState(slice)
+    if (w.text.trim()) world = { text: w.text, rel: w.rel, label: `【当前切片设定：${slice}】` }
+  }
+  if (!world && prev) {
+    const prevFm = extractFrontMatter(read(prev) ?? '').fm as Record<string, unknown>
+    const prevSlice = String(prevFm?.['切片'] ?? '')
+    if (prevSlice) {
+      const w = readWorldState(prevSlice)
+      if (w.text.trim()) world = { text: w.text, rel: w.rel, label: `【上一切片设定：${prevSlice}】（本切片设定尚未落档，以前一切片为基准）` }
     }
+  }
+  if (!world) {
+    const t = read('世界观/总纲.md')
+    if (t.trim()) world = { text: t, rel: '世界观/总纲.md', label: '【世界观总纲】（本切片无设定文件，以长期设定为基准）' }
+  }
+  if (world) {
+    blocks.push(`${world.label}\n${world.text.slice(0, CAP.slice)}`)
+    sources.push(world.rel)
   }
 
   // 5. 本章章卡（若有：一句话定位 / 关键事件 / 钩子 → 写作时记得要还的债）

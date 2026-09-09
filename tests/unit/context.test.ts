@@ -144,6 +144,42 @@ describe('buildWritingContext（写作上下文装配）', () => {
     expect(sources).toContain('世界观/切片_第一幕.md')
   })
 
+  it('本切片无设定文件时回退上一章切片状态（§6.5 状态基准），人物流向已在存档里', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      const table: Record<string, string> = {
+        '正文/第2章_雾.md': FM_2 + '第二章正文',
+        '正文/第1章_云.md': FM_1 + '第一章正文',
+        '世界观/切片_第一幕.md': '第一幕的世界状态：大雾栈桥'
+      }
+      return table[rel] ?? null
+    })
+    listChaptersMock.mockReturnValue([chEntry('第1章_云.md'), chEntry('第2章_雾.md')] as never)
+
+    const { blocks, sources } = await buildWritingContext('p', '正文/第2章_雾.md')
+    const sl = blocks.find((b) => b.includes('上一切片设定'))
+    expect(sl).toBeTruthy()
+    expect(sl).toContain('第一幕的世界状态：大雾栈桥')
+    expect(sources).toContain('世界观/切片_第一幕.md')
+    // 本切片块不被误标为「当前切片设定」
+    expect(blocks.find((b) => b.includes('当前切片设定'))).toBeUndefined()
+  })
+
+  it('本切片与上一章都无世界文件时回退总纲（长期不变项）', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      const table: Record<string, string> = {
+        '正文/第1章_a.md': FM_1 + '第一章正文',
+        '世界观/总纲.md': '总纲：近未来滨海小城'
+      }
+      return table[rel] ?? null
+    })
+    listChaptersMock.mockReturnValue([chEntry('第1章_a.md')] as never)
+
+    const { blocks, sources } = await buildWritingContext('p', '正文/第1章_a.md')
+    const g = blocks.find((b) => b.includes('世界观总纲'))
+    expect(g).toContain('总纲：近未来滨海小城')
+    expect(sources).toContain('世界观/总纲.md')
+  })
+
   it('读不到的内容静默跳过，绝不抛错', async () => {
     readDocMock.mockReturnValue(null)
     listChaptersMock.mockReturnValue([] as never)
