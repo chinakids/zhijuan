@@ -13,6 +13,7 @@ import Outline from './pages/Outline'
 import Timeline from './pages/Timeline'
 import Library from './pages/Library'
 import Settings from './pages/Settings'
+import CommandPalette from './features/command/CommandPalette'
 
 function Boot() {
   const loadSettings = useAppStore((s) => s.loadSettings)
@@ -58,6 +59,8 @@ export default function App() {
                 <Route path="settings" element={<Settings />} />
               </Route>
             </Routes>
+            {/* 全局命令面板：⌘K 导航（须在 Router 内，用 router hooks） */}
+            <CommandPalette />
           </HashRouter>
         </div>
       </div>

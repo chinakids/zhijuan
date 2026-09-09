@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { Plus, BookOpen } from 'lucide-react'
 import type { ChapterEntry } from '../../../shared/types'
 import { serializeFrontMatter } from '../../../shared/fmatter'
@@ -33,6 +33,15 @@ export default function Novel() {
   const apiRef = useRef<ProseApi | null>(null)
   const [syncMsg, setSyncMsg] = useState('')
   const [checkOpen, setCheckOpen] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  // 命令面板「打开章节」：?ch=<章节裸名>（相对 正文/）进入后自动选中
+  const chParam = searchParams.get('ch')
+  useEffect(() => {
+    if (!chParam) return
+    if (!chapters.some((c) => c.file === chParam)) return
+    setSel(chParam)
+    setSearchParams({}, { replace: true })
+  }, [chParam, chapters, setSearchParams])
 
   const handleChapterSaved = useCallback(
     async (rel: string) => {
@@ -103,7 +112,7 @@ export default function Novel() {
     setPlot('')
     setHook('')
     await refresh()
-    setSel(`正文/${name}`)
+    setSel(name)
   }
 
   const cur = chapters.find((c) => c.file === sel)
