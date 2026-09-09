@@ -3,6 +3,7 @@
 // 供 UI 渲染成可逐条转提案的检查报告。和 runSync 同构：独立的 session、无提问、离线出结果。
 import { readDoc, listChapters, listDocs, writeDoc } from '../store'
 import { presenceCheck } from '../../shared/presence'
+import { chapterOrderCheck } from '../../shared/chapterorder'
 import { registerCapability, runSubtask, type SubtaskDef } from './subtask'
 import type {
   ChapterEntry,
@@ -25,7 +26,8 @@ const AUDIT_NAMES: Record<AuditKind, string> = {
   consistency: '一致性巡查',
   review: '冷读报告',
   perspectives: '多视角审视',
-  presence: '人物在场核查'
+  presence: '人物在场核查',
+  order: '切片时序核查'
 }
 
 /** 审计结果存档的相对路径：大纲/审读_<名>.md */
@@ -35,6 +37,17 @@ export function auditReportRel(kind: AuditKind): string {
 
 // ===== 人物在场核查（本地规则层，零模型、秒级） =====
 // 读全卷正文 + 人物档案题名 → presenceCheck → AuditResult（与审计抽屉同构展示，不落盘）。
+/** 读全部正文章节 raw（跳过空文件） */
+function readVolumeChapters(projectId: string): { file: string; raw: string }[] {
+  const chapters: { file: string; raw: string }[] = []
+  for (const d of listDocs(projectId, '正文')) {
+    const file = '正文/' + d.file
+    const raw = readDoc(projectId, file) ?? ''
+    if (raw.trim()) chapters.push({ file, raw })
+  }
+  return chapters
+}
+
 export function runPresence(
   projectId: string
 ): { ok: true; result: AuditResult } | { ok: false; error: string } {
@@ -46,13 +59,20 @@ export function runPresence(
       const name = base.replace(/\.md$/i, '').trim()
       if (name && !['总览', '索引'].includes(name)) knownChars.push(name)
     }
-    const chapters: { file: string; raw: string }[] = []
-    for (const d of listDocs(projectId, '正文')) {
-      const file = '正文/' + d.file
-      const raw = readDoc(projectId, file) ?? ''
-      if (raw.trim()) chapters.push({ file, raw })
-    }
+    const chapters = readVolumeChapters(projectId)
     return { ok: true, result: presenceCheck({ knownChars, chapters }) }
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message ?? e) }
+  }
+}
+
+// ===== 切片时序核查（本地规则层，零模型、秒级） =====
+// 读全卷正文 → chapterOrderCheck → AuditResult（同构展示，不落盘；与 presence 同策略）。
+export function runChapterOrder(
+  projectId: string
+): { ok: true; result: AuditResult } | { ok: false; error: string } {
+  try {
+    return { ok: true, result: chapterOrderCheck({ chapters: readVolumeChapters(projectId) }) }
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e) }
   }
@@ -195,8 +215,9 @@ export async function runAudit(
   projectId: string,
   kind: AuditKind
 ): Promise<{ ok: true; result: AuditResult; savedReport?: string } | { ok: false; error: string }> {
-  // 人物在场核查：本地规则层（零模型、秒级），不走写作引擎，也不落盘（高频重跑，噪音大；与本章小环同策略）
+  // 人物在场核查 / 切片时序核查：本地规则层（零模型、秒级），不走写作引擎，也不落盘（高频重跑，噪音大；与本章小环同策略）
   if (kind === 'presence') return runPresence(projectId)
+  if (kind === 'order') return runChapterOrder(projectId)
   // 多视角审视是独立能力，参数不同（无 kind），单独路由
   const r =
     kind === 'perspectives'

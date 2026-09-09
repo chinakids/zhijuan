@@ -398,7 +398,7 @@ const mock = {
   },
   agentAudit: async (projectId: string, kind: string) => {
     // 与主进程同语义：审计成功后把结论落盘 大纲/审读_<名>.md（供无头 UI 冒烟断言「已存档」与大纲区「审读存档」）
-    const name = kind === 'consistency' ? '一致性巡查' : kind === 'perspectives' ? '多视角审视' : kind === 'presence' ? '人物在场核查' : '冷读报告'
+    const name = kind === 'consistency' ? '一致性巡查' : kind === 'perspectives' ? '多视角审视' : kind === 'presence' ? '人物在场核查' : kind === 'order' ? '切片时序核查' : '冷读报告'
     const res =
       kind === 'presence'
         ? {
@@ -407,6 +407,17 @@ const mock = {
               summary: '（演示）人物在场核查：共 2 章，1 章与「涉及人物」不一致——清单列了却未署名出场 1 处。匹配口径为 2 字及以上署名，别名/单字名不参与。',
               items: [
                 { severity: 'medium' as const, type: 'character', where: '灯塔（正文/第02章_灯塔.md）', what: '「涉及人物」列了「阿七」，但本章正文未出现 TA 的署名（可能已删戏，或只用了别名/指代）。', suggest: '确认本章是否真需要「阿七」出场：需要则在正文补写该角色，不需要就把 TA 移出本章约定头的「涉及人物」。' }
+              ]
+            }
+          }
+        : kind === 'order'
+        ? {
+            ok: true as const,
+            result: {
+              summary: '（演示）切片时序核查：共 4 章，2 条需复核（章号结构 / 切片顺序）。',
+              items: [
+                { severity: 'medium' as const, type: 'timeline', where: '灯塔夜访（正文/第02章_灯塔夜访.md）→ 无人码头（正文/第03章_无人码头.md）', what: '切片序号倒流：前序章的切片「第二幕_风起」（第 2）晚于本章的「第一幕_夜」（第 1），按章号顺序时间线向后跳了。', suggest: '若为有意的插叙/倒叙可忽略；否则检查这两章约定头「切片」是否写反，或章节顺序需要调整。' },
+                { severity: 'low' as const, type: 'timeline', where: '全卷共 4 章，章号不连续：1→3。', what: '相邻章号之间存在空缺（可能还有未写的章节，或已删章节未重新编号）。', suggest: '草稿阶段常见，可忽略；若作品已成型，请在补齐或删除后统一重排章号。' }
               ]
             }
           }
@@ -444,8 +455,8 @@ const mock = {
                 ]
               }
             }
-    // 人物在场核查：主进程同语义——本地规则结果，不落盘（高频重跑噪音大）
-    if (kind === 'presence') return res
+    // 人物在场核查 / 切片时序核查：主进程同语义——本地规则结果，不落盘（高频重跑噪音大）
+    if (kind === 'presence' || kind === 'order') return res
     const rel = '大纲/审读_' + name + '.md'
     const md = '# 审读报告 · ' + name + '\n\n> 织卷写作引擎 · 演示存档\n\n## 一句话结论\n\n' + res.result.summary + '\n\n## 条目（' + res.result.items.length + '）\n'
     docs.set(projectId + '/' + rel, md)
