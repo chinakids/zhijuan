@@ -8,6 +8,7 @@ import { Label } from '../../components/ui/label'
 import { Textarea } from '../../components/ui/textarea'
 import { cn } from '../../lib/utils'
 import { useFsEvents } from '../fs/useFsEvents'
+import { parseTaskCard } from '../../../../shared/taskCard'
 
 /* ===== 织卷 S5 · 采集栏：任务卡列表 + 发起采集表单 ===== */
 
@@ -24,6 +25,15 @@ const STATUS_CLS: Record<string, string> = {
   running: 'bg-accent-soft text-accent',
   done: 'bg-[#e6f0ee] text-success',
   failed: 'bg-danger-soft text-danger'
+}
+
+function Row({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex items-start gap-2">
+      <dt className="w-12 shrink-0 text-ink-3">{k}</dt>
+      <dd className="min-w-0 flex-1 break-words text-ink-2">{v}</dd>
+    </div>
+  )
 }
 
 function parseStatus(file: string, text: string): { status: TaskStatus; summary: string } {
@@ -43,6 +53,8 @@ export default function CollectionBar() {
   const [category, setCategory] = useState('环境')
   const [source, setSource] = useState('')
   const [saving, setSaving] = useState(false)
+  const [view, setView] = useState<TaskInfo | null>(null)
+  const [viewText, setViewText] = useState('')
   const events = useFsEvents(id)
 
   const refresh = useCallback(async () => {
@@ -50,7 +62,8 @@ export default function CollectionBar() {
     const list = await window.zhijuan.listDocs(id, '素材库/采集池')
     const infos: TaskInfo[] = []
     for (const d of list) {
-      const text = (await window.zhijuan.readDoc(id, d.file)) ?? ''
+      // listDocs 返回相对 relDir 的路径，需拼回「素材库/采集池/」前缀（否则 readDoc 读到项目根同名文件/空）
+      const text = (await window.zhijuan.readDoc(id, '素材库/采集池/' + d.file)) ?? ''
       infos.push({ file: d.file, mtime: d.mtime, ...parseStatus(d.file, text) })
     }
     setTasks(infos)
@@ -64,6 +77,11 @@ export default function CollectionBar() {
     const ev = events[events.length - 1]
     if (ev && ev.path.startsWith('素材库/采集池')) void refresh()
   }, [events, refresh])
+
+  async function openView(t: TaskInfo) {
+    setView(t)
+    setViewText((await window.zhijuan.readDoc(id, '素材库/采集池/' + t.file)) ?? '')
+  }
 
   async function submit() {
     if (!id || !demand.trim()) return
@@ -111,11 +129,16 @@ export default function CollectionBar() {
       ) : (
         <div className="flex flex-wrap gap-2">
           {tasks.map((t) => (
-            <div key={t.file} className="flex items-center gap-2 rounded-lg border border-hair bg-surface px-2.5 py-1.5">
+            <button
+              key={t.file}
+              onClick={() => void openView(t)}
+              title="点击查看任务卡详情（回填的结果在此）"
+              className="flex items-center gap-2 rounded-lg border border-hair bg-surface px-2.5 py-1.5 text-left transition-colors hover:border-accent/60 hover:bg-surface-2"
+            >
               <span className={cn('rounded-full px-1.5 py-0.5 text-[10px]', STATUS_CLS[t.status])}>{t.status}</span>
               <span className="max-w-[220px] truncate text-[11px] text-ink">{t.summary}</span>
               <span className="text-[10px] text-ink-3">{new Date(t.mtime).toLocaleString('sv')}</span>
-            </div>
+            </button>
           ))}
         </div>
       )}
@@ -148,6 +171,48 @@ export default function CollectionBar() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>取消</Button>
             <Button onClick={() => void submit()} disabled={!demand.trim() || saving}>{saving ? '提交中…' : '提交任务'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 任务卡详情（管道回填的结果在此可见） */}
+      <Dialog open={!!view} onOpenChange={(v) => !v && setView(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="truncate">{view?.summary ?? ''}</DialogTitle>
+            <p className="text-xs text-ink-3">{view?.file}</p>
+          </DialogHeader>
+          {view && (
+            <div className="max-h-[55vh] space-y-2.5 overflow-auto">
+              {(() => {
+                const d = parseTaskCard(viewText)
+                return (
+                  <>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className={cn('rounded-full px-1.5 py-0.5 text-[10px]', STATUS_CLS[d.status] ?? STATUS_CLS.pending)}>{d.status}</span>
+                      {d.category && <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-2">{d.category}</span>}
+                    </div>
+                    <dl className="space-y-1 text-xs">
+                      {d.demand && <Row k="需求" v={d.demand} />}
+                      {d.keywords.length > 0 && <Row k="关键词" v={d.keywords.join('、')} />}
+                      {d.source && <Row k="来源" v={d.source} />}
+                      {d.createdAt && <Row k="创建" v={d.createdAt} />}
+                      {d.result && (
+                        <div className="flex items-start gap-2">
+                          <dt className="w-12 shrink-0 text-ink-3">结果</dt>
+                          <dd className="break-all font-mono text-[11px] text-accent">{d.result}</dd>
+                        </div>
+                      )}
+                      {d.finishedAt && <Row k="完成" v={d.finishedAt} />}
+                    </dl>
+                    {d.body && <pre className="whitespace-pre-wrap rounded-lg border border-hair bg-surface-2 p-3 text-xs leading-relaxed text-ink-2">{d.body}</pre>}
+                  </>
+                )
+              })()}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setView(null)}>关闭</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
