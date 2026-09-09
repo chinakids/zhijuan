@@ -18,6 +18,21 @@ function firstLineName(rel: string): string {
   return rel.replace(/^(正文|大纲)\//, '').replace(/\.md$/, '')
 }
 
+/**
+ * 世界切片文件是否只是「模板空壳」：内容只剩标题与 ensureWorldSliceFile 写的固定说明行（无任何事实条目）。
+ * 空壳文件不等于「已有设定」——若把它当有基准，会挡住 §6.5 回退链（模型只看到说明行，看不到上一幕的雾），
+ * 2026-09-10 修复：readWorldState 对空壳继续回看旧名/回退链。
+ */
+export function isTemplateShell(text: string): boolean {
+  return (
+    text
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('#') && !l.startsWith('> 本切片的世界状态'))
+      .length === 0
+  )
+}
+
 /** 只读装配；任何一步读不到都跳过，绝不因此打断创作 */
 export async function buildWritingContext(projectId: string, chapterRel: string): Promise<WritingContext> {
   const blocks: string[] = []
@@ -64,9 +79,16 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
   //    保证「先文沉淀」的世界状态能从上一章流进本章上下文（否则第二幕建模时看不到第一幕的雾）。
   const slice = String(fm?.['切片'] ?? '')
   const readWorldState = (name: string): { text: string; rel: string } => {
+    // 新名优先；新名若是「模板空壳」（只有 ensureWorldSliceFile 写的标题+说明行，无事实）则回看旧无前缀名，
+    // 两者皆空壳/不存在 → 返回空文本，让调用方继续走回退链（模板空壳不挡回退，2026-09-10 修复）。
     const rel = worldSliceFile(name)
-    const text = read(rel) || read(`世界观/${name}.md`) || ''
-    return { text, rel }
+    let text = read(rel) ?? ''
+    let actual = rel
+    if (isTemplateShell(text)) {
+      text = read(`世界观/${name}.md`) ?? ''
+      actual = `世界观/${name}.md`
+    }
+    return { text, rel: actual }
   }
   let world: { text: string; rel: string; label: string } | null = null
   if (slice) {

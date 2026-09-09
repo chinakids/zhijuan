@@ -141,7 +141,8 @@ describe('buildWritingContext（写作上下文装配）', () => {
     const { blocks, sources } = await buildWritingContext('p', '正文/第1章_a.md')
     const sl = blocks.find((b) => b.includes('当前切片设定'))
     expect(sl).toContain('旧名切片设定')
-    expect(sources).toContain('世界观/切片_第一幕.md')
+    // 来源清单报实际读取到的文件（2026-09-10 起：新名缺失/空壳时回看旧名，sources 跟随实际来源）
+    expect(sources).toContain('世界观/第一幕.md')
   })
 
   it('本切片无设定文件时回退上一章切片状态（§6.5 状态基准），人物流向已在存档里', async () => {
@@ -178,6 +179,44 @@ describe('buildWritingContext（写作上下文装配）', () => {
     const g = blocks.find((b) => b.includes('世界观总纲'))
     expect(g).toContain('总纲：近未来滨海小城')
     expect(sources).toContain('世界观/总纲.md')
+  })
+
+  it('世界切片文件为模板空壳（只有标题+说明行）时不挡回退：回看旧无前缀名，再到上一章切片', async () => {
+    // 本切片 切片_第一幕.md = 空壳模板；旧无前缀名 世界观/第一幕.md 也被空壳挡住？——旧名有事实则用旧名
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      const table: Record<string, string> = {
+        '正文/第2章_雾.md': FM_2 + '第二章正文',
+        '正文/第1章_云.md': FM_1 + '第一章正文',
+        '世界观/切片_第一幕.md': '# 切片：第一幕\n\n> 本切片的世界状态（规则、事件、环境）。正文保存时的切片同步会把本切片的新状态写入这里；长期不变设定请放《总纲》。\n',
+        '世界观/第一幕.md': '旧名：凌晨两点栈桥大雾'
+      }
+      return table[rel] ?? null
+    })
+    listChaptersMock.mockReturnValue([chEntry('第1章_云.md'), chEntry('第2章_雾.md')] as never)
+
+    const { blocks, sources } = await buildWritingContext('p', '正文/第2章_雾.md')
+    // 本切片空壳 → 回看旧名有事实 → 以「上一切片设定」标签进入（本切片无有效设定）
+    const sl = blocks.find((b) => b.includes('上一切片设定'))
+    expect(sl).toBeTruthy()
+    expect(sl).toContain('旧名：凌晨两点栈桥大雾')
+    expect(sources).toContain('世界观/第一幕.md')
+  })
+
+  it('世界切片文件为模板空壳且旧名也无事实 → 继续回退总纲（空壳不挡链）', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      const table: Record<string, string> = {
+        '正文/第1章_a.md': FM_1 + '第一章正文',
+        '世界观/切片_第一幕.md': '# 切片：第一幕\n\n> 本切片的世界状态（规则、事件、环境）。正文保存时的切片同步会把本切片的新状态写入这里；长期不变设定请放《总纲》。\n',
+        '世界观/总纲.md': '总纲：雾港常年有雾'
+      }
+      return table[rel] ?? null
+    })
+    listChaptersMock.mockReturnValue([chEntry('第1章_a.md')] as never)
+
+    const { blocks } = await buildWritingContext('p', '正文/第1章_a.md')
+    expect(blocks.find((b) => b.includes('世界观总纲'))).toContain('雾港常年有雾')
+    // 空壳模板的文字不应进入上下文
+    expect(blocks.join('\n')).not.toContain('本切片的世界状态（规则、事件、环境）')
   })
 
   it('读不到的内容静默跳过，绝不抛错', async () => {
