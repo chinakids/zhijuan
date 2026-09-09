@@ -209,6 +209,14 @@ export interface AuditResult {
   items: AuditItem[]
 }
 
+/** 单章「名单外出场」快检（保存正文时前置提示）：正文出现档案人物本名/登记别名、但本章约定头「涉及人物」未列 */
+export interface UnlistedHit {
+  /** 人物档案题名（本名） */
+  name: string
+  /** 命中的登记别名（正文只出现别名、未出现本名时给出） */
+  alias?: string
+}
+
 /** 本章级检查（agent-first 小环）：每章短巡查 / 分层修订 */
 export type ChapterCheckKind = 'chapter' | 'revision'
 /** 修订层：故事 / 场景 / 词句（沿写作线的打磨顺序） */

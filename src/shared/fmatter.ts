@@ -64,3 +64,34 @@ export function withFrontMatter(text: string, fm: Record<string, unknown>): stri
   const { body } = extractFrontMatter(text)
   return serializeFrontMatter(fm) + body
 }
+
+/** 往约定头里的列表键（如「涉及人物」）追加一项：键存在则只改那一行（保其他行原样），不存在则在约定头块末追加一行；目录头缺失或值已存在 → 原样返回 */
+export function addFrontMatterListItem(text: string, key: string, value: string): string {
+  const v = value.trim()
+  if (!v) return text
+  const m = text.match(FM_RE)
+  if (!m) return text
+  const block = m[1]
+  const lines = block.split('\n')
+  const keyRe = new RegExp('^\\s*' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*:')
+  for (let i = 0; i < lines.length; i++) {
+    if (!keyRe.test(lines[i])) continue
+    const idx = lines[i].indexOf(':')
+    const lead = (lines[i].match(/^\s*/) ?? [''])[0]
+    const rawVal = lines[i].slice(idx + 1).replace(/#.*$/, '')
+    const items = rawVal
+      .trim()
+      .replace(/^\[/, '')
+      .replace(/\]$/, '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    if (items.includes(v)) return text // 已有，不动
+    items.push(v)
+    lines[i] = lead + key + ': [' + items.join(', ') + ']'
+    return '---\n' + lines.join('\n') + text.slice(4 + block.length)
+  }
+  // 约定头里还没有这个键：追加在块末（正文与闭合行随之后移）
+  const newBlock = block + '\n' + key + ': [' + v + ']'
+  return '---\n' + newBlock + text.slice(4 + block.length)
+}

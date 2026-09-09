@@ -8,7 +8,7 @@
 // 同一别名被两个及以上人物登记 = 数据冲突（medium）。单字名/未登记别称/指代仍不参与（机械层承认局限）。
 // 纯函数、不读盘，OCR 无关。
 import { extractFrontMatter } from './fmatter'
-import type { AuditItem, AuditResult } from './types'
+import type { AuditItem, AuditResult, UnlistedHit } from './types'
 
 export interface PresenceChapter {
   /** 相对项目根的路径，如 正文/第01章_雾港.md */
@@ -44,6 +44,54 @@ export function parseAliases(fm: Record<string, unknown> | null): string[] {
 
 const NAME_MIN = 2 // 单字名（姓氏/代号）不做机械匹配，避免全篇误报
 
+/** 别名冲突集合：同一别名被两个及以上人物登记 → 该别名不得用于 unlisted 判定（歧义不误报） */
+export function conflictedAliases(aliasMap: Record<string, string[]>): Set<string> {
+  const owners = new Map<string, string[]>()
+  for (const [name, al] of Object.entries(aliasMap)) {
+    for (const a of al) {
+      const arr = owners.get(a) ?? []
+      arr.push(name)
+      owners.set(a, arr)
+    }
+  }
+  const conflicted = new Set<string>()
+  for (const [alias, list] of owners) {
+    if (list.length >= 2) conflicted.add(alias)
+  }
+  return conflicted
+}
+
+/**
+ * 单章「名单外出场」检测（保存正文前置提示复用 presence 同一口径）：
+ * 正文出现档案人物本名或登记别名、但本章约定头「涉及人物」未列 → 逐人命中。
+ * 别名命中的条目带 alias（正文只出现别名、未出现本名时）。损坏别名/单字名不参与。
+ */
+export function unlistedInBody(opts: {
+  body: string
+  /** 本章约定头「涉及人物」 */
+  listed: string[]
+  /** 人物档案题名单（knownChars） */
+  knownChars: string[]
+  aliasMap?: Record<string, string[]>
+  /** 可选：提前算好的冲突别名集合（省一次扫描） */
+  conflicted?: Set<string>
+}): UnlistedHit[] {
+  const known = new Set(opts.knownChars)
+  const aliasMap = opts.aliasMap ?? {}
+  const conflicted = opts.conflicted ?? conflictedAliases(aliasMap)
+  const out: UnlistedHit[] = []
+  for (const n of known) {
+    if (n.length < NAME_MIN) continue
+    const aliases = aliasMap[n] ?? []
+    const byAlias = aliases.find((a) => !conflicted.has(a) && opts.body.includes(a))
+    const byName = opts.body.includes(n)
+    if ((byName || byAlias) && !opts.listed.includes(n)) {
+      out.push({ name: n, ...(byAlias && !byName ? { alias: byAlias } : {}) })
+    }
+  }
+  return out
+}
+
 function titleOf(fm: Record<string, unknown> | null, file: string): string {
   if (fm && typeof fm['题名'] === 'string' && fm['题名']) return String(fm['题名'])
   return (file.split('/').pop() ?? file).replace(/\.md$/i, '')
@@ -57,7 +105,6 @@ function titleOf(fm: Record<string, unknown> | null, file: string): string {
  * - conflict（别名冲突）：同一别名被两个及以上人物登记 → medium（与章无关，一次检查）
  */
 export function presenceCheck(opts: { knownChars: string[]; chapters: PresenceChapter[]; aliasMap?: Record<string, string[]> }): AuditResult {
-  const known = new Set(opts.knownChars)
   const aliasMap = opts.aliasMap ?? {}
   const items: AuditItem[] = []
   let touched = 0
@@ -65,6 +112,7 @@ export function presenceCheck(opts: { knownChars: string[]; chapters: PresenceCh
   let unCount = 0
   let conflictCount = 0
   // 别名冲突（与章无关，一次检查）：同一别名被两个及以上人物登记 → medium；冲突别名不参与 unlisted 判定
+  const conflicted = conflictedAliases(aliasMap)
   const owners = new Map<string, string[]>()
   for (const [name, al] of Object.entries(aliasMap)) {
     for (const a of al) {
@@ -73,10 +121,8 @@ export function presenceCheck(opts: { knownChars: string[]; chapters: PresenceCh
       owners.set(a, arr)
     }
   }
-  const conflicted = new Set<string>()
   for (const [alias, list] of owners) {
     if (list.length >= 2) {
-      conflicted.add(alias)
       conflictCount++
       items.push({
         severity: 'medium',
@@ -109,24 +155,18 @@ export function presenceCheck(opts: { knownChars: string[]; chapters: PresenceCh
         })
       }
     }
-    for (const n of known) {
-      if (n.length < NAME_MIN) continue
-      const aliases = aliasMap[n] ?? []
-      const byAlias = aliases.find((a) => !conflicted.has(a) && body.includes(a))
-      const byName = body.includes(n)
-      if ((byName || byAlias) && !listed.includes(n)) {
-        unCount++
-        touched++
-        items.push({
-          severity: 'low',
-          type: 'character',
-          where,
-          what: byAlias && !byName
-            ? `正文出现了「${byAlias}」——这是「${n}」档案登记的别名，但本章约定头「涉及人物」没有列 TA。`
-            : `正文出现了「${n}」的署名，但本章约定头「涉及人物」没有列 TA。`,
-          suggest: `若「${n}」确实在这一章出场，把 TA 加进本章约定头的「涉及人物」；若只是回忆/提及一笔，保留现状即可。`
-        })
-      }
+    for (const hit of unlistedInBody({ body, listed, knownChars: opts.knownChars, aliasMap, conflicted })) {
+      unCount++
+      touched++
+      items.push({
+        severity: 'low',
+        type: 'character',
+        where,
+        what: hit.alias
+          ? `正文出现了「${hit.alias}」——这是「${hit.name}」档案登记的别名，但本章约定头「涉及人物」没有列 TA。`
+          : `正文出现了「${hit.name}」的署名，但本章约定头「涉及人物」没有列 TA。`,
+        suggest: `若「${hit.name}」确实在这一章出场，把 TA 加进本章约定头的「涉及人物」；若只是回忆/提及一笔，保留现状即可。`
+      })
     }
   }
   const n = opts.chapters.length

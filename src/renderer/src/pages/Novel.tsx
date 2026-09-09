@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { Plus, BookOpen } from 'lucide-react'
-import type { ChapterEntry } from '../../../shared/types'
-import { serializeFrontMatter } from '../../../shared/fmatter'
+import type { ChapterEntry, UnlistedHit } from '../../../shared/types'
+import { serializeFrontMatter, addFrontMatterListItem } from '../../../shared/fmatter'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
@@ -33,6 +33,9 @@ export default function Novel() {
   const apiRef = useRef<ProseApi | null>(null)
   const [syncMsg, setSyncMsg] = useState('')
   const [checkOpen, setCheckOpen] = useState(false)
+  // 保存时的「名单外出场」前置提示（本地规则·零模型）：命中且未忽略才显示；忽略记本会话内不再提示本章
+  const [unlistedCard, setUnlistedCard] = useState<{ rel: string; items: UnlistedHit[] } | null>(null)
+  const dismissedUnlisted = useRef(new Set<string>())
   const [searchParams, setSearchParams] = useSearchParams()
   // 命令面板「打开章节」：?ch=<章节裸名>（相对 正文/）进入后自动选中
   const chParam = searchParams.get('ch')
@@ -47,6 +50,12 @@ export default function Novel() {
     async (rel: string) => {
       if (!id) return
       setSyncMsg('切片同步中…')
+      // 前置快检：正文出现档案人物本名/登记别名但约定头「涉及人物」未列 → 提示补列（零模型；与同步并行）
+      void window.zhijuan.checkChapterUnlisted(id, rel).then((u) => {
+        if (u.ok && u.items.length && !dismissedUnlisted.current.has(rel)) {
+          setUnlistedCard({ rel, items: u.items })
+        }
+      })
       const r = await runSliceSync(id, rel)
       if (r.ok) {
         setSyncMsg(r.items > 0 ? `✓ 已生成 ${r.items} 条切片提案` : '✓ 无设定变化')
@@ -65,6 +74,28 @@ export default function Novel() {
     setChapters(list)
     setSel((s) => (s && list.some((c) => c.file === s) ? s : null))
   }, [id])
+
+  // 切换章节：收起「名单外出场」提示卡（忽略记录保留，本会话内不重复打扰该章）
+  useEffect(() => {
+    setUnlistedCard(null)
+  }, [sel])
+
+  // 「补入涉及人物」：把命中人物写进本章约定头（只改那一行，其他约定头原样；正文不动）
+  async function addUnlisted() {
+    if (!id || !unlistedCard) return
+    const rel = unlistedCard.rel
+    let raw = (await window.zhijuan.readDoc(id, rel)) ?? ''
+    for (const h of unlistedCard.items) raw = addFrontMatterListItem(raw, '涉及人物', h.name)
+    await window.zhijuan.writeDoc(id, rel, raw)
+    setUnlistedCard(null)
+    await refresh()
+  }
+
+  function dismissUnlisted() {
+    if (!unlistedCard) return
+    dismissedUnlisted.current.add(unlistedCard.rel)
+    setUnlistedCard(null)
+  }
 
   useEffect(() => {
     void refresh()
@@ -167,6 +198,24 @@ export default function Novel() {
             <span className={syncMsg.startsWith('✓') ? 'text-success' : syncMsg.startsWith('✗') ? 'text-danger' : 'text-accent'}>
               {syncMsg}
             </span>
+          </div>
+        )}
+        {/* 保存前置提示：本章正文出现未列入「涉及人物」的档案人物（本地规则·零模型） */}
+        {unlistedCard && unlistedCard.rel === chapterRel && (
+          <div className="absolute right-24 top-24 z-10 w-72 rounded-lg border border-warn/50 bg-surface p-3 shadow-lg">
+            <p className="text-[11px] font-medium text-ink-2">本章出现了未列入「涉及人物」的角色</p>
+            <ul className="mt-1.5 space-y-1 text-[11px] text-ink">
+              {unlistedCard.items.map((h) => (
+                <li key={h.name} className="break-all">
+                  {h.alias ? `「${h.alias}」＝${h.name} 的登记别名，出现在正文` : `「${h.name}」的署名出现在正文`}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-[10px] text-ink-3">真的出场请补入；只是回忆 / 提及一笔可忽略。</p>
+            <div className="mt-2 flex items-center gap-2">
+              <Button size="sm" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px]" onClick={() => void addUnlisted()}>补入涉及人物</Button>
+              <Button size="sm" variant="outline" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px]" onClick={dismissUnlisted}>忽略</Button>
+            </div>
           </div>
         )}
       </main>

@@ -22,8 +22,8 @@ vi.mock('../../src/main/store', () => ({
 }))
 vi.mock('../../src/main/agent/runtime', () => ({ driveSession: vi.fn() }))
 
-import { listedFrom, parseAliases, presenceCheck } from '../../src/shared/presence'
-import { runPresence } from '../../src/main/agent/audit'
+import { listedFrom, parseAliases, presenceCheck, unlistedInBody } from '../../src/shared/presence'
+import { runPresence, runChapterUnlisted } from '../../src/main/agent/audit'
 import { setSettings } from '../../src/main/settings'
 import { readDoc, listDocs } from '../../src/main/store'
 
@@ -174,6 +174,67 @@ describe('presenceCheck 别名规则（机械层第三块·称谓一致性）', 
       chapters: [chapter('正文/第02章_灯塔.md', ['阿七'], '小七低着头，没有说话。')]
     })
     expect(r.items).toHaveLength(1) // 未登记「小七」→ 仍报 missing
+  })
+})
+
+describe('unlistedInBody（保存前置快检纯函数：与 presence 同一口径）', () => {
+  it('本名出现且未列 → 命中（无 alias 字段）', () => {
+    const hits = unlistedInBody({ body: '沈藏推门进来。', listed: ['阿七'], knownChars: ['沈藏', '阿七'] })
+    expect(hits).toEqual([{ name: '沈藏' }])
+  })
+
+  it('别名出现且未列 → 命中并带 alias 归属', () => {
+    const hits = unlistedInBody({ body: '沈爷点了根烟。', listed: ['阿七'], knownChars: ['沈藏'], aliasMap: { 沈藏: ['沈爷'] } })
+    expect(hits).toEqual([{ name: '沈藏', alias: '沈爷' }])
+  })
+
+  it('已列入「涉及人物」→ 不命中', () => {
+    const hits = unlistedInBody({ body: '沈爷点了根烟。', listed: ['沈藏'], knownChars: ['沈藏'], aliasMap: { 沈藏: ['沈爷'] } })
+    expect(hits).toEqual([])
+  })
+
+  it('冲突别名不参与（两人共用一个别名 → 不据此命中）', () => {
+    const hits = unlistedInBody({
+      body: '老七提着灯。',
+      listed: ['阿七'],
+      knownChars: ['阿七', '沈藏'],
+      aliasMap: { 阿七: ['老七'], 沈藏: ['老七'] }
+    })
+    expect(hits).toEqual([])
+  })
+
+  it('单字名不参与（避免全篇误报）；未出现 → 空', () => {
+    expect(unlistedInBody({ body: '顾站在门口。', listed: [], knownChars: ['顾', '沈藏'] })).toEqual([])
+    expect(unlistedInBody({ body: '没有人物出场。', listed: [], knownChars: ['沈藏'] })).toEqual([])
+  })
+})
+
+describe('runChapterUnlisted（主进程单章快检薄壳：读单章 + 人物档案别名）', () => {
+  it('别名命中未列 → items 带 alias；已列或未出现 → 空', () => {
+    listDocsMock.mockImplementation((_id: string, dir: string) =>
+      dir === '人物'
+        ? [{ file: '沈藏.md', name: '沈藏', mtime: 1 }]
+        : []
+    )
+    readMock.mockImplementation((_id: string, rel: string) => {
+      if (rel.startsWith('人物/')) return '---\n姓名: 沈藏\n别名: [沈爷]\n---\n# 沈藏\n'
+      if (rel.startsWith('正文/')) return fm(['阿七']) + '阿七回头。沈爷点了根烟。'
+      return null
+    })
+    const r = runChapterUnlisted('demo', '正文/第01章_雾港.md')
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.items).toEqual([{ name: '沈藏', alias: '沈爷' }])
+    // 已列入 → 空
+    readMock.mockImplementation(() => fm(['阿七', '沈藏']) + '阿七回头。沈爷点了根烟。')
+    const r2 = runChapterUnlisted('demo', '正文/第01章_雾港.md')
+    expect(r2.ok).toBe(true)
+    if (r2.ok) expect(r2.items).toEqual([])
+  })
+
+  it('章节文档不存在 → ok:false', () => {
+    readMock.mockImplementation(() => null)
+    const r = runChapterUnlisted('demo', '正文/不存在.md')
+    expect(r.ok).toBe(false)
   })
 })
 

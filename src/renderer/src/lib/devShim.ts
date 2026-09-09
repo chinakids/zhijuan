@@ -2,6 +2,8 @@
 import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
 import { countWords } from '../../../shared/count'
+import { extractFrontMatter } from '../../../shared/fmatter'
+import { unlistedInBody, listedFrom, parseAliases } from '../../../shared/presence'
 import { toast } from '../store/toasts'
 
 const now = Date.now()
@@ -32,6 +34,11 @@ docs.set(
 docs.set(
   'demo-aseya/正文/第02章_灯塔.md',
   ['---', '章号: 2', '题名: 灯塔', '切片: 第二幕_灯塔', '涉及人物: [阿七]', '---', '', '# 灯塔', '', '（本章待写）', ''].join('\n')
+)
+// dev 演示：第3章正文用了「沈爷」（沈藏档案登记的别名）但约定头只列了阿七 → 保存时触发「名单外出场」提示
+docs.set(
+  'demo-aseya/正文/第03章_码头.md',
+  ['---', '章号: 3', '题名: 码头', '切片: 第三幕_码头', '涉及人物: [阿七]', '---', '', '# 码头', '', '阿七在码头等船。沈爷远远站着，帽檐压得很低，像是怕被认出来。', ''].join('\n')
 )
 docs.set(
   'demo-aseya/人物/阿七.md',
@@ -142,8 +149,8 @@ const projects: ProjectSummary[] = [
     description: seeded.description,
     createdAt: now - 86400_000 * 6,
     updatedAt: now - 3600_000,
-    stats: { chapters: 2, characters: 2, worldviewFiles: 2, materials: 1 },
-    lastChapter: '第02章_灯塔'
+    stats: { chapters: 3, characters: 2, worldviewFiles: 2, materials: 1 },
+    lastChapter: '第03章_码头'
   },
   {
     id: 'demo-yunshan',
@@ -242,6 +249,25 @@ const mock = {
   },
   onFsEvent: () => () => {},
   getPaths: async () => ({ documents: '', libraryRoot: '' }),
+
+  // 保存正文前置快检（dev：与主进程同口径——共享纯函数 + 内存文档，可无头演示「名单外出场」提示）
+  checkChapterUnlisted: async (id: string, chapterRel: string) => {
+    const raw = docs.get(id + '/' + chapterRel)
+    if (raw === undefined) return { ok: false, error: '章节文档不存在' }
+    const { fm, body } = extractFrontMatter(raw)
+    const knownChars: string[] = []
+    const aliasMap: Record<string, string[]> = {}
+    for (const { file, name } of docsOf(id + '/人物')) {
+      const n = name.replace(/\.md$/i, '').trim()
+      if (n && !['总览', '索引'].includes(n)) {
+        knownChars.push(n)
+        const r = docs.get(id + '/人物/' + file) ?? ''
+        const al = parseAliases(extractFrontMatter(r).fm)
+        if (al.length) aliasMap[n] = al
+      }
+    }
+    return { ok: true, items: unlistedInBody({ body, listed: listedFrom(fm ?? {}), knownChars, aliasMap }) }
+  },
 
   // 提案（S4）
   proposals: [] as Proposal[],

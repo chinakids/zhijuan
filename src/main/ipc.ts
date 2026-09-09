@@ -6,6 +6,7 @@ import { countWords } from '../shared/count'
 import { listProposals, createProposals, applyProposal, rejectProposal } from './proposals'
 import { listSlices } from './slices'
 import { registerAgentIpc } from './agent/ipc'
+import { runChapterUnlisted } from './agent/audit'
 import { isRuntimeCreated, closeHarness } from './agent/runtime'
 import { getSettings, setSettings, libraryRoot } from './settings'
 import {
@@ -108,6 +109,9 @@ export function registerIpc() {
 
   // 时间线（切片清单，E4）
   ipcMain.handle('slices:list', (_e, projectId: string) => listSlices(projectDir(projectId)))
+
+  // 保存正文前置快检（本地规则，与 presence 同口径）：单章「名单外出场」命中（零模型）
+  ipcMain.handle('presence:chapterUnlisted', (_e, id: string, chapterRel: string) => runChapterUnlisted(id, chapterRel))
 
   // 提案（S4）
   ipcMain.handle('proposal:list', (_e, id: string) => listProposals(libraryRoot(), id))

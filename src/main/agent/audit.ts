@@ -2,7 +2,7 @@
 // 主进程把作品全卷的正文（截段）与全部设定档案整理成材料包，喂给写作引擎一次**写**结构化 JSON，
 // 供 UI 渲染成可逐条转提案的检查报告。和 runSync 同构：独立的 session、无提问、离线出结果。
 import { readDoc, listChapters, listDocs, writeDoc } from '../store'
-import { presenceCheck, parseAliases } from '../../shared/presence'
+import { presenceCheck, parseAliases, listedFrom, unlistedInBody } from '../../shared/presence'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { chapterOrderCheck } from '../../shared/chapterorder'
 import { registerCapability, runSubtask, type SubtaskDef } from './subtask'
@@ -14,7 +14,8 @@ import type {
   ChapterCheckKind,
   ChapterCheckResult,
   ChapterCheckItem,
-  RevisionLayer
+  RevisionLayer,
+  UnlistedHit
 } from '../../shared/types'
 
 export type { AuditKind, AuditItem, AuditResult }
@@ -38,6 +39,24 @@ export function auditReportRel(kind: AuditKind): string {
 
 // ===== 人物在场核查（本地规则层，零模型、秒级） =====
 // 读全卷正文 + 人物档案题名 → presenceCheck → AuditResult（与审计抽屉同构展示，不落盘）。
+/** 读全部人物档案：题名（knownChars，滤总览/索引）+ 登记别名（aliasMap） */
+export function readCharIndex(projectId: string): { knownChars: string[]; aliasMap: Record<string, string[]> } {
+  const knownChars: string[] = []
+  const aliasMap: Record<string, string[]> = {}
+  for (const d of listDocs(projectId, '人物')) {
+    // 文件可能带子目录（人物/某组/角色.md），取末段；过滤总览/索引类
+    const base = d.file.split('/').pop() ?? d.file
+    const name = base.replace(/\.md$/i, '').trim()
+    if (name && !['总览', '索引'].includes(name)) {
+      knownChars.push(name)
+      const raw = readDoc(projectId, '人物/' + d.file) ?? ''
+      const al = parseAliases(extractFrontMatter(raw).fm)
+      if (al.length) aliasMap[name] = al
+    }
+  }
+  return { knownChars, aliasMap }
+}
+
 /** 读全部正文章节 raw（跳过空文件） */
 function readVolumeChapters(projectId: string): { file: string; raw: string }[] {
   const chapters: { file: string; raw: string }[] = []
@@ -53,21 +72,32 @@ export function runPresence(
   projectId: string
 ): { ok: true; result: AuditResult } | { ok: false; error: string } {
   try {
-    const knownChars: string[] = []
-    const aliasMap: Record<string, string[]> = {}
-    for (const d of listDocs(projectId, '人物')) {
-      // 文件可能带子目录（人物/某组/角色.md），取末段；过滤总览/索引类
-      const base = d.file.split('/').pop() ?? d.file
-      const name = base.replace(/\.md$/i, '').trim()
-      if (name && !['总览', '索引'].includes(name)) {
-        knownChars.push(name)
-        const raw = readDoc(projectId, '人物/' + d.file) ?? ''
-        const al = parseAliases(extractFrontMatter(raw).fm)
-        if (al.length) aliasMap[name] = al
-      }
-    }
+    const { knownChars, aliasMap } = readCharIndex(projectId)
     const chapters = readVolumeChapters(projectId)
     return { ok: true, result: presenceCheck({ knownChars, chapters, aliasMap }) }
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message ?? e) }
+  }
+}
+
+/**
+ * 单章「名单外出场」快检（保存正文的前置提示用）：
+ * 读本章约定头「涉及人物」+ 人物档案题名/登记别名，与 presence 同一口径（也复用同一 conflict 规则），
+ * 零模型、单章、秒级；只给命中清单，不做任何写入。
+ */
+export function runChapterUnlisted(
+  projectId: string,
+  chapterRel: string
+): { ok: true; items: UnlistedHit[] } | { ok: false; error: string } {
+  try {
+    const raw = readDoc(projectId, chapterRel)
+    if (raw === null) return { ok: false, error: '章节文档不存在' }
+    const { fm, body } = extractFrontMatter(raw)
+    const { knownChars, aliasMap } = readCharIndex(projectId)
+    return {
+      ok: true,
+      items: unlistedInBody({ body, listed: listedFrom(fm ?? {}), knownChars, aliasMap })
+    }
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e) }
   }
