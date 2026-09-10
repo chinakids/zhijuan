@@ -5,6 +5,7 @@ import { adoptActsChapter } from '../shared/actsAdopt'
 import { countWords } from '../shared/count'
 import { listProposals, createProposals, applyProposal, rejectProposal } from './proposals'
 import { listSlices } from './slices'
+import { listSnapshots, readSnapshot } from './history'
 import { registerAgentIpc } from './agent/ipc'
 import { runChapterUnlisted } from './agent/audit'
 import { isRuntimeCreated, closeHarness } from './agent/runtime'
@@ -106,6 +107,10 @@ export function registerIpc() {
   })
   ipcMain.handle('doc:list', (_e, id: string, relDir: string) => listDocs(id, relDir))
   ipcMain.handle('chapter:list', (_e, id: string) => listChapters(id))
+
+  // 正文版本历史（M3）：列表 + 读单版；恢复 = 读版后走 doc:write（自动再留一版，天然可反悔）
+  ipcMain.handle('history:list', (_e, id: string, rel: string) => listSnapshots(projectDir(id), rel))
+  ipcMain.handle('history:read', (_e, id: string, rel: string, name: string) => readSnapshot(projectDir(id), rel, name))
 
   // 时间线（切片清单，E4）
   ipcMain.handle('slices:list', (_e, projectId: string) => listSlices(projectDir(projectId)))

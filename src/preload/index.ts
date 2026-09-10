@@ -17,7 +17,8 @@ import type {
   SliceEntry,
   DirectorSheet,
   DirectorCheckResult,
-  UnlistedHit
+  UnlistedHit,
+  HistorySnapshot
 } from '../shared/types'
 
 const api = {
@@ -57,6 +58,9 @@ const api = {
   listDocs: (id: string, relDir: string) => ipcRenderer.invoke('doc:list', id, relDir) as Promise<{ file: string; name: string; mtime: number }[]>,
   listChapters: (id: string) => ipcRenderer.invoke('chapter:list', id) as Promise<ChapterEntry[]>,
   listSlices: (projectId: string) => ipcRenderer.invoke('slices:list', projectId) as Promise<SliceEntry[]>,
+  // 正文版本历史（M3）：列表元信息 + 读单版内容
+  listHistory: (id: string, rel: string) => ipcRenderer.invoke('history:list', id, rel) as Promise<HistorySnapshot[]>,
+  readHistory: (id: string, rel: string, name: string) => ipcRenderer.invoke('history:read', id, rel, name) as Promise<string | null>,
   // 保存正文前置快检：单章「名单外出场」命中（本地规则·零模型；与审计抽屉「在场」同口径）
   checkChapterUnlisted: (id: string, chapterRel: string) =>
     ipcRenderer.invoke('presence:chapterUnlisted', id, chapterRel) as Promise<

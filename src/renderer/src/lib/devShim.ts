@@ -9,6 +9,14 @@ import { toast } from '../store/toasts'
 const now = Date.now()
 
 const docs = new Map<string, string>()
+// 版本历史 mock：与主进程行为对齐（仅 正文/ 前缀、内容变化才快照旧内容，新→旧，上限 50）
+const histories = new Map<string, { name: string; content: string; mtimeMs: number }[]>()
+const HISTORY_LIMIT_DEV = 50
+function snapNameDev(ts: number): string {
+  const d = new Date(ts)
+  const p = (n: number, w = 2) => String(n).padStart(w, '0')
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}-${p(d.getMilliseconds(), 3)}`
+}
 const seeded = { id: 'demo-aseya', name: '余烬的灯', description: '示例：失忆的守灯人找回自己' }
 
 docs.set(
@@ -260,8 +268,20 @@ const mock = {
   openProject: async (id: string) => projects.find((p) => p.id === id) ?? null,
   readDoc: async (_id: string, rel: string) => docs.get(_id + '/' + rel) ?? null,
   writeDoc: async (_id: string, rel: string, content: string) => {
-    docs.set(_id + '/' + rel, content)
+    const k = _id + '/' + rel
+    const prev = docs.get(k)
+    if (rel.startsWith('正文/') && prev !== undefined && prev !== content) {
+      const arr = histories.get(k) ?? []
+      arr.unshift({ name: snapNameDev(Date.now() + arr.length), content: prev, mtimeMs: Date.now() })
+      if (arr.length > HISTORY_LIMIT_DEV) arr.length = HISTORY_LIMIT_DEV
+      histories.set(k, arr)
+    }
+    docs.set(k, content)
   },
+  listHistory: async (_id: string, rel: string) =>
+    (histories.get(_id + '/' + rel) ?? []).map((h) => ({ name: h.name, mtimeMs: h.mtimeMs, size: h.content.length })),
+  readHistory: async (_id: string, rel: string, name: string) =>
+    (histories.get(_id + '/' + rel) ?? []).find((h) => h.name === name)?.content ?? null,
   listDocs: async (id: string, relDir: string) => docsOf(id + '/' + relDir),
   listChapters: async (id: string): Promise<ChapterEntry[]> => {
     const out: ChapterEntry[] = []

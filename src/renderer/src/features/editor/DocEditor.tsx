@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { cn } from '../../lib/utils'
 import Prose, { type ProseApi } from './Prose'
+import HistoryDrawer from './HistoryDrawer'
 import { withBody } from '../../../../shared/fmatter'
 
 type DocStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'external' | 'error'
@@ -29,6 +30,7 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(true)
   const [epoch, setEpoch] = useState(0) // 换文件时强制重建编辑器，避免脏状态串文件
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   // 加载文件；rel 变化就重来
   useEffect(() => {
@@ -138,10 +140,12 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
         />
       </div>
       <div className="flex h-7 items-center gap-2 border-t border-hair px-4 text-xs">
+        <button onClick={() => setHistoryOpen(true)} className="shrink-0 whitespace-nowrap text-xs text-ink-2 underline-offset-2 hover:underline" title="正文自动留档的版本历史（查看差异 / 恢复）">历史</button>
         <span className={cn('font-medium', st.cls)}>{st.text}</span>
         <span className="flex-1" />
         <button onClick={() => void doSave()} disabled={!dirty || busy} className="text-xs text-ink-2 underline-offset-2 hover:underline disabled:opacity-40">保存 ⌘S</button>
       </div>
+      <HistoryDrawer projectId={projectId} rel={rel} open={historyOpen} onClose={() => setHistoryOpen(false)} />
     </div>
   )
 }

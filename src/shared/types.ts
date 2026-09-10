@@ -158,6 +158,14 @@ export interface FsEvent {
   path: string
 }
 
+/** 正文版本历史的单条快照（列表元信息；内容由 history:read 单独取） */
+export interface HistorySnapshot {
+  /** 版本文件名：yyyyMMdd-HHmmss-SSS[(-N)].md */
+  name: string
+  mtimeMs: number
+  size: number
+}
+
 /** 提案（模块设计 §10；S4 用，先定义好结构） */
 export interface ProposalItem {
   target: string
