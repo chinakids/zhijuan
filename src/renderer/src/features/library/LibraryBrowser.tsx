@@ -44,7 +44,12 @@ function previewOf(text: string): string {
 
 const isMaterialFile = (f: string) => !f.startsWith('采集池/') && f !== '索引.md' && !f.startsWith('.')
 
-export default function LibraryBrowser() {
+interface LibraryBrowserProps {
+  /** 外部请求打开某个素材（相对项目根路径，如 素材库/人物/x.md；来自 ⌘K 面板搜索跳转） */
+  openDoc?: string | null
+}
+
+export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
   const { id = '' } = useParams()
   const [categories, setCategories] = useState<LibraryCategory[]>([])
   const [files, setFiles] = useState<LibraryFileItem[]>([])
@@ -77,6 +82,15 @@ export default function LibraryBrowser() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  // 外部跳转直达（⌘K 面板素材搜索）：打开编辑器并退出搜索态（面板路径消费后外层已清参，openDoc 变 null 不重复触发）
+  useEffect(() => {
+    if (openDoc) {
+      setEditorRel(openDoc)
+      setSearchQ('')
+      setHits(null)
+    }
+  }, [openDoc])
 
   // 素材卡元信息（预览/标签）——当前选中类别变化时（重）读；全部文件量小，逐条读前 2KB 不阻塞
   useEffect(() => {

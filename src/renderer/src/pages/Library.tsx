@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { ArrowRightLeft } from 'lucide-react'
 import CollectionBar from '../features/collection/CollectionBar'
 import LibraryBrowser from '../features/library/LibraryBrowser'
@@ -8,6 +8,12 @@ import TriageDrawer from '../features/triage/TriageDrawer'
 export default function Library() {
   const { id = '' } = useParams()
   const [triageOpen, setTriageOpen] = useState(false)
+  // ?doc=<相对项目根路径>：⌘K 面板素材搜索结果跳转直达（消费后清参；与 novel?ch= 同策略，刷新不残留）
+  const [sp, setSp] = useSearchParams()
+  const openDoc = sp.get('doc')
+  useEffect(() => {
+    if (openDoc) setSp({}, { replace: true })
+  }, [openDoc, setSp])
   return (
     <div className="flex h-full min-h-0 flex-col">
       <CollectionBar />
@@ -22,7 +28,7 @@ export default function Library() {
         </button>
       </div>
       <div className="min-h-0 flex-1">
-        <LibraryBrowser />
+        <LibraryBrowser openDoc={openDoc} />
       </div>
       <TriageDrawer projectId={id} open={triageOpen} onClose={() => setTriageOpen(false)} />
     </div>

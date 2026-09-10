@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMatch, useNavigate } from 'react-router-dom'
 import {
   CommandDialog,
@@ -9,8 +9,8 @@ import {
   CommandList,
   CommandSeparator
 } from '../../components/ui/command'
-import { BookOpen, FolderOpen, Globe2, History, Library as LibraryIcon, ListTree, PenLine, Settings as SettingsIcon, Users } from 'lucide-react'
-import type { ChapterEntry, ProjectSummary } from '../../../../shared/types'
+import { BookOpen, FileText, FolderOpen, Globe2, History, Library as LibraryIcon, ListTree, Loader2, PenLine, Settings as SettingsIcon, Users } from 'lucide-react'
+import type { ChapterEntry, ProjectSummary, SearchHit } from '../../../../shared/types'
 
 const PAGE_ITEMS = [
   { key: 'novel', label: '正文创作', icon: PenLine },
@@ -31,6 +31,10 @@ export default function CommandPalette() {
   const [chapters, setChapters] = useState<ChapterEntry[]>([])
   const [chLoading, setChLoading] = useState(false)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
+  const [q, setQ] = useState('')
+  const [matHits, setMatHits] = useState<SearchHit[] | null>(null)
+  const [matLoading, setMatLoading] = useState(false)
+  const matSeq = useRef(0)
 
   // 全局快捷键：Mac Cmd+K / Win Ctrl+K（编辑器未绑 Mod-k，无冲突）
   useEffect(() => {
@@ -44,11 +48,14 @@ export default function CommandPalette() {
     return () => document.removeEventListener('keydown', down)
   }, [])
 
-  // 打开时拉数据（会话内兜底，读取失败不阻塞面板）
+  // 打开时拉数据（会话内兜底，读取失败不阻塞面板）+ 清空上次搜索词（面板为瞬态层，不残留）
   useEffect(() => {
     if (!open) return
     setProjects([])
     setChapters([])
+    setQ('')
+    setMatHits(null)
+    setMatLoading(false)
     void window.zhijuan.listProjects().then(setProjects).catch(() => setProjects([]))
     if (projectId) {
       setChLoading(true)
@@ -59,6 +66,34 @@ export default function CommandPalette() {
         .finally(() => setChLoading(false))
     }
   }, [open, projectId])
+
+  // 素材库全文搜索：输入即搜（HIG Search fields「start search immediately」），防抖 300ms；
+  // 与素材库页同一口径——文件名+正文、空格分词 AND、排除采集池；面板只取前 8 条防噪。
+  useEffect(() => {
+    if (!open || !projectId) return
+    const query = q.trim()
+    if (!query) {
+      setMatHits(null)
+      setMatLoading(false)
+      return
+    }
+    setMatLoading(true)
+    const seq = ++matSeq.current
+    const t = setTimeout(() => {
+      window.zhijuan
+        .searchDocs(projectId, '素材库', query, { excludePrefix: ['素材库/采集池/'], limit: 8 })
+        .then((r) => {
+          if (seq === matSeq.current) setMatHits(r)
+        })
+        .catch(() => {
+          if (seq === matSeq.current) setMatHits([])
+        })
+        .finally(() => {
+          if (seq === matSeq.current) setMatLoading(false)
+        })
+    }, 300)
+    return () => clearTimeout(t)
+  }, [open, projectId, q])
 
   const close = useCallback(() => setOpen(false), [])
   const go = useCallback(
@@ -71,9 +106,9 @@ export default function CommandPalette() {
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="输入页面、章节或项目名…" autoFocus />
+      <CommandInput placeholder="输入页面、章节、项目或素材关键词…" autoFocus onValueChange={setQ} />
       <CommandList>
-        <CommandEmpty>没有匹配项（试试「正文」或章节题名）</CommandEmpty>
+        <CommandEmpty>没有匹配项（试试「正文」、章节题名或素材里的关键词）</CommandEmpty>
 
         {projectId ? (
           <CommandGroup heading="页面">
@@ -120,6 +155,35 @@ export default function CommandPalette() {
                   <BookOpen className="h-4 w-4 text-ink-3" />
                   <span className="truncate">{c.fm ? `第${c.fm['章号'] ?? '?'}章 · ${c.fm['题名'] ?? c.name}` : c.name}</span>
                   <span className="ml-auto shrink-0 text-[11px] text-ink-3">{c.wordCount} 字</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+
+        {projectId && q.trim() !== '' && (matLoading || (matHits && matHits.length > 0)) && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading={`素材 · 全文搜索${matHits ? `（${matHits.length} 条）` : ''}`}>
+              {matLoading && (!matHits || matHits.length === 0) && (
+                <CommandItem disabled value="正在搜索素材…">
+                  <Loader2 className="h-4 w-4 animate-spin text-ink-3" />
+                  <span>正在搜索素材…</span>
+                </CommandItem>
+              )}
+              {(matHits ?? []).map((h) => (
+                <CommandItem
+                  key={h.file}
+                  value={`素材 ${h.name} ${h.snippet}`}
+                  keywords={[h.name, h.snippet]}
+                  onSelect={() => go(`/project/${projectId}/library?doc=${encodeURIComponent(h.file)}`)}
+                >
+                  <FileText className="h-4 w-4 shrink-0 text-ink-3" />
+                  <span className="min-w-0 truncate">{h.name}</span>
+                  <span className="ml-1 shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-2">
+                    {h.field === 'name' ? '文件名' : '正文'}
+                  </span>
+                  <span className="ml-auto max-w-44 shrink-0 truncate text-[11px] text-ink-3">{h.snippet}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
