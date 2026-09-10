@@ -2,7 +2,8 @@
 // 用法：node scripts/history-ui-smoke.mjs
 // 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收：① 编辑器底部「历史」入口存在；② 保存两个版本后抽屉列出 ≥2 版；
-//       ③ 默认选中最新版并渲染行级 diff（− + 行存在）；④ 两击「恢复此版本」→ 正文回旧版且历史新增一版；⑤ 无 JS 异常。
+//       ③ 默认选中最新版并渲染行级 diff（− + 行存在）；④ 两击「恢复此版本」→ 正文回旧版且历史新增一版；
+//       ⑤ writeDoc 模拟 fs:event 广播（观察项①）；⑥ 恢复后编辑器经 extVersion 静默重载为恢复内容；⑦ 无 JS 异常。
 const CDP = 'http://127.0.0.1:9224'
 const BASE = 'http://localhost:8123'
 const REL = '正文/第01章_雾港.md'
@@ -73,6 +74,9 @@ await evalUntil(page, `(() => { const el = document.querySelector('.ProseMirror'
 const hasEntry = await page.eval(`(() => [...document.querySelectorAll('button')].some((b) => (b.textContent || '').trim() === '历史'))()`)
 ok('编辑器底部有「历史」入口', hasEntry === true, String(hasEntry))
 
+// fs 事件链路（观察项①）：挂监听收集，writeDoc 后应与真机 watcher（主进程→fs:event→useFsEvents→extVersion）同语义广播
+await page.eval(`(() => { window.__FS = []; window.zhijuan.onFsEvent((e) => window.__FS.push(e)); return true })()`)
+
 // 造两个版本：v1 = 原文追加一段；v2 = v1 再追加一段（mock 依据「内容变化才快照」留档 v1、v2）
 const makeVersions = await page.eval(`(async () => {
   const id = 'demo-aseya'
@@ -84,6 +88,12 @@ const makeVersions = await page.eval(`(async () => {
   return { v1, v2, base }
 })()`)
 console.log('versions built, v1 len =', makeVersions.v1.length)
+
+// ⑤ writeDoc 应模拟出与真机同语义的 fs 事件（观察项①：devShim 补事件模拟后，此链路可无头验证）
+const fsEvents = await page.eval(`(() => window.__FS)()`)
+const fsHit = fsEvents.find((e) => e.projectId === 'demo-aseya' && e.kind === 'change' && e.path === REL)
+const fsPaths = fsEvents.map((e) => e.path)
+ok('writeDoc 广播 fs:event（change/相对路径）', !!fsHit && fsPaths.filter((p) => p === REL).length >= 2, JSON.stringify(fsEvents.slice(-2)))
 
 // 打开历史抽屉
 await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').trim() === '历史'); if (b) b.click(); return !!b })()`)
@@ -128,6 +138,16 @@ const after = await page.eval(`(async () => {
 })()`)
 ok('恢复后正文 = v1', after.sameAsV1 === true, JSON.stringify(after))
 ok('恢复后历史新增一版（≥3）', after.count >= 3, 'count=' + after.count)
+
+// ⑥ 观察项①落点：恢复后编辑器应经 extVersion 静默重载为恢复内容（无 fs 事件模拟时编辑器会停留在旧态）
+const reloaded = await evalUntil(
+  page,
+  `(document.querySelector('.ProseMirror') || { textContent: '' }).textContent`,
+  (t) => typeof t === 'string' && t.includes('冒烟：第一版新增的句子'),
+  20000,
+  '编辑器静默重载出恢复内容'
+)
+ok('恢复后编辑器静默重载为 v1（fs→extVersion）', reloaded.includes('冒烟：第一版新增的句子') && !reloaded.includes('冒烟：第二版新增的句子'), 'len=' + reloaded.length)
 
 // 截图存档（给主人看界面）
 const shot = await page.cmd('Page.captureScreenshot', { format: 'png' })

@@ -131,7 +131,9 @@ export default function Novel() {
     if (ev && ev.path.startsWith('正文/')) void refresh()
   }, [events, refresh])
 
-  const extVersion = useMemo(() => (sel ? events.filter((e) => e.path === sel).length : 0), [events, sel])
+  // 注意：events.path 是项目根相对路径（如 正文/第01章_雾港.md），sel 是 listChapters 返回的相对 正文/ 裸名，
+  // 匹配必须用带前缀的 chapterRel 拼出来（真机 watcher 同此口径；曾直接用 sel 匹配导致 extVersion 恒 0、外部改动不静默重载）
+  const extVersion = useMemo(() => (sel ? events.filter((e) => e.path === '正文/' + sel).length : 0), [events, sel])
 
   async function createChapter() {
     if (!id || !title.trim()) return

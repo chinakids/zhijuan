@@ -1,5 +1,5 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
-import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit } from '../../../shared/types'
+import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, FsEvent } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
 import { countWords } from '../../../shared/count'
 import { extractFrontMatter } from '../../../shared/fmatter'
@@ -7,6 +7,17 @@ import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceChe
 import { toast } from '../store/toasts'
 
 const now = Date.now()
+
+// ---- 文件系统事件模拟（2026-09-10）：与主进程 watchProject→fs:event 链路同语义 ----
+// 真机：store.writeDoc 写盘 → chokidar watcher 广播 {projectId, kind:'change', path:相对项目根}，
+//       .zhijuan 等点路径被 DOT_DIR 过滤不广播。devShim 无真实磁盘与 watcher，改为写入口显式模拟：
+//       任何项目内非点路径的「写盘」都广播给 onFsEvent 订阅者，让无头侧 extVersion 静默重载链路可被冒烟。
+const fsListeners = new Set<(e: FsEvent) => void>()
+function fsEmit(projectId: string, rel: string) {
+  if (!rel || rel.startsWith('.')) return // 与真机 DOT_DIR 过滤一致（.zhijuan 内部变化不打扰界面）
+  const evt: FsEvent = { projectId, kind: 'change', path: rel }
+  for (const h of fsListeners) h(evt)
+}
 
 const docs = new Map<string, string>()
 // 空类别（dev 内存无目录概念：新类别只登记名字，树/列表经 libraryTree 组装时按计数 0 展示）
@@ -311,6 +322,7 @@ const mock = {
       histories.set(k, arr)
     }
     docs.set(k, content)
+    fsEmit(_id, rel)
   },
   listHistory: async (_id: string, rel: string) =>
     (histories.get(_id + '/' + rel) ?? []).map((h) => ({ name: h.name, mtimeMs: h.mtimeMs, size: h.content.length })),
@@ -408,7 +420,12 @@ const mock = {
     }
     return out
   },
-  onFsEvent: () => () => {},
+  onFsEvent: (cb: (e: FsEvent) => void) => {
+    fsListeners.add(cb)
+    return () => {
+      fsListeners.delete(cb)
+    }
+  },
   getPaths: async () => ({ documents: '', libraryRoot: '' }),
 
   // dev 演示的人物索引：与主进程 readCharIndex 同口径（档案题名 + 登记别名）
@@ -475,6 +492,7 @@ const mock = {
       try {
         if (!it || typeof it.after !== 'string') throw new Error('提案格式不完整: ' + JSON.stringify(it).slice(0, 120))
         docs.set(key, applyAnchor(cur, it))
+        fsEmit(_id, it.target)
       } catch (e) {
         errs.push(it?.target + ': ' + String((e as Error).message || e))
       }
@@ -503,6 +521,7 @@ const mock = {
     }
     if (errors.length) return { ok: false, errors }
     docs.set(key, next)
+    fsEmit(_id, rel)
     return { ok: true }
   },
 
@@ -687,6 +706,7 @@ const mock = {
     const rel = '大纲/审读_' + name + '.md'
     const md = '# 审读报告 · ' + name + '\n\n> 织卷写作引擎 · 演示存档\n\n## 一句话结论\n\n' + res.result.summary + '\n\n## 条目（' + res.result.items.length + '）\n'
     docs.set(projectId + '/' + rel, md)
+    fsEmit(projectId, rel)
     return { ...res, savedReport: rel }
   },
   agentSync: async () => ({ ok: true, items: [] } as { ok: boolean; items: ProposalItem[] }),
@@ -757,8 +777,10 @@ const mock = {
       const rel = '大纲/' + c.file.replace(/^正文\//, '')
       docs.set(projectId + '/' + rel, '# 章卡 ' + (c.no ? `第${c.no}章 ` : '') + c.title + '\n\n> 定位：' + c.oneLine + '\n\n- 关键事件：' + c.beats.join('；') + '\n- 人物进展：' + c.charProgress + '\n- 钩子：' + c.hooks.join('；') + '\n')
       writes.push(rel)
+      fsEmit(projectId, rel)
     }
     docs.set(projectId + '/大纲/索引.md', '# 大纲区 · 章卡索引\n\n共 ' + cards.length + ' 章已回建章卡。\n')
+    fsEmit(projectId, '大纲/索引.md')
     return { ok: true, cards, written: writes }
   },
   // 章节导演（dev 模式：写 mock 的 大纲/<章>_导演.md 并返回导演板）
@@ -782,6 +804,7 @@ const mock = {
       hooks: ['灯芯带回来要呼应', '旧钥匙的来历下一章揭' ]
     }
     docs.set(projectId + '/' + rel, '# 导演板 · ' + name + '（演示数据）\n\n## 本章戏剧任务\n' + sheet.premise + '\n')
+    fsEmit(projectId, rel)
     return { ok: true, written: rel, sheet }
   },
   // 导演兑现检查（dev 模式：固定演示核对报告，对照上面的演示导演板）
@@ -840,6 +863,7 @@ const mock = {
       })
       if (!replaced) return { ok: false, error: '草稿里没有要求重写的段落（第 ' + only.join('、') + ' 段）。' }
       docs.set(projectId + '/' + rel, fmPart + out)
+      fsEmit(projectId, rel)
       return { ok: true, written: rel, acts: replaced, words: 100 }
     }
     const body = [
@@ -856,6 +880,7 @@ const mock = {
       projectId + '/' + rel,
       '---\n状态: 分幕草稿\n题名: ' + name + '\n---\n\n# ' + name + '（分幕草稿）\n\n> 由「分幕生成」按导演板情绪弧分段逐段写出（演示数据）。确认后把下面的正文部分搬进正文文件即可。\n\n' + body
     )
+    fsEmit(projectId, rel)
     return { ok: true, written: rel, acts: 2, words: 128 }
   },
   // 采纳分幕草稿为本章正文（dev 模式：与主进程同语义的简易实现，方便无头验证入口）
@@ -875,6 +900,7 @@ const mock = {
     const fm = String(cur.match(/^---\n[\s\S]*?\n---/) ?? '')
     const name = chapterRel.replace(/^正文\//, '').replace(/\.md$/, '')
     docs.set(projectId + '/' + chapterRel, fm + '\n\n# ' + name + '\n\n' + body + '\n')
+    fsEmit(projectId, chapterRel)
     return { ok: true, words: body.length }
   },
   // 素材→设定升格（dev 模式：固定演示判定）

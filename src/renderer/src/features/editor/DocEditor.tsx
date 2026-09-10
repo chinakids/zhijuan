@@ -88,26 +88,30 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
     ;(window as unknown as { __ZJ_DOC?: { rel: string; savedMd: string; loading: boolean } }).__ZJ_DOC = { rel, savedMd: savedMdRef.current, loading }
   }
 
-  // 外部文件有更新：未修改则静默重载，已修改则提示
+  // 外部文件有更新：本页无未保存改动 → 静默重载（以磁盘最新内容整篇灌回），已修改 → 提示
+  // 注：判定用 status==='dirty'（Prose 编辑态），不能与 savedMdRef 做字符串比较——
+  //     savedMdRef 初始是磁盘原文，而 getMarkdown() 是 Milkdown 序列化结果，两者格式永不等，
+  //     曾因此导致「恢复后」永远误报磁盘冲突、静默重载从不命中（2026-09-10 无头冒烟暴露）。
+  const statusRef = useRef(status)
+  statusRef.current = status
   useEffect(() => {
     if (extVersion === undefined || extVersion === 0) return
     const api = apiRef.current
     if (!api) return
-    const now = api.getMarkdown()
-    if (now === savedMdRef.current) {
-      void (async () => {
-        const raw = (await window.zhijuan.readDoc(projectId, rel)) ?? ''
-        rawRef.current = raw
-        const body = withFm ? splitFm(raw).body : raw
-        savedMdRef.current = body
-        api.setContent(body)
-        setStatus('idle')
-        setNote('')
-      })()
-    } else {
+    if (statusRef.current === 'dirty') {
       setStatus('external')
       setNote('磁盘有更新且本页有未保存改动 — 请重新保存或另存')
+      return
     }
+    void (async () => {
+      const raw = (await window.zhijuan.readDoc(projectId, rel)) ?? ''
+      rawRef.current = raw
+      const body = withFm ? splitFm(raw).body : raw
+      savedMdRef.current = body
+      api.setContent(body)
+      setStatus('idle')
+      setNote('')
+    })()
   }, [extVersion, projectId, rel, withFm])
 
   const dirty = status === 'dirty'
