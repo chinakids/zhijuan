@@ -57,9 +57,15 @@ describe('buildWritingContext（写作上下文装配）', () => {
       '大纲/第2章_雾.md',
       '素材库/索引.md'
     ])
-    expect(blocks).toHaveLength(9)
+    // 第 5 位（第五）不进档案，但名单要全量给出（2026-09-10 上下文审计修复）
+    expect(blocks).toHaveLength(10)
     expect(blocks[0]).toContain('第二章正文')
     expect(blocks[1]).toContain('第一章正文')
+    const extra = blocks.find((b) => b.includes('涉及人物补充'))
+    expect(extra).toContain('共 5 位')
+    expect(extra).toContain('第五')
+    expect(extra).toContain('zj_read_doc')
+    expect(blocks.join('\n').indexOf('涉及人物补充')).toBeGreaterThan(blocks.join('\n').indexOf('人物档案：苏禾'))
     // front matter 不泄漏进上下文
     expect(blocks.join('\n')).not.toMatch(/^---\n?/)
     expect(blocks.join('\n')).not.toContain('章号:')
@@ -79,12 +85,44 @@ describe('buildWritingContext（写作上下文装配）', () => {
     const all = blocks.join('\n')
     expect(all).toMatch(/甲{8000}/)
     expect(all).not.toMatch(/甲{8001}/)
+    // 正文超预算：改装配结尾并注明省略（续写最需要「刚写到哪里」；2026-09-10 修复）
+    expect(all).toContain('已省略')
+    expect(all).toContain('zj_read_doc')
     expect(all).toMatch(/乙{4000}/)
     expect(all).not.toMatch(/乙{4001}/)
     expect(all).toMatch(/丙{4000}/)
     expect(all).not.toMatch(/丙{4001}/)
     expect(all).toMatch(/丁{1200}/)
     expect(all).not.toMatch(/丁{1201}/)
+  })
+
+  it('正文超预算装配**结尾**：续写场景拿到「刚写到哪里」，开头可 zj_read_doc 现读', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === '正文/第1章_b.md') return FM_1 + '【开头标记】' + '中'.repeat(8990) + '【结尾标记】'
+      return null
+    })
+    listChaptersMock.mockReturnValue([] as never)
+
+    const { blocks } = await buildWritingContext('p', '正文/第1章_b.md')
+    const chapter = blocks.find((b) => b.includes('当前章节'))
+    expect(chapter).toBeTruthy()
+    expect(chapter).toContain('【结尾标记】') // 尾部保留
+    expect(chapter).not.toContain('【开头标记】') // 开头被省略（预算内 8000 字符不够首尾都在）
+    expect(chapter).toContain('已省略')
+    expect(chapter).toContain('zj_read_doc')
+  })
+
+  it('正文未超预算：原样全量装配，无省略提示', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === '正文/第1章_b.md') return FM_1 + '短正文'
+      return null
+    })
+    listChaptersMock.mockReturnValue([] as never)
+
+    const { blocks } = await buildWritingContext('p', '正文/第1章_b.md')
+    const chapter = blocks.find((b) => b.includes('当前章节'))
+    expect(chapter).toContain('短正文')
+    expect(chapter).not.toContain('已省略')
   })
 
   it('第一章没有上一章；当前章不在章节列表时也没有', async () => {

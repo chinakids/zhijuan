@@ -46,11 +46,18 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
   }
 
   // 1. 当前章节正文（去 front matter；章首「本章故事要素」块随正文一起带上）
+  //    预算硬控边：超长时装配**结尾**（续写/巡查最需要的是刚写到的部分；开头可用 zj_read_doc 现读），
+  //    而非默认从头截断——从头截会把「刚写到哪里」裁掉（2026-09-10 上下文审计修复）。
   let chRaw = chapterRel ? read(chapterRel) : ''
   const { fm } = extractFrontMatter(chRaw)
   chRaw = stripFrontMatter(chRaw)
   if (chRaw.trim()) {
-    blocks.push(`【当前章节：${chapterRel}】\n${chRaw.slice(0, CAP.chapter)}`)
+    const over = chRaw.length - CAP.chapter
+    const body =
+      over > 0
+        ? `（本章正文已超 ${CAP.chapter} 字符预算：装配的是**结尾**部分，前文 ${over} 字符已省略；要看前面内容请用 zj_read_doc 读取本文件）\n…\n${chRaw.slice(-CAP.chapter)}`
+        : chRaw
+    blocks.push(`【当前章节：${chapterRel}】\n${body}`)
     sources.push(chapterRel)
   }
 
@@ -65,13 +72,21 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
   }
 
   // 3. 本章涉及人物档案（最多 CAP.maxChars 位）
-  const cast: string[] = Array.isArray(fm?.['涉及人物']) ? (fm?.['涉及人物'] as string[]) : []
-  for (const c of cast.slice(0, CAP.maxChars)) {
+  //    2026-09-10 审计修复：超 4 位时不能静默裁掉——模型会误以为本章只有 4 人（多人局直接伤创作），
+  //    名单本身很便宜，全量给出并注明哪些未附档案（档案仍可 zj_read_doc 现读）。
+  const castAll: string[] = Array.isArray(fm?.['涉及人物']) ? (fm?.['涉及人物'] as string[]) : []
+  const cast = castAll.slice(0, CAP.maxChars)
+  for (const c of cast) {
     const t = read(`人物/${c}.md`)
     if (t.trim()) {
       blocks.push(`【人物档案：${c}】\n${t.slice(0, CAP.char)}`)
       sources.push(`人物/${c}.md`)
     }
+  }
+  if (castAll.length > cast.length) {
+    blocks.push(
+      `【涉及人物补充】本章「涉及人物」共 ${castAll.length} 位：${castAll.join('、')}。已附前 ${cast.length} 位档案；其余未附档案——若写到时需要其设定，请用 zj_read_doc 读取 人物/<姓名>.md。`
+    )
   }
 
   // 4. 当前时间切片设定（文件名约定 世界观/切片_<切片名>.md；兼容早期无「切片_」前缀的文件）
