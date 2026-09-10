@@ -86,6 +86,8 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
 
   const view = useMemo(() => (sel && oldText !== null && oldText !== curText ? buildDiffView(oldText, curText) : null), [sel, oldText, curText])
 
+  if (!open) return null
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/20">
       <div className="flex h-full w-[600px] flex-col border-l border-hair bg-paper shadow-[var(--shadow)]">

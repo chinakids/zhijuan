@@ -7,13 +7,20 @@ import { listener, listenerCtx } from '@milkdown/kit/plugin/listener'
 import { cursor } from '@milkdown/kit/plugin/cursor'
 import { clipboard } from '@milkdown/kit/plugin/clipboard'
 import { trailing } from '@milkdown/kit/plugin/trailing'
-import { setBlockType, toggleMark } from 'prosemirror-commands'
+import { setBlockType, toggleMark, selectAll } from 'prosemirror-commands'
 import { wrapInList } from 'prosemirror-schema-list'
 import { undo, redo, undoDepth, redoDepth } from 'prosemirror-history'
 import '@milkdown/theme-nord/style.css'
 import '../../styles/milkdown.css'
-import { MessageSquarePlus } from 'lucide-react'
+import { ClipboardPaste, Copy, MessageSquarePlus, Scissors, TextSelect } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger
+} from '../../components/ui/context-menu'
 
 /** 暴露给父组件的命令式 API */
 export interface ProseApi {
@@ -146,6 +153,105 @@ export default function Prose({ value, onEdit, apiRef, className }: ProseProps) 
     setBubble(null)
   }
 
+  /* —— 正文右键菜单（Apple HIG Context menus：上下文相关/≤3 组/隐藏不可用/无快捷键文字）—— */
+  const [menuSel, setMenuSel] = useState<string | null>(null)
+  const getSelText = (): string | null => {
+    // 优先用编辑器模型选区：右键/点按可能让浏览器调整 DOM 选区，但 ProseMirror state 不受右键影响
+    let model: string | null = null
+    try {
+      edRef.current?.action((ctx: any) => {
+        const view = ctx.get(editorViewCtx)
+        const { from, to } = view.state.selection
+        if (from === to) return
+        const s = view.state.doc.textBetween(from, to, '\n').trim()
+        if (s) model = s
+      })
+    } catch {
+      /* 编辑器未就绪则走 DOM 兜底 */
+    }
+    if (model) return model
+    const host = hostRef.current
+    const s = window.getSelection()
+    if (!host || !s || s.rangeCount === 0 || s.isCollapsed) return null
+    const r = s.getRangeAt(0)
+    if (!host.contains(r.startContainer) || !host.contains(r.endContainer)) return null
+    const t = s.toString().trim()
+    return t || null
+  }
+  const onMenuOpenChange = (open: boolean) => {
+    if (!open) {
+      setMenuSel(null)
+      return
+    }
+    // menuSel 已在 contextmenu 捕获阶段快照（右键时 Chromium 会短暂 collapsed DOM 选区，onOpenChange 再读已太晚）
+    setBubble(null) // 右键打开菜单时收起划词浮层，避免重叠
+  }
+  const snapMenuSel = () => setMenuSel(getSelText())
+  const runEdit = (fn: (view: any, ctx: any) => void) => {
+    const e = edRef.current
+    if (!e) return
+    try {
+      e.action((ctx: any) => {
+        const view = ctx.get(editorViewCtx)
+        fn(view, ctx)
+        view.focus()
+      })
+    } catch {
+      /* 编辑器还没就绪时直接忽略 */
+    }
+  }
+  const writeClip = async (t: string) => {
+    try {
+      await navigator.clipboard.writeText(t)
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = t
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      try {
+        document.execCommand('copy')
+      } catch {
+        /* 剪贴板不可用时静默 */
+      }
+      ta.remove()
+    }
+  }
+  const doCopy = async (text?: string) => {
+    const t = text ?? menuSel
+    if (!t) return
+    await writeClip(t)
+  }
+  const doCut = async () => {
+    if (!menuSel) return
+    await writeClip(menuSel)
+    runEdit((v) => v.dispatch(v.state.tr.deleteSelection()))
+  }
+  const doPaste = async () => {
+    let t = ''
+    try {
+      t = await navigator.clipboard.readText()
+    } catch {
+      return
+    }
+    if (!t.trim()) return
+    runEdit((v, ctx) => {
+      const doc = ctx.get(parserCtx)(t)
+      const { from, to } = v.state.selection
+      v.dispatch(v.state.tr.replaceWith(from, to, doc))
+    })
+  }
+  const doSelectAll = () => runEdit((v) => selectAll(v.state, v.dispatch))
+  const doQuote = () => {
+    if (menuSel) window.dispatchEvent(new CustomEvent('zj:quote-text', { detail: menuSel }))
+  }
+  const copyBubble = () => {
+    if (!bubble) return
+    void doCopy(bubble.text)
+    setBubble(null)
+  }
+
   useEffect(() => {
     if (!hostRef.current) return
     let api: ProseApi | null = null
@@ -224,7 +330,42 @@ export default function Prose({ value, onEdit, apiRef, className }: ProseProps) 
     <>
       <div className={cn('zj-md flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-hair', className)}>
         <Toolbar edRef={edRef} />
-        <div ref={hostRef} className="min-h-0 flex-1 overflow-y-auto" />
+        <ContextMenu onOpenChange={onMenuOpenChange}>
+          <ContextMenuTrigger asChild>
+            <div ref={hostRef} className="min-h-0 flex-1 overflow-y-auto" onContextMenuCapture={snapMenuSel} />
+          </ContextMenuTrigger>
+          <ContextMenuContent className="min-w-[9.5rem]">
+            {menuSel && (
+              <>
+                <ContextMenuItem onSelect={() => void doCut()}>
+                  <Scissors className="mr-0.5 h-3.5 w-3.5" />
+                  剪切
+                </ContextMenuItem>
+                <ContextMenuItem onSelect={() => void doCopy()}>
+                  <Copy className="mr-0.5 h-3.5 w-3.5" />
+                  复制
+                </ContextMenuItem>
+              </>
+            )}
+            <ContextMenuItem onSelect={() => void doPaste()}>
+              <ClipboardPaste className="mr-0.5 h-3.5 w-3.5" />
+              粘贴
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={doSelectAll}>
+              <TextSelect className="mr-0.5 h-3.5 w-3.5" />
+              全选
+            </ContextMenuItem>
+            {menuSel && (
+              <>
+                <ContextMenuSeparator />
+                <ContextMenuItem onSelect={doQuote}>
+                  <MessageSquarePlus className="mr-0.5 h-3.5 w-3.5" />
+                  添加到对话
+                </ContextMenuItem>
+              </>
+            )}
+          </ContextMenuContent>
+        </ContextMenu>
       </div>
       {bubble && (
         <div
@@ -235,6 +376,10 @@ export default function Prose({ value, onEdit, apiRef, className }: ProseProps) 
             transform: bubble.below ? 'translate(-50%, 4px)' : 'translate(-50%, calc(-100% - 10px))'
           }}
         >
+          <button onClick={copyBubble} title="复制选中文字">
+            <Copy className="h-3.5 w-3.5" />
+            复制
+          </button>
           <button onClick={dispatchQuote} title="把选中文字作为引用添加到右下对话">
             <MessageSquarePlus className="h-3.5 w-3.5" />
             添加到对话
