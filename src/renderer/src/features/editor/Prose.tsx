@@ -348,15 +348,36 @@ export default function Prose({ value, onEdit, apiRef, className }: ProseProps) 
     setFindCount({ total: st.matches.length, current: cur })
   }
 
-  /* 全局快捷键：⌘F 打开查找（预填选区/上次词）、⌘G/⇧⌘G 下一处/上一处、Esc 关闭（仅查找条打开时拦截） */
-  const findActionsRef = useRef({ open: openFind, close: closeFind, step: stepFind })
-  findActionsRef.current = { open: openFind, close: closeFind, step: stepFind }
+  /* ⌘E（HIG Keyboards：E = Use the selection for a find operation）——用模型选区设置查找词：
+   * 不开查找条（原生语义），刷新高亮并定位第一处作反馈；无选区 → no-op；⌘G/⇧⌘G 紧接着可用。 */
+  const setFindFromSelection = () => {
+    const view = getView()
+    if (!view) return
+    const sel = view.state.selection
+    if (sel.empty) return
+    const t = view.state.doc.textBetween(sel.from, sel.to, '\n').trim()
+    if (!t) return
+    setFindQuery(t)
+    findQueryRef.current = t
+    recalcFind(t, true)
+  }
+
+  /* 全局快捷键：⌘F 打开查找（预填选区/上次词）、⌘E 用选区设查找词、⌘G/⇧⌘G 下一处/上一处、
+   * Esc 关闭（查找条开，或 ⌘E 设置后有活跃高亮/匹配时都拦截——结束本次查找）。 */
+  const findActionsRef = useRef({ open: openFind, close: closeFind, step: stepFind, useSel: setFindFromSelection })
+  findActionsRef.current = { open: openFind, close: closeFind, step: stepFind, useSel: setFindFromSelection }
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (findOpenRef.current) {
           e.preventDefault()
           e.stopPropagation() // 先关查找条，不连锁关闭其他浮层
+          findActionsRef.current.close()
+          return
+        }
+        // 查找条已关但有活跃匹配（⌘E 设置后的高亮）：Esc 一并清掉；close 后 matches 清空，不会重复拦截
+        if (findRef.current.matches.length > 0) {
+          e.preventDefault()
           findActionsRef.current.close()
         }
         return
@@ -366,9 +387,13 @@ export default function Prose({ value, onEdit, apiRef, className }: ProseProps) 
       if (k === 'f') {
         e.preventDefault()
         findActionsRef.current.open()
+      } else if (k === 'e') {
+        e.preventDefault()
+        findActionsRef.current.useSel()
       } else if (k === 'g') {
         e.preventDefault()
-        if (findOpenRef.current) findActionsRef.current.step(e.shiftKey ? -1 : 1)
+        // 查找条开（⌘F 场景）或已有词/高亮（⌘E 场景）时都允许步进——对齐 HIG ⌘E→⌘G 工作流
+        if (findOpenRef.current || findRef.current.matches.length > 0) findActionsRef.current.step(e.shiftKey ? -1 : 1)
       }
     }
     window.addEventListener('keydown', onKey, true)

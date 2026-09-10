@@ -7,6 +7,8 @@ import { Separator } from '../components/ui/separator'
 import { Switch } from '../components/ui/switch'
 import { Card } from '../components/ui/card'
 import { cn } from '../lib/utils'
+import { Keyboard } from 'lucide-react'
+import ShortcutHelp from '../features/command/ShortcutHelp'
 import { PROVIDER_PRESETS, providerById } from '../../../shared/providers'
 import type { LlmProviderId } from '../../../shared/types'
 
@@ -43,6 +45,7 @@ export default function Settings() {
   const [libraryRoot, setLibraryRoot] = useState('')
   const [theme, setTheme] = useState<'paper' | 'dark'>('paper')
   const [collection, setCollection] = useState(true)
+  const [shortcutOpen, setShortcutOpen] = useState(false)
   const [tools, setTools] = useState({ todo: true, askUser: true })
   const [caps, setCaps] = useState<Record<string, boolean>>({})
   const [capsMeta, setCapsMeta] = useState<{ id: string; title: string; description?: string }[]>([])
@@ -354,9 +357,17 @@ export default function Settings() {
                 所有数据都是本机明文文件：项目在项目库（默认 工作区/项目库），说明文档在工作区 文档/；
                 每个章节是一个时间切片，约定头写在正文文件顶部；正文为源，设定跟着走。
               </p>
+              <button
+                onClick={() => setShortcutOpen(true)}
+                className="mt-4 flex items-center gap-1.5 text-xs text-ink-2 underline-offset-2 hover:underline"
+              >
+                <Keyboard className="h-3.5 w-3.5" />
+                键盘快捷键速查（⌘K 里也能打开）
+              </button>
             </Card>
           )}
         </div>
+        <ShortcutHelp open={shortcutOpen} onOpenChange={setShortcutOpen} />
       </div>
     </div>
   )

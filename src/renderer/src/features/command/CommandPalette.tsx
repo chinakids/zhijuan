@@ -9,8 +9,9 @@ import {
   CommandList,
   CommandSeparator
 } from '../../components/ui/command'
-import { BookOpen, FileText, FolderOpen, Globe2, History, Library as LibraryIcon, ListTree, Loader2, PenLine, Settings as SettingsIcon, Users } from 'lucide-react'
+import { BookOpen, FileText, FolderOpen, Globe2, History, Keyboard, Library as LibraryIcon, ListTree, Loader2, PenLine, Settings as SettingsIcon, Users } from 'lucide-react'
 import type { ChapterEntry, ProjectSummary, SearchHit } from '../../../../shared/types'
+import ShortcutHelp from './ShortcutHelp'
 
 const PAGE_ITEMS = [
   { key: 'novel', label: '正文创作', icon: PenLine },
@@ -28,6 +29,7 @@ export default function CommandPalette() {
   const projMatch = useMatch('/project/:id/*')
   const projectId = projMatch?.params.id ?? null
   const [open, setOpen] = useState(false)
+  const [shortcutOpen, setShortcutOpen] = useState(false)
   const [chapters, setChapters] = useState<ChapterEntry[]>([])
   const [chLoading, setChLoading] = useState(false)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
@@ -105,8 +107,9 @@ export default function CommandPalette() {
   )
 
   return (
-    <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="输入页面、章节、项目或素材关键词…" autoFocus onValueChange={setQ} />
+    <>
+      <CommandDialog open={open} onOpenChange={setOpen}>
+        <CommandInput placeholder="输入页面、章节、项目或素材关键词…" autoFocus onValueChange={setQ} />
       <CommandList>
         <CommandEmpty>没有匹配项（试试「正文」、章节题名或素材里的关键词）</CommandEmpty>
 
@@ -204,7 +207,24 @@ export default function CommandPalette() {
             </CommandGroup>
           </>
         )}
+
+        <CommandSeparator />
+        <CommandGroup heading="帮助">
+          <CommandItem
+            value="帮助 键盘快捷键速查"
+            keywords={['快捷键', '键盘', 'help', 'shortcut', '快捷键速查']}
+            onSelect={() => {
+              setOpen(false)
+              setShortcutOpen(true)
+            }}
+          >
+            <Keyboard className="h-4 w-4 text-ink-3" />
+            <span>键盘快捷键速查</span>
+          </CommandItem>
+        </CommandGroup>
       </CommandList>
-    </CommandDialog>
+      </CommandDialog>
+      <ShortcutHelp open={shortcutOpen} onOpenChange={setShortcutOpen} />
+    </>
   )
 }
