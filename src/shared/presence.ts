@@ -8,7 +8,8 @@
 // 同一别名被两个及以上人物登记 = 数据冲突（medium）。单字名/未登记别称/指代仍不参与（机械层承认局限）。
 // 纯函数、不读盘，OCR 无关。
 import { extractFrontMatter } from './fmatter'
-import type { AuditItem, AuditResult, UnlistedHit } from './types'
+import { countWords } from './count'
+import type { AuditItem, AuditResult, MissingHit, UnlistedHit } from './types'
 
 export interface PresenceChapter {
   /** 相对项目根的路径，如 正文/第01章_雾港.md */
@@ -90,6 +91,46 @@ export function unlistedInBody(opts: {
     }
   }
   return out
+}
+
+/**
+ * 单章「列入未出场」检测（保存正文前置提示复用 presence 同一口径）：
+ * 约定头「涉及人物」列了、但本章正文既无本名也无登记别名 → 逐人命中。
+ * 与 presenceCheck 的 missing 分支同口径：任一登记别名（含歧义别名）出现=在场豁免；单字名跳过。
+ */
+export function missingInBody(opts: {
+  body: string
+  /** 本章约定头「涉及人物」 */
+  listed: string[]
+  aliasMap?: Record<string, string[]>
+}): MissingHit[] {
+  const aliasMap = opts.aliasMap ?? {}
+  const out: MissingHit[] = []
+  for (const n of opts.listed) {
+    if (n.length < NAME_MIN) continue
+    const aliases = aliasMap[n] ?? []
+    const byAlias = aliases.find((a) => opts.body.includes(a))
+    if (!opts.body.includes(n) && !byAlias) {
+      out.push({ name: n, ...(aliases.length ? { aliases } : {}) })
+    }
+  }
+  return out
+}
+
+/**
+ * 保存前置快检的 missing 侧（含噪声阈值）：读「约定头→正文有效字数」达到阈值才检查——
+ * 开写中/刚建章（正文只有标题、故事要素块或几句草稿）时「列了没出场」是常态，提示只会打扰；
+ * 达到阈值说明本章已有实质内容，此时仍没出现才是值得提醒的清单漂移（删戏残留/未登记别称）。
+ */
+export const CHAPTER_MISSING_MIN_BODY = 300
+
+export function chapterMissingFromRaw(opts: {
+  raw: string
+  aliasMap?: Record<string, string[]>
+}): MissingHit[] {
+  const { fm, body } = extractFrontMatter(opts.raw)
+  if (countWords(body) < CHAPTER_MISSING_MIN_BODY) return []
+  return missingInBody({ body, listed: listedFrom(fm ?? {}), aliasMap: opts.aliasMap })
 }
 
 /**

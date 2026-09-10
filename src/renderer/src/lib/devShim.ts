@@ -3,7 +3,7 @@ import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, Pro
 import type { EditItem } from '../../../shared/types'
 import { countWords } from '../../../shared/count'
 import { extractFrontMatter } from '../../../shared/fmatter'
-import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceCheck } from '../../../shared/presence'
+import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceCheck, chapterMissingFromRaw } from '../../../shared/presence'
 import { toast } from '../store/toasts'
 
 const now = Date.now()
@@ -49,6 +49,20 @@ docs.set(
 docs.set(
   'demo-aseya/正文/第03章_码头.md',
   ['---', '章号: 3', '题名: 码头', '切片: 第三幕_码头', '涉及人物: [阿七]', '---', '', '# 码头', '', '阿七在码头等船。沈爷远远站着，帽檐压得很低，像是怕被认出来。', ''].join('\n')
+)
+// dev 演示：第4章约定头列了阿七/沈藏但正文（≥字数阈值）均未出现 → 保存时触发「列入未出场」提示
+docs.set(
+  'demo-aseya/正文/第04章_雾夜.md',
+  [
+    '---', '章号: 4', '题名: 雾夜', '切片: 第四幕_雾夜', '涉及人物: [阿七, 沈藏]', '---', '', '# 雾夜', '',
+    '码头的雾比昨夜更浓。海风卷着咸腥味穿过候船厅，铁皮屋顶被雨点敲得闷响。值班室的灯亮着，昏黄的光从门缝漏出来，在地面上拉出一道细长的影子。远处渔船的马达声断断续续，像有人在咳嗽。',
+    '',
+    '潮水涨上了石阶，浪头一次次拍打栈桥的木桩，溅起的水花打湿了缆绳。有人把没抽完的烟头按灭在栏杆上，留下一小点焦痕。空气里混着柴油、鱼腥和潮湿木头的气味，整个码头像是睡着了，又像是屏住呼吸在等什么。',
+    '',
+    '候船厅的长椅上坐着个打盹的旅客，怀里抱着一只帆布包。广播响过两遍，没有船进港，也没有人起身。灯管发出细微的电流声，混着雨声，让夜显得更安静。值班员打了个哈欠，翻了一页报纸，又把目光投向玻璃窗外的雾。',
+    '',
+    '（本章只写码头空镜与旧事回响，主要人物尚未进场。）', ''
+  ].join('\n')
 )
 docs.set(
   'demo-aseya/人物/阿七.md',
@@ -397,11 +411,8 @@ const mock = {
   onFsEvent: () => () => {},
   getPaths: async () => ({ documents: '', libraryRoot: '' }),
 
-  // 保存正文前置快检（dev：与主进程同口径——共享纯函数 + 内存文档，可无头演示「名单外出场」提示）
-  checkChapterUnlisted: async (id: string, chapterRel: string) => {
-    const raw = docs.get(id + '/' + chapterRel)
-    if (raw === undefined) return { ok: false, error: '章节文档不存在' }
-    const { fm, body } = extractFrontMatter(raw)
+  // dev 演示的人物索引：与主进程 readCharIndex 同口径（档案题名 + 登记别名）
+  _charIndexOf: (id: string) => {
     const knownChars: string[] = []
     const aliasMap: Record<string, string[]> = {}
     for (const { file, name } of docsOf(id + '/人物')) {
@@ -413,7 +424,24 @@ const mock = {
         if (al.length) aliasMap[n] = al
       }
     }
+    return { knownChars, aliasMap }
+  },
+
+  // 保存正文前置快检（dev：与主进程同口径——共享纯函数 + 内存文档，可无头演示「名单外出场」提示）
+  checkChapterUnlisted: async (id: string, chapterRel: string) => {
+    const raw = docs.get(id + '/' + chapterRel)
+    if (raw === undefined) return { ok: false, error: '章节文档不存在' }
+    const { fm, body } = extractFrontMatter(raw)
+    const { knownChars, aliasMap } = mock._charIndexOf(id)
     return { ok: true, items: unlistedInBody({ body, listed: listedFrom(fm ?? {}), knownChars, aliasMap }) }
+  },
+
+  // 保存正文前置快检（missing 侧）：约定头列了但正文（达字数阈值）未出现 → 命中清单（与主进程同口径）
+  checkChapterMissing: async (id: string, chapterRel: string) => {
+    const raw = docs.get(id + '/' + chapterRel)
+    if (raw === undefined) return { ok: false, error: '章节文档不存在' }
+    const { aliasMap } = mock._charIndexOf(id)
+    return { ok: true, items: chapterMissingFromRaw({ raw, aliasMap }) }
   },
 
   // 提案（S4）

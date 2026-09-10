@@ -246,6 +246,14 @@ export interface UnlistedHit {
   alias?: string
 }
 
+/** 单章「列入未出场」快检（保存正文时前置提示）：约定头「涉及人物」列了、但本章正文未出现本名或登记别名 */
+export interface MissingHit {
+  /** 人物档案题名（本名） */
+  name: string
+  /** 该人物档案登记的别名（正文与别名均未出现时给出，供判断是否用了未登记别称） */
+  aliases?: string[]
+}
+
 /** 本章级检查（agent-first 小环）：每章短巡查 / 分层修订 */
 export type ChapterCheckKind = 'chapter' | 'revision'
 /** 修订层：故事 / 场景 / 词句（沿写作线的打磨顺序） */

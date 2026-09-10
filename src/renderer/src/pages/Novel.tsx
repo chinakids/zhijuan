@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams, useOutletContext } from 'react-router-dom'
 import { Plus, BookOpen } from 'lucide-react'
-import type { ChapterEntry, UnlistedHit } from '../../../shared/types'
-import { serializeFrontMatter, addFrontMatterListItem } from '../../../shared/fmatter'
+import type { ChapterEntry, UnlistedHit, MissingHit } from '../../../shared/types'
+import { serializeFrontMatter, addFrontMatterListItem, removeFrontMatterListItem } from '../../../shared/fmatter'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
@@ -39,9 +39,10 @@ export default function Novel() {
   useEffect(() => {
     if (newChapterReq > 0) setCreating(true)
   }, [newChapterReq])
-  // 保存时的「名单外出场」前置提示（本地规则·零模型）：命中且未忽略才显示；忽略记本会话内不再提示本章
-  const [unlistedCard, setUnlistedCard] = useState<{ rel: string; items: UnlistedHit[] } | null>(null)
-  const dismissedUnlisted = useRef(new Set<string>())
+  // 保存时的「涉及人物清单与正文不一致」前置提示（本地规则·零模型）：出场未列入(unlisted) / 列入未出场(missing)
+  // 命中且未忽略才显示；忽略记本会话内不再提示本章
+  const [castCard, setCastCard] = useState<{ rel: string; unlisted: UnlistedHit[]; missing: MissingHit[] } | null>(null)
+  const dismissedCast = useRef(new Set<string>())
   const [searchParams, setSearchParams] = useSearchParams()
   // 命令面板「打开章节」：?ch=<章节裸名>（相对 正文/）进入后自动选中
   const chParam = searchParams.get('ch')
@@ -56,10 +57,16 @@ export default function Novel() {
     async (rel: string) => {
       if (!id) return
       setSyncMsg('切片同步中…')
-      // 前置快检：正文出现档案人物本名/登记别名但约定头「涉及人物」未列 → 提示补列（零模型；与同步并行）
-      void window.zhijuan.checkChapterUnlisted(id, rel).then((u) => {
-        if (u.ok && u.items.length && !dismissedUnlisted.current.has(rel)) {
-          setUnlistedCard({ rel, items: u.items })
+      // 前置快检（零模型；与同步并行）：正文出现档案人物本名/登记别名但约定头未列（unlisted）、
+      // 约定头列了但正文（达到最小字数阈值后）未出现本名/别名（missing）→ 汇总为一张提示卡
+      void Promise.all([
+        window.zhijuan.checkChapterUnlisted(id, rel),
+        window.zhijuan.checkChapterMissing(id, rel)
+      ]).then(([u, m]) => {
+        const unlisted = u.ok ? u.items : []
+        const missing = m.ok ? m.items : []
+        if ((unlisted.length || missing.length) && !dismissedCast.current.has(rel)) {
+          setCastCard({ rel, unlisted, missing })
         }
       })
       const r = await runSliceSync(id, rel)
@@ -81,26 +88,37 @@ export default function Novel() {
     setSel((s) => (s && list.some((c) => c.file === s) ? s : null))
   }, [id])
 
-  // 切换章节：收起「名单外出场」提示卡（忽略记录保留，本会话内不重复打扰该章）
+  // 切换章节：收起「清单不一致」提示卡（忽略记录保留，本会话内不重复打扰该章）
   useEffect(() => {
-    setUnlistedCard(null)
+    setCastCard(null)
   }, [sel])
 
   // 「补入涉及人物」：把命中人物写进本章约定头（只改那一行，其他约定头原样；正文不动）
   async function addUnlisted() {
-    if (!id || !unlistedCard) return
-    const rel = unlistedCard.rel
+    if (!id || !castCard) return
+    const rel = castCard.rel
     let raw = (await window.zhijuan.readDoc(id, rel)) ?? ''
-    for (const h of unlistedCard.items) raw = addFrontMatterListItem(raw, '涉及人物', h.name)
+    for (const h of castCard.unlisted) raw = addFrontMatterListItem(raw, '涉及人物', h.name)
     await window.zhijuan.writeDoc(id, rel, raw)
-    setUnlistedCard(null)
+    setCastCard(null)
     await refresh()
   }
 
-  function dismissUnlisted() {
-    if (!unlistedCard) return
-    dismissedUnlisted.current.add(unlistedCard.rel)
-    setUnlistedCard(null)
+  // 「移出涉及人物」：把未出场命中人物从本章约定头移除（移空则删该行；正文不动）
+  async function removeMissing() {
+    if (!id || !castCard) return
+    const rel = castCard.rel
+    let raw = (await window.zhijuan.readDoc(id, rel)) ?? ''
+    for (const h of castCard.missing) raw = removeFrontMatterListItem(raw, '涉及人物', h.name)
+    await window.zhijuan.writeDoc(id, rel, raw)
+    setCastCard(null)
+    await refresh()
+  }
+
+  function dismissCast() {
+    if (!castCard) return
+    dismissedCast.current.add(castCard.rel)
+    setCastCard(null)
   }
 
   useEffect(() => {
@@ -206,21 +224,45 @@ export default function Novel() {
             </span>
           </div>
         )}
-        {/* 保存前置提示：本章正文出现未列入「涉及人物」的档案人物（本地规则·零模型） */}
-        {unlistedCard && unlistedCard.rel === chapterRel && (
-          <div className="absolute right-24 top-24 z-10 w-72 rounded-lg border border-warn/50 bg-surface p-3 shadow-lg">
-            <p className="text-[11px] font-medium text-ink-2">本章出现了未列入「涉及人物」的角色</p>
-            <ul className="mt-1.5 space-y-1 text-[11px] text-ink">
-              {unlistedCard.items.map((h) => (
-                <li key={h.name} className="break-all">
-                  {h.alias ? `「${h.alias}」＝${h.name} 的登记别名，出现在正文` : `「${h.name}」的署名出现在正文`}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-1.5 text-[10px] text-ink-3">真的出场请补入；只是回忆 / 提及一笔可忽略。</p>
+        {/* 保存前置提示：本章「涉及人物」清单与正文不一致（本地规则·零模型）——出场未列入 / 列入未出场 */}
+        {castCard && castCard.rel === chapterRel && (
+          <div className="absolute right-24 top-24 z-10 w-80 rounded-lg border border-warn/50 bg-surface p-3 shadow-lg">
+            <p className="text-[11px] font-medium text-ink-2">本章「涉及人物」清单与正文不一致</p>
+            {castCard.unlisted.length > 0 && (
+              <>
+                <p className="mt-1.5 text-[10px] font-medium text-ink-3">出场了却未列入</p>
+                <ul className="mt-1 space-y-1 text-[11px] text-ink">
+                  {castCard.unlisted.map((h) => (
+                    <li key={h.name} className="break-all">
+                      {h.alias ? `「${h.alias}」＝${h.name} 的登记别名，出现在正文` : `「${h.name}」的署名出现在正文`}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1.5 text-[10px] text-ink-3">真的出场请补入；只是回忆 / 提及一笔可忽略。</p>
+              </>
+            )}
+            {castCard.missing.length > 0 && (
+              <>
+                <p className="mt-2 text-[10px] font-medium text-ink-3">列入了却未出场</p>
+                <ul className="mt-1 space-y-1 text-[11px] text-ink">
+                  {castCard.missing.map((h) => (
+                    <li key={h.name} className="break-all">
+                      「{h.name}」在约定头里，本章正文未出现 TA 的署名或登记的别名
+                      {h.aliases?.length ? `（${h.aliases.join('、')}）` : ''}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1.5 text-[10px] text-ink-3">可能已删戏，或用了未登记的别称；不需要出场就移出清单。</p>
+              </>
+            )}
             <div className="mt-2 flex items-center gap-2">
-              <Button size="sm" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px]" onClick={() => void addUnlisted()}>补入涉及人物</Button>
-              <Button size="sm" variant="outline" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px]" onClick={dismissUnlisted}>忽略</Button>
+              {castCard.unlisted.length > 0 && (
+                <Button size="sm" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px]" onClick={() => void addUnlisted()}>补入涉及人物</Button>
+              )}
+              {castCard.missing.length > 0 && (
+                <Button size="sm" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px]" onClick={() => void removeMissing()}>移出涉及人物</Button>
+              )}
+              <Button size="sm" variant="outline" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px]" onClick={dismissCast}>忽略</Button>
             </div>
           </div>
         )}

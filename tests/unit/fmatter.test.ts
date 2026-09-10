@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractFrontMatter, serializeFrontMatter, withBody, withFrontMatter, addFrontMatterListItem } from '../../src/shared/fmatter'
+import { extractFrontMatter, serializeFrontMatter, withBody, withFrontMatter, addFrontMatterListItem, removeFrontMatterListItem } from '../../src/shared/fmatter'
 
 describe('extractFrontMatter', () => {
   it('解析完整约定头：标量、数组、行内注释', () => {
@@ -96,5 +96,27 @@ describe('addFrontMatterListItem（约定头列表键追加一项）', () => {
   it('无约定头或空值：原样返回', () => {
     expect(addFrontMatterListItem('没有约定头', '涉及人物', '沈藏')).toBe('没有约定头')
     expect(addFrontMatterListItem('---\n涉及人物: [林晚]\n---\n正文', '涉及人物', '  ')).toBe('---\n涉及人物: [林晚]\n---\n正文')
+  })
+})
+
+describe('removeFrontMatterListItem（约定头列表键移除一项）', () => {
+  it('数组行：移除指定项并保持其他行原样、正文不动', () => {
+    const raw = '---\n章号: 1\n题名: 雾港\n涉及人物: [阿七, 沈藏]\n---\n# 正文\n'
+    expect(removeFrontMatterListItem(raw, '涉及人物', '沈藏')).toBe('---\n章号: 1\n题名: 雾港\n涉及人物: [阿七]\n---\n# 正文\n')
+  })
+  it('移除后为空 → 删除该键行（约定头整洁）', () => {
+    const raw = '---\n章号: 1\n题名: 雾港\n涉及人物: [沈藏]\n---\n# 正文\n'
+    expect(removeFrontMatterListItem(raw, '涉及人物', '沈藏')).toBe('---\n章号: 1\n题名: 雾港\n---\n# 正文\n')
+  })
+  it('项不存在 / 键不存在 / 无约定头：原样返回', () => {
+    const raw = '---\n涉及人物: [阿七]\n---\n正文'
+    expect(removeFrontMatterListItem(raw, '涉及人物', '沈藏')).toBe(raw)
+    expect(removeFrontMatterListItem('---\n章号: 1\n---\n正文', '涉及人物', '沈藏')).toBe('---\n章号: 1\n---\n正文')
+    expect(removeFrontMatterListItem('没有约定头', '涉及人物', '沈藏')).toBe('没有约定头')
+  })
+  it('幂等：移除已移除的项原样返回', () => {
+    const raw = '---\n涉及人物: [阿七]\n---\n正文'
+    const once = removeFrontMatterListItem(raw, '涉及人物', '阿七')
+    expect(removeFrontMatterListItem(once, '涉及人物', '阿七')).toBe(once)
   })
 })

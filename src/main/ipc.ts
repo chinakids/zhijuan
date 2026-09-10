@@ -7,7 +7,7 @@ import { listProposals, createProposals, applyProposal, rejectProposal } from '.
 import { listSlices } from './slices'
 import { listSnapshots, readSnapshot } from './history'
 import { registerAgentIpc } from './agent/ipc'
-import { runChapterUnlisted } from './agent/audit'
+import { runChapterUnlisted, runChapterMissing } from './agent/audit'
 import { isRuntimeCreated, closeHarness } from './agent/runtime'
 import { getSettings, setSettings, libraryRoot } from './settings'
 import {
@@ -127,6 +127,8 @@ export function registerIpc() {
 
   // 保存正文前置快检（本地规则，与 presence 同口径）：单章「名单外出场」命中（零模型）
   ipcMain.handle('presence:chapterUnlisted', (_e, id: string, chapterRel: string) => runChapterUnlisted(id, chapterRel))
+  // 保存正文前置快检（local 侧）：单章「列入未出场」命中（达正文字数阈值才查，零模型）
+  ipcMain.handle('presence:chapterMissing', (_e, id: string, chapterRel: string) => runChapterMissing(id, chapterRel))
 
   // 提案（S4）
   ipcMain.handle('proposal:list', (_e, id: string) => listProposals(libraryRoot(), id))

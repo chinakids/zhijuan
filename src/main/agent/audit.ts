@@ -2,7 +2,7 @@
 // 主进程把作品全卷的正文（截段）与全部设定档案整理成材料包，喂给写作引擎一次**写**结构化 JSON，
 // 供 UI 渲染成可逐条转提案的检查报告。和 runSync 同构：独立的 session、无提问、离线出结果。
 import { readDoc, listChapters, listDocs, writeDoc } from '../store'
-import { presenceCheck, unusedAliasCheck, parseAliases, listedFrom, unlistedInBody } from '../../shared/presence'
+import { presenceCheck, unusedAliasCheck, parseAliases, listedFrom, unlistedInBody, chapterMissingFromRaw } from '../../shared/presence'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { chapterOrderCheck } from '../../shared/chapterorder'
 import { registerCapability, runSubtask, type SubtaskDef } from './subtask'
@@ -15,7 +15,8 @@ import type {
   ChapterCheckResult,
   ChapterCheckItem,
   RevisionLayer,
-  UnlistedHit
+  UnlistedHit,
+  MissingHit
 } from '../../shared/types'
 
 export type { AuditKind, AuditItem, AuditResult }
@@ -99,6 +100,25 @@ export function runChapterUnlisted(
       ok: true,
       items: unlistedInBody({ body, listed: listedFrom(fm ?? {}), knownChars, aliasMap })
     }
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message ?? e) }
+  }
+}
+
+/**
+ * 单章「列入未出场」快检（保存正文的前置提示用，missing 侧；与 runChapterUnlisted 同构）：
+ * 约定头「涉及人物」列了、但正文（达到最小有效字数阈值后）未出现本名/登记别名 → 命中清单。
+ * 阈值见 CHAPTER_MISSING_MIN_BODY（开写中章节天然缺署名为常态，低于阈值不提示）。
+ */
+export function runChapterMissing(
+  projectId: string,
+  chapterRel: string
+): { ok: true; items: MissingHit[] } | { ok: false; error: string } {
+  try {
+    const raw = readDoc(projectId, chapterRel)
+    if (raw === null) return { ok: false, error: '章节文档不存在' }
+    const { aliasMap } = readCharIndex(projectId)
+    return { ok: true, items: chapterMissingFromRaw({ raw, aliasMap }) }
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e) }
   }

@@ -22,8 +22,8 @@ vi.mock('../../src/main/store', () => ({
 }))
 vi.mock('../../src/main/agent/runtime', () => ({ driveSession: vi.fn() }))
 
-import { listedFrom, parseAliases, presenceCheck, unlistedInBody, unusedAliasCheck } from '../../src/shared/presence'
-import { runPresence, runChapterUnlisted, runUnusedAliases } from '../../src/main/agent/audit'
+import { listedFrom, parseAliases, presenceCheck, unlistedInBody, unusedAliasCheck, missingInBody, chapterMissingFromRaw } from '../../src/shared/presence'
+import { runPresence, runChapterUnlisted, runChapterMissing, runUnusedAliases } from '../../src/main/agent/audit'
 import { setSettings } from '../../src/main/settings'
 import { readDoc, listDocs } from '../../src/main/store'
 
@@ -356,5 +356,69 @@ describe('runUnusedAliases（主进程：读人物档案别名 + 全卷正文后
       expect(r.result.items).toHaveLength(1)
       expect(String(r.result.items[0].what)).toContain('沈老爹')
     }
+  })
+})
+
+describe('missingInBody（单章「列入未出场」检测）', () => {
+  it('约定头列了、正文无本名无别名 → 命中（带档案别名供判断）', () => {
+    const r = missingInBody({ body: '码头的雾很浓。', listed: ['阿七', '沈藏'], aliasMap: { 沈藏: ['沈爷'] } })
+    expect(r.map((x) => x.name)).toEqual(['阿七', '沈藏'])
+    const shen = r.find((x) => x.name === '沈藏')
+    expect(shen?.aliases).toEqual(['沈爷'])
+  })
+  it('正文出现本名 → 豁免；出现登记别名 → 豁免', () => {
+    expect(missingInBody({ body: '阿七提着灯。', listed: ['阿七'], aliasMap: {} })).toEqual([])
+    const r = missingInBody({ body: '沈爷远远站着。', listed: ['阿七', '沈藏'], aliasMap: { 沈藏: ['沈爷'] } })
+    expect(r.map((x) => x.name)).toEqual(['阿七'])
+  })
+  it('别名冲突（同一别名多个人物登记）仍豁免——与 presence missing 同口径，归属交冲突条目', () => {
+    const r = missingInBody({ body: '老七在码头。', listed: ['阿七', '沈藏'], aliasMap: { 阿七: ['老七'], 沈藏: ['老七'] } })
+    expect(r).toEqual([])
+  })
+  it('单字名跳过（姓氏/代号不做机械匹配）；未登记别名的人物命中时无 aliases 字段', () => {
+    const r = missingInBody({ body: '雾很浓。', listed: ['七', '沈藏'], aliasMap: { 沈藏: [] } })
+    expect(r.map((x) => x.name)).toEqual(['沈藏'])
+    expect(r[0].aliases).toBeUndefined()
+  })
+})
+
+describe('chapterMissingFromRaw（保存快检：含噪声阈值）', () => {
+  const rawOf = (listed: string, body: string) => `---\n章号: 4\n题名: 雾夜\n涉及人物: ${listed}\n---\n${body}`
+  const longBody = (name: string) => `${name}不在正文。`.padEnd(400, '字') // ≥300 有效字数
+  it('正文不足阈值（开写中）→ 不检查、空结果；达到阈值才检查', () => {
+    expect(chapterMissingFromRaw({ raw: rawOf('[阿七]', '# 雾夜\n\n（本章待写）') })).toEqual([])
+    const r = chapterMissingFromRaw({ raw: rawOf('[阿七]', longBody('路人')) })
+    expect(r.map((x) => x.name)).toEqual(['阿七'])
+  })
+  it('阈值边界：正文恰好等于阈值 → 检查（>=），约定头未列的出场者与本例无关', () => {
+    expect(chapterMissingFromRaw({ raw: rawOf('[阿七]', '字'.repeat(300)) })).toHaveLength(1)
+  })
+  it('front matter 中的名字不算正文出现；正文含登记别名→豁免；未登记别称→仍命中', () => {
+    // 列了阿七/沈藏；正文出现阿七、且出现沈藏登记别名沈爷 → 两条都豁免
+    const okRaw = rawOf('[阿七, 沈藏]', '阿七提着灯。\n沈爷远远站着。' + '字'.repeat(300))
+    expect(chapterMissingFromRaw({ raw: okRaw, aliasMap: { 沈藏: ['沈爷'] } })).toEqual([])
+    // 正文只有未登记的别称「沈老大」→ 沈藏仍命中（提示补登记别名或移出清单）
+    const nickRaw = rawOf('[阿七, 沈藏]', '阿七提着灯，沈老大远远站着。' + '字'.repeat(300))
+    expect(chapterMissingFromRaw({ raw: nickRaw, aliasMap: { 沈藏: ['沈爷'] } }).map((x) => x.name)).toEqual(['沈藏'])
+  })
+})
+
+describe('runChapterMissing（主进程薄壳：读章节 + 档案别名 → 纯函数）', () => {
+  it('章节文档不存在 → ok:false', () => {
+    const r = runChapterMissing('demo', '正文/不存在.md')
+    expect(r.ok).toBe(false)
+  })
+  it('正常读盘：命中列入未出场清单（阈值达标）', () => {
+    readMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === '正文/第04章_雾夜.md') return `---\n章号: 4\n涉及人物: [阿七, 沈藏]\n---\n` + '字'.repeat(300)
+      if (rel.startsWith('人物/')) return '---\n姓名: 沈藏\n别名: [沈爷]\n---\n# 沈藏\n'
+      return null
+    })
+    listDocsMock.mockImplementation((_id: string, dir: string) =>
+      dir === '人物' ? [{ file: '沈藏.md', name: '沈藏', mtime: 1 }] : []
+    )
+    const r = runChapterMissing('demo', '正文/第04章_雾夜.md')
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.items.map((x) => x.name)).toEqual(['阿七', '沈藏'])
   })
 })

@@ -18,6 +18,7 @@ import type {
   DirectorSheet,
   DirectorCheckResult,
   UnlistedHit,
+  MissingHit,
   HistorySnapshot,
   LibraryCategory,
   SearchHit
@@ -73,6 +74,12 @@ const api = {
   checkChapterUnlisted: (id: string, chapterRel: string) =>
     ipcRenderer.invoke('presence:chapterUnlisted', id, chapterRel) as Promise<
       | { ok: true; items: UnlistedHit[] }
+      | { ok: false; error: string }
+    >,
+  // 保存正文前置快检：单章「列入未出场」命中（达正文字数阈值才查；与审计抽屉「在场」同口径）
+  checkChapterMissing: (id: string, chapterRel: string) =>
+    ipcRenderer.invoke('presence:chapterMissing', id, chapterRel) as Promise<
+      | { ok: true; items: MissingHit[] }
       | { ok: false; error: string }
     >,
 

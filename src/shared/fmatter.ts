@@ -95,3 +95,39 @@ export function addFrontMatterListItem(text: string, key: string, value: string)
   const newBlock = block + '\n' + key + ': [' + v + ']'
   return '---\n' + newBlock + text.slice(4 + block.length)
 }
+
+/**
+ * 从约定头里的列表键（如「涉及人物」）移除一项：键存在则只改那一行（保其他行原样），
+ * 移除后列表为空 → 删除该键行（约定头整洁，与「未列」等价）；项不存在 / 键不存在 / 无约定头 → 原样返回。
+ */
+export function removeFrontMatterListItem(text: string, key: string, value: string): string {
+  const v = value.trim()
+  if (!v) return text
+  const m = text.match(FM_RE)
+  if (!m) return text
+  const block = m[1]
+  const lines = block.split('\n')
+  const keyRe = new RegExp('^\\s*' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*:')
+  for (let i = 0; i < lines.length; i++) {
+    if (!keyRe.test(lines[i])) continue
+    const idx = lines[i].indexOf(':')
+    const lead = (lines[i].match(/^\s*/) ?? [''])[0]
+    const rawVal = lines[i].slice(idx + 1).replace(/#.*$/, '')
+    const items = rawVal
+      .trim()
+      .replace(/^\[/, '')
+      .replace(/\]$/, '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    if (!items.includes(v)) return text // 不在列表里，不动
+    const rest = items.filter((s) => s !== v)
+    if (rest.length === 0) {
+      lines.splice(i, 1) // 移空 → 删行
+    } else {
+      lines[i] = lead + key + ': [' + rest.join(', ') + ']'
+    }
+    return '---\n' + lines.join('\n') + text.slice(4 + block.length)
+  }
+  return text
+}
