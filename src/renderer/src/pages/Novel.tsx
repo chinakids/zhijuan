@@ -11,6 +11,7 @@ import { cn } from '../lib/utils'
 import DocEditor from '../features/editor/DocEditor'
 import { runSliceSync } from '../features/sync/sliceSync'
 import { useProposalStore } from '../store/proposals'
+import { useDocTitleStore } from '../store/docTitle'
 import type { ProseApi } from '../features/editor/Prose'
 import AgentPanel from '../features/agent/AgentPanel'
 import ChapterCheckDrawer from '../features/check/ChapterCheckDrawer'
@@ -175,6 +176,13 @@ export default function Novel() {
   const cur = chapters.find((c) => c.file === sel)
   // 章卡的 file 是相对 正文/ 的裸名；凡要当项目根相对路径传给主进程处，统一在此拼前缀（见本技能 listDocs 坑）
   const chapterRel = sel ? '正文/' + sel : ''
+
+  // 标题栏文档题名（V3）：正文页把「第N章 · 题名」上报到全局 store；组件卸载/无选中时清空
+  const setDocTitle = useDocTitleStore((s) => s.setTitle)
+  useEffect(() => {
+    setDocTitle(cur ? `第${cur.fm?.['章号'] ?? '?'}章 · ${cur.fm?.['题名'] ?? ''}` : '')
+    return () => setDocTitle('')
+  }, [cur, setDocTitle])
 
   return (
     <div className="flex h-full min-h-0">

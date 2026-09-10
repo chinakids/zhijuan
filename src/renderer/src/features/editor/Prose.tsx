@@ -7,13 +7,12 @@ import { listener, listenerCtx } from '@milkdown/kit/plugin/listener'
 import { cursor } from '@milkdown/kit/plugin/cursor'
 import { clipboard } from '@milkdown/kit/plugin/clipboard'
 import { trailing } from '@milkdown/kit/plugin/trailing'
-import { setBlockType, toggleMark, selectAll } from 'prosemirror-commands'
-import { wrapInList } from 'prosemirror-schema-list'
-import { undo, redo, undoDepth, redoDepth } from 'prosemirror-history'
+import { selectAll } from 'prosemirror-commands'
 import '@milkdown/theme-nord/style.css'
 import '../../styles/milkdown.css'
 import { ClipboardPaste, Copy, MessageSquarePlus, Scissors, TextSelect } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import EditorToolbar from './EditorToolbar'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -45,47 +44,8 @@ interface WinWithEditors {
   __ZJ_EDITORS?: ProseApi[]
 }
 
-/* ---------- 轻量工具栏（prosemirror 命令，所见即所得） ---------- */
 type EditorLike = { action: (fn: (ctx: any) => void) => void }
-function Toolbar({ edRef }: { edRef: MutableRefObject<EditorLike | null> }) {
-  const run = (fn: (view: any, schema: any) => void) => {
-    const e = edRef.current
-    if (!e) return
-    try {
-      e.action((ctx: any) => {
-        const view = ctx.get(editorViewCtx)
-        fn(view, view.state.schema)
-        view.focus()
-      })
-    } catch {
-      /* 编辑器还没就绪时点击直接忽略 */
-    }
-  }
-  const B = (label: string, title: string, onClick: () => void) => (
-    <button key={label} title={title} className="font-medium" onClick={onClick}>
-      {label}
-    </button>
-  )
-  const Sep = <span key="s" className="sep" />
-  return (
-    <div className="zj-md-toolbar">
-      {B('H1', '一级标题', () => run((v, s) => setBlockType(s.nodes.heading, { level: 1 })(v.state, v.dispatch)))}
-      {B('H2', '二级标题', () => run((v, s) => setBlockType(s.nodes.heading, { level: 2 })(v.state, v.dispatch)))}
-      {B('H3', '三级标题', () => run((v, s) => setBlockType(s.nodes.heading, { level: 3 })(v.state, v.dispatch)))}
-      {B('¶', '正文段落', () => run((v, s) => setBlockType(s.nodes.paragraph)(v.state, v.dispatch)))}
-      {Sep}
-      {B('B', '加粗', () => run((v, s) => toggleMark(s.marks.strong)(v.state, v.dispatch)))}
-      {B('I', '斜体', () => run((v, s) => toggleMark(s.marks.em)(v.state, v.dispatch)))}
-      {B('`<>`', '行内代码', () => run((v, s) => toggleMark(s.marks.code)(v.state, v.dispatch)))}
-      {B('“”', '引用块', () => run((v, s) => setBlockType(s.nodes.blockquote)(v.state, v.dispatch)))}
-      {B('•', '无序列表', () => run((v, s) => wrapInList(s.nodes.bullet_list)(v.state, v.dispatch)))}
-      {B('1.', '有序列表', () => run((v, s) => wrapInList(s.nodes.ordered_list)(v.state, v.dispatch)))}
-      {Sep}
-      {B('↶', '撤销', () => run((v) => undo(v.state, v.dispatch)))}
-      {B('↷', '重做', () => run((v) => redo(v.state, v.dispatch)))}
-    </div>
-  )
-}
+export { type EditorLike }
 
 const win = (typeof window !== 'undefined' ? window : {}) as WinWithEditors
 
@@ -329,7 +289,7 @@ export default function Prose({ value, onEdit, apiRef, className }: ProseProps) 
   return (
     <>
       <div className={cn('zj-md flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-hair', className)}>
-        <Toolbar edRef={edRef} />
+        <EditorToolbar edRef={edRef} />
         <ContextMenu onOpenChange={onMenuOpenChange}>
           <ContextMenuTrigger asChild>
             <div ref={hostRef} className="min-h-0 flex-1 overflow-y-auto" onContextMenuCapture={snapMenuSel} />
