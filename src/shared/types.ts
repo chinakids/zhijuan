@@ -203,6 +203,8 @@ export interface AuditItem {
   viewer?: string
   /** 建议写进的目标设定文件（人物/… 或 世界观/…）；给得出才带，用于转提案 */
   target?: string
+  /** 关联档案路径（仅指路：如别名的登记处 人物/<名>.md）；不做转提案目标 */
+  refFile?: string
 }
 export interface AuditResult {
   summary: string

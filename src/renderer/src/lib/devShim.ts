@@ -3,7 +3,7 @@ import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, Pro
 import type { EditItem } from '../../../shared/types'
 import { countWords } from '../../../shared/count'
 import { extractFrontMatter } from '../../../shared/fmatter'
-import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck } from '../../../shared/presence'
+import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceCheck } from '../../../shared/presence'
 import { toast } from '../store/toasts'
 
 const now = Date.now()
@@ -480,15 +480,23 @@ const mock = {
     const name = kind === 'consistency' ? '一致性巡查' : kind === 'perspectives' ? '多视角审视' : kind === 'presence' ? '人物在场核查' : kind === 'order' ? '切片时序核查' : kind === 'unused' ? '人物档案腐坏核查' : '冷读报告'
     const res =
       kind === 'presence'
-        ? {
-            ok: true as const,
-            result: {
-              summary: '（演示）人物在场与称谓核查：共 2 章，1 章与「涉及人物」不一致——清单列了却未署名出场 1 处。口径：2 字及以上署名与档案登记的别名参与匹配，单字名/未登记别称/指代不参与。',
-              items: [
-                { severity: 'medium' as const, type: 'character', where: '灯塔（正文/第02章_灯塔.md）', what: '「涉及人物」列了「阿七」，但本章正文未出现 TA 的署名（可能已删戏，或只用了别名/指代）。', suggest: '确认本章是否真需要「阿七」出场：需要则在正文补写该角色，不需要就把 TA 移出本章约定头的「涉及人物」。' }
-              ]
+        ? (() => {
+            // 与主进程同语义：复用共享纯函数（演示项目第03章正文用「沈爷」=沈藏登记别名且约定头未列 → unlisted 别名命中带 refFile）
+            const aliasMap: Record<string, string[]> = {}
+            const names: string[] = []
+            for (const { file, name } of docsOf(projectId + '/人物')) {
+              const n = name.replace(/\.md$/i, '').trim()
+              if (n && !['总览', '索引'].includes(n)) {
+                names.push(n)
+                const al = parseAliases(extractFrontMatter(docs.get(projectId + '/人物/' + file) ?? '').fm)
+                if (al.length) aliasMap[n] = al
+              }
             }
-          }
+            const chapters = docsOf(projectId + '/正文')
+              .map(({ file }) => ({ file: '正文/' + file, raw: docs.get(projectId + '/正文/' + file) ?? '' }))
+              .filter((c) => c.raw.trim())
+            return { ok: true as const, result: presenceCheck({ knownChars: names, chapters, aliasMap }) }
+          })()
         : kind === 'order'
         ? {
             ok: true as const,

@@ -216,6 +216,9 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
                 )}
               </div>
               <p className="mt-2 text-[11px] text-ink-3">{it.where}</p>
+              {it.refFile && (
+                <p className="mt-1 text-[11px] text-ink-3">关联档案：<span className="text-accent">{it.refFile}</span></p>
+              )}
               <p className="mt-1 text-xs text-ink">{it.what}</p>
               <p className="mt-1 text-[11px] text-ink-2">建议：{it.suggest}</p>
             </div>

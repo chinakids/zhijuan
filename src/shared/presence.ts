@@ -111,7 +111,8 @@ export function unusedAliasCheck(opts: { aliasMap: Record<string, string[]>; cha
         type: 'character',
         where: `人物档案：${name}`,
         what: `档案登记了别名「${a}」，但全卷正文从未出现它——可能是改名后的残留、过度声明，或正文一直在用别的称呼。`,
-        suggest: `确认「${name}」的称呼：若正文实际用别的方式称呼 TA，请修改或删除该别名（在 人物/${name}.md 约定头「别名: [...]」里改）；若 TA 已改名，请把档案与正文新称呼对齐。`
+        suggest: `确认「${name}」的称呼：若正文实际用别的方式称呼 TA，请修改或删除该别名（在 人物/${name}.md 约定头「别名: [...]」里改）；若 TA 已改名，请把档案与正文新称呼对齐。`,
+        target: `人物/${name}.md`
       })
     }
   }
@@ -198,6 +199,7 @@ export function presenceCheck(opts: { knownChars: string[]; chapters: PresenceCh
         what: hit.alias
           ? `正文出现了「${hit.alias}」——这是「${hit.name}」档案登记的别名，但本章约定头「涉及人物」没有列 TA。`
           : `正文出现了「${hit.name}」的署名，但本章约定头「涉及人物」没有列 TA。`,
+        ...(hit.alias ? { refFile: `人物/${hit.name}.md` } : {}),
         suggest: `若「${hit.name}」确实在这一章出场，把 TA 加进本章约定头的「涉及人物」；若只是回忆/提及一笔，保留现状即可。`
       })
     }

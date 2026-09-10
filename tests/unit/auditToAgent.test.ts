@@ -34,6 +34,21 @@ describe('auditItemToAgentPrompt（审计条目 → agent 指令文本）', () =
     expect(t).toContain('foreshadow')
   })
 
+  it('refFile（别名登记处指路）：出现关联档案行并引导读档案核实', () => {
+    const t = auditItemToAgentPrompt({
+      severity: 'low',
+      type: 'character',
+      where: '雾港（正文/第01章_雾港.md）',
+      what: '正文出现了「沈爷」——这是「沈藏」档案登记的别名，但本章约定头「涉及人物」没有列 TA。',
+      suggest: '若「沈藏」确实在这一章出场，把 TA 加进本章约定头的「涉及人物」。',
+      refFile: '人物/沈藏.md'
+    })
+    expect(t).toContain('关联档案：人物/沈藏.md')
+    expect(t).toContain('zj_read_doc')
+    expect(t).toContain('zj_edit_doc')
+    expect(t).toContain('不要整篇替换')
+  })
+
   it('字段含换行/特殊字符时按行拼接不破坏', () => {
     const t = auditItemToAgentPrompt({
       severity: 'medium',

@@ -154,6 +154,7 @@ describe('presenceCheck 别名规则（机械层第三块·称谓一致性）', 
     expect(r.items[0]).toMatchObject({ severity: 'low' })
     expect(String(r.items[0].what)).toContain('沈爷')
     expect(String(r.items[0].what)).toContain('沈藏')
+    expect(r.items[0].refFile).toBe('人物/沈藏.md')
   })
 
   it('别名冲突：同一别名被两个及以上人物登记 → medium 一条（与章无关）', () => {
@@ -291,7 +292,8 @@ describe('unusedAliasCheck（档案腐坏检查纯函数：别名声明但全卷
     expect(r.items[0]).toMatchObject({
       severity: 'low',
       type: 'character',
-      where: '人物档案：沈藏'
+      where: '人物档案：沈藏',
+      target: '人物/沈藏.md'
     })
     expect(String(r.items[0].what)).toContain('沈老爹')
     expect(String(r.items[0].what)).not.toContain('沈爷')
