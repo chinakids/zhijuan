@@ -10,7 +10,7 @@ import { Label } from '../../components/ui/label'
 import { Textarea } from '../../components/ui/textarea'
 import { cn } from '../../lib/utils'
 import { useFsEvents } from '../fs/useFsEvents'
-import { isLibraryResultPath, isTaskStale, parseTaskCard } from '../../../../shared/taskCard'
+import { isLibraryResultPath, isTaskStale, parseTaskCard, rebuildTaskCardForRetry } from '../../../../shared/taskCard'
 
 /* ===== 织卷 S5 · 采集栏：任务卡列表 + 发起采集表单 ===== */
 
@@ -66,6 +66,9 @@ export default function CollectionBar() {
   const [viewText, setViewText] = useState('')
   // 详情内「结果」素材预览（只读）：rel=素材路径，text=读到的内容（null=文件不存在）
   const [preview, setPreview] = useState<{ rel: string; text: string | null } | null>(null)
+  // 删除确认：confirmDelete 非空时打开确认框（详情先关闭，避免嵌套 Dialog 焦点问题）
+  const [confirmDelete, setConfirmDelete] = useState<TaskInfo | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const events = useFsEvents(id)
 
   const refresh = useCallback(async () => {
@@ -142,6 +145,28 @@ export default function CollectionBar() {
     setOpen(false)
     setDemand(''); setKeywords(''); setCategory('环境'); setSource('')
     setSaving(false)
+    await refresh()
+  }
+
+  /** 删除任务卡：走 doc:delete（进系统废纸篓可恢复），完成后关详情回列表（fs 事件也会触发刷新） */
+  async function doDelete(t: TaskInfo) {
+    setDeleting(true)
+    await window.zhijuan.deleteDoc(id, '素材库/采集池/' + t.file)
+    setDeleting(false)
+    setConfirmDelete(null)
+    setView(null)
+    setPreview(null)
+    await refresh()
+  }
+
+  /** 重发：按现卡字段重建为全新 pending 卡（清结果/完成，mtime 随写盘更新）——管道会重新处理 */
+  async function doRetry(t: TaskInfo) {
+    if (!t) return
+    const text = (await window.zhijuan.readDoc(id, '素材库/采集池/' + t.file)) ?? ''
+    const next = rebuildTaskCardForRetry(parseTaskCard(text))
+    await window.zhijuan.writeDoc(id, '素材库/采集池/' + t.file, next)
+    setView(null)
+    setPreview(null)
     await refresh()
   }
 
@@ -308,6 +333,55 @@ export default function CollectionBar() {
           )}
           <DialogFooter>
             <Button variant="ghost" onClick={() => setView(null)}>关闭</Button>
+            <div className="flex-1" />
+            {view && (view.status === 'pending' || view.status === 'failed') && (
+              <Button
+                variant="outline"
+                onClick={() => view && void doRetry(view)}
+                title="把任务卡重置为待处理（清掉旧结果），本机管道会重新采集"
+              >
+                <RefreshCw className="mr-1 h-3 w-3" /> 重发任务
+              </Button>
+            )}
+            {view && (
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setConfirmDelete(view)
+                  setView(null)
+                }}
+                title="删除这张任务卡（进系统废纸篓，可找回）"
+              >
+                删除该任务
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 删除确认（非终态二次确认：文案强调管道不再处理；终态仅提示可找回） */}
+      <Dialog open={!!confirmDelete} onOpenChange={(v) => !v && !deleting && setConfirmDelete(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>删除任务卡？</DialogTitle>
+          </DialogHeader>
+          {confirmDelete && (
+            <div className="space-y-2 py-1 text-xs leading-relaxed text-ink-2">
+              <p className="truncate font-medium text-ink">{confirmDelete.summary}</p>
+              {confirmDelete.status === 'done' || confirmDelete.status === 'failed' ? (
+                <p>这张卡已终态。删除后可在系统废纸篓找回；已回填的素材草稿不受影响。</p>
+              ) : (
+                <p className="rounded-md border border-danger/40 bg-danger-soft px-2.5 py-1.5 text-danger">
+                  任务尚未完成（{confirmDelete.status}）——删除后本机管道将不再处理它；如需重新采集，请用「重发任务」或重新发起。
+                </p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" disabled={deleting} onClick={() => setConfirmDelete(null)}>取消</Button>
+            <Button variant="destructive" disabled={deleting} onClick={() => confirmDelete && void doDelete(confirmDelete)}>
+              {deleting ? '删除中…' : '删除'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

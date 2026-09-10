@@ -24,6 +24,7 @@ vi.mock('electron', () => ({
   shell: { trashItem: vi.fn() }
 }))
 
+import { shell } from 'electron'
 import * as store from '../../src/main/store'
 import { setSettings, libraryRoot } from '../../src/main/settings'
 import { sanitizeFile } from '../../src/shared/paths'
@@ -121,5 +122,53 @@ describe('项目全流程（临时目录真实落盘）', () => {
   it('libraryRoot：全新用户（老位不存在）回落 工作区/项目库', () => {
     setSettings({ workspace: join(holder.tmp, 'ws2'), libraryRoot: '' })
     expect(libraryRoot()).toBe(join(holder.tmp, 'ws2', '项目库'))
+  })
+})
+
+describe('deleteDoc（删除项目内文档：废纸篓优先、路径校验、兜底硬删）', () => {
+  beforeEach(() => {
+    setSettings({ workspace: join(holder.tmp, 'ws'), libraryRoot: holder.projects() })
+    vi.mocked(shell.trashItem).mockReset()
+    vi.mocked(shell.trashItem).mockResolvedValue(undefined)
+  })
+  afterEach(() => {
+    setSettings({ workspace: '', libraryRoot: '' })
+  })
+
+  it('正常路径：调用系统废纸篓（可恢复）并返回 ok', async () => {
+    const p = store.createProject('p', '')!
+    const rel = '素材库/采集池/任务_x.md'
+    store.writeDoc(p.id, rel, '---\nstatus: pending\n---\n任务')
+    const r = await store.deleteDoc(p.id, rel)
+    expect(r.ok).toBe(true)
+    expect(shell.trashItem).toHaveBeenCalledWith(join(holder.projects(), p.id, rel))
+  })
+
+  it('废纸篓失败：兜底硬删，文件确实消失', async () => {
+    const p = store.createProject('p', '')!
+    const rel = '素材库/采集池/任务_y.md'
+    store.writeDoc(p.id, rel, '---\nstatus: pending\n---\n任务')
+    vi.mocked(shell.trashItem).mockRejectedValueOnce(new Error('trash fail'))
+    const r = await store.deleteDoc(p.id, rel)
+    expect(r.ok).toBe(true)
+    expect(existsSync(join(holder.projects(), p.id, rel))).toBe(false)
+  })
+
+  it('路径校验：空/非 md/绝对路径/带 .. 一律拒绝且不调废纸篓', async () => {
+    const p = store.createProject('p', '')!
+    for (const rel of ['', '任务_x', '/abs/任务_x.md', '../任务_x.md', '素材库/../任务_x.md']) {
+      const r = await store.deleteDoc(p.id, rel)
+      expect(r.ok).toBe(false)
+      expect(r.error).toBe('路径不合法')
+    }
+    expect(shell.trashItem).not.toHaveBeenCalled()
+  })
+
+  it('文件不存在：返回 ok:false（不报错不删别的东西）', async () => {
+    const p = store.createProject('p', '')!
+    const r = await store.deleteDoc(p.id, '素材库/采集池/不存在.md')
+    expect(r.ok).toBe(false)
+    expect(r.error).toBe('文档不存在')
+    expect(shell.trashItem).not.toHaveBeenCalled()
   })
 })

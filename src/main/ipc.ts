@@ -18,6 +18,7 @@ import {
   projectDir,
   readDoc,
   writeDoc,
+  deleteDoc,
   listDocs,
   listChapters,
   watchProject
@@ -76,6 +77,8 @@ export function registerIpc() {
     writeDoc(id, rel, content)
     return true
   })
+  // 删除文档：进系统废纸篓（可恢复）；renderer 侧需先弹确认
+  ipcMain.handle('doc:delete', (_e, id: string, rel: string) => deleteDoc(id, rel))
   // 采纳 agent 的正文修改：按 find 在原文档里唯一替换（读取当前磁盘内容为准），落地后走正常 fs 事件让编辑器静默重载
   ipcMain.handle('doc:applyEdit', (_e, id: string, rel: string, edits: EditItem[]) => {
     const cur = readDoc(id, rel)

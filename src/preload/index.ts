@@ -51,6 +51,8 @@ const api = {
   // 文档（相对项目根）
   readDoc: (id: string, rel: string) => ipcRenderer.invoke('doc:read', id, rel) as Promise<string | null>,
   writeDoc: (id: string, rel: string, content: string) => ipcRenderer.invoke('doc:write', id, rel, content) as Promise<boolean>,
+  deleteDoc: (id: string, rel: string) =>
+    ipcRenderer.invoke('doc:delete', id, rel) as Promise<{ ok: boolean; error?: string }>,
   applyDocEdit: (id: string, rel: string, edits: import('../shared/types').EditItem[]) =>
     ipcRenderer.invoke('doc:applyEdit', id, rel, edits) as Promise<{ ok: boolean; errors?: string[] }>,
   adoptActs: (id: string, chapterRel: string, draftRel: string) =>

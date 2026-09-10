@@ -38,6 +38,22 @@ export function isTaskStale(status: string, lastActivityMs: number, nowMs: numbe
   return nowMs - lastActivityMs > STALE_TASK_MS
 }
 
+/**
+ * 重发：用现卡解析字段重建一张全新 pending 卡（清掉旧结果/完成，保留需求/关键词/类别/来源与正文；
+ * 创建时间保留原值=首次创建时间戳，与文件名 任务_<ts> 自洽）。纯函数，可单测。
+ */
+export function rebuildTaskCardForRetry(v: TaskCardView): string {
+  const fm = ['---', 'status: pending']
+  if (v.category) fm.push('类别: ' + v.category)
+  if (v.keywords.length > 0) fm.push('关键词: [' + v.keywords.join(', ') + ']')
+  fm.push('需求: ' + v.demand)
+  if (v.source) fm.push('来源: ' + v.source)
+  if (v.createdAt) fm.push('创建: ' + v.createdAt)
+  fm.push('---', '')
+  const body = v.body || '# 采集任务：' + v.demand.slice(0, 20)
+  return fm.join('\n') + '\n' + body + '\n'
+}
+
 /** 任务卡文本 → UI 友好的详情结构（无约定头时按空卡处理，字段全空、body=原文） */
 export function parseTaskCard(text: string): TaskCardView {
   const { fm, body } = extractFrontMatter(text)

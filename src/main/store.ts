@@ -183,6 +183,29 @@ export function writeDoc(id: string, rel: string, content: string) {
   writeFileSync(f, content, 'utf-8')
 }
 
+/**
+ * 删除项目内文档（markdown，相对项目根）。
+ * 走系统废纸篓（可恢复——与 removeProject 同先例），废纸篓失败兜底硬删。
+ * 防御：只收 `.md`、拒绝空/绝对/带 `..` 段的路径（readDoc 只做 join 不防穿越，删除同样不能放开口子）。
+ */
+export async function deleteDoc(id: string, rel: string): Promise<{ ok: boolean; error?: string }> {
+  const bad = !rel || !rel.endsWith('.md') || rel.startsWith('/') || rel.split('/').some((s) => s === '..')
+  if (bad) return { ok: false, error: '路径不合法' }
+  const f = abs(id, rel)
+  if (!existsSync(f)) return { ok: false, error: '文档不存在' }
+  try {
+    await shell.trashItem(f)
+    return { ok: true }
+  } catch {
+    try {
+      rmSync(f, { force: true })
+      return { ok: true }
+    } catch (e2) {
+      return { ok: false, error: String(e2) }
+    }
+  }
+}
+
 export function listDocs(id: string, relDir: string): { file: string; name: string; mtime: number }[] {
   const dir = join(projectDir(id), relDir)
   if (!existsSync(dir)) return []

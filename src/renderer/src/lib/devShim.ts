@@ -20,6 +20,8 @@ function fsEmit(projectId: string, rel: string) {
 }
 
 const docs = new Map<string, string>()
+// 被重发（writeDoc 触碰）过的演示停滞卡 key：docsOf 对它的「3天前」mtime 特判失效，恢复真机行为（mtime=写盘时刻）
+const taskTouched = new Set<string>()
 // 空类别（dev 内存无目录概念：新类别只登记名字，树/列表经 libraryTree 组装时按计数 0 展示）
 const extraCats = new Set<string>()
 // 版本历史 mock：与主进程行为对齐（仅 正文/ 前缀、内容变化才快照旧内容，新→旧，上限 50）
@@ -292,10 +294,13 @@ function docsOf(prefix: string): { file: string; name: string; mtime: number }[]
     .map((k) => {
       const file = k.slice(prefix.length + 1)
       // dev 演示：导演板一律模拟为一天前写的（比正文旧），方便看「导演板偏旧」轻提示；
-      // 「任务_演示停滞」模拟为 3 天前（未处理），方便看采集任务「停滞」提示
+      // 「任务_演示停滞」模拟为 3 天前（未处理），方便看采集任务「停滞」提示；
+      // 该卡一旦被重发（writeDoc 触碰）就从特判名单移除 → mtime 恢复为现在（模拟真机写盘更新 mtime），
+      // 否则无头冒烟里「重发后停滞徽标消失」永远验不过（静态模拟与真机行为不一致）。
+      const key = prefix + '/' + file
       const mtime = file.endsWith('_导演.md')
         ? now - 86400_000
-        : file.includes('任务_演示停滞')
+        : file.includes('任务_演示停滞') && !taskTouched.has(key)
           ? now - 3 * 86400_000
           : now
       return { file, name: file.split('/').pop()!, mtime }
@@ -345,8 +350,15 @@ const mock = {
       if (arr.length > HISTORY_LIMIT_DEV) arr.length = HISTORY_LIMIT_DEV
       histories.set(k, arr)
     }
+    if (rel.includes('任务_演示停滞') && prev !== undefined && prev !== content) taskTouched.add(k)
     docs.set(k, content)
     fsEmit(_id, rel)
+  },
+  deleteDoc: async (_id: string, rel: string) => {
+    const k = _id + '/' + rel
+    if (!docs.delete(k)) return { ok: false, error: '文档不存在' }
+    fsEmit(_id, rel)
+    return { ok: true }
   },
   listHistory: async (_id: string, rel: string) =>
     (histories.get(_id + '/' + rel) ?? []).map((h) => ({ name: h.name, mtimeMs: h.mtimeMs, size: h.content.length })),

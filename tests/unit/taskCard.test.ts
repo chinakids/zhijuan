@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isLibraryResultPath, isTaskStale, parseTaskCard, STALE_TASK_MS } from '../../src/shared/taskCard'
+import { isLibraryResultPath, isTaskStale, parseTaskCard, rebuildTaskCardForRetry, STALE_TASK_MS } from '../../src/shared/taskCard'
 
 // 样例：与真机管道回填后的任务卡格式一致（素材库验收项目实测）
 const DONE_CARD = [
@@ -53,6 +53,39 @@ describe('parseTaskCard', () => {
   it('未知状态原样保留（如管道扩展了 running）', () => {
     const d = parseTaskCard(['---', 'status: running', '类别: 人物', '---', '', 'x'].join('\n'))
     expect(d.status).toBe('running')
+  })
+})
+
+describe('rebuildTaskCardForRetry（重发 = 重建全新 pending 卡）', () => {
+  it('done 卡重建：status=pending、旧结果/完成被清、需求/关键词/类别/来源/创建保留', () => {
+    const d = parseTaskCard(DONE_CARD)
+    const next = rebuildTaskCardForRetry(d)
+    const r = parseTaskCard(next)
+    expect(r.status).toBe('pending')
+    expect(r.demand).toBe(d.demand)
+    expect(r.keywords).toEqual(d.keywords)
+    expect(r.category).toBe(d.category)
+    expect(r.createdAt).toBe(d.createdAt)
+    expect(r.result).toBe('')
+    expect(r.finishedAt).toBe('')
+    expect(r.body).toContain('# 采集任务：校园图书馆场景细节')
+  })
+
+  it('重建前后 parse 关键字段一致（可逆：重发后仍能再次重发）', () => {
+    const d = parseTaskCard(DONE_CARD)
+    const once = parseTaskCard(rebuildTaskCardForRetry(d))
+    const twice = parseTaskCard(rebuildTaskCardForRetry(once))
+    expect(twice.demand).toBe(d.demand)
+    expect(twice.keywords).toEqual(d.keywords)
+    expect(twice.category).toBe(d.category)
+    expect(twice.source).toBe(d.source)
+    expect(twice.createdAt).toBe(d.createdAt)
+  })
+
+  it('空正文卡重建后仍带标题占位（避免空卡落盘）', () => {
+    const d = parseTaskCard(['---', 'status: failed', '需求: 雨夜', '---'].join('\n'))
+    const next = rebuildTaskCardForRetry(d)
+    expect(next).toContain('采集任务：雨夜')
   })
 })
 
