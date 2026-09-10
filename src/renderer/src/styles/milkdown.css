@@ -128,3 +128,73 @@
 .dark .zj-md-toolbar { background: var(--surface-2); border-bottom-color: var(--hair); }
 .dark .zj-md-toolbar .zj-tb-item { color: var(--ink-2); }
 .dark .zj-md-toolbar .zj-tb-item:hover { background: var(--well); color: var(--ink); }
+
+/* ===== 正文查找条（Apple HIG Keyboards：⌘F/⌘G/⇧⌘G；形态参照 macOS Find bar，贴工具栏下沿） ===== */
+.zj-findbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--hair);
+  background: var(--surface-2);
+  min-width: 0;
+}
+.zj-findbar .zj-find-ico {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ink-3);
+}
+.zj-findbar .zj-find-input {
+  flex: 0 1 200px;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--hair-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-family: var(--font-sans);
+  outline: none;
+  transition: border-color 120ms, box-shadow 120ms;
+}
+.zj-findbar .zj-find-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.zj-findbar .zj-find-input::placeholder { color: var(--ink-3); }
+.zj-findbar .zj-find-count {
+  flex: none;
+  min-width: 3.4em;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  color: var(--ink-2);
+  text-align: center;
+  white-space: nowrap;
+}
+.zj-findbar .zj-find-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--ink-2);
+  transition: background 120ms, color 120ms;
+}
+.zj-findbar .zj-find-btn:hover { background: var(--well); color: var(--ink); }
+.zj-findbar .zj-find-btn:disabled { opacity: 0.35; cursor: default; }
+.zj-findbar .zj-find-btn:disabled:hover { background: none; color: var(--ink-2); }
+.dark .zj-findbar { background: var(--surface-2); border-bottom-color: var(--hair); }
+
+/* 查找高亮（CSS Custom Highlight API：命中-柔和、当前-强调；Electron 31/Chromium 126 原生支持） */
+:where(.zj-md) ::highlight(zj-find-hit) {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: inherit;
+}
+:where(.zj-md) ::highlight(zj-find-cur) {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
