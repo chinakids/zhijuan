@@ -1,8 +1,11 @@
 // ===== 织卷 V2 · IPC 路由（renderer 唯一入口） =====
-import { ipcMain, shell, BrowserWindow } from 'electron'
+import { ipcMain, shell, BrowserWindow, dialog, app } from 'electron'
+import { writeFileSync } from 'fs'
+import { join } from 'path'
 import type { AppSettings, FsEvent, ProposalItem, EditItem } from '../shared/types'
 import { adoptActsChapter } from '../shared/actsAdopt'
 import { countWords } from '../shared/count'
+import { extractFrontMatter } from '../shared/fmatter'
 import { listProposals, createProposals, applyProposal, rejectProposal } from './proposals'
 import { listSlices } from './slices'
 import { listSnapshots, readSnapshot } from './history'
@@ -21,6 +24,8 @@ import {
   deleteDoc,
   listDocs,
   listChapters,
+  renameChapter,
+  deleteChapter,
   watchProject
 } from './store'
 import { workspaceStatus, ensureWorkspaceDocs, readWorkspaceDoc } from './workspace'
@@ -111,6 +116,27 @@ export function registerIpc() {
   })
   ipcMain.handle('doc:list', (_e, id: string, relDir: string) => listDocs(id, relDir))
   ipcMain.handle('chapter:list', (_e, id: string) => listChapters(id))
+
+  // 章节管理（§6.2）：重命名（改约定头题名＋文件名，联动大纲副产物/版本历史）、删除（正文+大纲副产物进废纸篓）、导出单章 md
+  ipcMain.handle('chapter:rename', (_e, id: string, rel: string, newTitle: string) => renameChapter(id, rel, newTitle))
+  ipcMain.handle('chapter:delete', (_e, id: string, rel: string) => deleteChapter(id, rel))
+  ipcMain.handle('chapter:export', async (e, id: string, rel: string) => {
+    const cur = readDoc(id, rel)
+    if (cur === null) return { ok: false, error: '章节不存在' }
+    // 导出纯正文（去约定头——约定头是织卷内部半结构化元数据，对外分享的正文不含它）
+    const { body } = extractFrontMatter(cur)
+    const name = (rel.replace(/^正文\//, '').replace(/\.md$/, '') || '章节') + '.md'
+    const opts = {
+      title: '导出单章（Markdown）',
+      defaultPath: join(app.getPath('documents'), name),
+      filters: [{ name: 'Markdown', extensions: ['md'] }]
+    } as Electron.SaveDialogOptions
+    const win = BrowserWindow.fromWebContents(e.sender)
+    const r = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts)
+    if (r.canceled || !r.filePath) return { cancelled: true }
+    writeFileSync(r.filePath, body, 'utf-8')
+    return { ok: true, path: r.filePath }
+  })
 
   // 素材库域（模块设计 §九：类别树 / 新建类别 / 文件名+全文搜索）
   ipcMain.handle('library:categories', (_e, id: string) => listLibraryCategories(id))

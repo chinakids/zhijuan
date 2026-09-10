@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { extractFrontMatter, serializeFrontMatter, withBody, withFrontMatter, addFrontMatterListItem, removeFrontMatterListItem } from '../../src/shared/fmatter'
+import { extractFrontMatter, serializeFrontMatter, withBody, withFrontMatter, addFrontMatterListItem, removeFrontMatterListItem, setFrontMatterField } from '../../src/shared/fmatter'
 
 describe('extractFrontMatter', () => {
   it('解析完整约定头：标量、数组、行内注释', () => {
@@ -118,5 +118,20 @@ describe('removeFrontMatterListItem（约定头列表键移除一项）', () => 
     const raw = '---\n涉及人物: [阿七]\n---\n正文'
     const once = removeFrontMatterListItem(raw, '涉及人物', '阿七')
     expect(removeFrontMatterListItem(once, '涉及人物', '阿七')).toBe(once)
+  })
+})
+
+describe('setFrontMatterField（约定头标量键赋值）', () => {
+  it('键存在：只改那一行（保其他行原样、正文不动）', () => {
+    const raw = '---\n章号: 1\n题名: 雾港\n涉及人物: [阿七]\n---\n# 正文\n'
+    expect(setFrontMatterField(raw, '题名', '灯下雾')).toBe('---\n章号: 1\n题名: 灯下雾\n涉及人物: [阿七]\n---\n# 正文\n')
+  })
+  it('键不存在：在约定头块末追加一行（闭合行与正文仍完好）', () => {
+    const raw = '---\n章号: 1\n---\n# 正文\n'
+    expect(setFrontMatterField(raw, '题名', '雾港')).toBe('---\n章号: 1\n题名: 雾港\n---\n# 正文\n')
+  })
+  it('无约定头 / 空值：原样返回', () => {
+    expect(setFrontMatterField('没有约定头', '题名', '雾港')).toBe('没有约定头')
+    expect(setFrontMatterField('---\n题名: 雾港\n---\n正文', '题名', '   ')).toBe('---\n题名: 雾港\n---\n正文')
   })
 })

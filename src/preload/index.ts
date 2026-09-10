@@ -53,6 +53,13 @@ const api = {
   writeDoc: (id: string, rel: string, content: string) => ipcRenderer.invoke('doc:write', id, rel, content) as Promise<boolean>,
   deleteDoc: (id: string, rel: string) =>
     ipcRenderer.invoke('doc:delete', id, rel) as Promise<{ ok: boolean; error?: string }>,
+  // 章节管理（§6.2）：重命名 / 删除（联动大纲副产物）/ 导出单章 md
+  renameChapter: (id: string, rel: string, newTitle: string) =>
+    ipcRenderer.invoke('chapter:rename', id, rel, newTitle) as Promise<{ ok: boolean; newRel?: string; error?: string }>,
+  deleteChapter: (id: string, rel: string) =>
+    ipcRenderer.invoke('chapter:delete', id, rel) as Promise<{ ok: boolean; error?: string; cleaned?: number }>,
+  exportChapter: (id: string, rel: string) =>
+    ipcRenderer.invoke('chapter:export', id, rel) as Promise<{ ok: boolean; path?: string; cancelled?: boolean; error?: string }>,
   applyDocEdit: (id: string, rel: string, edits: import('../shared/types').EditItem[]) =>
     ipcRenderer.invoke('doc:applyEdit', id, rel, edits) as Promise<{ ok: boolean; errors?: string[] }>,
   adoptActs: (id: string, chapterRel: string, draftRel: string) =>

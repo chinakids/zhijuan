@@ -17,6 +17,7 @@ import AgentPanel from '../features/agent/AgentPanel'
 import ChapterCheckDrawer from '../features/check/ChapterCheckDrawer'
 import { useFsEvents } from '../features/fs/useFsEvents'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog'
+import { toast } from '../store/toasts'
 
 export default function Novel() {
   const { id = '' } = useParams()
@@ -34,6 +35,28 @@ export default function Novel() {
   const apiRef = useRef<ProseApi | null>(null)
   const [syncMsg, setSyncMsg] = useState('')
   const [checkOpen, setCheckOpen] = useState(false)
+  // 章节列表右键菜单（§6.2：重命名/导出单章 md/删除）
+  const [menu, setMenu] = useState<{ c: ChapterEntry; x: number; y: number } | null>(null)
+  const [renaming, setRenaming] = useState<ChapterEntry | null>(null)
+  const [renameVal, setRenameVal] = useState('')
+  const [deleting, setDeleting] = useState<ChapterEntry | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  // 菜单收起：点击菜单外任意处 / Esc；菜单项操作后各自关闭
+  useEffect(() => {
+    if (!menu) return
+    const onDown = (ev: PointerEvent) => {
+      if (menuRef.current && !menuRef.current.contains(ev.target as Node)) setMenu(null)
+    }
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') setMenu(null)
+    }
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menu])
   // 项目引导「现在新建第一章」：Workspace 经 Outlet context 发信号（递增计数），打开建章对话框
   const outletCtx = useOutletContext<{ newChapterReq?: number }>()
   const newChapterReq = outletCtx?.newChapterReq ?? 0
@@ -195,6 +218,44 @@ export default function Novel() {
     setSel(name)
   }
 
+  // ---- 章节右键菜单操作（§6.2）----
+  async function doRename() {
+    if (!id || !renaming) return
+    const r = await window.zhijuan.renameChapter(id, '正文/' + renaming.file, renameVal)
+    if (!r.ok) {
+      toast.add({ kind: 'error', title: '重命名失败', description: r.error })
+      return
+    }
+    await refresh()
+    // 重命名的是当前选中章 → 选中跟随新文件名；否则保持原选中
+    if (sel === renaming.file && r.newRel) setSel(r.newRel.split('/').pop()!)
+    setRenaming(null)
+    toast.add({ kind: 'success', title: '已重命名', description: r.newRel })
+  }
+  async function doDelete() {
+    if (!id || !deleting) return
+    const r = await window.zhijuan.deleteChapter(id, '正文/' + deleting.file)
+    if (!r.ok) {
+      toast.add({ kind: 'error', title: '删除失败', description: r.error })
+      return
+    }
+    toast.add({
+      kind: 'success',
+      title: '已移入废纸篓（可恢复）',
+      description: `${deleting.name}${r.cleaned ? `（含 ${r.cleaned} 篇大纲副产物）` : ''}`
+    })
+    setDeleting(null)
+    await refresh()
+    if (sel === deleting.file) setSel(null)
+  }
+  async function doExport(c: ChapterEntry) {
+    if (!id) return
+    const r = await window.zhijuan.exportChapter(id, '正文/' + c.file)
+    if (r.cancelled) return
+    if (!r.ok) toast.add({ kind: 'error', title: '导出失败', description: r.error })
+    else toast.add({ kind: 'success', title: '已导出单章', description: r.path })
+  }
+
   const cur = chapters.find((c) => c.file === sel)
   // 章卡的 file 是相对 正文/ 的裸名；凡要当项目根相对路径传给主进程处，统一在此拼前缀（见本技能 listDocs 坑）
   const chapterRel = sel ? '正文/' + sel : ''
@@ -221,6 +282,10 @@ export default function Novel() {
             <button
               key={c.file}
               onClick={() => setSel(c.file)}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                setMenu({ c, x: e.clientX, y: e.clientY })
+              }}
               className={cn(
                 'mb-0.5 flex w-full flex-col gap-0.5 rounded-lg px-3 py-2 text-left transition-colors',
                 sel === c.file ? 'bg-accent-soft' : 'hover:bg-surface'
@@ -237,6 +302,44 @@ export default function Novel() {
           ))}
         </div>
       </aside>
+
+      {/* 章节右键菜单（§6.2）：重命名 / 导出单章 md / 删除（进废纸篓可恢复） */}
+      {menu && (
+        <div
+          ref={menuRef}
+          className="fixed z-50 w-44 overflow-hidden rounded-lg border border-hair bg-surface py-1 shadow-lg"
+          style={{ left: Math.max(8, Math.min(menu.x, window.innerWidth - 190)), top: Math.max(8, Math.min(menu.y, window.innerHeight - 150)) }}
+        >
+          <button
+            className="block w-full shrink-0 whitespace-nowrap px-3 py-1.5 text-left text-xs text-ink hover:bg-surface-2"
+            onClick={() => {
+              setRenaming(menu.c)
+              setRenameVal(String(menu.c.fm?.['题名'] ?? ''))
+              setMenu(null)
+            }}
+          >
+            重命名
+          </button>
+          <button
+            className="block w-full shrink-0 whitespace-nowrap px-3 py-1.5 text-left text-xs text-ink hover:bg-surface-2"
+            onClick={() => {
+              void doExport(menu.c)
+              setMenu(null)
+            }}
+          >
+            导出 md
+          </button>
+          <button
+            className="block w-full shrink-0 whitespace-nowrap px-3 py-1.5 text-left text-xs text-danger hover:bg-danger/10"
+            onClick={() => {
+              setDeleting(menu.c)
+              setMenu(null)
+            }}
+          >
+            删除
+          </button>
+        </div>
+      )}
 
       <main className="relative flex min-w-0 flex-1 flex-col">
         {sel ? (
@@ -348,6 +451,48 @@ export default function Novel() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreating(false)}>取消</Button>
             <Button onClick={() => void createChapter()} disabled={!title.trim()}>创建</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 章节重命名（§6.2）：改约定头题名 + 文件名；大纲副产物与版本历史随同改名 */}
+      <Dialog open={!!renaming} onOpenChange={(o) => !o && setRenaming(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>重命名章节</DialogTitle>
+            <DialogDescription>只改这一章的题名与文件名；大纲章卡/导演板等副产物和版本历史会随同改名。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label>新题名 *</Label>
+            <Input
+              autoFocus
+              value={renameVal}
+              placeholder="新题名"
+              onChange={(e) => setRenameVal(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && renameVal.trim()) void doRename()
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenaming(null)}>取消</Button>
+            <Button onClick={() => void doRename()} disabled={!renameVal.trim()}>重命名</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 章节删除确认：正文 + 同名大纲副产物移入系统废纸篓（可找回） */}
+      <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>删除章节</DialogTitle>
+            <DialogDescription>
+              第{deleting?.fm?.['章号'] ?? '?'}章《{deleting?.fm?.['题名'] ?? deleting?.name ?? ''}》将连同所属大纲副产物一起移入系统废纸篓（可恢复）。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleting(null)}>取消</Button>
+            <Button className="text-danger" onClick={() => void doDelete()}>移入废纸篓</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

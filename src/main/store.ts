@@ -2,12 +2,12 @@
 // 所有项目数据都是明文文件；本模块只做：扫描、骨架、读写、监听（设置见 settings.ts，工作区见 workspace.ts）。
 import { shell } from 'electron'
 import { join, relative, basename, dirname } from 'path'
-import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync, statSync, watch, FSWatcher } from 'fs'
-import { extractFrontMatter, serializeFrontMatter } from '../shared/fmatter'
+import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync, renameSync, statSync, watch, FSWatcher } from 'fs'
+import { extractFrontMatter, serializeFrontMatter, setFrontMatterField } from '../shared/fmatter'
 import { countWords } from '../shared/count'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, DOT_DIR } from '../shared/paths'
 import { sanitizeFile } from '../shared/paths'
-import { isNovelRel, writeSnapshot } from './history'
+import { isNovelRel, snapDirFor, writeSnapshot } from './history'
 import { libraryRoot } from './settings'
 import { applyTemplate } from './templates'
 import type { ChapterEntry, ChapterFrontMatter, FsEvent, ProjectMeta, ProjectStats, ProjectSummary } from '../shared/types'
@@ -255,6 +255,100 @@ export function listChapters(id: string): ChapterEntry[] {
       }
     })
     .sort((a, b) => numOf(a.name) - numOf(b.name))
+}
+
+// ---------- 章节管理（重命名 / 删除 · 联动大纲副产物与版本历史） ----------
+
+/** 章节重命名后的文件名基础：保留旧文件名「第一个 _ 」之前的前缀（如「第01章_」），换上新题名 slug。
+ * 无下划线前缀（手工改名过）则直接用新题名；与建章文件名的回旋钩同口径（sanitizeFile 见 shared/paths）。 */
+export function chapterNewBase(oldName: string, newTitle: string): string {
+  const t = sanitizeFile(newTitle)
+  const idx = oldName.indexOf('_')
+  const prefix = idx >= 0 ? oldName.slice(0, idx + 1) : ''
+  return prefix + t
+}
+
+/** 大纲/ 下与某章同名的写作副产物（章卡/导演板/分幕等）：<章名>.md 与 <章名>_*.md */
+function siblingMatches(dirEntries: string[], base: string): string[] {
+  return dirEntries.filter((e) => {
+    if (!e.endsWith('.md')) return false
+    const name = e.replace(/\.md$/, '')
+    return name === base || name.startsWith(base + '_')
+  })
+}
+
+export interface RenameChapterResult {
+  ok: boolean
+  newRel?: string
+  error?: string
+}
+
+/**
+ * 章节重命名（模块设计 §6.2「重命名：改题名与文件名」）：改约定头 `题名` + 文件名 slug 同步。
+ * 引用面（2026-09-11 调研后拍板）：
+ *  - 大纲/ 下 <章名>.md 与 <章名>_*.md（章卡/导演板/分幕）→ 同步改名（存在才动，best-effort）；
+ *  - .zhijuan/history/正文/<章名>/（版本历史入口）→ 同步改名（存在才动，best-effort）；
+ *  - .zhijuan/slices.json 无写入调用（listSlices 每次现扫）→ 无需处理；
+ *  - .zhijuan/proposals/*.json 的 chapter 字段是展示元数据（锚点写入按 target/文本锚）→ 不迁移，注明。
+ * 顺序：先写新文件（目标不存在 → 不触发版本快照）→ 移动引用面 → 删旧文件，任一失败抛错前旧文件仍在。
+ */
+export function renameChapter(id: string, rel: string, newTitle: string): RenameChapterResult {
+  const bad = !rel || !rel.startsWith('正文/') || !rel.endsWith('.md') || rel.startsWith('/') || rel.split('/').some((s) => s === '..')
+  if (bad) return { ok: false, error: '路径不合法' }
+  const t = (newTitle ?? '').trim()
+  if (!t) return { ok: false, error: '题名不能为空' }
+  const oldAbs = abs(id, rel)
+  if (!existsSync(oldAbs)) return { ok: false, error: '章节不存在' }
+  const raw = readFileSync(oldAbs, 'utf-8')
+  const { fm } = extractFrontMatter(raw)
+  if (!fm) return { ok: false, error: '该文件没有约定头，不是织卷章节' }
+  const oldName = basename(rel)
+  const newBase = chapterNewBase(oldName, t) + '.md'
+  const newRel = '正文/' + newBase
+  const newText = setFrontMatterField(raw, '题名', t)
+  if (newBase === oldName) {
+    // 文件名没变（题名清洗后同形）：只改约定头内容
+    writeDoc(id, rel, newText)
+    return { ok: true, newRel: rel }
+  }
+  if (existsSync(abs(id, newRel))) return { ok: false, error: '目标文件名已存在：' + newBase }
+  // 1) 写新文件（目标不存在 → 不触发版本快照；经 watcher 广播界面刷新）
+  writeDoc(id, newRel, newText)
+  // 2) 大纲/ 副产物同步改名（best-effort；同名目标已存在则保留旧的）
+  const dir = join(projectDir(id), '大纲')
+  if (existsSync(dir)) {
+    for (const e of siblingMatches(readdirSync(dir), oldName.replace(/\.md$/, ''))) {
+      const nf = join(dir, e.replace(oldName.replace(/\.md$/, ''), newBase.replace(/\.md$/, '')))
+      if (existsSync(nf)) continue
+      try { renameSync(join(dir, e), nf) } catch { /* best-effort */ }
+    }
+  }
+  // 3) 版本历史目录迁移（保留历史入口）
+  try {
+    const hOld = join(projectDir(id), snapDirFor(rel))
+    const hNew = join(projectDir(id), snapDirFor(newRel))
+    if (existsSync(hOld) && !existsSync(hNew)) renameSync(hOld, hNew)
+  } catch { /* best-effort */ }
+  // 4) 删除旧文件（内容已迁移）
+  rmSync(oldAbs, { force: true })
+  return { ok: true, newRel }
+}
+
+/** 删除章节：先删 大纲/ 下同名写作副产物（走系统废纸篓，可恢复），再删正文本身。 */
+export async function deleteChapter(id: string, rel: string): Promise<{ ok: boolean; error?: string; cleaned?: number }> {
+  const bad = !rel || !rel.startsWith('正文/') || !rel.endsWith('.md') || rel.startsWith('/') || rel.split('/').some((s) => s === '..')
+  if (bad) return { ok: false, error: '路径不合法' }
+  const base = basename(rel).replace(/\.md$/, '')
+  let cleaned = 0
+  const dir = join(projectDir(id), '大纲')
+  if (existsSync(dir)) {
+    for (const e of siblingMatches(readdirSync(dir), base)) {
+      const r = await deleteDoc(id, '大纲/' + e)
+      if (r.ok) cleaned++
+    }
+  }
+  const r = await deleteDoc(id, rel)
+  return r.ok ? { ok: true, cleaned } : r
 }
 
 // ---------- 项目目录监听（广播给渲染层） ----------

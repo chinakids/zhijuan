@@ -131,3 +131,26 @@ export function removeFrontMatterListItem(text: string, key: string, value: stri
   }
   return text
 }
+
+/**
+ * 设置约定头里的标量键（如「题名」）：键存在 → 只改那一行（保其他行原样、保留缩进）；
+ * 键不存在 → 在约定头块末追加一行；无约定头 → 原样返回（调用方自行判断）。
+ */
+export function setFrontMatterField(text: string, key: string, value: string): string {
+  const v = value.trim()
+  if (!v) return text
+  const m = text.match(FM_RE)
+  if (!m) return text
+  const block = m[1]
+  const lines = block.split('\n')
+  const keyRe = new RegExp('^\\s*' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*:')
+  for (let i = 0; i < lines.length; i++) {
+    if (!keyRe.test(lines[i])) continue
+    const idx = lines[i].indexOf(':')
+    const lead = (lines[i].match(/^\s*/) ?? [''])[0]
+    lines[i] = lead + key + ': ' + v
+    return '---\n' + lines.join('\n') + text.slice(4 + block.length)
+  }
+  // 约定头里还没有这个键：追加在块末（正文与闭合行随之后移）
+  return '---\n' + block + '\n' + key + ': ' + v + text.slice(4 + block.length)
+}

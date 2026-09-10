@@ -2,7 +2,7 @@
 import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, FsEvent } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
 import { countWords } from '../../../shared/count'
-import { extractFrontMatter } from '../../../shared/fmatter'
+import { extractFrontMatter, setFrontMatterField } from '../../../shared/fmatter'
 import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceCheck, chapterMissingFromRaw } from '../../../shared/presence'
 import { toast } from '../store/toasts'
 
@@ -360,6 +360,64 @@ const mock = {
     fsEmit(_id, rel)
     return { ok: true }
   },
+  // 章节管理（§6.2）：与真机 store.renameChapter 同语义（改约定头题名 + 文件名 slug + 大纲副产物/历史同步；无头无磁盘/废纸篓，key 迁移即模拟）
+  renameChapter: async (_id: string, rel: string, newTitle: string) => {
+    if (!rel?.startsWith('正文/') || !rel.endsWith('.md') || rel.split('/').some((s) => s === '..')) return { ok: false, error: '路径不合法' }
+    const k = _id + '/' + rel
+    const cur = docs.get(k)
+    if (cur === undefined) return { ok: false, error: '章节不存在' }
+    const t = (newTitle ?? '').trim()
+    if (!t) return { ok: false, error: '题名不能为空' }
+    const clean = t.replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 60) || '未命名'
+    const oldName = rel.split('/').pop()!
+    const idx = oldName.indexOf('_')
+    const prefix = idx >= 0 ? oldName.slice(0, idx + 1) : ''
+    const newName = prefix + clean + '.md'
+    const newRel = '正文/' + newName
+    const next = setFrontMatterField(cur, '题名', t)
+    if (newRel === rel) {
+      docs.set(k, next)
+      fsEmit(_id, rel)
+      return { ok: true, newRel: rel }
+    }
+    const nk = _id + '/' + newRel
+    if (docs.has(nk)) return { ok: false, error: '目标文件名已存在' }
+    const baseOld = oldName.replace(/\.md$/, '')
+    const baseNew = newName.replace(/\.md$/, '')
+    for (const key of [...docs.keys()]) {
+      if (!key.startsWith(_id + '/大纲/')) continue
+      const f = key.slice((_id + '/大纲/').length)
+      const nm = f.replace(/\.md$/, '')
+      if (nm === baseOld || nm.startsWith(baseOld + '_')) {
+        const moved = _id + '/大纲/' + f.replace(baseOld, baseNew)
+        if (!docs.has(moved)) { docs.set(moved, docs.get(key)!); docs.delete(key) }
+      }
+    }
+    const hk = histories.get(k)
+    if (hk) { histories.set(nk, hk); histories.delete(k) }
+    docs.set(nk, next)
+    docs.delete(k)
+    fsEmit(_id, newRel)
+    return { ok: true, newRel }
+  },
+  deleteChapter: async (_id: string, rel: string) => {
+    const k = _id + '/' + rel
+    if (!docs.has(k)) return { ok: false, error: '章节不存在' }
+    const baseOld = (rel.split('/').pop() ?? '').replace(/\.md$/, '')
+    let cleaned = 0
+    for (const key of [...docs.keys()]) {
+      if (!key.startsWith(_id + '/大纲/')) continue
+      const f = key.slice((_id + '/大纲/').length)
+      const nm = f.replace(/\.md$/, '')
+      if (nm === baseOld || nm.startsWith(baseOld + '_')) {
+        if (docs.delete(key)) cleaned++
+      }
+    }
+    docs.delete(k)
+    fsEmit(_id, rel)
+    return { ok: true, cleaned }
+  },
+  exportChapter: async () => ({ ok: true, path: '/tmp/导出章节.md' }),
   listHistory: async (_id: string, rel: string) =>
     (histories.get(_id + '/' + rel) ?? []).map((h) => ({ name: h.name, mtimeMs: h.mtimeMs, size: h.content.length })),
   readHistory: async (_id: string, rel: string, name: string) =>
