@@ -92,6 +92,39 @@ export function unlistedInBody(opts: {
   return out
 }
 
+/**
+ * 档案腐坏检查（机械层第四块·称谓一致性第二批）：人物档案登记了「别名」但全卷正文（剥约定头）从未出现——改名残留 /
+ * 过度声明 / 与实际用称不符的冗余声明。与 presenceCheck / chapterOrderCheck 同构：纯函数、不读盘，输出 AuditResult。
+ * 口径（机械层承认局限）：别名==本名不查（出现即等于本名出现）；冲突别名跳过（presence 已报「别名冲突」，不重复报）；
+ * 单字别名不做特殊处理（正文命中=已使用不报，未命中=提醒，噪声方向安全）；front matter（「涉及人物」等）不算正文出现。
+ */
+export function unusedAliasCheck(opts: { aliasMap: Record<string, string[]>; chapters: PresenceChapter[] }): AuditResult {
+  const aliasMap = opts.aliasMap ?? {}
+  const items: AuditItem[] = []
+  const conflicted = conflictedAliases(aliasMap)
+  const fullText = opts.chapters.map((c) => extractFrontMatter(c.raw).body).join('\n')
+  for (const [name, aliases] of Object.entries(aliasMap)) {
+    for (const a of aliases) {
+      if (conflicted.has(a) || a === name || fullText.includes(a)) continue
+      items.push({
+        severity: 'low',
+        type: 'character',
+        where: `人物档案：${name}`,
+        what: `档案登记了别名「${a}」，但全卷正文从未出现它——可能是改名后的残留、过度声明，或正文一直在用别的称呼。`,
+        suggest: `确认「${name}」的称呼：若正文实际用别的方式称呼 TA，请修改或删除该别名（在 人物/${name}.md 约定头「别名: [...]」里改）；若 TA 已改名，请把档案与正文新称呼对齐。`
+      })
+    }
+  }
+  const n = Object.keys(aliasMap).length
+  const totalAliases = Object.values(aliasMap).reduce((s, a) => s + a.length, 0)
+  const summary = items.length
+    ? `人物档案腐坏核查（本地规则·零模型）：${n} 个人物档案共登记别名 ${totalAliases} 个，其中 ${items.length} 个在全卷正文从未出现——冗余声明会误导称谓一致性检查与 agent 引用，建议清理。`
+    : n
+      ? `人物档案腐坏核查（本地规则·零模型）：${n} 个人物档案登记的别名均能在全卷正文找到（或已由「别名冲突」条目覆盖），无冗余声明。`
+      : '人物档案腐坏核查（本地规则·零模型）：项目里还没有人物档案登记「别名」，没有可核查的对象。'
+  return { summary, items }
+}
+
 function titleOf(fm: Record<string, unknown> | null, file: string): string {
   if (fm && typeof fm['题名'] === 'string' && fm['题名']) return String(fm['题名'])
   return (file.split('/').pop() ?? file).replace(/\.md$/i, '')

@@ -3,7 +3,7 @@ import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, Pro
 import type { EditItem } from '../../../shared/types'
 import { countWords } from '../../../shared/count'
 import { extractFrontMatter } from '../../../shared/fmatter'
-import { unlistedInBody, listedFrom, parseAliases } from '../../../shared/presence'
+import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck } from '../../../shared/presence'
 import { toast } from '../store/toasts'
 
 const now = Date.now()
@@ -62,7 +62,8 @@ docs.set(
 )
 docs.set(
   'demo-aseya/人物/沈藏.md',
-  ['---', '姓名: 沈藏', '身份: 老渔民', '别名: [沈爷]', '---', '', '## 基础档案', '', '- 外貌：络腮胡，常年穿墨绿雨衣', '- 性格：话少，爱打哑谜', ''].join('\n')
+  // 别名「沈老爹」全卷正文从未出现 → 供「档案」Tab（人物档案腐坏核查）演示命中；「沈爷」在第3章出现过（供 unlisted 演示）
+  ['---', '姓名: 沈藏', '身份: 老渔民', '别名: [沈爷, 沈老爹]', '---', '', '## 基础档案', '', '- 外貌：络腮胡，常年穿墨绿雨衣', '- 性格：话少，爱打哑谜', ''].join('\n')
 )
 docs.set(
   'demo-aseya/世界观/总纲.md',
@@ -449,7 +450,7 @@ const mock = {
   },
   agentAudit: async (projectId: string, kind: string) => {
     // 与主进程同语义：审计成功后把结论落盘 大纲/审读_<名>.md（供无头 UI 冒烟断言「已存档」与大纲区「审读存档」）
-    const name = kind === 'consistency' ? '一致性巡查' : kind === 'perspectives' ? '多视角审视' : kind === 'presence' ? '人物在场核查' : kind === 'order' ? '切片时序核查' : '冷读报告'
+    const name = kind === 'consistency' ? '一致性巡查' : kind === 'perspectives' ? '多视角审视' : kind === 'presence' ? '人物在场核查' : kind === 'order' ? '切片时序核查' : kind === 'unused' ? '人物档案腐坏核查' : '冷读报告'
     const res =
       kind === 'presence'
         ? {
@@ -472,6 +473,22 @@ const mock = {
               ]
             }
           }
+        : kind === 'unused'
+        ? (() => {
+            // 与主进程同语义：复用共享纯函数 + devShim 内存文档真实计算（演示项目沈藏登记了未出现的「沈老爹」）
+            const aliasMap: Record<string, string[]> = {}
+            for (const { file, name } of docsOf(projectId + '/人物')) {
+              const n = name.replace(/\.md$/i, '').trim()
+              if (n && !['总览', '索引'].includes(n)) {
+                const al = parseAliases(extractFrontMatter(docs.get(projectId + '/人物/' + file) ?? '').fm)
+                if (al.length) aliasMap[n] = al
+              }
+            }
+            const chapters = docsOf(projectId + '/正文')
+              .map(({ file }) => ({ file: '正文/' + file, raw: docs.get(projectId + '/正文/' + file) ?? '' }))
+              .filter((c) => c.raw.trim())
+            return { ok: true as const, result: unusedAliasCheck({ aliasMap, chapters }) }
+          })()
         : kind === 'consistency'
         ? {
             ok: true as const,
@@ -506,8 +523,8 @@ const mock = {
                 ]
               }
             }
-    // 人物在场核查 / 切片时序核查：主进程同语义——本地规则结果，不落盘（高频重跑噪音大）
-    if (kind === 'presence' || kind === 'order') return res
+    // 人物在场核查 / 切片时序核查 / 档案腐坏核查：主进程同语义——本地规则结果，不落盘（高频重跑噪音大）
+    if (kind === 'presence' || kind === 'order' || kind === 'unused') return res
     const rel = '大纲/审读_' + name + '.md'
     const md = '# 审读报告 · ' + name + '\n\n> 织卷写作引擎 · 演示存档\n\n## 一句话结论\n\n' + res.result.summary + '\n\n## 条目（' + res.result.items.length + '）\n'
     docs.set(projectId + '/' + rel, md)

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Loader2, Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, Users, UserCheck, ListOrdered } from 'lucide-react'
+import { Loader2, Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, Users, UserCheck, ListOrdered, FileWarning } from 'lucide-react'
 import type { ProseApi } from '../editor/Prose'
 import type { AuditKind, EditItem } from '../../../../shared/types'
 import { useAgentStore } from './store'
@@ -357,6 +357,13 @@ export default function AgentPanel(props: AgentPanelProps) {
             className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
           >
             <ListOrdered className="h-3.5 w-3.5" />
+          </button>
+          <button
+            title="人物档案腐坏核查：别名声明但全卷正文从未出现（本地规则·秒级·零模型）"
+            onClick={() => setAudit({ open: true, tab: 'unused' })}
+            className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
+          >
+            <FileWarning className="h-3.5 w-3.5" />
           </button>
           <button title="清空对话" onClick={() => useAgentStore.getState().reset()} className="text-ink-3 hover:text-ink">
             <RotateCcw className="h-3.5 w-3.5" />

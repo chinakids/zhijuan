@@ -10,7 +10,7 @@ const TYPE_TXT: Record<string, string> = {
   structure: '结构', pacing: '节奏', character: '人物', prose: '行文', setting: '设定', misc: '其他'
 }
 const K_TITLE: Partial<Record<AuditKind, string>> = {
-  consistency: '一致性巡查', review: '冷读报告', perspectives: '多视角审视', presence: '人物在场核查', order: '切片时序核查'
+  consistency: '一致性巡查', review: '冷读报告', perspectives: '多视角审视', presence: '人物在场核查', order: '切片时序核查', unused: '人物档案腐坏核查'
 }
 const VIEWER_TXT: Record<string, string> = {
   '角色粉': '角色粉视角', '设定党': '设定党视角', '节奏读者': '节奏读者视角'
@@ -97,7 +97,7 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
           <ShieldAlert className="h-4 w-4 text-accent" />
           <span className="text-sm font-semibold">
-            {tab === 'consistency' ? '一致性巡查' : tab === 'review' ? '冷读报告' : tab === 'perspectives' ? '多视角审视' : tab === 'presence' ? '人物在场与称谓核查' : '切片时序核查'}
+            {tab === 'consistency' ? '一致性巡查' : tab === 'review' ? '冷读报告' : tab === 'perspectives' ? '多视角审视' : tab === 'presence' ? '人物在场与称谓核查' : tab === 'order' ? '切片时序核查' : '人物档案腐坏核查'}
           </span>
           <span className="flex-1" />
           <button
@@ -130,6 +130,12 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
           >
             时序
           </button>
+          <button
+            onClick={() => onTab('unused')}
+            className={cn('rounded-md px-2.5 py-1 text-xs', tab === 'unused' ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface-2')}
+          >
+            档案
+          </button>
           <button onClick={onClose} className="text-ink-3 hover:text-ink">
             <X className="h-4 w-4" />
           </button>
@@ -139,13 +145,13 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
           <BookOpenCheck className="h-3.5 w-3.5" />
           {(running || !cur) && !err ? (
             <span className="flex items-center gap-1 text-accent">
-              <Loader2 className="h-3 w-3 animate-spin" /> {(tab === 'presence' || tab === 'order') ? '本地规则核查中…' : '写作引擎通读全卷…（几分钟）'}
+              <Loader2 className="h-3 w-3 animate-spin" /> {(tab === 'presence' || tab === 'order' || tab === 'unused') ? '本地规则核查中…' : '写作引擎通读全卷…（几分钟）'}
             </span>
           ) : err ? (
             <span className="text-danger">{err}</span>
           ) : (
             <span>
-              {(tab === 'presence' || tab === 'order')
+              {(tab === 'presence' || tab === 'order' || tab === 'unused')
                 ? `本地规则核查：共列 ${cur!.items.length} 条（零模型·秒级，可随时重跑）。`
                 : `全卷读完，共列 ${cur!.items.length} 条。可逐条转提案再决定是否采纳。`}
             </span>

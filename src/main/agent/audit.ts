@@ -2,7 +2,7 @@
 // 主进程把作品全卷的正文（截段）与全部设定档案整理成材料包，喂给写作引擎一次**写**结构化 JSON，
 // 供 UI 渲染成可逐条转提案的检查报告。和 runSync 同构：独立的 session、无提问、离线出结果。
 import { readDoc, listChapters, listDocs, writeDoc } from '../store'
-import { presenceCheck, parseAliases, listedFrom, unlistedInBody } from '../../shared/presence'
+import { presenceCheck, unusedAliasCheck, parseAliases, listedFrom, unlistedInBody } from '../../shared/presence'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { chapterOrderCheck } from '../../shared/chapterorder'
 import { registerCapability, runSubtask, type SubtaskDef } from './subtask'
@@ -29,7 +29,8 @@ const AUDIT_NAMES: Record<AuditKind, string> = {
   review: '冷读报告',
   perspectives: '多视角审视',
   presence: '人物在场核查',
-  order: '切片时序核查'
+  order: '切片时序核查',
+  unused: '人物档案腐坏核查'
 }
 
 /** 审计结果存档的相对路径：大纲/审读_<名>.md */
@@ -98,6 +99,20 @@ export function runChapterUnlisted(
       ok: true,
       items: unlistedInBody({ body, listed: listedFrom(fm ?? {}), knownChars, aliasMap })
     }
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message ?? e) }
+  }
+}
+
+// ===== 人物档案腐坏核查（本地规则层，零模型、秒级） =====
+// 机械层第四块：档案登记了别名但全卷正文（剥约定头）从未出现 → 冗余声明（改名残留/过度声明）。
+// 与 presence/order 同策略：不落盘、高频可重跑；复用 readCharIndex 的 aliasMap 一次扫描。
+export function runUnusedAliases(
+  projectId: string
+): { ok: true; result: AuditResult } | { ok: false; error: string } {
+  try {
+    const { aliasMap } = readCharIndex(projectId)
+    return { ok: true, result: unusedAliasCheck({ aliasMap, chapters: readVolumeChapters(projectId) }) }
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e) }
   }
@@ -252,9 +267,10 @@ export async function runAudit(
   projectId: string,
   kind: AuditKind
 ): Promise<{ ok: true; result: AuditResult; savedReport?: string } | { ok: false; error: string }> {
-  // 人物在场核查 / 切片时序核查：本地规则层（零模型、秒级），不走写作引擎，也不落盘（高频重跑，噪音大；与本章小环同策略）
+  // 人物在场核查 / 切片时序核查 / 档案腐坏核查：本地规则层（零模型、秒级），不走写作引擎，也不落盘（高频重跑，噪音大；与本章小环同策略）
   if (kind === 'presence') return runPresence(projectId)
   if (kind === 'order') return runChapterOrder(projectId)
+  if (kind === 'unused') return runUnusedAliases(projectId)
   // 多视角审视是独立能力，参数不同（无 kind），单独路由
   const r =
     kind === 'perspectives'

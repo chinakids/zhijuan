@@ -22,8 +22,8 @@ vi.mock('../../src/main/store', () => ({
 }))
 vi.mock('../../src/main/agent/runtime', () => ({ driveSession: vi.fn() }))
 
-import { listedFrom, parseAliases, presenceCheck, unlistedInBody } from '../../src/shared/presence'
-import { runPresence, runChapterUnlisted } from '../../src/main/agent/audit'
+import { listedFrom, parseAliases, presenceCheck, unlistedInBody, unusedAliasCheck } from '../../src/shared/presence'
+import { runPresence, runChapterUnlisted, runUnusedAliases } from '../../src/main/agent/audit'
 import { setSettings } from '../../src/main/settings'
 import { readDoc, listDocs } from '../../src/main/store'
 
@@ -275,6 +275,84 @@ describe('runPresence（主进程：读人物档案题名 + 全卷正文后交�
       expect(r.result.items).toHaveLength(1)
       expect(String(r.result.items[0].what)).toContain('沈爷')
       expect(r.result.items[0].severity).toBe('low')
+    }
+  })
+})
+
+describe('unusedAliasCheck（档案腐坏检查纯函数：别名声明但全卷正文从未出现）', () => {
+  const chapter = (file: string, body: string) => ({ file, raw: fm(['阿七']) + body })
+
+  it('别名声明但全卷正文未出现 → low 一条，定位到人物档案', () => {
+    const r = unusedAliasCheck({
+      aliasMap: { 沈藏: ['沈爷', '沈老爹'] },
+      chapters: [chapter('正文/第01章_雾港.md', '阿七回头。沈爷冷冷站着。')]
+    })
+    expect(r.items).toHaveLength(1)
+    expect(r.items[0]).toMatchObject({
+      severity: 'low',
+      type: 'character',
+      where: '人物档案：沈藏'
+    })
+    expect(String(r.items[0].what)).toContain('沈老爹')
+    expect(String(r.items[0].what)).not.toContain('沈爷')
+    expect(r.summary).toContain('从未出现')
+  })
+
+  it('别名在任一章正文出现过 → 不报（含跨章：只出现在第2章也算已使用）', () => {
+    const r = unusedAliasCheck({
+      aliasMap: { 沈藏: ['沈爷'] },
+      chapters: [chapter('正文/第01章_雾港.md', '阿七提着灯。'), chapter('正文/第02章_灯塔.md', '沈爷慢慢走过来。')]
+    })
+    expect(r.items).toHaveLength(0)
+    expect(r.summary).toContain('无冗余声明')
+  })
+
+  it('别名 == 本名 → 不查（等价于本名出现检查）', () => {
+    const r = unusedAliasCheck({
+      aliasMap: { 沈藏: ['沈藏'] },
+      chapters: [chapter('正文/第01章_雾港.md', '阿七抬头，心里想着别人。')]
+    })
+    expect(r.items).toHaveLength(0)
+  })
+
+  it('冲突别名（两个及以上人物登记同一别名）→ 跳过，不重复 presence 的「别名冲突」条目', () => {
+    const r = unusedAliasCheck({
+      aliasMap: { 阿七: ['老七'], 沈藏: ['老七'] },
+      chapters: [chapter('正文/第01章_雾港.md', '阿七提着灯。')]
+    })
+    expect(r.items).toHaveLength(0)
+  })
+
+  it('front matter 里的别名不算正文出现；无别名档案 → 空条目 + 对应摘要', () => {
+    // 别名只出现在约定头「涉及人物」里、正文未写 → 仍报（正文才是实际用称）
+    const r = unusedAliasCheck({
+      aliasMap: { 沈藏: ['沈爷'] },
+      chapters: [{ file: '正文/第01章_雾港.md', raw: '---\n章号: 1\n涉及人物: [沈爷]\n---\n' + '阿七提着灯。' }]
+    })
+    expect(r.items).toHaveLength(1)
+    const empty = unusedAliasCheck({ aliasMap: {}, chapters: [] })
+    expect(empty.items).toHaveLength(0)
+    expect(empty.summary).toContain('还没有人物档案登记')
+  })
+})
+
+describe('runUnusedAliases（主进程：读人物档案别名 + 全卷正文后交给纯函数）', () => {
+  it('复用 readCharIndex 的别名表；全卷扫描后输出冗余别名条目', () => {
+    listDocsMock.mockImplementation((_id: string, dir: string) =>
+      dir === '人物'
+        ? [{ file: '沈藏.md', name: '沈藏', mtime: 1 }]
+        : [{ file: '第01章_雾港.md', name: '第01章_雾港', mtime: 1 }]
+    )
+    readMock.mockImplementation((_id: string, rel: string) => {
+      if (rel.startsWith('人物/')) return '---\n姓名: 沈藏\n别名: [沈爷, 沈老爹]\n---\n# 沈藏\n'
+      if (rel.startsWith('正文/')) return fm(['阿七']) + '阿七回头。沈爷点了根烟。'
+      return null
+    })
+    const r = runUnusedAliases('demo')
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.result.items).toHaveLength(1)
+      expect(String(r.result.items[0].what)).toContain('沈老爹')
     }
   })
 })
