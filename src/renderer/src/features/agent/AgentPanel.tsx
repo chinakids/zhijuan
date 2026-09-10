@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Loader2, Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, Users, UserCheck, ListOrdered, FileWarning, CircleX } from 'lucide-react'
 import type { ProseApi } from '../editor/Prose'
 import type { AuditKind, EditItem } from '../../../../shared/types'
+import { filterAtCandidates, insertAtMention, parseAtTrigger, type AtCandidate } from '../../../../shared/mention'
 import { useAgentStore } from './store'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
 import TodoCard from './TodoCard'
 import AskCard from './AskCard'
 import AuditDrawer from '../audit/AuditDrawer'
+import AtMentionMenu from './AtMentionMenu'
 import { cn } from '../../lib/utils'
 import { Button } from '../../components/ui/button'
 
@@ -249,6 +252,98 @@ export default function AgentPanel(props: AgentPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [audit, setAudit] = useState<{ open: boolean; tab: AuditKind }>({ open: false, tab: 'consistency' })
 
+  // ---------- 输入框 @ 引用（GitHub/Slack mention 范式；数据懒加载 + 会话缓存） ----------
+  const taRef = useRef<HTMLTextAreaElement>(null)
+  const atDataRef = useRef<AtCandidate[]>([])
+  const [atTrg, setAtTrg] = useState<{ at: number; length: number; query: string } | null>(null)
+  const [atItems, setAtItems] = useState<AtCandidate[]>([])
+  const [atActive, setAtActive] = useState(0)
+
+  useEffect(() => {
+    let alive = true
+    void Promise.all([
+      window.zhijuan.listDocs(props.projectId, '人物').catch(() => []),
+      window.zhijuan.listChapters(props.projectId).catch(() => []),
+      window.zhijuan.listDocs(props.projectId, '世界观').catch(() => []),
+      window.zhijuan.listDocs(props.projectId, '素材库').catch(() => [])
+    ]).then(([chars, chaps, worlds, mats]) => {
+      if (!alive) return
+      atDataRef.current = [
+        ...chars.map((d) => ({ type: '人物' as const, name: d.name, file: `人物/${d.file}` })),
+        ...chaps.map((c) => ({
+          type: '章节' as const,
+          name: (c.fm?.['题名'] ?? '').trim() || c.name,
+          file: `正文/${c.file}`
+        })),
+        ...worlds.map((d) => ({ type: '世界观' as const, name: d.name, file: `世界观/${d.file}` })),
+        ...mats.map((d) => ({ type: '素材' as const, name: d.name, file: `素材库/${d.file}` }))
+      ]
+    })
+    return () => {
+      alive = false
+    }
+  }, [props.projectId])
+
+  const refreshAt = useCallback((value: string, caret: number) => {
+    const t = parseAtTrigger(value, caret)
+    if (!t) {
+      setAtTrg(null)
+      return
+    }
+    const items = filterAtCandidates(atDataRef.current, t.query)
+    setAtTrg(t)
+    setAtItems(items)
+    setAtActive((a) => Math.min(a, Math.max(0, items.length - 1)))
+  }, [])
+
+  const pickAt = useCallback(
+    (i?: number) => {
+      const cand = atItems[i ?? atActive]
+      const trg = atTrg
+      if (!cand || !trg) return
+      const el = taRef.current
+      const cur = el?.value ?? ''
+      const r = insertAtMention(cur, trg, cand)
+      // 必须强制同步提交：React 18 对受控 textarea 的 value 写回时序不确定（普通 setState 后 DOM 可能仍是旧值），
+      // 若 setSelectionRange 跑在旧值 DOM 上，合成 onSelect 会用旧值 refreshAt 把刚关闭的 @ 浮层重新打开
+      // （实测踩过：同一 Enter 再次插入产生双块引用）。
+      flushSync(() => {
+        setAtTrg(null)
+        setInput(r.value)
+      })
+      el?.focus()
+      el?.setSelectionRange(r.caret, r.caret)
+    },
+    [atItems, atActive, atTrg]
+  )
+
+  const onAtKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
+      if (!atTrg) return false
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        setAtActive((a) => {
+          const n = atItems.length
+          if (!n) return 0
+          return e.key === 'ArrowDown' ? (a + 1) % n : (a - 1 + n) % n
+        })
+        return true
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault()
+        pickAt()
+        return true
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setAtTrg(null)
+        return true
+      }
+      return false
+    },
+    [atTrg, atItems.length, pickAt]
+  )
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
   }, [messages, streaming])
@@ -277,19 +372,38 @@ export default function AgentPanel(props: AgentPanelProps) {
   const sendBlock: ReactNode = (
     <div className="relative">
       <textarea
+        ref={taRef}
         value={input}
-        onChange={(e) => setInput(e.target.value)}
+        onChange={(e) => {
+          const v = e.target.value
+          setInput(v)
+          const composing = (e.nativeEvent as { isComposing?: boolean }).isComposing
+          if (!composing) refreshAt(v, e.target.selectionStart ?? v.length)
+        }}
+        onSelect={(e) => {
+          const el = e.currentTarget
+          refreshAt(el.value, el.selectionStart ?? 0)
+        }}
+        onCompositionEnd={(e) => {
+          const el = e.currentTarget
+          refreshAt(el.value, el.selectionStart ?? el.value.length)
+        }}
         onKeyDown={(e) => {
+          if (onAtKeyDown(e)) return
           if (e.key === 'Enter' && !e.shiftKey) {
+            // IME 选字回车（isComposing）只确认候选，不发送
+            if ((e.nativeEvent as { isComposing?: boolean }).isComposing) return
             e.preventDefault()
-            const v = input
-            setInput('')
-            void send(v.trim(), quote)
+            doSend()
           }
         }}
-        placeholder="让 agent 续写 / 改写 / 查设定…（Enter 发送）"
+        placeholder="让 agent 续写 / 改写 / 查设定…（Enter 发送，@ 引用设定）"
         className="max-h-40 min-h-[64px] w-full resize-none rounded-xl border border-hair bg-surface pb-9 pl-2.5 pr-11 pt-2 text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:ring-1 focus:ring-accent"
       />
+      {/* @ 引用浮层（GitHub/Slack mention 范式：固定在输入框上方） */}
+      {atTrg && (
+        <AtMentionMenu items={atItems} active={atActive} onPick={(i) => pickAt(i)} onActiveChange={setAtActive} />
+      )}
       {/* 上下文用量（发送按钮左侧） */}
       <div className="pointer-events-none absolute inset-x-2.5 bottom-2 flex items-center gap-1 text-[10px] text-ink-3">
         <span>上下文 {fmtCtx(ctxChars)}</span>

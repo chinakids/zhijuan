@@ -422,7 +422,9 @@ const mock = {
     (histories.get(_id + '/' + rel) ?? []).map((h) => ({ name: h.name, mtimeMs: h.mtimeMs, size: h.content.length })),
   readHistory: async (_id: string, rel: string, name: string) =>
     (histories.get(_id + '/' + rel) ?? []).find((h) => h.name === name)?.content ?? null,
-  listDocs: async (id: string, relDir: string) => docsOf(id + '/' + relDir),
+  listDocs: async (id: string, relDir: string) =>
+    // 与真机口径一致：name 去掉 .md 后缀（docsOf 保留 basename，真机 listDocs 剥扩展名）
+    docsOf(id + '/' + relDir).map((d) => ({ ...d, name: d.name.replace(/\.md$/, '') })),
   // 素材库域：类别枚举（内存由 docs 推导；空类别靠 extraCats 登记）/ 新建类别 / 文件名+全文搜索
   listLibraryCategories: async (id: string): Promise<LibraryCategory[]> => {
     const counts = new Map<string, number>()
