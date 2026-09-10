@@ -53,6 +53,34 @@ if (!found) {
   const ok = dl.includes('结果') && dl.includes('素材库/环境/采集_演示图书馆.md') && dl.includes('完成') && dl.includes('2026-09-03 12:25') && dl.includes('旧图书馆') && dl.includes('校园图书馆')
   console.log(ok ? '[3] PASS: 任务卡详情含回填结果路径/完成时间/关键词' : '[3] FAIL: 详情缺字段')
   if (!ok) process.exitCode = 1
+
+  // [4] 详情正文用 ReactMarkdown 渲染（h1 出现、markdown 源码 # 不裸显）
+  const md = await evalJs(`(() => {
+    const dlg = document.querySelector('[role="dialog"]')
+    const h1 = dlg.querySelector('h1')
+    return { hasH1: !!h1, h1Text: h1?.innerText ?? '', rawHash: dlg.innerText.includes('# 采集任务') }
+  })()`)
+  const okMd = md.hasH1 && md.h1Text.includes('采集任务：校园图书馆') && !md.rawHash
+  console.log(okMd ? '[4] PASS: 详情正文 markdown 已渲染（' + JSON.stringify(md.h1Text) + '）' : '[4] FAIL: 正文未渲染 markdown: ' + JSON.stringify(md))
+  if (!okMd) process.exitCode = 1
+
+  // [5] 点击「结果」→ 详情内预览素材（只读渲染）
+  await evalJs(`document.querySelector('button[title^="点击在下方预览素材内容"]')?.click(); 'ok'`)
+  await sleep(900)
+  const pv = await evalJs(`(() => {
+    const t = document.querySelector('[role="dialog"]')?.innerText ?? ''
+    return { hasTitle: t.includes('校园老图书馆'), hasDetail: t.includes('借书卡') && t.includes('可复用的感官细节') }
+  })()`)
+  const okPv = pv.hasTitle && pv.hasDetail
+  console.log(okPv ? '[5] PASS: 结果点击后预览素材（标题/感官细节列表已渲染）' : '[5] FAIL: 预览缺失: ' + JSON.stringify(pv))
+  if (!okPv) process.exitCode = 1
+
+  // [6] 「收起」预览后素材标题消失
+  await evalJs(`document.querySelector('button[title="收起预览"]')?.click(); 'ok'`)
+  await sleep(400)
+  const closed = await evalJs(`!(document.querySelector('[role="dialog"]')?.innerText ?? '').includes('校园老图书馆')`)
+  console.log(closed ? '[6] PASS: 预览可收起' : '[6] FAIL: 预览未收起')
+  if (!closed) process.exitCode = 1
 }
 // 关 tab
 await fetch(CDP + '/json/close/' + tab.id)

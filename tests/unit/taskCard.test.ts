@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseTaskCard } from '../../src/shared/taskCard'
+import { isLibraryResultPath, parseTaskCard } from '../../src/shared/taskCard'
 
 // 样例：与真机管道回填后的任务卡格式一致（素材库验收项目实测）
 const DONE_CARD = [
@@ -53,5 +53,25 @@ describe('parseTaskCard', () => {
   it('未知状态原样保留（如管道扩展了 running）', () => {
     const d = parseTaskCard(['---', 'status: running', '类别: 人物', '---', '', 'x'].join('\n'))
     expect(d.status).toBe('running')
+  })
+})
+
+describe('isLibraryResultPath（详情预览结果的安全校验）', () => {
+  it('管道正常回填的素材路径：通过', () => {
+    expect(isLibraryResultPath('素材库/环境/采集_校园老图书馆.md')).toBe(true)
+    expect(isLibraryResultPath('素材库/人物/访谈_陈默.md')).toBe(true)
+  })
+
+  it('穿越路径（../）必须挡掉（主进程 readDoc 不防穿越）', () => {
+    expect(isLibraryResultPath('素材库/../人物/林晚.md')).toBe(false)
+    expect(isLibraryResultPath('../project.json')).toBe(false)
+    expect(isLibraryResultPath('素材库/环境/../../project.json.md')).toBe(false)
+  })
+
+  it('非素材库前缀 / 非 markdown / 空值：全部挡掉', () => {
+    expect(isLibraryResultPath('人物/林晚.md')).toBe(false)
+    expect(isLibraryResultPath('素材库/环境/结果.txt')).toBe(false)
+    expect(isLibraryResultPath('')).toBe(false)
+    expect(isLibraryResultPath('素材库')).toBe(false)
   })
 })

@@ -18,6 +18,15 @@ export interface TaskCardView {
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : Array.isArray(v) ? v.join(', ') : '')
 
+/**
+ * 结果路径是否安全可预览：必须是以 `素材库/` 开头的相对项目 markdown 路径。
+ * 管道按约定回填 `素材库/<类别>/<文件>.md`；这里挡掉穿越（../）/非 markdown/空串等坏值，
+ * 避免把「结果」当任意文件读进详情预览（主进程 readDoc 只做 join、不防穿越，此校验是唯一防线）。
+ */
+export function isLibraryResultPath(p: string): boolean {
+  return p.startsWith('素材库/') && p.endsWith('.md') && !p.includes('..')
+}
+
 /** 任务卡文本 → UI 友好的详情结构（无约定头时按空卡处理，字段全空、body=原文） */
 export function parseTaskCard(text: string): TaskCardView {
   const { fm, body } = extractFrontMatter(text)

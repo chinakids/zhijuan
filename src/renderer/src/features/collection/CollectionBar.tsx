@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { CloudDownload, RefreshCw } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { CloudDownload, Eye, RefreshCw, X } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog'
 import { Input } from '../../components/ui/input'
@@ -8,7 +10,7 @@ import { Label } from '../../components/ui/label'
 import { Textarea } from '../../components/ui/textarea'
 import { cn } from '../../lib/utils'
 import { useFsEvents } from '../fs/useFsEvents'
-import { parseTaskCard } from '../../../../shared/taskCard'
+import { isLibraryResultPath, parseTaskCard } from '../../../../shared/taskCard'
 
 /* ===== 织卷 S5 · 采集栏：任务卡列表 + 发起采集表单 ===== */
 
@@ -55,6 +57,8 @@ export default function CollectionBar() {
   const [saving, setSaving] = useState(false)
   const [view, setView] = useState<TaskInfo | null>(null)
   const [viewText, setViewText] = useState('')
+  // 详情内「结果」素材预览（只读）：rel=素材路径，text=读到的内容（null=文件不存在）
+  const [preview, setPreview] = useState<{ rel: string; text: string | null } | null>(null)
   const events = useFsEvents(id)
 
   const refresh = useCallback(async () => {
@@ -80,7 +84,18 @@ export default function CollectionBar() {
 
   async function openView(t: TaskInfo) {
     setView(t)
+    setPreview(null)
     setViewText((await window.zhijuan.readDoc(id, '素材库/采集池/' + t.file)) ?? '')
+  }
+
+  /** 结果行点击：读素材文件 → 详情内只读预览；已展开则收起 */
+  async function togglePreview(rel: string) {
+    if (preview?.rel === rel) {
+      setPreview(null)
+      return
+    }
+    const text = (await window.zhijuan.readDoc(id, rel)) ?? null
+    setPreview({ rel, text })
   }
 
   async function submit() {
@@ -200,12 +215,51 @@ export default function CollectionBar() {
                       {d.result && (
                         <div className="flex items-start gap-2">
                           <dt className="w-12 shrink-0 text-ink-3">结果</dt>
-                          <dd className="break-all font-mono text-[11px] text-accent">{d.result}</dd>
+                          <dd className="min-w-0 flex-1 break-all">
+                            {isLibraryResultPath(d.result) ? (
+                              <button
+                                onClick={() => void togglePreview(d.result)}
+                                title={preview?.rel === d.result ? '收起素材预览' : '点击在下方预览素材内容'}
+                                className={cn(
+                                  'inline-flex max-w-full items-start gap-1.5 break-all text-left font-mono text-[11px] transition-colors',
+                                  preview?.rel === d.result ? 'font-medium text-accent' : 'text-accent hover:underline'
+                                )}
+                              >
+                                <Eye className="mt-0.5 h-3 w-3 shrink-0" />
+                                <span className="min-w-0 break-all">{d.result}</span>
+                              </button>
+                            ) : (
+                              <span className="font-mono text-[11px] text-accent">{d.result}</span>
+                            )}
+                          </dd>
                         </div>
                       )}
                       {d.finishedAt && <Row k="完成" v={d.finishedAt} />}
                     </dl>
-                    {d.body && <pre className="whitespace-pre-wrap rounded-lg border border-hair bg-surface-2 p-3 text-xs leading-relaxed text-ink-2">{d.body}</pre>}
+                    {isLibraryResultPath(d.result) && preview?.rel === d.result && (
+                      <div className="overflow-hidden rounded-lg border border-hair">
+                        <div className="flex items-center justify-between border-b border-hair bg-surface-2 px-3 py-1.5">
+                          <span className="text-[11px] text-ink-3">素材预览（只读）</span>
+                          <button onClick={() => setPreview(null)} className="flex shrink-0 items-center gap-1 text-[11px] text-ink-3 transition-colors hover:text-ink" title="收起预览">
+                            <X className="h-3 w-3" /> 收起
+                          </button>
+                        </div>
+                        <div className="max-h-[40vh] overflow-auto px-3 py-2">
+                          {preview.text ? (
+                            <div className="prose text-xs leading-relaxed text-ink-2">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{preview.text}</ReactMarkdown>
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-ink-3">未找到素材文件（可能已被移动或删除）。</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {d.body && (
+                      <div className="prose max-h-[30vh] overflow-auto rounded-lg border border-hair bg-surface-2 p-3 text-xs leading-relaxed text-ink-2">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{d.body}</ReactMarkdown>
+                      </div>
+                    )}
                   </>
                 )
               })()}
