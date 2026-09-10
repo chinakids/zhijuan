@@ -7,6 +7,7 @@ import { extractFrontMatter, serializeFrontMatter } from '../shared/fmatter'
 import { countWords } from '../shared/count'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, DOT_DIR } from '../shared/paths'
 import { sanitizeFile } from '../shared/paths'
+import { isNovelRel, writeSnapshot } from './history'
 import { libraryRoot } from './settings'
 import { applyTemplate } from './templates'
 import type { ChapterEntry, ChapterFrontMatter, FsEvent, ProjectMeta, ProjectStats, ProjectSummary } from '../shared/types'
@@ -174,6 +175,11 @@ export function readDoc(id: string, rel: string): string | null {
 export function writeDoc(id: string, rel: string, content: string) {
   const f = abs(id, rel)
   ensureDir(dirname(f))
+  // 正文版本历史：写盘前把旧内容存档（仅正文、且内容有变化时；见 docs/正文版本历史-产品规划-2026-09-10.md）
+  if (isNovelRel(rel) && existsSync(f)) {
+    const prev = readFileSync(f, 'utf-8')
+    if (prev !== content) writeSnapshot(projectDir(id), rel, prev)
+  }
   writeFileSync(f, content, 'utf-8')
 }
 
