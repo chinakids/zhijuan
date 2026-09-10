@@ -416,10 +416,17 @@ const mock = {
       const m = text.match(/章号:\s*(\d+)/)
       const t = text.match(/题名:\s*(.+)/)
       const s = text.match(/切片:\s*(.+)/)
+      const p = text.match(/涉及人物:\s*\[(.*)\]/)
+      const cast = p ? p[1].split(',').map((x) => x.trim()).filter(Boolean) : undefined
       out.push({
         file,
         name: file.replace(/\.md$/, ''),
-        fm: { 章号: m ? Number(m[1]) : undefined, 题名: t?.[1]?.trim(), 切片: s?.[1]?.trim() },
+        fm: {
+          章号: m ? Number(m[1]) : undefined,
+          题名: t?.[1]?.trim(),
+          切片: s?.[1]?.trim(),
+          ...(cast ? { 涉及人物: cast } : {})
+        },
         wordCount: countWords(text),
         mtime: now,
         hasPendingProposal: false

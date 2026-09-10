@@ -37,9 +37,6 @@ export default function Novel() {
   // 项目引导「现在新建第一章」：Workspace 经 Outlet context 发信号（递增计数），打开建章对话框
   const outletCtx = useOutletContext<{ newChapterReq?: number }>()
   const newChapterReq = outletCtx?.newChapterReq ?? 0
-  useEffect(() => {
-    if (newChapterReq > 0) setCreating(true)
-  }, [newChapterReq])
   // 保存时的「涉及人物清单与正文不一致」前置提示（本地规则·零模型）：出场未列入(unlisted) / 列入未出场(missing)
   // 命中且未忽略才显示；忽略记本会话内不再提示本章
   const [castCard, setCastCard] = useState<{ rel: string; unlisted: UnlistedHit[]; missing: MissingHit[] } | null>(null)
@@ -53,6 +50,31 @@ export default function Novel() {
     setSel(chParam)
     setSearchParams({}, { replace: true })
   }, [chParam, chapters, setSearchParams])
+
+  // 「上一章」＝约定头章号最大的章（连续写作流：新章切片名/涉及人物默认沿用，可改）
+  // 选法按 fm 章号而非列表尾部：导入/手改过的文件名与约定头章号可能不一致，fm 才是权威
+  const prevChapter = useMemo(() => {
+    let best: ChapterEntry | null = null
+    for (const c of chapters) {
+      const n = c.fm?.['章号']
+      if (typeof n !== 'number') continue
+      if (!best || n > (best.fm?.['章号'] as number)) best = c
+    }
+    return best
+  }, [chapters])
+
+  // 打开建章对话框：有上一章时预填切片名与涉及人物（都在同一输入框里可改）
+  const openCreate = useCallback(() => {
+    const pf = prevChapter?.fm
+    setSlice(typeof pf?.['切片'] === 'string' ? pf['切片'] : '')
+    setCast(Array.isArray(pf?.['涉及人物']) ? pf['涉及人物'].join(', ') : '')
+    setCreating(true)
+  }, [prevChapter])
+
+  // 项目引导「现在新建第一章」：经 Outlet context 发信号（递增计数），打开建章对话框（无上一章则空开）
+  useEffect(() => {
+    if (newChapterReq > 0) openCreate()
+  }, [newChapterReq, openCreate])
 
   const handleChapterSaved = useCallback(
     async (rel: string) => {
@@ -189,7 +211,7 @@ export default function Novel() {
       <aside className="flex w-60 shrink-0 flex-col border-r border-hair bg-surface-2">
         <div className="flex items-center justify-between px-3 pb-2 pt-3">
           <span className="text-xs font-medium text-ink-3">章节（按时间切片）</span>
-          <Button variant="ghost" size="icon" className="h-7 w-7" title="新建章节" onClick={() => setCreating(true)}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" title="新建章节" onClick={openCreate}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>
@@ -287,6 +309,11 @@ export default function Novel() {
           <DialogHeader>
             <DialogTitle>新建章节</DialogTitle>
             <DialogDescription>一章 = 一个时间切片。约定头会写进正文文件顶部，保存正文时按它做切片同步。</DialogDescription>
+            {prevChapter && (
+              <p className="text-[11px] text-ink-3">
+                已沿用上一章《{prevChapter.fm?.['题名'] ?? prevChapter.name}》的切片名与涉及人物，可直接修改。
+              </p>
+            )}
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
