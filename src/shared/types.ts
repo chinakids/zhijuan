@@ -135,6 +135,9 @@ export interface AgentEvent {
   requestId: string
   type: 'delta' | 'meta' | 'meta-done' | 'think' | 'edit' | 'final' | 'done' | 'aborted' | 'error' | 'todo' | 'ask'
   text?: string
+  /** type = meta-done 时工具是否成功（缺省视为成功；false 渲染失败态） */
+  ok?: boolean
+  /** type = meta 时的工具名 */
   tool?: string
   /** 工具开始时的参数字符串（如 zj_read_doc 的 file，用于 UI 展示“读了哪个文档”） */
   args?: string

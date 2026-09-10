@@ -10,6 +10,7 @@ import { extractFrontMatter } from '../../shared/fmatter'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import type { ProposalItem } from '../../shared/types'
+import { toolResultFailed } from '../../shared/toolResult'
 
 // 关停入口（应用退出 / 冒烟脚本收尾用）
 export { closeHarness as shutdown } from './runtime'
@@ -19,7 +20,7 @@ export type AgentOutEvent =
   | { requestId: string; type: 'delta'; text: string } // 模型文本增量
   | { requestId: string; type: 'think'; text: string } // 模型思考增量（reasoning 块）
   | { requestId: string; type: 'meta'; tool: string; args?: string } // 工具开始（带参数摘要）
-  | { requestId: string; type: 'meta-done'; tool: string; message: string } // 工具结果摘要
+  | { requestId: string; type: 'meta-done'; tool: string; message: string; ok?: boolean } // 工具结果摘要（ok=false=工具失败）
   | { requestId: string; type: 'edit'; file: string; edits: import('../../shared/types').EditItem[] } // 正文修改提案（IDE 前/>后，待采纳）
   | { requestId: string; type: 'final'; text: string } // 本轮最终答复
   | { requestId: string; type: 'done' }
@@ -152,9 +153,10 @@ function translate(n: DriveEvent, requestId: string, emit: (e: AgentOutEvent) =>
       .filter((x: any) => x?.type === 'text')
       .map((x: any) => x.text)
       .join(' ')
+    const failed = toolResultFailed(d)
     const name = lastToolName.get(requestId) ?? String(d.callId ?? '')
     // zj_edit_doc：把结构化结果转成正文修改提案（数据来自工具内的 JSON 标记，见 zj-core）
-    if (name === 'zj_edit_doc') {
+    if (name === 'zj_edit_doc' && !failed) {
       const json = extractEditPayload(text)
       if (json) {
         emit({ requestId, type: 'edit', file: String(json.file ?? ''), edits: json.edits })
@@ -162,7 +164,13 @@ function translate(n: DriveEvent, requestId: string, emit: (e: AgentOutEvent) =>
         return
       }
     }
-    emit({ requestId, type: 'meta-done', tool: name, message: text.slice(0, 80) || '完成' })
+    emit({
+      requestId,
+      type: 'meta-done',
+      tool: name,
+      message: text.slice(0, 80) || (failed ? '失败' : '完成'),
+      ok: !failed
+    })
   } else if (t === 'todo/write') {
     const todos = Array.isArray(d.todos)
       ? d.todos.map((x: any) => ({ content: String(x?.content ?? ''), status: x?.status }))

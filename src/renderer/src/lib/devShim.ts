@@ -587,6 +587,13 @@ const mock = {
     emit({ requestId: rid, type: 'meta', tool: 'zj_read_doc', args: '正文/第01章_雾港.md' })
     await new Promise((r) => setTimeout(r, 60))
     emit({ requestId: rid, type: 'meta-done', tool: 'zj_read_doc', message: '章节已读完' })
+    // 工具失败演示：prompt 提到「失败/读不到/不存在」时演示一次失败工具卡（红色徽标）
+    if (/失败|读不到|不存在/.test(input.prompt)) {
+      await new Promise((r) => setTimeout(r, 60))
+      emit({ requestId: rid, type: 'meta', tool: 'zj_search', args: '幽灵船' })
+      await new Promise((r) => setTimeout(r, 60))
+      emit({ requestId: rid, type: 'meta-done', tool: 'zj_search', message: '未找到匹配（ENOENT）', ok: false })
+    }
     // 正文修改演示：prompt 提到「改」时给出 IDE 式修改方案
     if (/改|修|润|错别/.test(input.prompt)) {
       await new Promise((r) => setTimeout(r, 60))

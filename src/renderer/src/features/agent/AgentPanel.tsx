@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Loader2, Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, Users, UserCheck, ListOrdered, FileWarning } from 'lucide-react'
+import { Loader2, Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, Users, UserCheck, ListOrdered, FileWarning, CircleX } from 'lucide-react'
 import type { ProseApi } from '../editor/Prose'
 import type { AuditKind, EditItem } from '../../../../shared/types'
 import { useAgentStore } from './store'
@@ -25,17 +25,28 @@ let ridSeq = 0
 const newRid = () => 'r' + Date.now().toString(36) + (ridSeq++).toString(36)
 
 /* ---------- 工具活动卡（meta） ---------- */
-function ToolActivity({ tool, args, done, summary }: { tool: string; args?: string; done?: boolean; summary?: string }) {
+function ToolActivity({ tool, args, done, toolOk, summary }: { tool: string; args?: string; done?: boolean; toolOk?: boolean; summary?: string }) {
+  const failed = done === true && toolOk === false
   return (
-    <div className={cn('flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[11px]', done ? 'border-hair bg-surface' : 'border-hair bg-surface border-accent/30')}>
-      {done ? (
+    <div
+      className={cn(
+        'flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[11px]',
+        failed ? 'border-danger/40 bg-surface' : done ? 'border-hair bg-surface' : 'border-accent/30 bg-surface'
+      )}
+    >
+      {failed ? (
+        <CircleX className="h-3 w-3 shrink-0 text-danger" />
+      ) : done ? (
         <Check className="h-3 w-3 shrink-0 text-success" />
       ) : (
         <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent" />
       )}
-      <span className="shrink-0 font-medium text-ink-2">{toolLabel(tool)}</span>
+      <span className={cn('shrink-0 font-medium', failed ? 'text-danger' : 'text-ink-2')}>{toolLabel(tool)}</span>
       {args && <span className="flex-1 break-all font-mono text-[10px] leading-4 text-ink-3" title={args}>{args}</span>}
-      {done && summary && <span className="shrink-0 whitespace-nowrap text-ink-3">{summary}</span>}
+      {failed && <span className="shrink-0 rounded-full bg-danger-soft px-2 py-0.5 text-[10px] text-danger">失败</span>}
+      {done && summary && (
+        <span className={cn('shrink-0 whitespace-nowrap', failed ? 'text-danger' : 'text-ink-3')}>{summary}</span>
+      )}
     </div>
   )
 }
@@ -197,7 +208,7 @@ function useSender(props: AgentPanelProps) {
             } else if (e.type === 'meta-done') {
               const id = activeMeta()
               if (id) metaStack.pop()
-              if (id) useAgentStore.getState().upsertTool({ id, kind: 'meta', tool: e.tool ?? '', done: true, content: e.message ?? '' })
+              if (id) useAgentStore.getState().upsertTool({ id, kind: 'meta', tool: e.tool ?? '', done: true, toolOk: e.ok !== false, content: e.message ?? '' })
             } else if (e.type === 'edit') {
               if (e.file && e.edits?.length) {
                 const eid = rid + '-e' + Date.now().toString(36)
@@ -414,7 +425,7 @@ export default function AgentPanel(props: AgentPanelProps) {
               if (m.kind === 'meta')
                 return (
                   <div key={m.id} className="w-full">
-                    <ToolActivity tool={m.tool ?? ''} args={m.toolArgs} done={m.done} summary={m.content} />
+                    <ToolActivity tool={m.tool ?? ''} args={m.toolArgs} done={m.done} toolOk={m.toolOk} summary={m.content} />
                   </div>
                 )
               return <div key={m.id} className="h-px" />
