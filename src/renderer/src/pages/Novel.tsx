@@ -24,6 +24,8 @@ export default function Novel() {
   const [chapters, setChapters] = useState<ChapterEntry[]>([])
   const [sel, setSel] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [loadErr, setLoadErr] = useState('')
   const [title, setTitle] = useState('')
   const [slice, setSlice] = useState('')
   const [cast, setCast] = useState('')
@@ -129,9 +131,16 @@ export default function Novel() {
 
   const refresh = useCallback(async () => {
     if (!id) return
-    const list = await window.zhijuan.listChapters(id)
-    setChapters(list)
-    setSel((s) => (s && list.some((c) => c.file === s) ? s : null))
+    try {
+      const list = await window.zhijuan.listChapters(id)
+      setChapters(list)
+      setLoadErr('')
+      setSel((s) => (s && list.some((c) => c.file === s) ? s : null))
+    } catch (e) {
+      setLoadErr(String((e as Error).message ?? e))
+    } finally {
+      setLoading(false)
+    }
   }, [id])
 
   // 切换章节：收起「清单不一致」提示卡（忽略记录保留，本会话内不重复打扰该章）
@@ -205,7 +214,12 @@ export default function Novel() {
         '\n>\n> （本章写作指引：可随进度修改；保存后随正文进入切片同步与 agent 上下文）\n\n' +
         titleLine
       : titleLine
-    await window.zhijuan.writeDoc(id, `正文/${name}`, fm + body)
+    try {
+      await window.zhijuan.writeDoc(id, `正文/${name}`, fm + body)
+    } catch (e) {
+      toast.add({ kind: 'error', title: '创建章节失败', description: String((e as Error).message ?? e) })
+      return
+    }
     setCreating(false)
     setTitle('')
     setSlice('')
@@ -277,7 +291,24 @@ export default function Novel() {
           </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
-          {chapters.length === 0 && <p className="px-2 py-6 text-center text-xs text-ink-3">还没有章节，点右上角「+」开始第一章。</p>}
+          {loading && <p className="px-2 py-6 text-center text-xs text-ink-3">正在读取章节…</p>}
+          {!loading && loadErr && (
+            <div className="px-2 py-5 text-center">
+              <p className="text-xs text-danger">读取章节失败</p>
+              <p className="mt-0.5 break-all text-[11px] text-ink-3">{loadErr}</p>
+              <button
+                className="mt-1.5 text-xs text-accent underline-offset-2 hover:underline"
+                onClick={() => {
+                  setLoading(true)
+                  setLoadErr('')
+                  void refresh()
+                }}
+              >
+                重试
+              </button>
+            </div>
+          )}
+          {!loading && !loadErr && chapters.length === 0 && <p className="px-2 py-6 text-center text-xs text-ink-3">还没有章节，点右上角「+」开始第一章。</p>}
           {chapters.map((c) => (
             <button
               key={c.file}

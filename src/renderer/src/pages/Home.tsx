@@ -19,6 +19,7 @@ import {
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
+import { toast } from '../store/toasts'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,6 +48,7 @@ export default function Home() {
   const [recents, setRecents] = useState<RecentEntry[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
+  const [loadErr, setLoadErr] = useState('')
   const [creating, setCreating] = useState(false)
   const [importing, setImporting] = useState(false)
   const [name, setName] = useState('')
@@ -60,10 +62,16 @@ export default function Home() {
   }, [])
 
   const refresh = useCallback(async () => {
-    const [list, recs] = await Promise.all([window.zhijuan.listProjects(), window.zhijuan.getRecentEntries()])
-    setProjects(list)
-    setRecents(recs)
-    setLoading(false)
+    try {
+      const [list, recs] = await Promise.all([window.zhijuan.listProjects(), window.zhijuan.getRecentEntries()])
+      setProjects(list)
+      setRecents(recs)
+      setLoadErr('')
+    } catch (e) {
+      setLoadErr(String((e as Error).message ?? e))
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -72,19 +80,27 @@ export default function Home() {
 
   async function create() {
     if (!name.trim()) return
-    const p = await window.zhijuan.createProject(name.trim(), desc.trim(), template || undefined)
-    setCreating(false)
-    setName('')
-    setDesc('')
-    if (p) navigate(`/project/${p.id}?guide=1`)
+    try {
+      const p = await window.zhijuan.createProject(name.trim(), desc.trim(), template || undefined)
+      setCreating(false)
+      setName('')
+      setDesc('')
+      if (p) navigate(`/project/${p.id}?guide=1`)
+    } catch (e) {
+      toast.add({ kind: 'error', title: '创建项目失败', description: String((e as Error).message ?? e) })
+    }
   }
 
   async function importDir() {
     if (!folder.trim()) return
-    const p = await window.zhijuan.importProject(folder.trim())
-    setImporting(false)
-    setFolder('')
-    if (p) navigate(`/project/${p.id}`)
+    try {
+      const p = await window.zhijuan.importProject(folder.trim())
+      setImporting(false)
+      setFolder('')
+      if (p) navigate(`/project/${p.id}`)
+    } catch (e) {
+      toast.add({ kind: 'error', title: '导入目录失败', description: String((e as Error).message ?? e) })
+    }
   }
 
   function openProject(id: string) {
@@ -92,8 +108,12 @@ export default function Home() {
   }
 
   async function remove(id: string) {
-    await window.zhijuan.removeProject(id)
-    void refresh()
+    try {
+      await window.zhijuan.removeProject(id)
+      void refresh()
+    } catch (e) {
+      toast.add({ kind: 'error', title: '删除失败', description: String((e as Error).message ?? e) })
+    }
   }
 
   // 过滤 + 排序：最近打开优先，其余按最近编辑
@@ -136,14 +156,32 @@ export default function Home() {
             />
           </div>
           <p className="truncate text-xs text-ink-3">
-            {loading ? '正在读取项目库…' : `共 ${projects.length} 个项目`}
-            {!loading && query.trim() && ` · 命中 ${visible.length}`}
+            {loading ? '正在读取项目库…' : loadErr ? '项目库读取失败' : `共 ${projects.length} 个项目`}
+            {!loading && !loadErr && query.trim() && ` · 命中 ${visible.length}`}
           </p>
           <div className="flex-1" />
           <p className="hidden shrink-0 text-xs text-ink-3 sm:block">排序：最近打开优先 · 未打开的按最近编辑</p>
         </div>
         {loading && <p className="text-center text-sm text-ink-3 pt-20">正在读取项目库…</p>}
-        {!loading && projects.length === 0 && (
+        {!loading && loadErr && (
+          <div className="mx-auto mt-24 max-w-sm rounded-xl border border-dashed border-danger/40 p-8 text-center">
+            <p className="text-sm font-medium text-danger">读取项目库失败</p>
+            <p className="mt-1 break-all text-xs text-ink-3">{loadErr}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4"
+              onClick={() => {
+                setLoading(true)
+                setLoadErr('')
+                void refresh()
+              }}
+            >
+              重试
+            </Button>
+          </div>
+        )}
+        {!loading && !loadErr && projects.length === 0 && (
           <div className="mx-auto mt-24 max-w-sm rounded-xl border border-dashed border-hair-strong p-10 text-center">
             <p className="text-ink-2">还没有项目。</p>
             <p className="mt-1 text-sm text-ink-3">点右上角「新建项目」开始第一本，或导入一个已有目录。</p>

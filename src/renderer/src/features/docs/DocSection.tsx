@@ -8,6 +8,7 @@ import { Label } from '../../components/ui/label'
 import { cn } from '../../lib/utils'
 import DocEditor from '../editor/DocEditor'
 import { useFsEvents } from '../fs/useFsEvents'
+import { toast } from '../../store/toasts'
 
 interface DocSectionProps {
   relDir: string
@@ -29,13 +30,22 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
   const [sel, setSel] = useState<string | null>(overviewFile ?? null)
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [loadErr, setLoadErr] = useState('')
   const events = useFsEvents(id)
 
   const refresh = useCallback(async () => {
     if (!id) return
-    const list = await window.zhijuan.listDocs(id, relDir)
-    setFiles(list)
-    setSel((s) => (s && list.some((f) => relDir + '/' + f.file === s) ? s : overviewFile ?? null))
+    try {
+      const list = await window.zhijuan.listDocs(id, relDir)
+      setFiles(list)
+      setLoadErr('')
+      setSel((s) => (s && list.some((f) => relDir + '/' + f.file === s) ? s : overviewFile ?? null))
+    } catch (e) {
+      setLoadErr(String((e as Error).message ?? e))
+    } finally {
+      setLoading(false)
+    }
   }, [id, relDir, overviewFile])
 
   useEffect(() => {
@@ -53,11 +63,15 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
     if (!id || !name.trim()) return
     const safe = name.trim()
     const rel = `${relDir}/${safe}.md`
-    await window.zhijuan.writeDoc(id, rel, templateFor ? templateFor(safe) : `# ${safe}\n\n`)
-    setCreating(false)
-    setName('')
-    await refresh()
-    setSel(rel)
+    try {
+      await window.zhijuan.writeDoc(id, rel, templateFor ? templateFor(safe) : `# ${safe}\n\n`)
+      setCreating(false)
+      setName('')
+      await refresh()
+      setSel(rel)
+    } catch (e) {
+      toast.add({ kind: 'error', title: `新建${addLabel}失败`, description: String((e as Error).message ?? e) })
+    }
   }
 
   return (
@@ -70,7 +84,24 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
           </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
-          {files.length === 0 && <p className="px-2 py-6 text-center text-xs text-ink-3">{emptyHint}</p>}
+          {loading && <p className="px-2 py-6 text-center text-xs text-ink-3">正在读取…</p>}
+          {!loading && loadErr && (
+            <div className="px-2 py-5 text-center">
+              <p className="text-xs text-danger">读取失败</p>
+              <p className="mt-0.5 break-all text-[11px] text-ink-3">{loadErr}</p>
+              <button
+                className="mt-1.5 text-xs text-accent underline-offset-2 hover:underline"
+                onClick={() => {
+                  setLoading(true)
+                  setLoadErr('')
+                  void refresh()
+                }}
+              >
+                重试
+              </button>
+            </div>
+          )}
+          {!loading && !loadErr && files.length === 0 && <p className="px-2 py-6 text-center text-xs text-ink-3">{emptyHint}</p>}
           {files.map((f) => (
             <button
               key={f.file}

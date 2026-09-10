@@ -1059,10 +1059,40 @@ function applyAnchor(text: string, it: ProposalItem): string {
   return text.trimEnd() + '\n\n### ' + it.anchor + '\n\n' + it.after + '\n'
 }
 
+/** 无头冒烟：`?zj-fail=<api>[,<api>…]`（首次调用 reject 一次，重试恢复）与
+ *  `?zj-fail-x=<api>[,<api>…]`（每次都 reject，验证错误态本身；Workspace 计数调用会先吞掉一次，
+ *  持续失败可保证页面层错误卡必然出现）。仅 devShim 存在；真机错误态是同一套 React 组件。 */
+function buildFailProbe(base: typeof window.zhijuan): typeof window.zhijuan {
+  const parse = (key: string) =>
+    new Set(
+      (new URLSearchParams(location.search).get(key) ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    )
+  const once = parse('zj-fail')
+  const always = parse('zj-fail-x')
+  if (!once.size && !always.size) return base
+  const src = base as unknown as Record<string, (...a: unknown[]) => unknown>
+  const probe = { ...(base as unknown as Record<string, unknown>) }
+  for (const name of new Set([...once, ...always])) {
+    if (typeof src[name] !== 'function') continue
+    probe[name] = async (...args: unknown[]) => {
+      if (always.has(name)) throw new Error('模拟失败：' + name)
+      if (once.has(name)) {
+        once.delete(name)
+        throw new Error('模拟瞬态失败：' + name)
+      }
+      return (src[name] as (...a: unknown[]) => unknown)(...args)
+    }
+  }
+  return probe as unknown as typeof window.zhijuan
+}
+
 export function ensureDevShim() {
   if (window.zhijuan) return
   ;(window as unknown as { __ZJ_TEST: boolean }).__ZJ_TEST = true
-  window.zhijuan = mock as unknown as typeof window.zhijuan
+  window.zhijuan = buildFailProbe(mock as unknown as typeof window.zhijuan)
   // 无头冒烟用：暴露全局 Toast API（与 __ZJ_EDITORS 同级的测试面，仅 devShim 存在）
   ;(window as unknown as { __ZJ_TOAST: typeof toast }).__ZJ_TOAST = toast
 }

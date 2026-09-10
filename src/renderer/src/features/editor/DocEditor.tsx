@@ -29,6 +29,8 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
   const [status, setStatus] = useState<DocStatus>('idle')
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(true)
+  const [readErr, setReadErr] = useState('')
+  const [retryTick, setRetryTick] = useState(0) // 读取失败后「重试」：+1 触发加载 effect 重跑
   const [epoch, setEpoch] = useState(0) // 换文件时强制重建编辑器，避免脏状态串文件
   const [historyOpen, setHistoryOpen] = useState(false)
 
@@ -38,19 +40,27 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
     setLoading(true)
     setStatus('idle')
     setNote('')
+    setReadErr('')
     setEpoch((x) => x + 1)
     ;(async () => {
-      const raw = (await window.zhijuan.readDoc(projectId, rel)) ?? ''
-      if (cancel) return
-      rawRef.current = raw
-      const body = withFm ? splitFm(raw).body : raw
-      savedMdRef.current = body
-      setLoading(false)
+      try {
+        const raw = (await window.zhijuan.readDoc(projectId, rel)) ?? ''
+        if (cancel) return
+        rawRef.current = raw
+        const body = withFm ? splitFm(raw).body : raw
+        savedMdRef.current = body
+        setLoading(false)
+      } catch (e) {
+        if (cancel) return
+        // 读取失败必须显式呈现（不能静默当空文档：用户一保存就会把整篇覆盖成空文件）
+        setReadErr(String((e as Error).message ?? e))
+        setLoading(false)
+      }
     })()
     return () => {
       cancel = true
     }
-  }, [projectId, rel, withFm])
+  }, [projectId, rel, withFm, retryTick])
 
   const doSave = useCallback(async () => {
     const api = apiRef.current
@@ -119,6 +129,20 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
 
   if (loading) {
     return <div className={cn('flex h-full items-center justify-center text-sm text-ink-3', className)}>正在读取文档…</div>
+  }
+  if (readErr) {
+    return (
+      <div className={cn('flex h-full flex-col items-center justify-center gap-2 text-sm', className)}>
+        <p className="text-danger">读取文档失败</p>
+        <p className="max-w-md break-all text-center text-xs text-ink-3">{readErr}</p>
+        <button
+          className="text-xs text-accent underline-offset-2 hover:underline"
+          onClick={() => setRetryTick((x) => x + 1)}
+        >
+          重试
+        </button>
+      </div>
+    )
   }
 
   const stLabel: Record<DocStatus, { text: string; cls: string }> = {
