@@ -18,7 +18,9 @@ import type {
   DirectorSheet,
   DirectorCheckResult,
   UnlistedHit,
-  HistorySnapshot
+  HistorySnapshot,
+  LibraryCategory,
+  SearchHit
 } from '../shared/types'
 
 const api = {
@@ -58,6 +60,12 @@ const api = {
   listDocs: (id: string, relDir: string) => ipcRenderer.invoke('doc:list', id, relDir) as Promise<{ file: string; name: string; mtime: number }[]>,
   listChapters: (id: string) => ipcRenderer.invoke('chapter:list', id) as Promise<ChapterEntry[]>,
   listSlices: (projectId: string) => ipcRenderer.invoke('slices:list', projectId) as Promise<SliceEntry[]>,
+  // 素材库域（类别树 / 新建类别 / 文件名+全文搜索）
+  listLibraryCategories: (id: string) => ipcRenderer.invoke('library:categories', id) as Promise<LibraryCategory[]>,
+  createLibraryCategory: (id: string, name: string) =>
+    ipcRenderer.invoke('library:createCategory', id, name) as Promise<{ ok: boolean; error?: string }>,
+  searchDocs: (id: string, relDir: string, query: string, opts?: { excludePrefix?: string[]; limit?: number }) =>
+    ipcRenderer.invoke('docs:search', id, relDir, query, opts) as Promise<SearchHit[]>,
   // 正文版本历史（M3）：列表元信息 + 读单版内容
   listHistory: (id: string, rel: string) => ipcRenderer.invoke('history:list', id, rel) as Promise<HistorySnapshot[]>,
   readHistory: (id: string, rel: string, name: string) => ipcRenderer.invoke('history:read', id, rel, name) as Promise<string | null>,

@@ -158,6 +158,25 @@ export interface FsEvent {
   path: string
 }
 
+/** 素材库一级类别（目录=类别；count 为该目录下素材数） */
+export interface LibraryCategory {
+  name: string
+  count: number
+}
+
+/** 素材库/任意目录全文搜索命中（file 相对项目根） */
+export interface SearchHit {
+  /** 相对项目根的文件路径（readDoc/edit 直接可用） */
+  file: string
+  /** 去扩展名的文件名 */
+  name: string
+  mtime: number
+  /** 命中方式：文件名命中 / 正文命中 */
+  field: 'name' | 'content'
+  /** 命中片段（文件名命中=文件名；正文命中=首处命中行上下文，截断） */
+  snippet: string
+}
+
 /** 正文版本历史的单条快照（列表元信息；内容由 history:read 单独取） */
 export interface HistorySnapshot {
   /** 版本文件名：yyyyMMdd-HHmmss-SSS[(-N)].md */

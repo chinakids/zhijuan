@@ -1,5 +1,5 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
-import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry } from '../../../shared/types'
+import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
 import { countWords } from '../../../shared/count'
 import { extractFrontMatter } from '../../../shared/fmatter'
@@ -9,6 +9,8 @@ import { toast } from '../store/toasts'
 const now = Date.now()
 
 const docs = new Map<string, string>()
+// 空类别（dev 内存无目录概念：新类别只登记名字，树/列表经 libraryTree 组装时按计数 0 展示）
+const extraCats = new Set<string>()
 // 版本历史 mock：与主进程行为对齐（仅 正文/ 前缀、内容变化才快照旧内容，新→旧，上限 50）
 const histories = new Map<string, { name: string; content: string; mtimeMs: number }[]>()
 const HISTORY_LIMIT_DEV = 50
@@ -184,6 +186,24 @@ docs.set(
     ''
   ].join('\n')
 )
+// dev 演示：第二个类别的正式素材（非采集草稿），让类别树/搜索演示可区分多类别
+docs.set(
+  'demo-aseya/素材库/人物/旧茶楼账房.md',
+  [
+    '---',
+    '来源: 自研',
+    '---',
+    '',
+    '# 旧茶楼账房',
+    '',
+    '临街的账房先生姓周，算盘打得极快，记账用蝇头小楷。柜上常年搁一盏铜油灯，灯芯剪得短短的——他说省油，也省得看清来人。',
+    '',
+    '## 可复用的点',
+    '',
+    '- 算盘声、油灯、蝇头小楷，可做旧时代茶楼场景的细节锚',
+    ''
+  ].join('\n')
+)
 
 const settings: AppSettings = {
   workspace: '',
@@ -283,6 +303,62 @@ const mock = {
   readHistory: async (_id: string, rel: string, name: string) =>
     (histories.get(_id + '/' + rel) ?? []).find((h) => h.name === name)?.content ?? null,
   listDocs: async (id: string, relDir: string) => docsOf(id + '/' + relDir),
+  // 素材库域：类别枚举（内存由 docs 推导；空类别靠 extraCats 登记）/ 新建类别 / 文件名+全文搜索
+  listLibraryCategories: async (id: string): Promise<LibraryCategory[]> => {
+    const counts = new Map<string, number>()
+    for (const k of docs.keys()) {
+      if (!k.startsWith(id + '/素材库/')) continue
+      const rel = k.slice((id + '/素材库/').length)
+      const seg = rel.split('/')
+      if (seg.length < 2) continue
+      const top = seg[0]
+      if (top === '采集池' || top.startsWith('.')) continue
+      counts.set(top, (counts.get(top) ?? 0) + 1)
+    }
+    for (const c of extraCats) {
+      if (c.startsWith(id + '/')) {
+        const name = c.slice(id.length + 1)
+        if (!counts.has(name)) counts.set(name, 0)
+      }
+    }
+    return [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'zh'))
+  },
+  createLibraryCategory: async (id: string, name: string) => {
+    const n = name.trim()
+    if (!n) return { ok: false, error: '名称不能为空' }
+    const key = id + '/' + n
+    if (extraCats.has(key)) return { ok: false, error: `类别「${n}」已存在` }
+    extraCats.add(key)
+    return { ok: true }
+  },
+  searchDocs: async (id: string, relDir: string, query: string, opts?: { excludePrefix?: string[] }): Promise<SearchHit[]> => {
+    const q = (query ?? '').trim()
+    if (!q) return []
+    const terms = q.split(/\s+/).map((t) => t.toLowerCase()).filter(Boolean)
+    const prefix = id + '/' + relDir + '/'
+    const excl = opts?.excludePrefix ?? []
+    const out: SearchHit[] = []
+    for (const [k, text] of docs) {
+      if (!k.startsWith(prefix)) continue
+      const relFromRoot = relDir + '/' + k.slice(prefix.length)
+      if (excl.some((p) => relFromRoot.startsWith(p))) continue
+      const name = k.slice(prefix.length).split('/').pop()!.replace(/\.md$/, '')
+      const lower = text.toLowerCase()
+      if (terms.every((t) => name.toLowerCase().includes(t))) {
+        out.push({ file: relFromRoot, name, mtime: now, field: 'name', snippet: name })
+      } else if (terms.every((t) => lower.includes(t))) {
+        const idx = lower.indexOf(terms[0])
+        const start = text.lastIndexOf('\n', idx) + 1
+        let end = text.indexOf('\n', idx)
+        if (end < 0) end = text.length
+        const line = text.slice(start, end).trim()
+        out.push({ file: relFromRoot, name, mtime: now, field: 'content', snippet: line.length > 80 ? line.slice(0, 80) + '…' : line })
+      }
+    }
+    return out
+  },
   listChapters: async (id: string): Promise<ChapterEntry[]> => {
     const out: ChapterEntry[] = []
     for (const { file } of docsOf(id + '/正文')) {

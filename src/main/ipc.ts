@@ -23,6 +23,7 @@ import {
   watchProject
 } from './store'
 import { workspaceStatus, ensureWorkspaceDocs, readWorkspaceDoc } from './workspace'
+import { listLibraryCategories, createLibraryCategory, searchDocs } from './library'
 import { listTemplates } from './templates'
 import { workspaceDir } from './settings'
 
@@ -107,6 +108,15 @@ export function registerIpc() {
   })
   ipcMain.handle('doc:list', (_e, id: string, relDir: string) => listDocs(id, relDir))
   ipcMain.handle('chapter:list', (_e, id: string) => listChapters(id))
+
+  // 素材库域（模块设计 §九：类别树 / 新建类别 / 文件名+全文搜索）
+  ipcMain.handle('library:categories', (_e, id: string) => listLibraryCategories(id))
+  ipcMain.handle('library:createCategory', (_e, id: string, name: string) => createLibraryCategory(id, name))
+  ipcMain.handle(
+    'docs:search',
+    (_e, id: string, relDir: string, query: string, opts?: { excludePrefix?: string[]; limit?: number }) =>
+      searchDocs(id, relDir, query, opts)
+  )
 
   // 正文版本历史（M3）：列表 + 读单版；恢复 = 读版后走 doc:write（自动再留一版，天然可反悔）
   ipcMain.handle('history:list', (_e, id: string, rel: string) => listSnapshots(projectDir(id), rel))
