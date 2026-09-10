@@ -13,6 +13,7 @@ import { registerAgentIpc } from './agent/ipc'
 import { runChapterUnlisted, runChapterMissing } from './agent/audit'
 import { isRuntimeCreated, closeHarness } from './agent/runtime'
 import { getSettings, setSettings, libraryRoot } from './settings'
+import { getRecentEntries, recordOpen, removeRecent } from './recent'
 import {
   listProjects,
   createProject,
@@ -57,15 +58,21 @@ export function registerIpc() {
   ipcMain.handle('project:list', () => listProjects())
   ipcMain.handle('project:create', (_e, name: string, description: string, template?: string) => createProject(name, description, template))
   ipcMain.handle('project:templates', () => listTemplates())
-  ipcMain.handle('project:remove', (_e, id: string) => removeProject(id))
+  ipcMain.handle('project:remove', (_e, id: string) => {
+    const r = removeProject(id)
+    if (r.ok) removeRecent(id)
+    return r
+  })
   ipcMain.handle('project:import', (_e, dir: string) => importProject(dir))
   ipcMain.handle('project:reveal', (_e, id: string) => {
     shell.showItemInFolder(projectDir(id))
   })
   ipcMain.handle('project:open', (_e, id: string) => {
+    recordOpen(id)
     watchProject(id, (evt) => broadcastToAll(evt))
     return true
   })
+  ipcMain.handle('project:recents', () => getRecentEntries())
   ipcMain.handle('app:getPaths', () => ({
     documents: libraryRoot(),
     defaultLibrary: shell ? String(process.env.HOME) : ''

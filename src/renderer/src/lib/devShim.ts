@@ -4,6 +4,7 @@ import type { EditItem } from '../../../shared/types'
 import { countWords } from '../../../shared/count'
 import { extractFrontMatter, setFrontMatterField } from '../../../shared/fmatter'
 import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceCheck, chapterMissingFromRaw } from '../../../shared/presence'
+import type { RecentEntry } from '../../../shared/projects'
 import { toast } from '../store/toasts'
 
 const now = Date.now()
@@ -288,6 +289,9 @@ const projects: ProjectSummary[] = [
   }
 ]
 
+// 最近打开（与真机 userData/zhijuan-recents.json 同语义，内存版）
+const recents: RecentEntry[] = []
+
 function docsOf(prefix: string): { file: string; name: string; mtime: number }[] {
   return [...docs.keys()]
     .filter((k) => k.startsWith(prefix + '/'))
@@ -339,7 +343,15 @@ const mock = {
     if (i >= 0) projects.splice(i, 1)
   },
   revealProject: async () => {},
-  openProject: async (id: string) => projects.find((p) => p.id === id) ?? null,
+  openProject: async (id: string) => {
+    // 与真机 project:open（recordOpen + watchProject）同语义：记录最近打开
+    const i = recents.findIndex((r) => r.id === id)
+    if (i >= 0) recents.splice(i, 1)
+    recents.unshift({ id, openedAt: Date.now() })
+    if (recents.length > 12) recents.length = 12
+    return projects.find((p) => p.id === id) ?? null
+  },
+  getRecentEntries: async (): Promise<RecentEntry[]> => recents.slice().sort((a, b) => b.openedAt - a.openedAt),
   readDoc: async (_id: string, rel: string) => docs.get(_id + '/' + rel) ?? null,
   writeDoc: async (_id: string, rel: string, content: string) => {
     const k = _id + '/' + rel

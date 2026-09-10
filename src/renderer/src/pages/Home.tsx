@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookText, FolderOpen, Plus, Trash2, MoreHorizontal } from 'lucide-react'
+import { BookText, FolderOpen, Plus, Trash2, MoreHorizontal, Search } from 'lucide-react'
 import type { ProjectSummary, ProjectTemplate } from '../../../shared/types'
+import type { RecentEntry } from '../../../shared/projects'
+import { orderProjects } from '../../../shared/projects'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
@@ -42,6 +44,8 @@ function coverOf(id: string): [string, string] {
 export default function Home() {
   const navigate = useNavigate()
   const [projects, setProjects] = useState<ProjectSummary[]>([])
+  const [recents, setRecents] = useState<RecentEntry[]>([])
+  const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -56,8 +60,9 @@ export default function Home() {
   }, [])
 
   const refresh = useCallback(async () => {
-    const list = await window.zhijuan.listProjects()
+    const [list, recs] = await Promise.all([window.zhijuan.listProjects(), window.zhijuan.getRecentEntries()])
     setProjects(list)
+    setRecents(recs)
     setLoading(false)
   }, [])
 
@@ -91,6 +96,9 @@ export default function Home() {
     void refresh()
   }
 
+  // 过滤 + 排序：最近打开优先，其余按最近编辑
+  const visible = orderProjects(projects, recents, query)
+
   return (
     <div className="flex h-full flex-col">
       {/* 顶栏 */}
@@ -115,6 +123,25 @@ export default function Home() {
 
       {/* 项目网格 */}
       <main className="flex-1 overflow-auto p-6">
+        {/* 工具条：搜索过滤 + 排序说明（窄窗口不换行，truncate） */}
+        <div className="mb-4 flex items-center gap-3">
+          <div className="relative w-64 shrink-0">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
+            <Input
+              type="search"
+              className="pl-8"
+              placeholder="按名称或简介过滤…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          <p className="truncate text-xs text-ink-3">
+            {loading ? '正在读取项目库…' : `共 ${projects.length} 个项目`}
+            {!loading && query.trim() && ` · 命中 ${visible.length}`}
+          </p>
+          <div className="flex-1" />
+          <p className="hidden shrink-0 text-xs text-ink-3 sm:block">排序：最近打开优先 · 未打开的按最近编辑</p>
+        </div>
         {loading && <p className="text-center text-sm text-ink-3 pt-20">正在读取项目库…</p>}
         {!loading && projects.length === 0 && (
           <div className="mx-auto mt-24 max-w-sm rounded-xl border border-dashed border-hair-strong p-10 text-center">
@@ -122,8 +149,14 @@ export default function Home() {
             <p className="mt-1 text-sm text-ink-3">点右上角「新建项目」开始第一本，或导入一个已有目录。</p>
           </div>
         )}
+        {!loading && projects.length > 0 && visible.length === 0 && (
+          <div className="mx-auto mt-24 max-w-sm rounded-xl border border-dashed border-hair-strong p-10 text-center">
+            <p className="text-ink-2">没有匹配「{query.trim()}」的项目。</p>
+            <p className="mt-1 text-sm text-ink-3">换个关键词，或清空搜索框看全部项目。</p>
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {projects.map((p) => {
+          {visible.map((p) => {
             const [c1, c2] = coverOf(p.id)
             return (
               <Card key={p.id} className="group cursor-pointer overflow-hidden transition-shadow hover:shadow-lg" onClick={() => openProject(p.id)}>

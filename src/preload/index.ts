@@ -23,6 +23,7 @@ import type {
   LibraryCategory,
   SearchHit
 } from '../shared/types'
+import type { RecentEntry } from '../shared/projects'
 
 const api = {
   // 平台（renderer 据此做平台差异 UI，如自定义标题栏）
@@ -47,6 +48,7 @@ const api = {
   importProject: (dir: string) => ipcRenderer.invoke('project:import', dir) as Promise<ProjectSummary | null>,
   revealProject: (id: string) => ipcRenderer.invoke('project:reveal', id),
   openProject: (id: string) => ipcRenderer.invoke('project:open', id) as Promise<boolean>,
+  getRecentEntries: () => ipcRenderer.invoke('project:recents') as Promise<RecentEntry[]>,
 
   // 文档（相对项目根）
   readDoc: (id: string, rel: string) => ipcRenderer.invoke('doc:read', id, rel) as Promise<string | null>,
