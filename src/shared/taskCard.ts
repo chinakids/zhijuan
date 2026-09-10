@@ -27,6 +27,17 @@ export function isLibraryResultPath(p: string): boolean {
   return p.startsWith('素材库/') && p.endsWith('.md') && !p.includes('..')
 }
 
+/** 停滞阈值：任务卡最后一次被触碰（mtime）距今超过 2 天仍未终态 → 判停滞。
+ * 参照 stale-bot 惯例（以「最后活动时间」为 idle 判据、标记不删除）：管道每 20 分钟应处理一次，
+ * 任何管道回写/状态变化都会更新 mtime 重置计时；超 2 天未动 = 管道未处理（停机/失败/被跳过）。 */
+export const STALE_TASK_MS = 172_800_000 // 2 天
+
+/** 任务卡是否停滞：status 为终态（done/failed）恒不算；其余（pending/running/未知）按最后活动时间 idle 判定 */
+export function isTaskStale(status: string, lastActivityMs: number, nowMs: number): boolean {
+  if (status === 'done' || status === 'failed') return false
+  return nowMs - lastActivityMs > STALE_TASK_MS
+}
+
 /** 任务卡文本 → UI 友好的详情结构（无约定头时按空卡处理，字段全空、body=原文） */
 export function parseTaskCard(text: string): TaskCardView {
   const { fm, body } = extractFrontMatter(text)

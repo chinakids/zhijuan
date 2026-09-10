@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isLibraryResultPath, parseTaskCard } from '../../src/shared/taskCard'
+import { isLibraryResultPath, isTaskStale, parseTaskCard, STALE_TASK_MS } from '../../src/shared/taskCard'
 
 // 样例：与真机管道回填后的任务卡格式一致（素材库验收项目实测）
 const DONE_CARD = [
@@ -53,6 +53,30 @@ describe('parseTaskCard', () => {
   it('未知状态原样保留（如管道扩展了 running）', () => {
     const d = parseTaskCard(['---', 'status: running', '类别: 人物', '---', '', 'x'].join('\n'))
     expect(d.status).toBe('running')
+  })
+})
+
+describe('isTaskStale（采集任务停滞判定；阈值 2 天）', () => {
+  const now = 1_800_000_000_000
+  it('pending 卡 2 天未动：判停滞（超阈值即停滞）', () => {
+    expect(isTaskStale('pending', now - STALE_TASK_MS - 1, now)).toBe(true)
+  })
+  it('恰好等于阈值：不算停滞（宽容边界）', () => {
+    expect(isTaskStale('pending', now - STALE_TASK_MS, now)).toBe(false)
+  })
+  it('刚登记（1 小时 / 1 天）：不算停滞', () => {
+    expect(isTaskStale('pending', now - 3_600_000, now)).toBe(false)
+    expect(isTaskStale('pending', now - 86_400_000, now)).toBe(false)
+  })
+  it('终态 done/failed 恒不算停滞（即使 10 天前完成）', () => {
+    expect(isTaskStale('done', now - 10 * 86_400_000, now)).toBe(false)
+    expect(isTaskStale('failed', now - 10 * 86_400_000, now)).toBe(false)
+  })
+  it('running 长期不动也算停滞（管道可能死掉没回填）', () => {
+    expect(isTaskStale('running', now - 3 * 86_400_000, now)).toBe(true)
+  })
+  it('未知状态按非终态处理（可能停滞）', () => {
+    expect(isTaskStale('queued', now - 3 * 86_400_000, now)).toBe(true)
   })
 })
 

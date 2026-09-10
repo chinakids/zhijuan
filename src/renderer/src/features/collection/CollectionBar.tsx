@@ -10,7 +10,7 @@ import { Label } from '../../components/ui/label'
 import { Textarea } from '../../components/ui/textarea'
 import { cn } from '../../lib/utils'
 import { useFsEvents } from '../fs/useFsEvents'
-import { isLibraryResultPath, parseTaskCard } from '../../../../shared/taskCard'
+import { isLibraryResultPath, isTaskStale, parseTaskCard } from '../../../../shared/taskCard'
 
 /* ===== 织卷 S5 · 采集栏：任务卡列表 + 发起采集表单 ===== */
 
@@ -20,6 +20,8 @@ interface TaskInfo {
   mtime: number
   status: TaskStatus
   summary: string
+  demand: string
+  stale: boolean
 }
 
 const STATUS_CLS: Record<string, string> = {
@@ -38,13 +40,18 @@ function Row({ k, v }: { k: string; v: string }) {
   )
 }
 
-function parseStatus(file: string, text: string): { status: TaskStatus; summary: string } {
-  const m = text.match(/status:\s*(\w+)/)
-  let status: TaskStatus = 'pending'
-  if (m && ['pending', 'done', 'failed', 'running'].includes(m[1])) status = m[1] as TaskStatus
-  const s = text.match(/^#\s*(.+)$/m)
-  return { status, summary: s ? s[1].slice(0, 40) : file.replace(/\.md$/, '') }
+/** 与管道/详情共用的四值清洗：未知状态（管道将来可能扩展）一律按 pending 展示 */
+function normalizeStatus(v: string): TaskStatus {
+  return (['pending', 'done', 'failed', 'running'] as const).includes(v as TaskStatus) ? (v as TaskStatus) : 'pending'
 }
+
+/** 停滞天数（≥1）：列表/详情提示用 */
+function staleDays(mtimeMs: number, nowMs: number): number {
+  return Math.max(1, Math.floor((nowMs - mtimeMs) / 86_400_000))
+}
+
+/** 需求文本归一（查重用）：去首尾空白与内部空白，避免「校园 图书馆」与「校园图书馆」被判不同 */
+const normDemand = (s: string): string => s.trim().replace(/\s+/g, '')
 
 export default function CollectionBar() {
   const { id = '' } = useParams()
@@ -64,11 +71,21 @@ export default function CollectionBar() {
   const refresh = useCallback(async () => {
     if (!id) return
     const list = await window.zhijuan.listDocs(id, '素材库/采集池')
+    const nowMs = Date.now()
     const infos: TaskInfo[] = []
     for (const d of list) {
       // listDocs 返回相对 relDir 的路径，需拼回「素材库/采集池/」前缀（否则 readDoc 读到项目根同名文件/空）
       const text = (await window.zhijuan.readDoc(id, '素材库/采集池/' + d.file)) ?? ''
-      infos.push({ file: d.file, mtime: d.mtime, ...parseStatus(d.file, text) })
+      const v = parseTaskCard(text)
+      const s = text.match(/^#\s*(.+)$/m)
+      infos.push({
+        file: d.file,
+        mtime: d.mtime,
+        status: normalizeStatus(v.status),
+        summary: s ? s[1].slice(0, 40) : d.file.replace(/\.md$/, ''),
+        demand: v.demand,
+        stale: isTaskStale(v.status, d.mtime, nowMs)
+      })
     }
     setTasks(infos)
   }, [id])
@@ -151,6 +168,14 @@ export default function CollectionBar() {
               className="flex items-center gap-2 rounded-lg border border-hair bg-surface px-2.5 py-1.5 text-left transition-colors hover:border-accent/60 hover:bg-surface-2"
             >
               <span className={cn('rounded-full px-1.5 py-0.5 text-[10px]', STATUS_CLS[t.status])}>{t.status}</span>
+              {t.stale && (
+                <span
+                  title={`已 ${staleDays(t.mtime, Date.now())} 天未被本机管道触碰（可能停机/失败/被跳过），确认后可在详情里删除重发起`}
+                  className="rounded-full border border-warn/40 bg-warn-soft px-1.5 py-0.5 text-[10px] font-medium text-warn"
+                >
+                  停滞 {staleDays(t.mtime, Date.now())} 天
+                </span>
+              )}
               <span className="max-w-[220px] truncate text-[11px] text-ink">{t.summary}</span>
               <span className="text-[10px] text-ink-3">{new Date(t.mtime).toLocaleString('sv')}</span>
             </button>
@@ -167,6 +192,17 @@ export default function CollectionBar() {
             <div className="space-y-1.5">
               <Label>需求描述 *</Label>
               <Textarea rows={3} placeholder="如：校园图书馆的老旧细节——木地板、借书卡、靠窗的旧阅览室" value={demand} onChange={(e) => setDemand(e.target.value)} />
+              {demand.trim() &&
+                (() => {
+                  const dup = tasks.find(
+                    (t) => (t.status === 'pending' || t.status === 'running') && t.demand && normDemand(t.demand) === normDemand(demand)
+                  )
+                  return dup ? (
+                    <p className="rounded-md border border-warn/40 bg-warn-soft px-2.5 py-1.5 text-[11px] text-warn">
+                      已有进行中的需求相同任务（{dup.summary}）——再次提交会重复采集；确认要复采再提交。
+                    </p>
+                  ) : null
+                })()}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -207,6 +243,11 @@ export default function CollectionBar() {
                       <span className={cn('rounded-full px-1.5 py-0.5 text-[10px]', STATUS_CLS[d.status] ?? STATUS_CLS.pending)}>{d.status}</span>
                       {d.category && <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-2">{d.category}</span>}
                     </div>
+                    {isTaskStale(d.status, view.mtime, Date.now()) && (
+                      <p className="rounded-md border border-warn/40 bg-warn-soft px-2.5 py-1.5 text-[11px] text-warn">
+                        任务已停滞 {staleDays(view.mtime, Date.now())} 天——本机管道似乎未处理该卡（可能停机/失败/被跳过），确认后删除重发起。
+                      </p>
+                    )}
                     <dl className="space-y-1 text-xs">
                       {d.demand && <Row k="需求" v={d.demand} />}
                       {d.keywords.length > 0 && <Row k="关键词" v={d.keywords.join('、')} />}

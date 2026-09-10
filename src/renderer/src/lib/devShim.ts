@@ -184,6 +184,25 @@ docs.set(
     ''
   ].join('\n')
 )
+// dev 演示：一张「停滞」任务卡（pending 但 mtime 已 3 天未动 → 列表/详情出停滞提示；需求文本用于演示提交查重）
+docs.set(
+  'demo-aseya/素材库/采集池/任务_演示停滞.md',
+  [
+    '---',
+    'status: pending',
+    '需求: 雨夜的码头描写，要能闻到咸腥味和柴油味',
+    '关键词: [雨夜, 码头, 气味]',
+    '类别: 环境',
+    '来源:',
+    '创建: 2026-09-07 10:00',
+    '---',
+    '',
+    '# 采集任务：雨夜码头',
+    '',
+    '（dev 演示）这张卡管道一直没处理——用于看「停滞」提示；同名需求提交会触发查重警告。',
+    ''
+  ].join('\n')
+)
 // dev 演示：任务卡「结果」指向的素材卡（与管道回填的“整理后草稿”格式一致），
 // 让详情里「点击结果预览素材」在演示页可点、可验。
 docs.set(
@@ -272,8 +291,13 @@ function docsOf(prefix: string): { file: string; name: string; mtime: number }[]
     .filter((k) => k.startsWith(prefix + '/'))
     .map((k) => {
       const file = k.slice(prefix.length + 1)
-      // dev 演示：导演板一律模拟为一天前写的（比正文旧），方便看「导演板偏旧」轻提示
-      const mtime = file.endsWith('_导演.md') ? now - 86400_000 : now
+      // dev 演示：导演板一律模拟为一天前写的（比正文旧），方便看「导演板偏旧」轻提示；
+      // 「任务_演示停滞」模拟为 3 天前（未处理），方便看采集任务「停滞」提示
+      const mtime = file.endsWith('_导演.md')
+        ? now - 86400_000
+        : file.includes('任务_演示停滞')
+          ? now - 3 * 86400_000
+          : now
       return { file, name: file.split('/').pop()!, mtime }
     })
 }
