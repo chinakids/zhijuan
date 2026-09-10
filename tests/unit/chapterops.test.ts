@@ -39,6 +39,17 @@ vi.mock('electron', () => ({
 import { shell } from 'electron'
 import * as store from '../../src/main/store'
 import { setSettings } from '../../src/main/settings'
+import { createProposals, listProposals } from '../../src/main/proposals'
+import type { ProposalItem } from '../../src/shared/types'
+
+const propItem = (after: string): ProposalItem => ({
+  target: '人物/阿七.md',
+  anchor: '## 现时状态',
+  kind: 'upsert-section',
+  before: '',
+  after,
+  reason: '测试'
+})
 
 afterAll(() => {
   rmSync(holder.tmp, { recursive: true, force: true })
@@ -129,6 +140,33 @@ describe('renameChapter（重命名：约定头题名 + 文件名 + 引用面）
     expect(store.renameChapter(pid, '/etc/passwd.md', 'a').ok).toBe(false)
     expect(store.renameChapter(pid, '正文/../project.md', 'a').ok).toBe(false)
     expect(store.renameChapter(pid, '人物/阿七.md', 'a').ok).toBe(false)
+  })
+
+  it('引用面联动：proposals.chapter 随同迁移，同章再同步旧 pending 正确置 stale', () => {
+    const rel = seedChapter()
+    createProposals(holder.projects(), pid, 'slice-sync', rel, '第一幕', [propItem('旧状态')])
+
+    const r = store.renameChapter(pid, rel, '灯下雾')
+    expect(r.ok).toBe(true)
+
+    // chapter 指针随同迁移（抽屉展示 + stale 判定）
+    const after = listProposals(holder.projects(), pid)
+    expect(after).toHaveLength(1)
+    expect(after[0].chapter).toBe('正文/第01章_灯下雾.md')
+    expect(after[0].items[0].after).toBe('旧状态') // 审计内容不动
+
+    // 同章再同步（新路径）→ 旧 pending 置 stale（不迁移则失效）
+    createProposals(holder.projects(), pid, 'slice-sync', '正文/第01章_灯下雾.md', '第一幕', [propItem('新状态')])
+    const all = listProposals(holder.projects(), pid)
+    expect(all.find((x) => x.status === 'pending' && x.items[0].after === '新状态')).toBeDefined()
+    expect(all.find((x) => x.status === 'stale' && x.items[0].after === '旧状态')).toBeDefined()
+  })
+
+  it('引用面联动：题名清洗后同形（未改名）时不触碰提案', () => {
+    const rel = seedChapter()
+    createProposals(holder.projects(), pid, 'slice-sync', rel, '第一幕', [propItem('状态')])
+    store.renameChapter(pid, rel, '雾港 ')
+    expect(listProposals(holder.projects(), pid)[0].chapter).toBe(rel)
   })
 })
 

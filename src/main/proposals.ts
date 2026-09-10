@@ -54,6 +54,31 @@ export function createProposals(root: string, projectId: string, source: Proposa
   })
 }
 
+/**
+ * 章节重命名后同步迁移 proposals 的 chapter 引用（2026-09-11 拍板）。
+ * 依据：重命名=身份延续（git --follow / Obsidian 重命名自动更新链接同构）；chapter 是 stale 判定键——
+ * 不迁移会让「同章再同步时旧 pending 标 stale」失效（新旧两份 pending 并存，用户可能接受旧稿产物）。
+ * 只更新 chapter 指针（展示 + 判定），不动 item 的 before/after 审计内容。返回迁移条数（best-effort，坏档跳过）。
+ */
+export function migrateChapter(root: string, projectId: string, oldRel: string, newRel: string): number {
+  if (!oldRel || !newRel || oldRel === newRel) return 0
+  const d = dir(root, projectId)
+  if (!existsSync(d)) return 0
+  let n = 0
+  for (const f of readdirSync(d)) {
+    if (!f.endsWith('.json')) continue
+    try {
+      const p = JSON.parse(readFileSync(join(d, f), 'utf-8')) as Proposal
+      if (p.chapter === oldRel) {
+        p.chapter = newRel
+        writeFileSync(join(d, f), JSON.stringify(p, null, 2), 'utf-8')
+        n++
+      }
+    } catch { /* 坏档跳过 */ }
+  }
+  return n
+}
+
 /** 接受：把 each item 的 after 按锚点写入对应文件 */
 export function applyProposal(root: string, projectId: string, id: string): { ok: boolean; applied: string[]; errors: string[] } {
   const p = findStatus(root, projectId, id)

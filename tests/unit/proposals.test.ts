@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { applyAnchor, applyProposal, createProposals, listProposals, rejectProposal } from '../../src/main/proposals'
+import { applyAnchor, applyProposal, createProposals, listProposals, migrateChapter, rejectProposal } from '../../src/main/proposals'
 import type { ProposalItem } from '../../src/shared/types'
 
 let root: string
@@ -97,6 +97,34 @@ describe('createProposals', () => {
     createProposals(root, 'p', 'slice-sync', '第2章', '切片B', [item({ after: '四' })])
     all = listProposals(root, 'p')
     expect(all.find((x) => x.id === p2[0].id)?.status).toBe('pending')
+  })
+})
+
+describe('migrateChapter（章节重命名后 chapter 引用迁移）', () => {
+  it('命中旧路径的提案全量迁移，item 审计内容不动；其它章不受影响', () => {
+    const [a] = createProposals(root, 'p', 'slice-sync', '正文/第01章_雾港.md', '切片A', [item({ after: '一' })])
+    createProposals(root, 'p', 'slice-sync', '正文/第02章_灯塔.md', '切片B', [item({ after: '二' })])
+
+    const n = migrateChapter(root, 'p', '正文/第01章_雾港.md', '正文/第01章_灯下雾.md')
+    expect(n).toBe(1)
+    const all = listProposals(root, 'p')
+    expect(all.find((x) => x.id === a.id)?.chapter).toBe('正文/第01章_灯下雾.md')
+    expect(all.find((x) => x.id === a.id)?.items[0].after).toBe('一') // 审计内容不动
+    expect(all.find((x) => x.chapter === '正文/第02章_灯塔.md')).toBeDefined()
+  })
+
+  it('迁移后同章再同步：旧 pending 能按新路径正确置 stale（stale 判定键修复）', () => {
+    const [old] = createProposals(root, 'p', 'slice-sync', '正文/第01章_雾港.md', '切片A', [item({ after: '旧' })])
+    migrateChapter(root, 'p', '正文/第01章_雾港.md', '正文/第01章_灯下雾.md')
+    const [nw] = createProposals(root, 'p', 'slice-sync', '正文/第01章_灯下雾.md', '切片A', [item({ after: '新' })])
+    expect(listProposals(root, 'p').find((x) => x.id === old.id)?.status).toBe('stale')
+    expect(listProposals(root, 'p').find((x) => x.id === nw.id)?.status).toBe('pending')
+  })
+
+  it('防御：无提案目录返回 0；新旧同路径/空路径返回 0', () => {
+    expect(migrateChapter(root, 'p', 'a', 'b')).toBe(0)
+    expect(migrateChapter(root, 'p', '正文/第01章_雾港.md', '正文/第01章_雾港.md')).toBe(0)
+    expect(migrateChapter(root, 'p', '', 'b')).toBe(0)
   })
 })
 

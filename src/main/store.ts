@@ -8,6 +8,7 @@ import { countWords } from '../shared/count'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, DOT_DIR } from '../shared/paths'
 import { sanitizeFile } from '../shared/paths'
 import { isNovelRel, snapDirFor, writeSnapshot } from './history'
+import { migrateChapter } from './proposals'
 import { libraryRoot } from './settings'
 import { applyTemplate } from './templates'
 import type { ChapterEntry, ChapterFrontMatter, FsEvent, ProjectMeta, ProjectStats, ProjectSummary } from '../shared/types'
@@ -289,7 +290,7 @@ export interface RenameChapterResult {
  *  - 大纲/ 下 <章名>.md 与 <章名>_*.md（章卡/导演板/分幕）→ 同步改名（存在才动，best-effort）；
  *  - .zhijuan/history/正文/<章名>/（版本历史入口）→ 同步改名（存在才动，best-effort）；
  *  - .zhijuan/slices.json 无写入调用（listSlices 每次现扫）→ 无需处理；
- *  - .zhijuan/proposals/*.json 的 chapter 字段是展示元数据（锚点写入按 target/文本锚）→ 不迁移，注明。
+ *  - .zhijuan/proposals/*.json 的 chapter 字段（展示 + stale 判定键）→ 重命名时同步迁移（best-effort，见 proposals.migrateChapter）。
  * 顺序：先写新文件（目标不存在 → 不触发版本快照）→ 移动引用面 → 删旧文件，任一失败抛错前旧文件仍在。
  */
 export function renameChapter(id: string, rel: string, newTitle: string): RenameChapterResult {
@@ -329,6 +330,8 @@ export function renameChapter(id: string, rel: string, newTitle: string): Rename
     const hNew = join(projectDir(id), snapDirFor(newRel))
     if (existsSync(hOld) && !existsSync(hNew)) renameSync(hOld, hNew)
   } catch { /* best-effort */ }
+  // 3.5) proposals.chapter 引用迁移（stale 判定键 + 抽屉展示；锚点写入不依赖它，仅同步指针）
+  try { migrateChapter(libraryRoot(), id, rel, newRel) } catch { /* best-effort */ }
   // 4) 删除旧文件（内容已迁移）
   rmSync(oldAbs, { force: true })
   return { ok: true, newRel }
