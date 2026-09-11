@@ -75,6 +75,31 @@ describe('applyAnchor（锚点写入核心算法）', () => {
     const r = applyAnchor('文', item({ kind: 'append', after: '追加' }))
     expect(r.out).toBe('文\n\n追加')
   })
+
+  it('锚点精确化：前缀相似不误命中——「夜」不得替换「夜雨」整节（回归：曾 includes 误替换丢数据）', () => {
+    const text = '# 陈默\n\n## 基础档案\n\n- 姓名：陈默\n\n## 切片：第一幕_夜雨\n\n- 雨夜：灯笼与雾\n\n## 成长轨迹\n\n轨迹'
+    const r = applyAnchor(text, item({ anchor: '切片：第一幕_夜', after: '- 夜：守灯' }))
+    expect(r.ok).toBe(true)
+    // 「夜雨」整节原样保留
+    expect(r.out).toContain('## 切片：第一幕_夜雨')
+    expect(r.out).toContain('- 雨夜：灯笼与雾')
+    expect(r.out).toContain('## 成长轨迹')
+    // 夜 走文末追加 H2，不碰已有节（用「- 夜：守灯」出现位置在后证明非原地替换；前缀子串不可比）
+    expect(r.out).toContain('## 切片：第一幕_夜\n\n- 夜：守灯')
+    expect(r.out!.indexOf('- 夜：守灯')).toBeGreaterThan(r.out!.indexOf('- 雨夜：灯笼与雾'))
+  })
+
+  it('锚点带井号前缀/标题带尾随空格 → 归一化后仍命中替换', () => {
+    const r = applyAnchor('## 现时状态 \n\n旧', item({ anchor: '## 现时状态', after: '新' }))
+    expect(r.out).toContain('新')
+    expect(r.out).not.toContain('旧')
+  })
+
+  it('全角空格锚点归一化后命中', () => {
+    const r = applyAnchor('## 切片：A\u3000\n\n旧', item({ anchor: '切片：A', after: '新' }))
+    expect(r.out).toContain('新')
+    expect(r.out).not.toContain('旧')
+  })
 })
 
 describe('createProposals', () => {

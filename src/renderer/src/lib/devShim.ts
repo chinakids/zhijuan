@@ -4,6 +4,7 @@ import type { EditItem } from '../../../shared/types'
 import { countWords } from '../../../shared/count'
 import { extractFrontMatter, setFrontMatterField } from '../../../shared/fmatter'
 import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceCheck, chapterMissingFromRaw } from '../../../shared/presence'
+import { findAnchorLine, normalizeAnchor } from '../../../shared/anchor'
 import type { RecentEntry } from '../../../shared/projects'
 import { toast } from '../store/toasts'
 
@@ -1058,25 +1059,24 @@ const mock = {
   })
 }
 
-/** devShim 用的锚点写入（与 main 侧同规则：标题下节体替换；无标题则追加） */
+/** devShim 用的锚点写入（与 main 侧同规则：shared/anchor 精确匹配；标题下节体替换；无标题则追加 H2） */
 function applyAnchor(text: string, it: ProposalItem): string {
-  const lines = text.split('\n')
-  const hit = lines.findIndex((l) => /^#{1,4}\s/.test(l) && l.replace(/^#+\s*/, '').replace(/^#/, '').trim() === it.anchor)
   if (it.kind === 'append') return text + '\n\n' + it.after
-  if (hit >= 0) {
-    const level = (lines[hit].match(/^#+/) || [''])[0].length
-    let end = lines.length
-    for (let i = hit + 1; i < lines.length; i++) {
-      const m = lines[i].match(/^#+/)
-      if (m && m[0].length <= level) {
-        end = i
-        break
-      }
+  const anchor = normalizeAnchor(it.anchor || '')
+  const lines = text.split('\n')
+  if (!anchor) return text.trimEnd() + '\n\n## 切片状态\n\n' + it.after + '\n'
+  const hit = findAnchorLine(lines, anchor)
+  if (!hit) return text.trimEnd() + '\n\n## ' + anchor + '\n\n' + it.after + '\n'
+  let end = lines.length
+  for (let i = hit.line + 1; i < lines.length; i++) {
+    const m = lines[i].match(/^(#{1,6})\s+/)
+    if (m && m[1].length <= hit.level) {
+      end = i
+      break
     }
-    const head = lines[hit]
-    return [...lines.slice(0, hit), head, '', ...it.after.split('\n'), '', ...lines.slice(end)].join('\n')
   }
-  return text.trimEnd() + '\n\n## ' + it.anchor + '\n\n' + it.after + '\n'
+  const head = lines[hit.line]
+  return [...lines.slice(0, hit.line), head, '', ...it.after.split('\n'), '', ...lines.slice(end)].join('\n')
 }
 
 /** 无头冒烟：`?zj-fail=<api>[,<api>…]`（首次调用 reject 一次，重试恢复）与

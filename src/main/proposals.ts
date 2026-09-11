@@ -4,6 +4,7 @@ import { join, dirname } from 'path'
 import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import type { Proposal, ProposalItem } from '../shared/types'
 import { DOT_DIR } from '../shared/paths'
+import { findAnchorLine, normalizeAnchor } from '../shared/anchor'
 
 function dir(root: string, projectId: string): string {
   return join(root, projectId, DOT_DIR, 'proposals')
@@ -122,28 +123,21 @@ export function rejectProposal(root: string, projectId: string, id: string): boo
   return true
 }
 
-/** 按锚点把 item.after 写进文档；upsert-section 做「同节替换 / 无节追加」 */
+/** 按锚点把 item.after 写进文档；upsert-section 做「同节替换 / 无节追加」。
+ *  锚点匹配＝归一化后精确相等（shared/anchor.ts，与 devShim 同口径）：不做 includes——
+ *  「切片：第一幕_夜」不得误命中「切片：第一幕_夜雨」并整节替换（2026-09-11 锚点精确化）。 */
 export function applyAnchor(text: string, it: ProposalItem): { ok: boolean; out?: string; msg?: string } {
   if (it.kind === 'append') return { ok: true, out: text + '\n\n' + it.after }
-  const anchor = (it.anchor || '').replace(/^#+\s*/, '').trim()
+  const anchor = normalizeAnchor(it.anchor || '')
   if (!anchor) return { ok: true, out: text + '\n\n## 切片状态\n\n' + it.after }
   const lines = text.split('\n')
-  let hit = -1
-  let hitLevel = 0
-  for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(/^(#{1,6})\s+(.*)$/)
-    if (m && m[2].trim().includes(anchor)) {
-      hit = i
-      hitLevel = m[1].length
-      break
-    }
-  }
-  if (hit < 0) return { ok: true, out: text + '\n\n## ' + anchor + '\n\n' + it.after }
+  const hit = findAnchorLine(lines, anchor)
+  if (!hit) return { ok: true, out: text + '\n\n## ' + anchor + '\n\n' + it.after }
   let end = lines.length
-  for (let i = hit + 1; i < lines.length; i++) {
+  for (let i = hit.line + 1; i < lines.length; i++) {
     const m = lines[i].match(/^(#{1,6})\s+/)
-    if (m && m[1].length <= hitLevel) { end = i; break }
+    if (m && m[1].length <= hit.level) { end = i; break }
   }
-  const keepHeader = lines[hit]
-  return { ok: true, out: [...lines.slice(0, hit), keepHeader, '', ...it.after.split('\n'), '', ...lines.slice(end)].join('\n') }
+  const keepHeader = lines[hit.line]
+  return { ok: true, out: [...lines.slice(0, hit.line), keepHeader, '', ...it.after.split('\n'), '', ...lines.slice(end)].join('\n') }
 }
