@@ -6,12 +6,14 @@ import { Loader2, Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck,
 import type { ProseApi } from '../editor/Prose'
 import type { AuditKind, EditItem } from '../../../../shared/types'
 import { filterAtCandidates, insertAtMention, parseAtTrigger, type AtCandidate } from '../../../../shared/mention'
+import { expandCommand, filterCommandCandidates, insertCommand, parseCommandTrigger, type ZjCommand } from '../../../../shared/commands'
 import { useAgentStore } from './store'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
 import TodoCard from './TodoCard'
 import AskCard from './AskCard'
 import AuditDrawer from '../audit/AuditDrawer'
 import AtMentionMenu from './AtMentionMenu'
+import CommandMenu from './CommandMenu'
 import { cn } from '../../lib/utils'
 import { Button } from '../../components/ui/button'
 
@@ -165,7 +167,9 @@ function useSender(props: AgentPanelProps) {
       const rid = newRid()
       const patch = (t: string, trunc = true) => {
         const msgs = useAgentStore.getState().messages
-        const last = msgs[msgs.length - 1]
+        // 必须定位 assistant 气泡：tool 消息（meta/todo/ask/edit 卡）append 在其后，
+        // at(-1) 会把 delta/final 打进工具卡 content（回复错位/丢失）
+        const last = [...msgs].reverse().find((m) => m.role === 'assistant') ?? msgs[msgs.length - 1]
         if (!last) return
         const v = trunc && t.length > CHAR_LIMIT ? t.slice(0, CHAR_LIMIT) + '…（截断）' : t
         useAgentStore.getState().patch(last.id, v)
@@ -258,6 +262,10 @@ export default function AgentPanel(props: AgentPanelProps) {
   const [atTrg, setAtTrg] = useState<{ at: number; length: number; query: string } | null>(null)
   const [atItems, setAtItems] = useState<AtCandidate[]>([])
   const [atActive, setAtActive] = useState(0)
+  // ---------- 输入框 / 命令（skill 槽位；与 @ 互斥，取光标前更近的触发字符） ----------
+  const [cmdTrg, setCmdTrg] = useState<{ at: number; length: number; query: string } | null>(null)
+  const [cmdItems, setCmdItems] = useState<ZjCommand[]>([])
+  const [cmdActive, setCmdActive] = useState(0)
 
   useEffect(() => {
     let alive = true
@@ -284,16 +292,29 @@ export default function AgentPanel(props: AgentPanelProps) {
     }
   }, [props.projectId])
 
-  const refreshAt = useCallback((value: string, caret: number) => {
-    const t = parseAtTrigger(value, caret)
-    if (!t) {
+  // @ 与 / 统一触发刷新：同一 caret 下最多一个浮层，激活「更靠近光标」的触发器
+  const refreshInput = useCallback((value: string, caret: number) => {
+    const atT = parseAtTrigger(value, caret)
+    const cmdT = parseCommandTrigger(value, caret)
+    const useCmd = cmdT !== null && (atT === null || cmdT.at > atT.at)
+    if (useCmd && cmdT) {
+      const items = filterCommandCandidates(cmdT.query)
       setAtTrg(null)
+      setCmdTrg(cmdT)
+      setCmdItems(items)
+      setCmdActive((a) => Math.min(a, Math.max(0, items.length - 1)))
       return
     }
-    const items = filterAtCandidates(atDataRef.current, t.query)
-    setAtTrg(t)
-    setAtItems(items)
-    setAtActive((a) => Math.min(a, Math.max(0, items.length - 1)))
+    if (atT) {
+      const items = filterAtCandidates(atDataRef.current, atT.query)
+      setCmdTrg(null)
+      setAtTrg(atT)
+      setAtItems(items)
+      setAtActive((a) => Math.min(a, Math.max(0, items.length - 1)))
+      return
+    }
+    setAtTrg(null)
+    setCmdTrg(null)
   }, [])
 
   const pickAt = useCallback(
@@ -344,6 +365,52 @@ export default function AgentPanel(props: AgentPanelProps) {
     [atTrg, atItems.length, pickAt]
   )
 
+  const pickCmd = useCallback(
+    (i?: number) => {
+      const cmd = cmdItems[i ?? cmdActive]
+      const trg = cmdTrg
+      if (!cmd || !trg) return
+      const el = taRef.current
+      const cur = el?.value ?? ''
+      const r = insertCommand(cur, trg, cmd)
+      // 与 pickAt 同口径：flushSync 强制同步提交，setSelectionRange 才不会跑在旧值 DOM 上
+      flushSync(() => {
+        setCmdTrg(null)
+        setInput(r.value)
+      })
+      el?.focus()
+      el?.setSelectionRange(r.caret, r.caret)
+    },
+    [cmdItems, cmdActive, cmdTrg]
+  )
+
+  const onCmdKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
+      if (!cmdTrg) return false
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        setCmdActive((a) => {
+          const n = cmdItems.length
+          if (!n) return 0
+          return e.key === 'ArrowDown' ? (a + 1) % n : (a - 1 + n) % n
+        })
+        return true
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault()
+        pickCmd()
+        return true
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setCmdTrg(null)
+        return true
+      }
+      return false
+    },
+    [cmdTrg, cmdItems.length, pickCmd]
+  )
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
   }, [messages, streaming])
@@ -366,7 +433,9 @@ export default function AgentPanel(props: AgentPanelProps) {
   function doSend() {
     const v = input
     setInput('')
-    void send(v.trim(), quote)
+    // / 命令展开：匹配内置命令名→替换为模板 prompt（未匹配按普通消息原样发送）
+    const prompt = expandCommand(v, props.chapterTitle) ?? v
+    void send(prompt.trim(), quote)
   }
 
   const sendBlock: ReactNode = (
@@ -378,18 +447,19 @@ export default function AgentPanel(props: AgentPanelProps) {
           const v = e.target.value
           setInput(v)
           const composing = (e.nativeEvent as { isComposing?: boolean }).isComposing
-          if (!composing) refreshAt(v, e.target.selectionStart ?? v.length)
+          if (!composing) refreshInput(v, e.target.selectionStart ?? v.length)
         }}
         onSelect={(e) => {
           const el = e.currentTarget
-          refreshAt(el.value, el.selectionStart ?? 0)
+          refreshInput(el.value, el.selectionStart ?? 0)
         }}
         onCompositionEnd={(e) => {
           const el = e.currentTarget
-          refreshAt(el.value, el.selectionStart ?? el.value.length)
+          refreshInput(el.value, el.selectionStart ?? el.value.length)
         }}
         onKeyDown={(e) => {
           if (onAtKeyDown(e)) return
+          if (onCmdKeyDown(e)) return
           if (e.key === 'Enter' && !e.shiftKey) {
             // IME 选字回车（isComposing）只确认候选，不发送
             if ((e.nativeEvent as { isComposing?: boolean }).isComposing) return
@@ -397,12 +467,16 @@ export default function AgentPanel(props: AgentPanelProps) {
             doSend()
           }
         }}
-        placeholder="让 agent 续写 / 改写 / 查设定…（Enter 发送，@ 引用设定）"
+        placeholder="让 agent 续写 / 改写 / 查设定…（Enter 发送，@ 引用，/ 命令）"
         className="max-h-40 min-h-[64px] w-full resize-none rounded-xl border border-hair bg-surface pb-9 pl-2.5 pr-11 pt-2 text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:ring-1 focus:ring-accent"
       />
       {/* @ 引用浮层（GitHub/Slack mention 范式：固定在输入框上方） */}
       {atTrg && (
         <AtMentionMenu items={atItems} active={atActive} onPick={(i) => pickAt(i)} onActiveChange={setAtActive} />
+      )}
+      {/* / 命令浮层（与 @ 互斥，同一位置） */}
+      {cmdTrg && (
+        <CommandMenu items={cmdItems} active={cmdActive} onPick={(i) => pickCmd(i)} onActiveChange={setCmdActive} />
       )}
       {/* 上下文用量（发送按钮左侧） */}
       <div className="pointer-events-none absolute inset-x-2.5 bottom-2 flex items-center gap-1 text-[10px] text-ink-3">
