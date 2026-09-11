@@ -91,7 +91,7 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-black/10" onClick={onClose}>
       <div
-        className="flex h-full w-[440px] max-w-[92vw] flex-col border-l border-hair bg-surface shadow-lg"
+        className="flex h-full w-[440px] max-w-[92vw] flex-col border-l border-hair bg-surface shadow-[var(--shadow)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">

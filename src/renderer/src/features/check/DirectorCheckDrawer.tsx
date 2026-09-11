@@ -101,7 +101,7 @@ export default function DirectorCheckDrawer({ projectId, chapter, open, onClose,
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-black/10" onClick={onClose}>
-      <div className="flex h-full w-[460px] max-w-[94vw] flex-col border-l border-hair bg-surface shadow-lg" onClick={(e) => e.stopPropagation()}>
+      <div className="flex h-full w-[460px] max-w-[94vw] flex-col border-l border-hair bg-surface shadow-[var(--shadow)]" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
           <Clapperboard className="h-4 w-4 text-accent" />
           <span className="truncate text-sm font-semibold">导演兑现检查 · {chapter?.name ?? '-'}</span>

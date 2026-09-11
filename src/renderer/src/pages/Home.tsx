@@ -211,7 +211,7 @@ export default function Home() {
           {visible.map((p) => {
             const [c1, c2] = coverOf(p.id)
             return (
-              <Card key={p.id} className="group cursor-pointer overflow-hidden transition-shadow hover:shadow-lg" onClick={() => openProject(p.id)}>
+              <Card key={p.id} className="group cursor-pointer overflow-hidden transition-shadow hover:border-hair-strong hover:shadow-[var(--shadow)]" onClick={() => openProject(p.id)}>
                 {/* 封面条 */}
                 <div className="h-10" style={{ background: `linear-gradient(120deg, ${c1}, ${c2})` }} />
                 <div className="p-4">
