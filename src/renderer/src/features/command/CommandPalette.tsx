@@ -147,6 +147,29 @@ export default function CommandPalette() {
           </CommandGroup>
         )}
 
+        {projectId && q.trim() === '' && (recentMats && recentMats.length > 0) && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="最近素材">
+              {recentMats.map((m) => (
+                <CommandItem
+                  key={m.file}
+                  value={`素材 最近 ${m.name}`}
+                  keywords={[m.name, libraryCategoryOf(m.file)]}
+                  onSelect={() => go(`/project/${projectId}/library?doc=${encodeURIComponent(m.file)}`)}
+                >
+                  <FileText className="h-4 w-4 shrink-0 text-ink-3" />
+                  <span className="min-w-0 truncate">
+                    {libraryCategoryOf(m.file) ? <span className="text-ink-3">{libraryCategoryOf(m.file)}/</span> : null}
+                    {m.name}
+                  </span>
+                  <span className="ml-auto shrink-0 text-[11px] text-ink-3">{formatRelativeTime(m.mtime)}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+
         {projectId && (chLoading || chapters.length > 0) && (
           <>
             <CommandSeparator />
@@ -166,30 +189,14 @@ export default function CommandPalette() {
                 >
                   <BookOpen className="h-4 w-4 text-ink-3" />
                   <span className="truncate">{c.fm ? `第${c.fm['章号'] ?? '?'}章 · ${c.fm['题名'] ?? c.name}` : c.name}</span>
-                  <span className="ml-auto shrink-0 text-[11px] text-ink-3">{c.wordCount} 字</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </>
-        )}
-
-        {projectId && q.trim() === '' && (recentMats && recentMats.length > 0) && (
-          <>
-            <CommandSeparator />
-            <CommandGroup heading="最近素材">
-              {recentMats.map((m) => (
-                <CommandItem
-                  key={m.file}
-                  value={`素材 最近 ${m.name}`}
-                  keywords={[m.name, libraryCategoryOf(m.file)]}
-                  onSelect={() => go(`/project/${projectId}/library?doc=${encodeURIComponent(m.file)}`)}
-                >
-                  <FileText className="h-4 w-4 shrink-0 text-ink-3" />
-                  <span className="min-w-0 truncate">
-                    {libraryCategoryOf(m.file) ? <span className="text-ink-3">{libraryCategoryOf(m.file)}/</span> : null}
-                    {m.name}
-                  </span>
-                  <span className="ml-auto shrink-0 text-[11px] text-ink-3">{formatRelativeTime(m.mtime)}</span>
+                  {c.fm?.['切片'] ? (
+                    <span className="ml-auto max-w-28 shrink-0 truncate rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-3" title={`时间切片：${c.fm['切片']}`}>
+                      切片：{c.fm['切片']}
+                    </span>
+                  ) : (
+                    <span className="ml-auto shrink-0 text-[10px] text-ink-3">未设切片</span>
+                  )}
+                  <span className="ml-2 shrink-0 text-[11px] text-ink-3">{c.wordCount} 字</span>
                 </CommandItem>
               ))}
             </CommandGroup>
