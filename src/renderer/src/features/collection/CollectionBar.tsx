@@ -176,8 +176,8 @@ export default function CollectionBar() {
         <CloudDownload className="h-4 w-4 text-accent" />
         <span className="text-xs font-medium text-ink">采集任务（本机管道按需求抓取）</span>
         <span className="flex-1" />
-        <Button variant="outline" size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => void refresh()}>
-          <RefreshCw className="mr-1 h-3 w-3" /> 刷新
+        <Button variant="outline" size="sm" className="h-7 px-2.5 text-[11px] [&_svg]:size-3" onClick={() => void refresh()}>
+          <RefreshCw className="mr-1" /> 刷新
         </Button>
         <Button size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => setOpen(true)}>＋ 发起采集</Button>
       </div>
@@ -340,7 +340,7 @@ export default function CollectionBar() {
                 onClick={() => view && void doRetry(view)}
                 title="把任务卡重置为待处理（清掉旧结果），本机管道会重新采集"
               >
-                <RefreshCw className="mr-1 h-3 w-3" /> 重发任务
+                <RefreshCw className="mr-1" /> 重发任务
               </Button>
             )}
             {view && (

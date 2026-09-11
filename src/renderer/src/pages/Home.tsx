@@ -249,7 +249,7 @@ export default function Home() {
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-ink-3 hover:text-ink">
-                        <MoreHorizontal className="h-4 w-4" />
+                        <MoreHorizontal />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">

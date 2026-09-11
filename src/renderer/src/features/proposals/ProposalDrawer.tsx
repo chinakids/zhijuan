@@ -74,11 +74,11 @@ function ItemCard({ p, projectId, onChanged }: { p: Proposal; projectId: string;
         </div>
       )}
       <div className="mt-3 flex items-center gap-2">
-        <Button size="sm" className="h-7 px-2 text-[11px]" onClick={() => void doApply()} disabled={busy || p.status !== 'pending'}>
-          <Check className="mr-1 h-3 w-3" /> 接受
+        <Button size="sm" className="h-7 px-2 text-[11px] [&_svg]:size-3" onClick={() => void doApply()} disabled={busy || p.status !== 'pending'}>
+          <Check className="mr-1" /> 接受
         </Button>
-        <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => void doReject()} disabled={p.status !== 'pending'}>
-          <X className="mr-1 h-3 w-3" /> 拒绝
+        <Button size="sm" variant="outline" className="h-7 px-2 text-[11px] [&_svg]:size-3" onClick={() => void doReject()} disabled={p.status !== 'pending'}>
+          <X className="mr-1" /> 拒绝
         </Button>
         <span className="text-[10px] text-ink-3">来自：{p.source === 'slice-sync' ? '正文保存同步' : 'agent'}</span>
       </div>

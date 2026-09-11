@@ -258,14 +258,14 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
           <Button
             variant="ghost"
             size="sm"
-            className="w-full justify-start gap-1.5 text-[11px] text-ink-2"
+            className="w-full justify-start gap-1.5 text-[11px] text-ink-2 [&_svg]:size-3"
             onClick={() => {
               setNewCatErr('')
               setNewCatName('')
               setNewCatOpen(true)
             }}
           >
-            <FolderPlus className="h-3.5 w-3.5" /> 新类别
+            <FolderPlus /> 新类别
           </Button>
         </div>
       </aside>
@@ -293,7 +293,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
               <Button
                 variant="outline"
                 size="sm"
-                className="shrink-0 whitespace-nowrap"
+                className="shrink-0 whitespace-nowrap [&_svg]:size-3.5"
                 disabled={!selCat}
                 title={selCat ? '在当前类别新建素材卡' : '先在左侧选择一个类别'}
                 onClick={() => {
@@ -301,7 +301,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
                   setNewMatOpen(true)
                 }}
               >
-                <Plus className="h-3.5 w-3.5" /> 新建素材
+                <Plus /> 新建素材
               </Button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">

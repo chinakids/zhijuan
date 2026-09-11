@@ -132,8 +132,8 @@ export default function AskCard({ id, batch, questions, onAnswered }: Props) {
           </span>
         ) : (
           <>
-            <Button size="sm" className="h-7 px-3 text-xs" onClick={() => void submit()} disabled={!ready || submitting}>
-              {submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+            <Button size="sm" className="h-7 px-3 text-xs [&_svg]:size-3" onClick={() => void submit()} disabled={!ready || submitting}>
+              {submitting ? <Loader2 className="animate-spin" /> : <Send />}
               <span className="ml-1">提交回答</span>
             </Button>
             {err && <span className="text-[11px] text-danger">{err}</span>}

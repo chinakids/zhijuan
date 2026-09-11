@@ -168,14 +168,14 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
                   <div className="mt-2 flex items-center gap-2 pb-2">
                     <Button
                       size="sm"
-                      className={cn('h-7 shrink-0 px-2 text-[11px]', confirming && 'bg-danger text-white')}
+                      className={cn('h-7 shrink-0 px-2 text-[11px] [&_svg]:size-3', confirming && 'bg-danger text-white')}
                       disabled={busy || oldText === null}
                       onClick={() => {
                         if (!confirming) { setConfirming(true); return }
                         void restore()
                       }}
                     >
-                      <RotateCcw className="mr-1 h-3 w-3" />
+                      <RotateCcw className="mr-1" />
                       {confirming ? '再次点击确认恢复' : '恢复此版本'}
                     </Button>
                     <span className="text-[10px] text-ink-3">恢复前会自动留存当前版本，误点可在列表找回。</span>

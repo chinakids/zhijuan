@@ -152,7 +152,7 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
                 <div className="flex items-center gap-2">
                   <Input className="flex-1" placeholder="姓名 *" value={r.name} onChange={(e) => patchRow(i, 'name', e.target.value)} />
                   <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" title="删除该角色" onClick={() => delRow(i)}>
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 />
                   </Button>
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-2">
@@ -161,8 +161,8 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
                 </div>
               </div>
             ))}
-            <Button variant="outline" size="sm" className="w-full border-dashed" onClick={addRow}>
-              <Plus className="h-3.5 w-3.5" /> 加一个角色
+            <Button variant="outline" size="sm" className="w-full border-dashed [&_svg]:size-3.5" onClick={addRow}>
+              <Plus /> 加一个角色
             </Button>
           </div>
         )}

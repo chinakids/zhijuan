@@ -116,12 +116,12 @@ function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
       </div>
       {st === 'pending' && (
         <div className="mt-2.5 flex items-center gap-2">
-          <Button size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => void accept()} disabled={busy || !edits.length}>
-            {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Check className="mr-1 h-3 w-3" />}
+          <Button size="sm" className="h-7 px-2.5 text-[11px] [&_svg]:size-3" onClick={() => void accept()} disabled={busy || !edits.length}>
+            {busy ? <Loader2 className="mr-1 animate-spin" /> : <Check className="mr-1" />}
             采纳并写入
           </Button>
-          <Button size="sm" variant="outline" className="h-7 px-2.5 text-[11px]" onClick={() => useAgentStore.getState().setEditState(id, 'rejected')} disabled={busy}>
-            <X className="mr-1 h-3 w-3" /> 拒绝
+          <Button size="sm" variant="outline" className="h-7 px-2.5 text-[11px] [&_svg]:size-3" onClick={() => useAgentStore.getState().setEditState(id, 'rejected')} disabled={busy}>
+            <X className="mr-1" /> 拒绝
           </Button>
           <span className="text-[10px] text-ink-3">择优后再采纳，采纳即写入 {file}</span>
         </div>
@@ -772,7 +772,7 @@ export default function AgentPanel(props: AgentPanelProps) {
           )}
           <div className="flex gap-1.5">
             <Button variant="outline" size="sm" className="h-8 shrink-0 px-2" title="把编辑器里选中的段落作为引用" onClick={grabQuote}>
-              <Paperclip className="h-3.5 w-3.5" />
+              <Paperclip />
               <span className="ml-1">引用选中</span>
             </Button>
           </div>
