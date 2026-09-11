@@ -418,7 +418,7 @@ export default function Outline() {
             {sel === '大纲/索引.md' ? '章卡索引' : sel?.replace('大纲/', '').replace(/\.md$/, '').replace(/_(导演|分幕)$/, '').replace(/^审读_/, '')}
           </span>
           <span className="flex-1" />
-          {msg && <span className={cn('max-w-[40vw] truncate rounded-full px-2.5 py-0.5 text-[11px]', msg.startsWith('✓') ? 'bg-[#e6f0ee] text-success' : msg.startsWith('✗') ? 'bg-danger-soft text-danger' : 'bg-accent-soft text-accent')}>{msg}</span>}
+          {msg && <span className={cn('max-w-[40vw] truncate rounded-full px-2.5 py-0.5 text-[11px]', msg.startsWith('✓') ? 'bg-success-soft text-success' : msg.startsWith('✗') ? 'bg-danger-soft text-danger' : 'bg-accent-soft text-accent')}>{msg}</span>}
           {building && (
             <span className="flex items-center gap-1 text-[11px] text-accent">
               <Loader2 className="h-3 w-3 animate-spin" /> 写作引擎逐章回建中…（每章约一两分钟）

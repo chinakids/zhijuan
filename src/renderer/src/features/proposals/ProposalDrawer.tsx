@@ -14,7 +14,7 @@ interface Props {
 
 const STATUS: Record<string, { text: string; cls: string }> = {
   pending: { text: '待确认', cls: 'bg-warn-soft text-warn' },
-  accepted: { text: '已接受', cls: 'bg-[#e6f0ee] text-success' },
+  accepted: { text: '已接受', cls: 'bg-success-soft text-success' },
   rejected: { text: '已拒绝', cls: 'bg-danger-soft text-danger' },
   stale: { text: '已过期', cls: 'bg-surface-2 text-ink-3' }
 }

@@ -26,6 +26,7 @@
   --danger: #b5382e;
   --danger-soft: #f6e6e3;
   --success: #2f7d4f;
+  --success-soft: #e3ede6;
   --warn: #9a6a0a;
   --warn-soft: #f6edd8;
   /* 其它 */
@@ -49,6 +50,7 @@
   --danger: #e07063;
   --danger-soft: color-mix(in srgb, #e07063 16%, transparent);
   --success: #66b588;
+  --success-soft: color-mix(in srgb, #66b588 15%, transparent);
   --warn: #d3a077;
   --warn-soft: color-mix(in srgb, #d3a077 16%, transparent);
   --selection: color-mix(in srgb, var(--accent) 30%, transparent);
@@ -88,6 +90,7 @@
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
   --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
   --color-warn: var(--warn);
   --color-warn-soft: var(--warn-soft);
   --font-sans: 'PingFang SC', 'Hiragino Sans GB', -apple-system, 'Helvetica Neue', sans-serif;
@@ -125,11 +128,14 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  /* 全局用适合中文长读的衬线字体（写作软件的整体纸面质感） */
-  font-family: var(--font-serif);
+  /* UI 默认用无衬线（macOS 系统 UI 字 PingFang SC，现代清晰）；
+   * 只有正文创作区（.paper-canvas / .zj-md .ProseMirror）才切衬线宋体——
+   * 老版本全局宋体导致界面读起来陈旧像 Web 原型（主人反馈「不够高级」，2026-09-11 修正） */
+  font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 ::selection {

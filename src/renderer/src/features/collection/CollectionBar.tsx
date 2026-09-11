@@ -27,7 +27,7 @@ interface TaskInfo {
 const STATUS_CLS: Record<string, string> = {
   pending: 'bg-warn-soft text-warn',
   running: 'bg-accent-soft text-accent',
-  done: 'bg-[#e6f0ee] text-success',
+  done: 'bg-success-soft text-success',
   failed: 'bg-danger-soft text-danger'
 }
 
