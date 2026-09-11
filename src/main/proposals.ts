@@ -80,6 +80,28 @@ export function migrateChapter(root: string, projectId: string, oldRel: string, 
   return n
 }
 
+/** 章节删除后无效化其 pending 提案（2026-09-12 审计补齐）：删除=该章产生的提议不再适用，
+ * 置 stale 与「同章再保存」同语义（抽屉「已过期」展示、apply 拒绝），属镜像 migrateChapter 的指针面。
+ * 返回处理条数（best-effort，坏档跳过）。 */
+export function invalidateChapter(root: string, projectId: string, rel: string): number {
+  if (!rel) return 0
+  const d = dir(root, projectId)
+  if (!existsSync(d)) return 0
+  let n = 0
+  for (const f of readdirSync(d)) {
+    if (!f.endsWith('.json')) continue
+    try {
+      const p = JSON.parse(readFileSync(join(d, f), 'utf-8')) as Proposal
+      if (p.chapter === rel && p.status === 'pending') {
+        p.status = 'stale'
+        writeFileSync(join(d, f), JSON.stringify(p, null, 2), 'utf-8')
+        n++
+      }
+    } catch { /* 坏档跳过 */ }
+  }
+  return n
+}
+
 /** 接受：把 each item 的 after 按锚点写入对应文件 */
 export function applyProposal(root: string, projectId: string, id: string): { ok: boolean; applied: string[]; errors: string[] } {
   const p = findStatus(root, projectId, id)

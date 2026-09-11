@@ -173,6 +173,58 @@ describe('deleteDoc（删除项目内文档：废纸篓优先、路径校验、�
   })
 })
 
+describe('deleteChapter（删除章节：正文/大纲副产物/历史目录进废纸篓，pending 提案置 stale）', () => {
+  beforeEach(() => {
+    setSettings({ workspace: join(holder.tmp, 'ws'), libraryRoot: holder.projects() })
+    vi.mocked(shell.trashItem).mockReset()
+    vi.mocked(shell.trashItem).mockResolvedValue(undefined)
+  })
+  afterEach(() => {
+    setSettings({ workspace: '', libraryRoot: '' })
+  })
+
+  it('引用面齐全：大纲副产物 cleaned、正文/副产物/历史目录均调废纸篓、同章 pending 提案置 stale', async () => {
+    const p = store.createProject('删章', '')!
+    const id = p.id
+    const rel = '正文/第01章_雾港.md'
+    store.writeDoc(id, rel, '---\n章号: 1\n题名: 雾港\n切片: 一\n---\n\n正文 v1')
+    store.writeDoc(id, rel, '---\n章号: 1\n题名: 雾港\n切片: 一\n---\n\n正文 v2') // 第二次写触发快照
+    store.writeDoc(id, '大纲/第01章_雾港.md', '# 章卡\n\n目标…')
+    store.writeDoc(id, '大纲/第01章_雾港_导演.md', '# 导演板\n\n…')
+    const pd = join(holder.projects(), id, '.zhijuan', 'proposals')
+    mkdirSync(pd, { recursive: true })
+    writeFileSync(
+      join(pd, 'x.json'),
+      JSON.stringify({ id: 'x', source: 'sync', chapter: rel, slice: '一', status: 'pending', createdAt: 1, items: [] })
+    )
+    const r = await store.deleteChapter(id, rel)
+    expect(r.ok).toBe(true)
+    expect(r.cleaned).toBe(2)
+    const calls = vi.mocked(shell.trashItem).mock.calls.map((c) => String(c[0]))
+    expect(calls.some((c) => c.endsWith('正文/第01章_雾港.md'))).toBe(true)
+    expect(calls.some((c) => c.endsWith('大纲/第01章_雾港.md'))).toBe(true)
+    expect(calls.some((c) => c.endsWith('大纲/第01章_雾港_导演.md'))).toBe(true)
+    expect(calls.some((c) => c.includes(join('.zhijuan', 'history', '正文', '第01章_雾港')))).toBe(true)
+    const prop = JSON.parse(readFileSync(join(pd, 'x.json'), 'utf-8'))
+    expect(prop.status).toBe('stale')
+  })
+
+  it('无历史目录/无提案也可正常删除（引用面 best-effort 不挡主路径）', async () => {
+    const p = store.createProject('删章2', '')!
+    store.writeDoc(p.id, '正文/第1章_甲.md', '---\n章号: 1\n---\n甲')
+    const r = await store.deleteChapter(p.id, '正文/第1章_甲.md')
+    expect(r.ok).toBe(true)
+    expect(r.cleaned).toBe(0)
+  })
+
+  it('路径校验：非 正文/ 前缀拒绝', async () => {
+    const p = store.createProject('删章3', '')!
+    const r = await store.deleteChapter(p.id, '人物/林晚.md')
+    expect(r.ok).toBe(false)
+    expect(r.error).toBe('路径不合法')
+  })
+})
+
 describe('importProject（导入已有目录：复制入库、跳过杂物、幂等）', () => {
   const src = join(holder.tmp, '外部作品')
   beforeEach(() => {

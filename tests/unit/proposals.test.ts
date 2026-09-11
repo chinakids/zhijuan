@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { applyAnchor, applyProposal, createProposals, listProposals, migrateChapter, rejectProposal } from '../../src/main/proposals'
+import { applyAnchor, applyProposal, createProposals, invalidateChapter, listProposals, migrateChapter, rejectProposal } from '../../src/main/proposals'
 import type { ProposalItem } from '../../src/shared/types'
 
 let root: string
@@ -228,5 +228,34 @@ describe('rejectProposal', () => {
     expect(rejectProposal(root, 'p', p.id)).toBe(true)
     expect(listProposals(root, 'p')[0].status).toBe('rejected')
     expect(rejectProposal(root, 'p', p.id)).toBe(false)
+  })
+})
+
+describe('invalidateChapter（章节删除后提案失效）', () => {
+  const write = (name: string, p: Partial<{ id: string; chapter: string; status: string }>) => {
+    const d = join(root, 'p', '.zhijuan', 'proposals')
+    mkdirSync(d, { recursive: true })
+    writeFileSync(
+      join(d, name),
+      JSON.stringify({ id: name, source: 'sync', chapter: '正文/第01章_雾港.md', slice: 's', status: 'pending', createdAt: 1, items: [item({})], ...p })
+    )
+  }
+  it('仅该章的 pending 置 stale；其他章与已非 pending 的不动', () => {
+    write('a.json', { id: 'a' })
+    write('b.json', { id: 'b', chapter: '正文/第02章_听潮.md' })
+    write('c.json', { id: 'c', status: 'stale' })
+    write('d.json', { id: 'd', status: 'rejected' })
+    expect(invalidateChapter(root, 'p', '正文/第01章_雾港.md')).toBe(1)
+    const byId = Object.fromEntries(listProposals(root, 'p').map((x) => [x.id, x]))
+    expect(byId.a.status).toBe('stale')
+    expect(byId.b.status).toBe('pending')
+    expect(byId.c.status).toBe('stale')
+    expect(byId.d.status).toBe('rejected')
+  })
+  it('无匹配 → 0 且不动任何档；空 rel 直接 0', () => {
+    write('a.json', { id: 'a' })
+    expect(invalidateChapter(root, 'p', '正文/第99章_不存在.md')).toBe(0)
+    expect(invalidateChapter(root, 'p', '')).toBe(0)
+    expect(listProposals(root, 'p')[0].status).toBe('pending')
   })
 })

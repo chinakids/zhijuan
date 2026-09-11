@@ -452,6 +452,12 @@ const mock = {
       }
     }
     docs.delete(k)
+    // 与真机 store.deleteChapter 同口径（2026-09-12）：历史入口随删除进废纸篓（无头=移除内存 key），
+    // 指向本章的 pending 提案置 stale（invalidateChapter）
+    histories.delete(k)
+    for (const p of mock.proposals) {
+      if (p.chapter === rel && p.status === 'pending') p.status = 'stale'
+    }
     fsEmit(_id, rel)
     return { ok: true, cleaned }
   },

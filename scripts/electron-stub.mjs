@@ -12,4 +12,4 @@ export const app = {
 }
 export const ipcMain = { handle: () => {} }
 export const BrowserWindow = { getAllWindows: () => [] }
-export const shell = { openExternal: () => {}, showItemInFolder: () => {} }
+export const shell = { openExternal: () => {}, showItemInFolder: () => {}, trashItem: async (p) => { const fsp = await import('node:fs/promises'); await fsp.rm(p, { recursive: true, force: true }) } }

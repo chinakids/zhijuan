@@ -170,16 +170,18 @@ describe('renameChapter（重命名：约定头题名 + 文件名 + 引用面）
   })
 })
 
-describe('deleteChapter（删除：正文 + 大纲副产物进废纸篓）', () => {
-  it('正文与同名大纲副产物全部 trashItem，cleaned 计数正确', async () => {
+describe('deleteChapter（删除：正文 + 大纲副产物 + 历史目录进废纸篓）', () => {
+  it('正文与同名大纲副产物全部 trashItem，历史目录一并移走（可恢复），cleaned 计数正确', async () => {
     const rel = seedChapter()
     const r = await store.deleteChapter(pid, rel)
     expect(r.ok).toBe(true)
     expect(r.cleaned).toBe(2)
-    expect(vi.mocked(shell.trashItem)).toHaveBeenCalledTimes(3)
+    expect(vi.mocked(shell.trashItem)).toHaveBeenCalledTimes(4)
     expect(existsSync(join(proj(), '正文/第01章_雾港.md'))).toBe(false)
     expect(existsSync(join(proj(), '大纲/第01章_雾港.md'))).toBe(false)
     expect(existsSync(join(proj(), '大纲/第01章_雾港_导演.md'))).toBe(false)
+    // 版本历史入口随删除移入废纸篓（同命运、可恢复），防止「删除→重建同名章」旧快照混入
+    expect(existsSync(join(proj(), '.zhijuan/history/正文/第01章_雾港'))).toBe(false)
   })
   it('无大纲副产物时也能删（cleaned=0）', async () => {
     store.writeDoc(pid, '正文/第02章_孤章.md', ['---', '章号: 2', '题名: 孤章', '---', '', '# 孤章', ''].join('\n'))

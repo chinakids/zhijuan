@@ -20,7 +20,7 @@ import { countWords } from '../shared/count'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, DOT_DIR } from '../shared/paths'
 import { sanitizeFile } from '../shared/paths'
 import { isNovelRel, snapDirFor, writeSnapshot } from './history'
-import { migrateChapter } from './proposals'
+import { migrateChapter, invalidateChapter } from './proposals'
 import { libraryRoot } from './settings'
 import { applyTemplate } from './templates'
 import type { ChapterEntry, ChapterFrontMatter, FsEvent, ProjectMeta, ProjectStats, ProjectSummary, ImportResult } from '../shared/types'
@@ -368,7 +368,10 @@ export function renameChapter(id: string, rel: string, newTitle: string): Rename
   return { ok: true, newRel }
 }
 
-/** 删除章节：先删 大纲/ 下同名写作副产物（走系统废纸篓，可恢复），再删正文本身。 */
+/** 删除章节：先删 大纲/ 下同名写作副产物（走系统废纸篓，可恢复），再删正文本身。
+ * 引用面（2026-09-12 审计补齐，与 renameChapter 的引用面镜像）：
+ *  - .zhijuan/history/正文/<章名>/ 版本历史入口 → 与正文同命运走系统废纸篓（避免「删除→重建同名章」旧快照混入新章；可恢复）；
+ *  - .zhijuan/proposals 指向本章的 pending 提案 → 置 stale（该章提议不再适用；复用「已过期」展示，apply 拒绝，见 proposals.invalidateChapter）。 */
 export async function deleteChapter(id: string, rel: string): Promise<{ ok: boolean; error?: string; cleaned?: number }> {
   const bad = !rel || !rel.startsWith('正文/') || !rel.endsWith('.md') || rel.startsWith('/') || rel.split('/').some((s) => s === '..')
   if (bad) return { ok: false, error: '路径不合法' }
@@ -382,6 +385,17 @@ export async function deleteChapter(id: string, rel: string): Promise<{ ok: bool
     }
   }
   const r = await deleteDoc(id, rel)
+  if (r.ok) {
+    try {
+      const h = join(projectDir(id), snapDirFor(rel))
+      if (existsSync(h)) {
+        try {
+          await shell.trashItem(h)
+        } catch { /* best-effort：废纸篓失败保留（下次同名章仍可能混入，但可恢复优先） */ }
+      }
+    } catch { /* best-effort */ }
+    try { invalidateChapter(libraryRoot(), id, rel) } catch { /* best-effort */ }
+  }
   return r.ok ? { ok: true, cleaned } : r
 }
 
