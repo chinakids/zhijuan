@@ -24,8 +24,10 @@ function firstLineName(rel: string): string {
  * 2026-09-10 修复：readWorldState 对空壳继续回看旧名/回退链。
  */
 export function isTemplateShell(text: string): boolean {
+  // 剥离 HTML 注释（模板/说明文字以 <!-- … --> 承载，2026-09-11）；注释不算「已有设定」
+  const stripped = text.replace(/<!--[\s\S]*?-->/g, '')
   return (
-    text
+    stripped
       .split('\n')
       .map((l) => l.trim())
       .filter((l) => l && !l.startsWith('#') && !l.startsWith('> 本切片的世界状态'))

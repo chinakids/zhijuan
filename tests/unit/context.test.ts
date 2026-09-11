@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // store 的 readDoc / listChapters 打桩，其余（fmatter 等）走真实实现
 vi.mock('../../src/main/store', () => ({ readDoc: vi.fn(), listChapters: vi.fn() }))
 
-import { buildWritingContext } from '../../src/main/agent/context'
+import { buildWritingContext, isTemplateShell } from '../../src/main/agent/context'
+import { findAnchorLine } from '../../src/shared/anchor'
 import { readDoc, listChapters } from '../../src/main/store'
 
 const readDocMock = vi.mocked(readDoc)
@@ -263,5 +264,23 @@ describe('buildWritingContext（写作上下文装配）', () => {
     const { blocks, sources } = await buildWritingContext('p', '正文/第2章_雾.md')
     expect(blocks).toHaveLength(0)
     expect(sources).toHaveLength(0)
+  })
+
+  it('isTemplateShell：剥离 HTML 注释再判定——注释式模板/说明不算「已有设定」', () => {
+    // 只有标题+说明行+HTML 注释 = 空壳（模板骨架，2026-09-11 示例模板新口径）
+    const shell =
+      '# 切片：示例切片_初遇\n\n> 本切片的世界状态（规则、事件、环境）。正文保存时的切片同步会把本切片的新状态写入这里；长期不变设定请放《总纲》。\n\n<!-- 这是时间切片文件的骨架：正文保存后，切片同步会把本章揭示的世界新状态写入本文件；可按需组织小节，如「## 本切片时间点」。 -->\n'
+    expect(isTemplateShell(shell)).toBe(true)
+    // 只有注释 = 空壳
+    expect(isTemplateShell('<!-- 只有注释说明 -->\n')).toBe(true)
+    // 出现任何非注释、非标题、非标准说明行的内容 = 有设定
+    expect(isTemplateShell(shell + '## 本切片时间点\n\n凌晨两点，大雾\n')).toBe(false)
+  })
+
+  it('内建「示例」世界切片模板与运行时形态同构：H1 可被切片锚点精确命中', () => {
+    const tpl = '# 切片：示例切片_初遇\n\n> 本切片的世界状态（规则、事件、环境）。正文保存时的切片同步会把本切片的新状态写入这里；长期不变设定请放《总纲》。\n\n<!-- 骨架说明 -->\n'
+    expect(isTemplateShell(tpl)).toBe(true)
+    // 锚点「切片：示例切片_初遇」归一化后与 H1 精确相等（旧形态「# 世界观 · 切片：…」会 miss）
+    expect(findAnchorLine(tpl.split('\n'), '切片：示例切片_初遇')).toEqual({ line: 0, level: 1 })
   })
 })

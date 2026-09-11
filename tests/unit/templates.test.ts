@@ -45,6 +45,19 @@ describe('项目模板（main/templates.ts）', () => {
     expect(ensureBuiltinTemplates()).toEqual([])
   })
 
+  it('示例模板去占位化（2026-09-11）：人物档无「## 切片：示例切片_初遇」死节、说明改 HTML 注释；世界切片文件与运行时形态同构', () => {
+    ensureBuiltinTemplates()
+    const char = readFileSync(join(tplRoot(), BUILTIN_SAMPLE, '人物', '示例角色.md'), 'utf-8')
+    expect(char).not.toContain('## 切片：示例切片_初遇')
+    expect(char).not.toContain('（本切片的角色状态：')
+    expect(char).toContain('<!--')
+    const world = readFileSync(join(tplRoot(), BUILTIN_SAMPLE, '世界观', '切片_示例切片_初遇.md'), 'utf-8')
+    expect(world.startsWith('# 切片：示例切片_初遇')).toBe(true)
+    expect(world).toContain('> 本切片的世界状态')
+    // 注释里允许举例提到小节名，但正文/注释外不得出现真实的「## 本切片时间点」小节行
+    expect(world.split('\n').filter((l) => l.startsWith('## '))).toEqual([])
+  })
+
   it('ensureBuiltinTemplates：已有模板不被覆盖（用户改动保留）', () => {
     ensureBuiltinTemplates()
     const f = join(tplRoot(), BUILTIN_SAMPLE, '人物', '示例角色.md')
