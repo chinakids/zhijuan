@@ -157,6 +157,24 @@ describe('buildWritingContext（写作上下文装配）', () => {
     expect(char).not.toContain('已省略')
   })
 
+  it('世界切片超预算装配**开头**：整节替换式当刻快照无追加式「最新在尾部」，与人物档保尾不同（2026-09-12 审计固化）', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === '正文/第1章_b.md') return FM_1 + '短正文'
+      // 8 + 3990 + 8 = 4006 > 4000：首尾标记不可能同时装下
+      if (rel === '世界观/切片_第一幕.md') return '【切片开头事实】' + '丙'.repeat(3990) + '【切片末尾话题】'
+      return null
+    })
+    listChaptersMock.mockReturnValue([] as never)
+
+    const { blocks } = await buildWritingContext('p', '正文/第1章_b.md')
+    const sl = blocks.find((b) => b.includes('当前切片设定'))
+    expect(sl).toBeTruthy()
+    expect(sl).toContain('【切片开头事实】') // 开头（H1 后的要点区）保留
+    expect(sl).not.toContain('【切片末尾话题】') // 尾部被省略（无追加式最新状态，保头合理）
+    expect(sl).toContain('已省略') // 与正文/人物口径同构：模型知道被截、可现读
+    expect(sl).toContain('zj_read_doc')
+  })
+
   it('第一章没有上一章；当前章不在章节列表时也没有', async () => {
     readDocMock.mockImplementation((_id: string, rel: string) => {
       const table: Record<string, string> = {

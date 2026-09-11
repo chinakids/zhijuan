@@ -138,7 +138,16 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
     if (t.trim()) world = { text: t, rel: '世界观/总纲.md', label: '【世界观总纲】（本切片无设定文件，以长期设定为基准）' }
   }
   if (world) {
-    blocks.push(`${world.label}\n${world.text.slice(0, CAP.slice)}`)
+    // 2026-09-12 切片装配口径审计收口：世界切片文件=「当刻状态」快照，写入走 applyAnchor 命中
+    // H1 整节替换（syncAnchor 归一 target→切片_<名>.md、anchor→「切片：<名>」），无人物档那种
+    // 「切片小节追写文末」的追加式结构 → 不存在「最新在尾部」语义，超限**保头**（与正文/人物
+    // 的「超长装结尾」不同）；但超限必须给提示（与正文/人物口径同构：模型知道被截、可现读）。
+    const over = world.text.length - CAP.slice
+    const body =
+      over > 0
+        ? `（当前切片设定已超 ${CAP.slice} 字符预算：装配的是**开头**部分，末尾 ${over} 字符已省略；要看完整设定请用 zj_read_doc 读取本文件）\n…\n${world.text.slice(0, CAP.slice)}`
+        : world.text
+    blocks.push(`${world.label}\n${body}`)
     sources.push(world.rel)
   }
 
