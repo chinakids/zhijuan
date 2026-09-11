@@ -96,8 +96,8 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose }: 
     onChanged()
   }
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/20">
-      <div className="flex h-full w-[460px] flex-col border-l border-hair bg-paper shadow-[var(--shadow)]">
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/20 animate-in fade-in">
+      <div className="flex h-full w-[460px] flex-col border-l border-hair bg-paper shadow-[var(--shadow)] animate-in fade-in slide-in-from-right-3">
         <div className="flex h-12 shrink-0 items-center border-b border-hair px-4">
           <span className="text-sm font-medium">提案（切片同步）</span>
           <span className="ml-2 text-[11px] text-ink-3">正文保存时自动判别，接受才写入设定</span>

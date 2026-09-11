@@ -106,6 +106,17 @@
   border: 1px solid var(--hair-strong);
   box-shadow: var(--shadow);
   white-space: nowrap;
+  animation: zj-pop-in 150ms ease;
+}
+@keyframes zj-pop-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .zj-sel-bubble {
+    animation: none;
+  }
 }
 .zj-sel-bubble button {
   display: inline-flex;

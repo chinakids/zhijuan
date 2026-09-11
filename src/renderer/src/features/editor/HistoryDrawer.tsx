@@ -89,8 +89,8 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/20">
-      <div className="flex h-full w-[600px] flex-col border-l border-hair bg-paper shadow-[var(--shadow)]">
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/20 animate-in fade-in">
+      <div className="flex h-full w-[600px] flex-col border-l border-hair bg-paper shadow-[var(--shadow)] animate-in fade-in slide-in-from-right-3">
         <div className="flex h-12 shrink-0 items-center border-b border-hair px-4">
           <History className="mr-2 h-4 w-4 text-accent" />
           <span className="text-sm font-medium">版本历史</span>

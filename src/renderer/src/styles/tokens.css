@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
 
 /* ===== 织卷 V2 · 设计 tokens（模块设计 §13.2） =====
  * 默认「暖纸」（浅色写作台），.dark 走 Linear 系深色层级。
@@ -161,6 +162,17 @@ summary {
       border-color 150ms ease,
       color 150ms ease,
       box-shadow 150ms ease;
+  }
+}
+
+/* ===== 动效基线（Apple HIG Motion，2026-09-11 真调研：简洁精准/有目的/可取消/勿给频繁交互加重动效） =====
+ * tw-animate-css@^1.4.0 已在依赖里但从未 import —— dialog/tooltip 里的 animate-in 类此前全是死类（弹层瞬现）。
+ * 统一：覆盖层进场 150ms ease（与上方交互基线同口径）；高频浮层（tooltip/@/命令菜单）100ms 纯淡入；
+ * 尊重弱动效：reduced-motion 下一律关掉进场动画（HIG：让动效可取消/可选）。 */
+@media (prefers-reduced-motion: reduce) {
+  [class*='animate-in'],
+  [class*='animate-out'] {
+    animation: none !important;
   }
 }
 
