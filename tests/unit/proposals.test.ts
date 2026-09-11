@@ -44,19 +44,30 @@ describe('applyAnchor（锚点写入核心算法）', () => {
     expect(r.out).not.toContain('旧')
   })
 
-  it('锚点不存在 → 在文末追加新节，原内容保留', () => {
+  it('锚点不存在 → 在文末追加新节（H2，与模块设计 §7 模板一致），原内容保留', () => {
     const text = '# 文件\n\n原有段'
     const r = applyAnchor(text, item({ anchor: '## 不存在的节', after: '新内容' }))
     expect(r.ok).toBe(true)
     expect(r.out).toContain('原有段')
-    expect(r.out).toContain('### 不存在的节')
+    expect(r.out).toContain('## 不存在的节')
+    expect(r.out).not.toContain('### 不存在的节')
     expect(r.out).toContain('新内容')
   })
 
-  it('空锚点 → 追加「切片状态」小节', () => {
+  it('切片锚点不存在 → 追加 H2「## 切片：<名>」（回归：曾追加 H3 漂移）', () => {
+    const text = '# 陈默\n\n## 基础档案\n\n- 姓名：陈默'
+    const r = applyAnchor(text, item({ anchor: '切片：第一幕_夜', after: '- 本幕动向：守灯' }))
+    expect(r.ok).toBe(true)
+    expect(r.out).toContain('## 切片：第一幕_夜')
+    expect(r.out).not.toContain('### 切片：第一幕_夜')
+    expect(r.out).toContain('- 本幕动向：守灯')
+  })
+
+  it('空锚点 → 追加 H2「## 切片状态」小节', () => {
     const r = applyAnchor('旧文', item({ anchor: '', after: '状态片段' }))
     expect(r.ok).toBe(true)
-    expect(r.out).toContain('### 切片状态')
+    expect(r.out).toContain('## 切片状态')
+    expect(r.out).not.toContain('### 切片状态')
     expect(r.out).toContain('状态片段')
   })
 

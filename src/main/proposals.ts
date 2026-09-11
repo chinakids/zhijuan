@@ -126,7 +126,7 @@ export function rejectProposal(root: string, projectId: string, id: string): boo
 export function applyAnchor(text: string, it: ProposalItem): { ok: boolean; out?: string; msg?: string } {
   if (it.kind === 'append') return { ok: true, out: text + '\n\n' + it.after }
   const anchor = (it.anchor || '').replace(/^#+\s*/, '').trim()
-  if (!anchor) return { ok: true, out: text + '\n\n### 切片状态\n\n' + it.after }
+  if (!anchor) return { ok: true, out: text + '\n\n## 切片状态\n\n' + it.after }
   const lines = text.split('\n')
   let hit = -1
   let hitLevel = 0
@@ -138,7 +138,7 @@ export function applyAnchor(text: string, it: ProposalItem): { ok: boolean; out?
       break
     }
   }
-  if (hit < 0) return { ok: true, out: text + '\n\n### ' + anchor + '\n\n' + it.after }
+  if (hit < 0) return { ok: true, out: text + '\n\n## ' + anchor + '\n\n' + it.after }
   let end = lines.length
   for (let i = hit + 1; i < lines.length; i++) {
     const m = lines[i].match(/^(#{1,6})\s+/)

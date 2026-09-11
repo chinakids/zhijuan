@@ -407,6 +407,8 @@ const mock = {
     }
     const hk = histories.get(k)
     if (hk) { histories.set(nk, hk); histories.delete(k) }
+    // proposals.chapter 指针迁移（与真机 store.renameChapter → migrateChapter 同语义；无头假盘只同步内存数组）
+    for (const p of mock.proposals) { if (p.chapter === rel) p.chapter = newRel }
     docs.set(nk, next)
     docs.delete(k)
     fsEmit(_id, newRel)
@@ -1056,7 +1058,7 @@ function applyAnchor(text: string, it: ProposalItem): string {
     const head = lines[hit]
     return [...lines.slice(0, hit), head, '', ...it.after.split('\n'), '', ...lines.slice(end)].join('\n')
   }
-  return text.trimEnd() + '\n\n### ' + it.anchor + '\n\n' + it.after + '\n'
+  return text.trimEnd() + '\n\n## ' + it.anchor + '\n\n' + it.after + '\n'
 }
 
 /** 无头冒烟：`?zj-fail=<api>[,<api>…]`（首次调用 reject 一次，重试恢复）与
