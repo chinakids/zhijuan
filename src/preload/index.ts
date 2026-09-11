@@ -41,6 +41,9 @@ const api = {
     ipcRenderer.invoke('workspace:init') as Promise<{ ok: boolean; created: string[]; docs: string[] }>,
   workspaceRead: (file: string) => ipcRenderer.invoke('workspace:read', file) as Promise<string | null>,
 
+  // 平台路径（主进程解析后的生效库根等；设置页「当前」展示用）
+  getPaths: () => ipcRenderer.invoke('app:getPaths') as Promise<{ documents: string; defaultLibrary: string }>,
+
   // 项目
   listProjects: () => ipcRenderer.invoke('project:list') as Promise<ProjectSummary[]>,
   createProject: (name: string, description: string, template?: string) =>

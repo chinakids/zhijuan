@@ -575,7 +575,11 @@ const mock = {
       fsListeners.delete(cb)
     }
   },
-  getPaths: async () => ({ documents: '', libraryRoot: '' }),
+  // 与真机 getPaths 同口径：documents=生效库根（设置非空→老默认位→工作区/项目库；dev 内存无 legacy，取设置或默认位）
+  getPaths: async () => ({
+    documents: settings.libraryRoot || '~/Documents/织卷工作区/项目库',
+    defaultLibrary: ''
+  }),
 
   // dev 演示的人物索引：与主进程 readCharIndex 同口径（档案题名 + 登记别名）
   _charIndexOf: (id: string) => {

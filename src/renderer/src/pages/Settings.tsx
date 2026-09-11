@@ -35,6 +35,7 @@ export default function Settings() {
   const { settings, settingsErr, loadSettings, updateSettings } = useAppStore()
   const [workspacePath, setWorkspacePath] = useState('')
   const [wsInfo, setWsInfo] = useState<{ dir: string; inited: boolean; docs: { file: string; name: string }[] } | null>(null)
+  const [libPath, setLibPath] = useState<string | null>(null)
   const [openDoc, setOpenDoc] = useState<string | null>(null)
   const [openDocBody, setOpenDocBody] = useState('')
   const [wsMsg, setWsMsg] = useState('')
@@ -61,6 +62,15 @@ export default function Settings() {
     }
   }, [])
 
+  const refreshLibrary = useCallback(async () => {
+    try {
+      const p = await window.zhijuan.getPaths()
+      setLibPath(p.documents || null)
+    } catch {
+      setLibPath(null)
+    }
+  }, [])
+
   useEffect(() => {
     void loadSettings()
   }, [loadSettings])
@@ -81,7 +91,8 @@ export default function Settings() {
     setCaps(settings.capabilities ?? {})
     void window.zhijuan.agentListCapabilities().then(setCapsMeta).catch(() => {})
     void refreshWorkspace()
-  }, [settings, refreshWorkspace])
+    void refreshLibrary()
+  }, [settings, refreshWorkspace, refreshLibrary])
 
   /** 切换服务商：同时把可编辑字段换成该家已存的值 */
   /** 即时切换 agent 能力开关（写设置；下次运行该能力时生效） */
@@ -119,6 +130,7 @@ export default function Settings() {
     setSaved(true)
     setTimeout(() => setSaved(false), 1500)
     void refreshWorkspace()
+    void refreshLibrary()
   }
 
   async function initWorkspace() {
@@ -248,9 +260,15 @@ export default function Settings() {
         <Card className="mt-4 p-6">
           <h3 className="text-sm font-semibold text-ink-2">项目库</h3>
           <Separator className="my-4" />
-          <Field label="库根路径" hint="留空则用工作区下的默认位置（工作区/项目库）；现有项目迁移时可直接填老路径。">
+          <Field label="库根路径" hint="留空则用工作区下的默认位置（工作区/项目库），老目录还在时会先保持原地；现有项目迁移时可直接填老路径。">
             <Input value={libraryRoot} onChange={(e) => setLibraryRoot(e.target.value)} placeholder="/Users/你/Documents/织卷工作区/项目库" />
           </Field>
+          <div className="flex items-center justify-between rounded-lg border border-hair bg-surface-2 px-3 py-2">
+            <div className="min-w-0">
+              <p className="truncate text-xs text-ink-2">当前：{libPath ?? '读取中…'}</p>
+              <p className="text-[11px] text-ink-3">项目实际保存在这里（生效库根）。</p>
+            </div>
+          </div>
         </Card>
             </>
           )}
