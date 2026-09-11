@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUILTIN_COMMANDS, expandCommand, filterCommandCandidates, insertCommand, parseCommandTrigger } from '../../src/shared/commands'
+import { ALL_COMMANDS, BUILTIN_COMMANDS, FIXED_COMMANDS, expandCommand, filterCommandCandidates, insertCommand, matchFixedCommand, parseCommandTrigger } from '../../src/shared/commands'
 
 describe('parseCommandTrigger（/ 命令触发解析）', () => {
   it('行首 / 触发（无 query）', () => {
@@ -35,8 +35,9 @@ describe('parseCommandTrigger（/ 命令触发解析）', () => {
 })
 
 describe('filterCommandCandidates（命令过滤）', () => {
-  it('query 为空全出', () => {
-    expect(filterCommandCandidates('')).toHaveLength(BUILTIN_COMMANDS.length)
+  it('query 为空全出（模板 + 固定逻辑）', () => {
+    expect(filterCommandCandidates('')).toHaveLength(ALL_COMMANDS.length)
+    expect(ALL_COMMANDS.filter((c) => c.kind === 'action').map((c) => c.name)).toEqual(['巡查', '导演'])
   })
 
   it('按名称包含过滤', () => {
@@ -104,5 +105,35 @@ describe('expandCommand（命令展开为模板 prompt）', () => {
     expect(p).toContain('3 个可发展的走向')
     expect(p).toContain('聚焦：反派动机')
     expect(p).not.toContain('zj_edit_doc')
+  })
+})
+
+describe('matchFixedCommand（固定逻辑命令识别）', () => {
+  it('识别 /巡查 与 /导演（无参）', () => {
+    expect(matchFixedCommand('/巡查')?.cmd.name).toBe('巡查')
+    expect(matchFixedCommand('/导演')?.cmd.name).toBe('导演')
+  })
+
+  it('带参数解析并去空白', () => {
+    const r = matchFixedCommand('/巡查 修订')
+    expect(r?.cmd.run).toBe('chapterCheck')
+    expect(r?.args).toBe('修订')
+    expect(matchFixedCommand('  /导演  要快 ')?.args).toBe('要快')
+  })
+
+  it('模板命令/未知命令/非行首/命令名前缀不匹配', () => {
+    expect(matchFixedCommand('/续写 三百字')).toBeNull()
+    expect(matchFixedCommand('/不存在 参数')).toBeNull()
+    expect(matchFixedCommand('帮我 /巡查')).toBeNull()
+    expect(matchFixedCommand('/巡查中 检查')).toBeNull()
+  })
+
+  it('无参数返回空串', () => {
+    expect(matchFixedCommand('/巡查')?.args).toBe('')
+  })
+
+  it('固定命令不走进模板展开（expandCommand 返回 null）', () => {
+    expect(expandCommand('/导演', '雾港')).toBeNull()
+    expect(FIXED_COMMANDS.map((c) => c.name)).toEqual(['巡查', '导演'])
   })
 })

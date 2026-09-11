@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams, useOutletContext } from 'react-router-dom'
 import { Plus, BookOpen } from 'lucide-react'
-import type { ChapterEntry, UnlistedHit, MissingHit } from '../../../shared/types'
+import type { ChapterEntry, ChapterCheckKind, UnlistedHit, MissingHit } from '../../../shared/types'
 import { serializeFrontMatter, addFrontMatterListItem, removeFrontMatterListItem } from '../../../shared/fmatter'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -37,6 +37,8 @@ export default function Novel() {
   const apiRef = useRef<ProseApi | null>(null)
   const [syncMsg, setSyncMsg] = useState('')
   const [checkOpen, setCheckOpen] = useState(false)
+  // 本章小环 tab（短巡查/分层修订）：AgentPanel 命令行 /巡查 [修订] 可切换后打开
+  const [checkTab, setCheckTab] = useState<ChapterCheckKind>('chapter')
   // 章节列表右键菜单（§6.2：重命名/导出单章 md/删除）
   const [menu, setMenu] = useState<{ c: ChapterEntry; x: number; y: number } | null>(null)
   const [renaming, setRenaming] = useState<ChapterEntry | null>(null)
@@ -446,9 +448,25 @@ export default function Novel() {
         )}
       </main>
 
-      <AgentPanel projectId={id} chapterRel={chapterRel || null} chapterTitle={cur?.name ?? ''} editorApi={() => apiRef.current} onChapterCheck={() => setCheckOpen(true)} />
+      <AgentPanel
+        projectId={id}
+        chapterRel={chapterRel || null}
+        chapterTitle={cur?.name ?? ''}
+        editorApi={() => apiRef.current}
+        onChapterCheck={(tab) => {
+          if (tab) setCheckTab(tab)
+          setCheckOpen(true)
+        }}
+      />
 
-      <ChapterCheckDrawer projectId={id} chapter={chapterRel || null} chapterTitle={cur?.name ?? ''} open={checkOpen} onClose={() => setCheckOpen(false)} />
+      <ChapterCheckDrawer
+        projectId={id}
+        chapter={chapterRel || null}
+        chapterTitle={cur?.name ?? ''}
+        open={checkOpen}
+        initialTab={checkTab}
+        onClose={() => setCheckOpen(false)}
+      />
 
       <Dialog open={creating} onOpenChange={setCreating}>
         <DialogContent className="sm:max-w-md">

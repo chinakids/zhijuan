@@ -4,9 +4,9 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Loader2, Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, Users, UserCheck, ListOrdered, FileWarning, CircleX } from 'lucide-react'
 import type { ProseApi } from '../editor/Prose'
-import type { AuditKind, EditItem } from '../../../../shared/types'
+import type { AuditKind, EditItem, ChapterCheckKind, DirectorSheet } from '../../../../shared/types'
 import { filterAtCandidates, insertAtMention, parseAtTrigger, type AtCandidate } from '../../../../shared/mention'
-import { expandCommand, filterCommandCandidates, insertCommand, parseCommandTrigger, type ZjCommand } from '../../../../shared/commands'
+import { expandCommand, filterCommandCandidates, insertCommand, matchFixedCommand, parseCommandTrigger, type ZjCommand } from '../../../../shared/commands'
 import { useAgentStore } from './store'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
 import TodoCard from './TodoCard'
@@ -22,7 +22,8 @@ interface AgentPanelProps {
   chapterRel: string | null
   chapterTitle: string
   editorApi: () => ProseApi | null
-  onChapterCheck?: () => void
+  /** 本章小环入口（tab 可选：chapter=短巡查 / revision=分层修订；缺省短巡查） */
+  onChapterCheck?: (tab?: ChapterCheckKind) => void
 }
 
 const CHAR_LIMIT = 60000 // 上下文预算：首屏截断，超长走尾部
@@ -255,6 +256,8 @@ export default function AgentPanel(props: AgentPanelProps) {
   const { send, stop, streaming: sending } = useSender(props)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [audit, setAudit] = useState<{ open: boolean; tab: AuditKind }>({ open: false, tab: 'consistency' })
+  // 固定逻辑命令（/巡查 /导演）执行中：不走模型流，锁发送防连点
+  const [fxBusy, setFxBusy] = useState(false)
 
   // ---------- 输入框 @ 引用（GitHub/Slack mention 范式；数据懒加载 + 会话缓存） ----------
   const taRef = useRef<HTMLTextAreaElement>(null)
@@ -430,10 +433,68 @@ export default function AgentPanel(props: AgentPanelProps) {
     if (sel) useAgentStore.getState().setQuote(sel)
   }
 
+  /** 固定逻辑命令（/巡查 /导演）：直连既有入口执行，结果注入对话流（结论落资产），不经模型 */
+  async function runFixed(raw: string, cmd: ZjCommand, args: string) {
+    const st = useAgentStore.getState()
+    st.setQuote(null)
+    st.append({ role: 'user', content: raw })
+    if (cmd.run === 'chapterCheck') {
+      if (!props.chapterRel) {
+        st.append({ role: 'assistant', content: '先选中一个章节再 `/巡查`；本章小环是按章检查的。', error: true })
+        return
+      }
+      if (args === '全卷') {
+        setAudit({ open: true, tab: 'consistency' })
+        st.append({ role: 'assistant', content: '已调起全卷一致性巡查（右侧抽屉），结论可存档到大纲。' })
+        return
+      }
+      props.onChapterCheck?.(args === '修订' ? 'revision' : 'chapter')
+      st.append({
+        role: 'assistant',
+        content: args === '修订'
+          ? '已调起本章小环·分层修订（右侧抽屉），逐层建议可复制回正文。'
+          : '已调起本章小环·短巡查（右侧抽屉），每条可转提案。'
+      })
+      return
+    }
+    if (cmd.run === 'director') {
+      if (!props.chapterRel) {
+        st.append({ role: 'assistant', content: '先选中一个章节再 `/导演`；导演板是按章生成的。', error: true })
+        return
+      }
+      const aid = 'fx-' + Date.now().toString(36)
+      st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', toolArgs: props.chapterRel, done: false })
+      setFxBusy(true)
+      try {
+        const r = await window.zhijuan.agentDirector(props.projectId, props.chapterRel)
+        if (r.ok) {
+          st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: true, content: `已写入 ${r.written}` })
+          st.append({ role: 'assistant', content: fmtDirectorNote(r.written, r.sheet) })
+        } else {
+          st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: false, content: r.error ?? '导演创建失败' })
+          st.append({ role: 'assistant', content: '导演创建失败：' + (r.error ?? '未知原因'), error: true })
+        }
+      } catch (e) {
+        const msg = String((e as Error)?.message ?? e)
+        st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: false, content: msg })
+        st.append({ role: 'assistant', content: '导演创建失败：' + msg, error: true })
+      } finally {
+        setFxBusy(false)
+      }
+    }
+  }
+
   function doSend() {
     const v = input
+    if (fxBusy || !v.trim()) return
     setInput('')
-    // / 命令展开：匹配内置命令名→替换为模板 prompt（未匹配按普通消息原样发送）
+    // 固定逻辑命令（/巡查 /导演）：直连既有入口执行，不经模型
+    const fx = matchFixedCommand(v)
+    if (fx) {
+      void runFixed(v, fx.cmd, fx.args)
+      return
+    }
+    // 模板命令展开：匹配内置命令名→替换为模板 prompt（未匹配按普通消息原样发送）
     const prompt = expandCommand(v, props.chapterTitle) ?? v
     void send(prompt.trim(), quote)
   }
@@ -489,6 +550,10 @@ export default function AgentPanel(props: AgentPanelProps) {
           <button onClick={stop} title="停止生成" className="flex h-7 w-7 items-center justify-center rounded-full border border-hair bg-surface-2 text-ink-2 transition-colors hover:text-danger">
             <Square className="h-3 w-3" />
           </button>
+        ) : fxBusy ? (
+          <span className="flex h-7 w-7 items-center justify-center rounded-full border border-hair bg-surface-2 text-ink-3" title="命令执行中…">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          </span>
         ) : (
           <button
             onClick={doSend}
@@ -515,7 +580,7 @@ export default function AgentPanel(props: AgentPanelProps) {
           {props.onChapterCheck && (
             <button
               title="本章小环：短巡查 / 分层修订（沿写作线兜底）"
-              onClick={props.onChapterCheck}
+              onClick={() => props.onChapterCheck?.()}
               disabled={!props.chapterRel}
               className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent disabled:opacity-40"
             >
@@ -691,4 +756,19 @@ function fmtCtx(n: number): string {
   if (n >= 10000) return (n / 10000).toFixed(1) + ' 万字'
   if (n >= 1000) return (n / 1000).toFixed(1) + ' 千字'
   return n + ' 字'
+}
+
+/** /导演 结果注入对话流的摘要（完整导演板落 大纲/<章>_导演.md，这里给要点与指路） */
+function fmtDirectorNote(written: string, s: DirectorSheet): string {
+  const axes = s.axes.map((a) => `${a.character}（${a.level}）${a.line ? '：' + a.line : ''}`).join('；')
+  return [
+    `导演板已写入 \`${written}\`，大纲区可直接打开。`,
+    '',
+    `**本章任务**：${s.premise}`,
+    `**情绪弧**：${s.arcs.length} 段（${s.arcs.map((a) => a.task).join(' → ')}），波峰在第 ${s.climax?.at ?? '-'} 段：${s.climax?.idea ?? ''}`,
+    `**行为轴**：${axes || '—'}`,
+    `**红线** ${s.redlines.length} 条 · **钩子** ${s.hooks.length} 条（要点见导演板）`,
+    '',
+    '要我按这张板起草本章，直接说「按导演板写」。'
+  ].join('\n')
 }

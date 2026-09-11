@@ -51,6 +51,9 @@ export default function CommandMenu({
         >
           <TerminalSquare className={cn('h-3.5 w-3.5 shrink-0', i === active ? 'text-accent' : 'text-ink-3')} />
           <span className="shrink-0 font-mono text-xs font-medium">/{c.name}</span>
+          {c.kind === 'action' && (
+            <span className="shrink-0 rounded bg-accent-soft px-1 py-0.5 text-[9px] leading-4 text-accent">直连</span>
+          )}
           <span className="min-w-0 flex-1 truncate text-[11px] text-ink-3">{c.desc}</span>
           {c.argHint && <span className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-3">{c.argHint}</span>}
         </button>

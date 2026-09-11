@@ -26,12 +26,23 @@ interface Props {
   chapter: string | null
   chapterTitle: string
   open: boolean
+  /** 打开时默认 tab（短巡查/分层修订）；仅在被显式请求变更（如 /巡查 修订）时生效，不覆盖用户手选 */
+  initialTab?: ChapterCheckKind
   onClose: () => void
 }
 
 /** 本章级小环：每章短巡查（chapter）/ 分层修订（revision）。工作在写作半径内的当前章，参数比全卷检查轻。 */
-export default function ChapterCheckDrawer({ projectId, chapter, chapterTitle, open, onClose }: Props) {
-  const [tab, setTab] = useState<ChapterCheckKind>('chapter')
+export default function ChapterCheckDrawer({ projectId, chapter, chapterTitle, open, onClose, initialTab }: Props) {
+  const [tab, setTab] = useState<ChapterCheckKind>(initialTab ?? 'chapter')
+  const lastReq = useRef<ChapterCheckKind>(initialTab ?? 'chapter')
+  // 显式请求（如命令行 /巡查 修订）才切换默认 tab；用户手选不被打断
+  useEffect(() => {
+    if (!open) return
+    if (initialTab && initialTab !== lastReq.current) {
+      lastReq.current = initialTab
+      setTab(initialTab)
+    }
+  }, [open, initialTab])
   const [res, setRes] = useState<Partial<Record<ChapterCheckKind, ChapterCheckResult>>>({})
   const [running, setRunning] = useState(false)
   const [err, setErr] = useState('')
