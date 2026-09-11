@@ -5,6 +5,7 @@
 import { driveSession, type DriveEvent } from './runtime'
 import { projectDir } from '../store'
 import { buildWritingContext } from './context'
+import { expandAtRefs } from './refs'
 import { normalizeSyncItems, ensureWorldSliceFile } from './syncAnchor'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { readFileSync } from 'fs'
@@ -86,6 +87,13 @@ export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void
   }
   if (input.quote?.trim()) {
     parts.push(`（引用自《${input.chapterTitle}》的选中段落）\n> ${input.quote.replace(/\n/g, '\n> ')}`)
+  }
+  // @ 引用展开（2026-09-11）：用户消息里的 〔类型·名称｜路径〕 标记 → 读对应文档内容注入本轮上下文
+  try {
+    const at = await expandAtRefs(input.projectId, input.prompt)
+    if (at.block) parts.push(at.block)
+  } catch {
+    // 引用展开失败不阻断创作（与上下文装配同级兜底）
   }
   parts.push(input.prompt)
   const sid = newSid(input.projectId)
