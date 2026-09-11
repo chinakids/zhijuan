@@ -4,8 +4,9 @@
 // 上下文完全可控；工具读文件由写作引擎完成。
 import { driveSession, type DriveEvent } from './runtime'
 import { projectDir } from '../store'
-import { buildWritingContext } from './context'
+import { buildWritingContext, buildProjectContext } from './context'
 import { expandAtRefs } from './refs'
+import { trimHistoryMessage } from '../../shared/historyTrim'
 import { normalizeSyncItems, ensureWorldSliceFile } from './syncAnchor'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { readFileSync } from 'fs'
@@ -80,10 +81,23 @@ export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void
     } catch {
       // 装配失败不阻断创作
     }
+  } else {
+    // 未打开章节（项目页/新建项目后）——给项目级概览，避免 agent 对作品零认知纯靠工具现读（2026-09-11）
+    try {
+      const pctx = await buildProjectContext(input.projectId)
+      if (pctx.blocks.length) {
+        parts.push(
+          '【项目概览】当前未打开具体章节，以下是本项目的基本信息与文档结构，可直接作为事实使用；需要看完整文件时再用 zj_* 工具读取对应的【作品根目录】下路径。\n' +
+            pctx.blocks.join('\n\n')
+        )
+      }
+    } catch {
+      // 装配失败不阻断创作
+    }
   }
   if (input.history && input.history.length) {
     const sliced = input.history.slice(-20) // 最多带最近 20 条可见历史
-    parts.push('【对话历史】\n' + sliced.map((m) => `${m.role === 'user' ? '用户' : '织卷'}：${m.content.slice(0, 4000)}`).join('\n'))
+    parts.push('【对话历史】\n' + sliced.map((m) => `${m.role === 'user' ? '用户' : '织卷'}：${trimHistoryMessage(m.content)}`).join('\n'))
   }
   if (input.quote?.trim()) {
     parts.push(`（引用自《${input.chapterTitle}》的选中段落）\n> ${input.quote.replace(/\n/g, '\n> ')}`)

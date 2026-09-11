@@ -5,7 +5,7 @@
 // 预算硬控（沿 ROADMAP M1.3）：正文 ≤8000、前情 ≤3000、人物 ≤4000、切片 ≤4000、章卡 ≤2000、素材索引 ≤1200。
 // 装配口径（2026-09-11）：所有块注入前统一剥离 HTML 注释（`<!-- … -->`＝元信息/说明，非故事事实，
 // 见 shared/comments.ts）；不占预算；注释原文模型可 zj_read_doc 现读。
-import { readDoc, listChapters } from '../store'
+import { readDoc, listChapters, listDocs } from '../store'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { worldSliceFile } from '../../shared/paths'
 import { stripHtmlComments } from '../../shared/comments'
@@ -161,6 +161,45 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
     sources.push('素材库/索引.md')
   }
 
+  return { blocks, sources }
+}
+
+/**
+ * 项目级上下文（2026-09-11 上下文管理收尾）：未打开章节（chapterRel=null）时 agent 对作品零认知
+ * （只有作品根目录路径），首轮全靠 zj_* 现读、回复质量差且浪费轮次。装配三块：
+ * 作品总纲 project.md（≤3000，保头——总纲是概要型文档，开头信息密度最高；与正文「保尾」口径不同）、
+ * 世界观总纲（≤2000）、各目录文档清单（路标 ≤1200，细节 zj_* 现读）。
+ * 只做路标不复制全量：打开的章节上下文仍走 buildWritingContext（本章半径），两者互不干扰。
+ */
+export async function buildProjectContext(projectId: string): Promise<WritingContext> {
+  const blocks: string[] = []
+  const sources: string[] = []
+  const read = (rel: string): string => {
+    try {
+      return stripHtmlComments(readDoc(projectId, rel) ?? '')
+    } catch {
+      return ''
+    }
+  }
+  const proj = read('project.md')
+  if (proj.trim()) {
+    blocks.push(`【作品总纲】\n${proj.slice(0, 3000)}`)
+    sources.push('project.md')
+  }
+  const world = read('世界观/总纲.md')
+  if (world.trim()) {
+    blocks.push(`【世界观总纲】\n${world.slice(0, 2000)}`)
+    sources.push('世界观/总纲.md')
+  }
+  const LIST_CAP = 12
+  const lines = ['【文档清单】']
+  for (const dir of ['正文', '人物', '世界观', '素材库']) {
+    const docs = listDocs(projectId, dir)
+    const names = docs.slice(0, LIST_CAP).map((d) => d.name)
+    const suffix = docs.length > LIST_CAP ? ` 等 ${docs.length} 篇` : ''
+    lines.push(`- ${dir}/：${docs.length} 篇${names.length ? '：' + names.join('、') + suffix : ''}`)
+  }
+  blocks.push(lines.join('\n'))
   return { blocks, sources }
 }
 
