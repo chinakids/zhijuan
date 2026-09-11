@@ -7,7 +7,6 @@ import { orderProjects } from '../../../shared/projects'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { EmptyState } from '../components/EmptyState'
-import { Badge } from '../components/ui/badge'
 import {
   Dialog,
   DialogContent,
@@ -30,13 +29,14 @@ import {
 
 /** 由项目 id 稳定生成的封面渐变色（避免每次不同） */
 function coverOf(id: string): [string, string] {
+  // 深色书封色板：白字清晰、纸本书脊感（2026-09-11 主人反馈「没有书架质感」——原浅色渐变像贴条，白字几乎贴不上）
   const hues: [string, string][] = [
-    ['#a8c3b5', '#728f88'],
-    ['#d8b59a', '#b08a6a'],
-    ['#b9c4d8', '#7f8dad'],
-    ['#d9b8c0', '#b3848f'],
-    ['#c7c2a8', '#a09a72'],
-    ['#a8c3cf', '#6f93a3']
+    ['#3f5f56', '#26413a'],
+    ['#6e4a35', '#4c3122'],
+    ['#4b5872', '#313d52'],
+    ['#7d4b58', '#57303c'],
+    ['#5f5741', '#403a29'],
+    ['#4e6a76', '#31474f']
   ]
   let h = 0
   for (const c of id) h = (h * 31 + c.charCodeAt(0)) % 997
@@ -223,49 +223,65 @@ export default function Home() {
           {visible.map((p) => {
             const [c1, c2] = coverOf(p.id)
             return (
-              <Card key={p.id} className="group cursor-pointer overflow-hidden transition-shadow hover:border-hair-strong hover:shadow-[var(--shadow)]" onClick={() => openProject(p.id)}>
-                {/* 封面条 */}
-                <div className="h-10" style={{ background: `linear-gradient(120deg, ${c1}, ${c2})` }} />
-                <div className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h2 className="truncate text-sm font-semibold">{p.name}</h2>
-                      <p className="mt-0.5 line-clamp-2 text-xs text-ink-3">{p.description || '（无简介）'}</p>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={(e) => {
+              <Card key={p.id} className="group cursor-pointer overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:border-hair-strong hover:shadow-[var(--shadow)]" onClick={() => openProject(p.id)}>
+                {/* 书封（书架质感 v3：竖版书 + 布纹光斑 + 书脊/书页缘；主人 2026-09-11 反馈重做） */}
+                <div className="relative aspect-[4/5] overflow-hidden">
+                  <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)` }} />
+                  {/* 纸质布纹（细）+ 顶部柔光 */}
+                  <div
+                    className="pointer-events-none absolute inset-0"
+                    style={{
+                      backgroundImage:
+                        'repeating-linear-gradient(115deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 8px), radial-gradient(120% 60% at 18% 0%, rgba(255,255,255,0.10), transparent 60%)'
+                    }}
+                  />
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/20" />
+                  {/* 书脊（左）与书页缘（右：多层书页厚度） */}
+                  <div className="pointer-events-none absolute inset-y-0 left-0 w-[7px] bg-black/30" />
+                  <div className="pointer-events-none absolute inset-y-0 left-[7px] w-px bg-white/25" />
+                  <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-white/30" />
+                  <div className="pointer-events-none absolute inset-y-0 right-[3px] w-px bg-white/15" />
+                  <div className="pointer-events-none absolute inset-y-0 right-[5px] w-px bg-white/8" />
+                  {/* 封面版式：书名 + 章数（其余信息入下方信息区） */}
+                  <div className="absolute inset-x-4 bottom-4 pl-4">
+                    <p className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-white/60">
+                      {p.stats.chapters} 章 · 人物 {p.stats.characters}
+                    </p>
+                    <h2 className="mt-1.5 line-clamp-3 font-serif text-xl font-semibold leading-snug text-white drop-shadow-sm">{p.name}</h2>
+                  </div>
+                </div>
+                {/* 信息区 */}
+                <div className="flex items-start gap-2 border-t border-hair bg-surface-2/60 px-3 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs text-ink-2">{p.description || '（无简介）'}</p>
+                    <p className="mt-1 truncate text-[11px] text-ink-3">
+                      {p.lastChapter ? `最近：${p.lastChapter}` : '还没有章节'} · {new Date(p.updatedAt).toLocaleDateString('zh-CN')}
+                    </p>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-ink-3 hover:text-ink">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={(e) => {
+                        e.stopPropagation()
+                        void window.zhijuan.revealProject(p.id)
+                      }}>
+                        <FolderOpen className="h-4 w-4" /> 打开所在文件夹
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-danger focus:text-danger"
+                        onClick={(e) => {
                           e.stopPropagation()
-                          void window.zhijuan.revealProject(p.id)
-                        }}>
-                          <FolderOpen className="h-4 w-4" /> 打开所在文件夹
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-danger focus:text-danger"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            void remove(p.id)
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" /> 移到废纸篓
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                    <Badge variant="secondary">正文 {p.stats.chapters}</Badge>
-                    <Badge variant="secondary">人物 {p.stats.characters}</Badge>
-                    <Badge variant="secondary">世界观 {p.stats.worldviewFiles}</Badge>
-                    <Badge variant="secondary">素材 {p.stats.materials}</Badge>
-                  </div>
-                  <p className="mt-3 text-xs text-ink-3">
-                    {p.lastChapter ? `最近：${p.lastChapter}` : '还没有章节'} · {new Date(p.updatedAt).toLocaleString('zh-CN')}
-                  </p>
+                          void remove(p.id)
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" /> 移到废纸篓
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </Card>
             )
