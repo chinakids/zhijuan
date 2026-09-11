@@ -30,7 +30,7 @@ import {
   watchProject
 } from './store'
 import { workspaceStatus, ensureWorkspaceDocs, readWorkspaceDoc } from './workspace'
-import { listLibraryCategories, createLibraryCategory, searchDocs } from './library'
+import { listLibraryCategories, createLibraryCategory, searchDocs, recentLibraryDocs } from './library'
 import { listTemplates } from './templates'
 import { workspaceDir } from './settings'
 
@@ -148,6 +148,7 @@ export function registerIpc() {
   // 素材库域（模块设计 §九：类别树 / 新建类别 / 文件名+全文搜索）
   ipcMain.handle('library:categories', (_e, id: string) => listLibraryCategories(id))
   ipcMain.handle('library:createCategory', (_e, id: string, name: string) => createLibraryCategory(id, name))
+  ipcMain.handle('library:recentDocs', (_e, id: string, n?: number) => recentLibraryDocs(id, n))
   ipcMain.handle(
     'docs:search',
     (_e, id: string, relDir: string, query: string, opts?: { excludePrefix?: string[]; limit?: number }) =>

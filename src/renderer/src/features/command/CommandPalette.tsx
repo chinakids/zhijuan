@@ -10,7 +10,9 @@ import {
   CommandSeparator
 } from '../../components/ui/command'
 import { BookOpen, FileText, FolderOpen, Globe2, History, Keyboard, Library as LibraryIcon, ListTree, Loader2, PenLine, Settings as SettingsIcon, Users } from 'lucide-react'
-import type { ChapterEntry, ProjectSummary, SearchHit } from '../../../../shared/types'
+import type { ChapterEntry, ProjectSummary, RecentLibraryDoc, SearchHit } from '../../../../shared/types'
+import { libraryCategoryOf } from '../../../../shared/libraryTree'
+import { formatRelativeTime } from '../../../../shared/relativeTime'
 import ShortcutHelp from './ShortcutHelp'
 
 const PAGE_ITEMS = [
@@ -37,6 +39,7 @@ export default function CommandPalette() {
   const [matHits, setMatHits] = useState<SearchHit[] | null>(null)
   const [matLoading, setMatLoading] = useState(false)
   const matSeq = useRef(0)
+  const [recentMats, setRecentMats] = useState<RecentLibraryDoc[] | null>(null)
 
   // 全局快捷键：Mac Cmd+K / Win Ctrl+K（编辑器未绑 Mod-k，无冲突）
   useEffect(() => {
@@ -58,6 +61,7 @@ export default function CommandPalette() {
     setQ('')
     setMatHits(null)
     setMatLoading(false)
+    setRecentMats(null)
     void window.zhijuan.listProjects().then(setProjects).catch(() => setProjects([]))
     if (projectId) {
       setChLoading(true)
@@ -66,6 +70,11 @@ export default function CommandPalette() {
         .then(setChapters)
         .catch(() => setChapters([]))
         .finally(() => setChLoading(false))
+      // 最近素材（q 为空时的「最近」建议，HIG Search fields）：打开时一次性拉取，随面板瞬态刷新
+      void window.zhijuan
+        .recentLibraryDocs(projectId, 5)
+        .then(setRecentMats)
+        .catch(() => setRecentMats([]))
     }
   }, [open, projectId])
 
@@ -164,6 +173,29 @@ export default function CommandPalette() {
           </>
         )}
 
+        {projectId && q.trim() === '' && (recentMats && recentMats.length > 0) && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="最近素材">
+              {recentMats.map((m) => (
+                <CommandItem
+                  key={m.file}
+                  value={`素材 最近 ${m.name}`}
+                  keywords={[m.name, libraryCategoryOf(m.file)]}
+                  onSelect={() => go(`/project/${projectId}/library?doc=${encodeURIComponent(m.file)}`)}
+                >
+                  <FileText className="h-4 w-4 shrink-0 text-ink-3" />
+                  <span className="min-w-0 truncate">
+                    {libraryCategoryOf(m.file) ? <span className="text-ink-3">{libraryCategoryOf(m.file)}/</span> : null}
+                    {m.name}
+                  </span>
+                  <span className="ml-auto shrink-0 text-[11px] text-ink-3">{formatRelativeTime(m.mtime)}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+
         {projectId && q.trim() !== '' && (matLoading || (matHits && matHits.length > 0)) && (
           <>
             <CommandSeparator />
@@ -178,11 +210,14 @@ export default function CommandPalette() {
                 <CommandItem
                   key={h.file}
                   value={`素材 ${h.name} ${h.snippet}`}
-                  keywords={[h.name, h.snippet]}
+                  keywords={[h.name, h.snippet, libraryCategoryOf(h.file)]}
                   onSelect={() => go(`/project/${projectId}/library?doc=${encodeURIComponent(h.file)}`)}
                 >
                   <FileText className="h-4 w-4 shrink-0 text-ink-3" />
-                  <span className="min-w-0 truncate">{h.name}</span>
+                  <span className="min-w-0 truncate">
+                    {libraryCategoryOf(h.file) ? <span className="text-ink-3">{libraryCategoryOf(h.file)}/</span> : null}
+                    {h.name}
+                  </span>
                   <span className="ml-1 shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-2">
                     {h.field === 'name' ? '文件名' : '正文'}
                   </span>

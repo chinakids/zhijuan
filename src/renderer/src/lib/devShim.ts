@@ -1,5 +1,5 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
-import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, FsEvent } from '../../../shared/types'
+import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
 import { countWords } from '../../../shared/count'
 import { extractFrontMatter, setFrontMatterField } from '../../../shared/fmatter'
@@ -494,6 +494,16 @@ const mock = {
       }
     }
     return out
+  },
+  recentLibraryDocs: async (id: string, n = 5): Promise<RecentLibraryDoc[]> => {
+    const out: RecentLibraryDoc[] = []
+    for (const { file, mtime } of docsOf(id + '/素材库')) {
+      const relFromRoot = '素材库/' + file
+      if (relFromRoot.startsWith('素材库/采集池/')) continue
+      out.push({ file: relFromRoot, name: file.split('/').pop()!.replace(/\.md$/, ''), mtime })
+    }
+    out.sort((a, b) => b.mtime - a.mtime || a.file.localeCompare(b.file, 'zh'))
+    return out.slice(0, n)
   },
   listChapters: async (id: string): Promise<ChapterEntry[]> => {
     const out: ChapterEntry[] = []

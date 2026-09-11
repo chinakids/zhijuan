@@ -180,6 +180,13 @@ export interface SearchHit {
   snippet: string
 }
 
+/** 最近素材条目（按 mtime 最近修改；file 相对项目根） */
+export interface RecentLibraryDoc {
+  file: string
+  name: string
+  mtime: number
+}
+
 /** 正文版本历史的单条快照（列表元信息；内容由 history:read 单独取） */
 export interface HistorySnapshot {
   /** 版本文件名：yyyyMMdd-HHmmss-SSS[(-N)].md */

@@ -94,7 +94,8 @@ try {
   let groups = await page.eval(`[...document.querySelectorAll('[cmdk-group-heading]')].map((g) => g.innerText)`)
   ok('面板打开', true, 'groups=' + JSON.stringify(groups))
   ok('页面/打开章节/打开项目三组仍在', groups.includes('页面') && groups.includes('打开章节') && groups.includes('打开项目'))
-  ok('空输入不显示素材组', !groups.some((g) => g.includes('素材')), 'groups=' + JSON.stringify(groups))
+  ok('空输入不显示全文搜索组', !groups.includes('素材 · 全文搜索'), 'groups=' + JSON.stringify(groups))
+  ok('空输入显示最近素材组（平台层 2026-09-11 新增）', groups.includes('最近素材'), 'groups=' + JSON.stringify(groups))
 
   // ③ 输入「旧物」→ 素材组出现且命中「追忆型开头」（正文命中）
   await page.cmd('Input.insertText', { text: '旧物' })

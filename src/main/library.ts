@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, type Dirent
 import { join } from 'path'
 import { projectDir } from './store'
 import { sanitizeFile } from '../shared/paths'
-import type { LibraryCategory, SearchHit } from '../shared/types'
+import type { LibraryCategory, RecentLibraryDoc, SearchHit } from '../shared/types'
 
 /** 素材库下「工具目录」：采集池任务卡不属于素材，一律不参与类别/搜索 */
 const COLLECTION_DIR = '采集池'
@@ -130,4 +130,42 @@ export function searchDocs(id: string, relDir: string, query: string, opts?: { e
   }
   walk(root, '')
   return hits
+}
+
+/** 最近修改的素材（同一枚举口径：素材库 / 排除采集池与隐藏；按 mtime 新→旧，最多 n 条）。 */
+export function recentLibraryDocs(id: string, n = 5): RecentLibraryDoc[] {
+  const relDir = '素材库'
+  const root = join(projectDir(id), relDir)
+  if (!existsSync(root)) return []
+  const out: RecentLibraryDoc[] = []
+  const walk = (p: string, prefix: string) => {
+    let es: Dirent[]
+    try {
+      es = readdirSync(p, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const e of es) {
+      if (e.name.startsWith('.')) continue
+      const fp = join(p, e.name)
+      if (e.isDirectory()) {
+        walk(fp, join(prefix, e.name))
+        continue
+      }
+      if (!e.name.endsWith('.md')) continue
+      const rel = join(prefix, e.name)
+      const relFromRoot = relDir + '/' + rel
+      if (relFromRoot.startsWith(relDir + '/' + COLLECTION_DIR + '/')) continue
+      let mtime = 0
+      try {
+        mtime = statSync(fp).mtimeMs
+      } catch {
+        continue
+      }
+      out.push({ file: relFromRoot, name: e.name.replace(/\.md$/, ''), mtime })
+    }
+  }
+  walk(root, '')
+  out.sort((a, b) => b.mtime - a.mtime || a.file.localeCompare(b.file, 'zh'))
+  return out.slice(0, n)
 }

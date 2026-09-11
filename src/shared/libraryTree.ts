@@ -9,6 +9,20 @@ export interface LibraryFileItem {
   mtime: number
 }
 
+/**
+ * 从相对项目根的文件路径解析素材类别（`素材库/<类别>/<name>.md` → `<类别>`）。
+ * 根级素材（无类别目录）、非素材库路径 → ''（渲染层据此不显示路径前缀）。
+ */
+export function libraryCategoryOf(file: string): string {
+  const PREFIX = '素材库/'
+  if (!file.startsWith(PREFIX)) return ''
+  const rest = file.slice(PREFIX.length)
+  const i = rest.indexOf('/')
+  if (i < 0) return ''
+  const top = rest.slice(0, i)
+  return top && !top.startsWith('.') ? top : ''
+}
+
 export interface LibraryTreeNode {
   /** 一级类别名（目录名） */
   name: string

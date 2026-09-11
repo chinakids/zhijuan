@@ -21,7 +21,8 @@ import type {
   MissingHit,
   HistorySnapshot,
   LibraryCategory,
-  SearchHit
+  SearchHit,
+  RecentLibraryDoc
 } from '../shared/types'
 import type { RecentEntry } from '../shared/projects'
 
@@ -78,6 +79,7 @@ const api = {
     ipcRenderer.invoke('library:createCategory', id, name) as Promise<{ ok: boolean; error?: string }>,
   searchDocs: (id: string, relDir: string, query: string, opts?: { excludePrefix?: string[]; limit?: number }) =>
     ipcRenderer.invoke('docs:search', id, relDir, query, opts) as Promise<SearchHit[]>,
+  recentLibraryDocs: (id: string, n?: number) => ipcRenderer.invoke('library:recentDocs', id, n) as Promise<RecentLibraryDoc[]>,
   // 正文版本历史（M3）：列表元信息 + 读单版内容
   listHistory: (id: string, rel: string) => ipcRenderer.invoke('history:list', id, rel) as Promise<HistorySnapshot[]>,
   readHistory: (id: string, rel: string, name: string) => ipcRenderer.invoke('history:read', id, rel, name) as Promise<string | null>,

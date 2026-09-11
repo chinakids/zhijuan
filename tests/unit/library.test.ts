@@ -21,7 +21,7 @@ vi.mock('electron', () => ({
 
 import { setSettings } from '../../src/main/settings'
 import { createProject, projectDir, writeDoc } from '../../src/main/store'
-import { listLibraryCategories, createLibraryCategory, searchDocs } from '../../src/main/library'
+import { listLibraryCategories, createLibraryCategory, searchDocs, recentLibraryDocs } from '../../src/main/library'
 
 afterAll(() => {
   rmSync(holder.tmp, { recursive: true, force: true })
@@ -88,5 +88,21 @@ describe('素材库类别（main/library.ts）', () => {
     expect(searchDocs(pid, '素材库', '校园', { limit: 1 })).toHaveLength(1)
     // 空查询
     expect(searchDocs(pid, '素材库', '  ')).toHaveLength(0)
+  })
+
+  it('recentLibraryDocs：按 mtime 新→旧、排除采集池、n 截断、空库（骨架仅索引）返回索引', () => {
+    expect(recentLibraryDocs(pid, 5).map((d) => d.name)).toEqual(['索引']) // 骨架自带 素材库/索引.md
+    writeDoc(pid, '素材库/环境/校园.md', '# 校园\n')
+    writeDoc(pid, '素材库/人物/账房.md', '# 账房\n')
+    writeDoc(pid, '素材库/人物/掌柜.md', '# 掌柜\n')
+    writeDoc(pid, '素材库/采集池/任务_x.md', '---\nstatus: pending\n---\n# 任务\n')
+    const all = recentLibraryDocs(pid, 5)
+    expect(all.map((d) => d.name)).toEqual(['掌柜', '账房', '校园', '索引']) // 采集池被排除；mtime 新→旧
+    expect(all[0]).toMatchObject({ file: '素材库/人物/掌柜.md', name: '掌柜' })
+    // n 截断
+    expect(recentLibraryDocs(pid, 3)).toHaveLength(3)
+    // 子目录素材也纳入（与 searchDocs 同口径枚举）
+    writeDoc(pid, '素材库/环境/子/站台.md', '# 站台\n')
+    expect(recentLibraryDocs(pid, 10).map((d) => d.name)).toContain('站台')
   })
 })

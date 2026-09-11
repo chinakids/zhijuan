@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildLibraryTree } from '../../src/shared/libraryTree'
+import { buildLibraryTree, libraryCategoryOf } from '../../src/shared/libraryTree'
 
 describe('buildLibraryTree（shared 纯逻辑）', () => {
   it('categories + files 组装：类别按名称排序、文件按 mtime 新→旧、缺失目录自动补节点', () => {
@@ -36,5 +36,22 @@ describe('buildLibraryTree（shared 纯逻辑）', () => {
     expect(tree.find((n) => n.name === '器物')).toMatchObject({ count: 0, files: [] })
     expect(tree.find((n) => n.name === '场景')!.files).toHaveLength(1)
     expect(tree.some((n) => n.name === '.hidden')).toBe(false)
+  })
+})
+
+describe('libraryCategoryOf（shared 纯逻辑）', () => {
+  it('解析「素材库/<类别>/<name>.md」→ 类别名', () => {
+    expect(libraryCategoryOf('素材库/人物/旧茶楼账房.md')).toBe('人物')
+    expect(libraryCategoryOf('素材库/环境/子/站台.md')).toBe('环境')
+  })
+
+  it('根级素材 / 非素材库路径 / 空串 → 空串（渲染层不显示前缀）', () => {
+    expect(libraryCategoryOf('素材库/散记.md')).toBe('')
+    expect(libraryCategoryOf('正文/第01章_雾港.md')).toBe('')
+    expect(libraryCategoryOf('')).toBe('')
+  })
+
+  it('隐藏段忽略', () => {
+    expect(libraryCategoryOf('素材库/.git/x.md')).toBe('')
   })
 })
