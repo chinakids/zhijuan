@@ -129,7 +129,7 @@ export default function CollectionBar() {
       'status: pending',
       '类别: ' + (category.trim() || '环境'),
       '关键词: [' + kws.join(', ') + ']',
-      '需求: ' + demand.replace(/\n/g, ' ').slice(0, 120),
+      '需求: ' + demand.replace(/\n/g, ' '),
       '来源: ' + source.trim(),
       '创建: ' + new Date(ts).toLocaleString('sv'),
       '---',
