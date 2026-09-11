@@ -519,7 +519,7 @@ export default function Prose({ value, onEdit, apiRef, className }: ProseProps) 
 
   return (
     <>
-      <div className={cn('zj-md flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-hair', className)}>
+      <div className={cn('zj-md flex h-full min-h-0 flex-col overflow-hidden', className)}>
         <EditorToolbar edRef={edRef} />
         <FindBar
           open={findOpen}

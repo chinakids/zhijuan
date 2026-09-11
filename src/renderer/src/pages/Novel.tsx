@@ -391,7 +391,7 @@ export default function Novel() {
         </div>
       )}
 
-      <main className="relative flex min-w-0 flex-1 flex-col">
+      <main className="relative flex min-w-0 flex-1 flex-col p-3">
         {sel ? (
           <>
             <div className="min-h-0 flex-1">
