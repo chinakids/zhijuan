@@ -97,7 +97,7 @@ function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
       <div className="flex items-center gap-1.5">
         <FileText className="h-3.5 w-3.5 shrink-0 text-accent" />
         <span className="min-w-0 flex-1 truncate text-xs font-medium">{file}</span>
-        {st === 'applied' && <span className="rounded-full bg-[#e6f0ee] px-2 py-0.5 text-[10px] text-success">已采纳，已写入</span>}
+        {st === 'applied' && <span className="rounded-full bg-success-soft px-2 py-0.5 text-[10px] text-success">已采纳，已写入</span>}
         {st === 'rejected' && <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] text-ink-3">已拒绝</span>}
         {st === 'error' && <span className="rounded-full bg-danger-soft px-2 py-0.5 text-[10px] text-danger">采纳失败</span>}
       </div>

@@ -207,7 +207,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
       <aside data-zj-libtree className="flex w-56 shrink-0 flex-col border-r border-hair bg-surface-2">
         <div className="flex items-center gap-1.5 px-3 pb-2 pt-3">
           <LibraryIcon className="h-3.5 w-3.5 text-ink-3" />
-          <span className="text-xs font-medium text-ink-3">素材库</span>
+          <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">素材库</span>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
           {/* 固定项：索引说明（模块设计 §2.2 素材库/索引.md） */}

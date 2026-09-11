@@ -17,6 +17,8 @@ interface DocSectionProps {
   addLabel: string
   addHint: string
   emptyHint: string
+  /** 侧栏组头名称（默认「文档」；按语义传入，如 角色档案 / 世界观设定） */
+  listLabel?: string
   /** 新建文件时写入的模板正文（需返回漏斗与角标即可） */
   templateFor?: (name: string) => string
   fileTitle?: (name: string) => string
@@ -24,7 +26,7 @@ interface DocSectionProps {
   withFm?: boolean
 }
 
-export default function DocSection({ relDir, overviewFile, addLabel, addHint, emptyHint, templateFor, fileTitle, withFm }: DocSectionProps) {
+export default function DocSection({ relDir, overviewFile, addLabel, addHint, emptyHint, listLabel, templateFor, fileTitle, withFm }: DocSectionProps) {
   const { id = '' } = useParams()
   const [files, setFiles] = useState<{ file: string; name: string }[]>([])
   const [sel, setSel] = useState<string | null>(overviewFile ?? null)
@@ -78,7 +80,7 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
     <div className="flex h-full min-h-0">
       <aside className="flex w-60 shrink-0 flex-col border-r border-hair bg-surface-2">
         <div className="flex items-center justify-between px-3 pb-2 pt-3">
-          <span className="text-xs font-medium text-ink-3">文档</span>
+          <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">{listLabel ?? '文档'}</span>
           <Button variant="ghost" size="icon" className="h-7 w-7" title={addHint} onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" />
           </Button>

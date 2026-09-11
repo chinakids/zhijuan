@@ -287,7 +287,7 @@ export default function Novel() {
     <div className="flex h-full min-h-0">
       <aside className="flex w-60 shrink-0 flex-col border-r border-hair bg-surface-2">
         <div className="flex items-center justify-between px-3 pb-2 pt-3">
-          <span className="text-xs font-medium text-ink-3">章节（按时间切片）</span>
+          <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">章节</span>
           <Button variant="ghost" size="icon" className="h-7 w-7" title="新建章节" onClick={openCreate}>
             <Plus className="h-4 w-4" />
           </Button>
@@ -352,7 +352,7 @@ export default function Novel() {
       {menu && (
         <div
           ref={menuRef}
-          className="fixed z-50 w-44 overflow-hidden rounded-lg border border-hair bg-surface py-1 shadow-lg"
+          className="fixed z-50 w-44 overflow-hidden rounded-lg border border-hair bg-surface py-1 shadow-[var(--shadow)]"
           style={{ left: Math.max(8, Math.min(menu.x, window.innerWidth - 190)), top: Math.max(8, Math.min(menu.y, window.innerHeight - 150)) }}
         >
           <button
@@ -406,7 +406,7 @@ export default function Novel() {
         )}
         {/* 保存前置提示：本章「涉及人物」清单与正文不一致（本地规则·零模型）——出场未列入 / 列入未出场 */}
         {castCard && castCard.rel === chapterRel && (
-          <div className="absolute right-24 top-24 z-10 w-80 rounded-lg border border-warn/50 bg-surface p-3 shadow-lg">
+          <div className="absolute right-24 top-24 z-10 w-80 rounded-lg border border-warn/50 bg-surface p-3 shadow-[var(--shadow)]">
             <p className="text-[11px] font-medium text-ink-2">本章「涉及人物」清单与正文不一致</p>
             {castCard.unlisted.length > 0 && (
               <>
