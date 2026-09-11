@@ -1,7 +1,7 @@
 // ===== 织卷 S4 · 提案库（模块设计 §8）：文件落在 <项目>/.zhijuan/proposals/*.json =====
 // 所有函数首参都是项目根目录（由调用方从 store 的设置里取），保持纯文件逻辑、可测。
 import { join, dirname } from 'path'
-import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
+import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'fs'
 import type { Proposal, ProposalItem } from '../shared/types'
 import { DOT_DIR } from '../shared/paths'
 import { findAnchorLine, normalizeAnchor } from '../shared/anchor'
@@ -142,6 +142,19 @@ export function rejectProposal(root: string, projectId: string, id: string): boo
   if (!p || p.status !== 'pending') return false
   p.status = 'rejected'
   write(root, projectId, p)
+  return true
+}
+
+/** 清除一条已过期提案（仅 stale 有效）：删除提案文件，让「已过期」条目可以从界面被清理，
+ * 否则 stale 提案永久残留（reject 只对 pending 生效，界面又无入口）。 */
+export function discardProposal(root: string, projectId: string, id: string): boolean {
+  const p = findStatus(root, projectId, id)
+  if (!p || p.status !== 'stale') return false
+  try {
+    rmSync(join(dir(root, projectId), id + '.json'))
+  } catch {
+    return false
+  }
   return true
 }
 

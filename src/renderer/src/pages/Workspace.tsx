@@ -71,6 +71,7 @@ export default function Workspace() {
   const proposals = useProposalStore((s) => s.list)
   const tick = useProposalStore((s) => s.tick)
   const pending = proposals.filter((p) => p.status === 'pending').length
+  const stale = proposals.filter((p) => p.status === 'stale').length
   const [drawerOpen, setDrawerOpen] = useState(false)
   const refreshProposals = useCallback(() => {
     if (id) void useProposalStore.getState().refresh(id)
@@ -110,12 +111,12 @@ export default function Workspace() {
     <div className="flex h-full">
       <SectionNav projectId={project.id} projectName={project.name} counts={counts} />
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* 顶栏：不再放区块标题标签（左侧导航已有高亮）；仅在有待确认提案时出一行入口 */}
-        {pending > 0 && (
+        {/* 顶栏：不再放区块标题标签（左侧导航已有高亮）；有待确认/已过期提案时出一行入口（过期也要可查看清除） */}
+        {(pending + stale) > 0 && (
           <header className="flex h-10 shrink-0 items-center justify-end border-b border-hair bg-surface px-4">
             <button onClick={() => setDrawerOpen(true)} className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-warn-soft px-2.5 py-1 text-xs text-warn transition-colors hover:brightness-95">
               <ListChecks className="h-3.5 w-3.5" />
-              待确认提案 {pending}
+              {pending > 0 ? `待确认提案 ${pending}` : `已过期提案 ${stale}`}
             </button>
           </header>
         )}

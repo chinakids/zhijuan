@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Check, X, FileText, GitCompare, Inbox, ChevronDown } from 'lucide-react'
+import { Check, X, FileText, GitCompare, Inbox, ChevronDown, Trash2 } from 'lucide-react'
 import type { Proposal } from '../../../../shared/types'
 import { Button } from '../../components/ui/button'
 import { ScrollArea } from '../../components/ui/scroll-area'
@@ -41,6 +41,10 @@ function ItemCard({ p, projectId, onChanged }: { p: Proposal; projectId: string;
     await window.zhijuan.rejectProposal(projectId, p.id)
     onChanged()
   }
+  async function doDiscard() {
+    await window.zhijuan.discardProposal(projectId, p.id)
+    onChanged()
+  }
   const st = STATUS[p.status] ?? STATUS.pending
   return (
     <div className="mb-2 rounded-xl border border-hair bg-surface p-3">
@@ -80,6 +84,11 @@ function ItemCard({ p, projectId, onChanged }: { p: Proposal; projectId: string;
         <Button size="sm" variant="outline" className="h-7 px-2 text-[11px] [&_svg]:size-3" onClick={() => void doReject()} disabled={p.status !== 'pending'}>
           <X className="mr-1" /> 拒绝
         </Button>
+        {p.status === 'stale' && (
+          <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-danger hover:bg-danger-soft hover:text-danger [&_svg]:size-3" onClick={() => void doDiscard()} title="清除这条过期提案">
+            <Trash2 className="mr-1" /> 清除
+          </Button>
+        )}
         <span className="text-[10px] text-ink-3">来自：{p.source === 'slice-sync' ? '正文保存同步' : 'agent'}</span>
       </div>
       {err && <p className="mt-2 rounded-md bg-danger-soft px-2 py-1 text-[11px] text-danger">{err}</p>}
@@ -97,7 +106,7 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose }: 
   }
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/20 animate-in fade-in">
-      <div className="flex h-full w-[460px] flex-col border-l border-hair bg-paper shadow-[var(--shadow)] animate-in fade-in slide-in-from-right-3">
+      <div role="dialog" aria-label="提案" className="flex h-full w-[460px] flex-col border-l border-hair bg-paper shadow-[var(--shadow)] animate-in fade-in slide-in-from-right-3">
         <div className="flex h-12 shrink-0 items-center border-b border-hair px-4">
           <span className="text-sm font-medium">提案（切片同步）</span>
           <span className="ml-2 text-[11px] text-ink-3">正文保存时自动判别，接受才写入设定</span>
@@ -112,7 +121,7 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose }: 
               <Button size="sm" className="h-7 px-2 text-[11px]" onClick={() => void allApply()}>全部接受</Button>
             </div>
           )}
-          {pending.length === 0 && done.length === 0 && (
+          {pending.length === 0 && done.length === 0 && stale.length === 0 && (
             <div className="flex flex-col items-center gap-2 py-16 text-ink-3">
               <Inbox className="h-6 w-6" />
               <p className="text-xs">还没有提案。保存正文后，切片同步会在这里提出设定更新。</p>
@@ -120,7 +129,12 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose }: 
           )}
           {pending.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} />)}
           {done.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} />)}
-          {stale.length > 0 && <div className="mt-3 border-t border-hair pt-2 text-[11px] text-ink-3">另有 {stale.length} 条因章节再次保存而过期。</div>}
+          {stale.length > 0 && (
+            <div className="mt-3 border-t border-hair pt-2">
+              <p className="mb-2 text-[11px] text-ink-3">已过期 {stale.length} 条（章节被删除或再次保存，不可接受，可查看后清除）</p>
+              {stale.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} />)}
+            </div>
+          )}
         </ScrollArea>
       </div>
     </div>

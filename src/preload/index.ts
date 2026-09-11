@@ -108,6 +108,7 @@ const api = {
   applyProposal: (id: string, pid: string) =>
     ipcRenderer.invoke('proposal:apply', id, pid) as Promise<{ ok: boolean; applied: string[]; errors: string[] }>,
   rejectProposal: (id: string, pid: string) => ipcRenderer.invoke('proposal:reject', id, pid) as Promise<boolean>,
+  discardProposal: (id: string, pid: string) => ipcRenderer.invoke('proposal:discard', id, pid) as Promise<boolean>,
 
   // 文件系统事件（项目目录被外部改动时）
   onFsEvent: (cb: (evt: FsEvent) => void) => {

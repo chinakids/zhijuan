@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { applyAnchor, applyProposal, createProposals, invalidateChapter, listProposals, migrateChapter, rejectProposal } from '../../src/main/proposals'
+import { applyAnchor, applyProposal, createProposals, invalidateChapter, listProposals, migrateChapter, rejectProposal, discardProposal } from '../../src/main/proposals'
 import type { ProposalItem } from '../../src/shared/types'
 
 let root: string
@@ -257,5 +257,23 @@ describe('invalidateChapter（章节删除后提案失效）', () => {
     expect(invalidateChapter(root, 'p', '正文/第99章_不存在.md')).toBe(0)
     expect(invalidateChapter(root, 'p', '')).toBe(0)
     expect(listProposals(root, 'p')[0].status).toBe('pending')
+  })
+})
+
+describe('discardProposal（清除过期提案）', () => {
+  it('仅 stale 可清除：文件删除、列表移除；pending/accepted/rejected 拒绝', () => {
+    const [a] = createProposals(root, 'p', 'slice-sync', '第1章', 's', [item({ after: 'a' })])
+    const [b] = createProposals(root, 'p', 'slice-sync', '第1章', 's', [item({ after: 'b' })])
+    // a 是上一批的 pending，被 b 的同章再保存置 stale
+    expect(listProposals(root, 'p').find((x) => x.id === a.id)?.status).toBe('stale')
+    expect(discardProposal(root, 'p', a.id)).toBe(true)
+    expect(listProposals(root, 'p').find((x) => x.id === a.id)).toBeUndefined()
+    // pending 不可清
+    expect(discardProposal(root, 'p', b.id)).toBe(false)
+    expect(listProposals(root, 'p').find((x) => x.id === b.id)).toBeDefined()
+    // accepted 不可清；不存在 id 返回 false
+    expect(rejectProposal(root, 'p', b.id)).toBe(true)
+    expect(discardProposal(root, 'p', b.id)).toBe(false)
+    expect(discardProposal(root, 'p', 'nope')).toBe(false)
   })
 })

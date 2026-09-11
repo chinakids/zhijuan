@@ -6,7 +6,7 @@ import type { AppSettings, FsEvent, ProposalItem, EditItem } from '../shared/typ
 import { adoptActsChapter } from '../shared/actsAdopt'
 import { countWords } from '../shared/count'
 import { extractFrontMatter } from '../shared/fmatter'
-import { listProposals, createProposals, applyProposal, rejectProposal } from './proposals'
+import { listProposals, createProposals, applyProposal, rejectProposal, discardProposal } from './proposals'
 import { listSlices } from './slices'
 import { listSnapshots, readSnapshot } from './history'
 import { registerAgentIpc } from './agent/ipc'
@@ -179,6 +179,7 @@ export function registerIpc() {
   ipcMain.handle('proposal:create', (_e, id: string, source: 'slice-sync' | 'agent-chat', chapter: string, slice: string, items: ProposalItem[]) => createProposals(libraryRoot(), id, source, chapter, slice, items))
   ipcMain.handle('proposal:apply', (_e, id: string, pid: string) => applyProposal(libraryRoot(), id, pid))
   ipcMain.handle('proposal:reject', (_e, id: string, pid: string) => rejectProposal(libraryRoot(), id, pid))
+  ipcMain.handle('proposal:discard', (_e, id: string, pid: string) => discardProposal(libraryRoot(), id, pid))
 
   // agent（dsh 写作引擎）
   registerAgentIpc()

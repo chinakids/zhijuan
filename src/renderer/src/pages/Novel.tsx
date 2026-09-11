@@ -244,6 +244,8 @@ export default function Novel() {
       return
     }
     await refresh()
+    // 重命名迁移了提案的 chapter 指针（migrateChapter），刷新顶栏计数与抽屉
+    void useProposalStore.getState().refresh(id)
     // 重命名的是当前选中章 → 选中跟随新文件名；否则保持原选中
     if (sel === renaming.file && r.newRel) setSel(r.newRel.split('/').pop()!)
     setRenaming(null)
@@ -263,6 +265,8 @@ export default function Novel() {
     })
     setDeleting(null)
     await refresh()
+    // 删除会 invalidateChapter（置 stale），刷新顶栏计数与抽屉（.zhijuan 内变化被 DOT_DIR 过滤、无 fs 事件）
+    void useProposalStore.getState().refresh(id)
     if (sel === deleting.file) setSel(null)
   }
   async function doExport(c: ChapterEntry) {

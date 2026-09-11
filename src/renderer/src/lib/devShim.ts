@@ -425,8 +425,12 @@ const mock = {
       const f = key.slice((_id + '/大纲/').length)
       const nm = f.replace(/\.md$/, '')
       if (nm === baseOld || nm.startsWith(baseOld + '_')) {
-        const moved = _id + '/大纲/' + f.replace(baseOld, baseNew)
+        const newF = f.replace(baseOld, baseNew)
+        const moved = _id + '/大纲/' + newF
         if (!docs.has(moved)) { docs.set(moved, docs.get(key)!); docs.delete(key) }
+        // 与真机 fs.watch(recursive) 同口径：每个被改动的文件各广播一次（rename=旧+新路径）
+        fsEmit(_id, '大纲/' + f)
+        fsEmit(_id, '大纲/' + newF)
       }
     }
     const hk = histories.get(k)
@@ -435,6 +439,7 @@ const mock = {
     for (const p of mock.proposals) { if (p.chapter === rel) p.chapter = newRel }
     docs.set(nk, next)
     docs.delete(k)
+    fsEmit(_id, rel)
     fsEmit(_id, newRel)
     return { ok: true, newRel }
   },
@@ -449,6 +454,8 @@ const mock = {
       const nm = f.replace(/\.md$/, '')
       if (nm === baseOld || nm.startsWith(baseOld + '_')) {
         if (docs.delete(key)) cleaned++
+        // 与真机 fs.watch(recursive) 同口径：被删文件各广播一次旧路径
+        fsEmit(_id, '大纲/' + f)
       }
     }
     docs.delete(k)
@@ -634,6 +641,10 @@ const mock = {
   listProposals: async () => mock.proposals.slice(),
   createProposals: async (_id: string, source: 'slice-sync' | 'agent-chat', chapter: string, sliceName: string, items: ProposalItem[]) => {
     console.log('[sync] items', JSON.stringify(items))
+    // 与真机 createProposals 同口径：同章旧 pending 一律置 stale（2026-09-12 补）
+    for (const old of mock.proposals) {
+      if (old.chapter === chapter && old.status === 'pending') old.status = 'stale'
+    }
     const nowT = Date.now()
     const created = items.map((it, idx) => {
       const p: Proposal = {
@@ -671,6 +682,12 @@ const mock = {
   rejectProposal: async (_id: string, pid: string) => {
     const p = mock.proposals.find((x) => x.id === pid)
     if (p) p.status = 'rejected'
+    return true
+  },
+  discardProposal: async (_id: string, pid: string) => {
+    const i = mock.proposals.findIndex((x) => x.id === pid && x.status === 'stale')
+    if (i < 0) return false
+    mock.proposals.splice(i, 1)
     return true
   },
 
