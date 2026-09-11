@@ -32,7 +32,7 @@ const SECTIONS = [
 type SectionKey = (typeof SECTIONS)[number]['key']
 
 export default function Settings() {
-  const { settings, loadSettings, updateSettings } = useAppStore()
+  const { settings, settingsErr, loadSettings, updateSettings } = useAppStore()
   const [workspacePath, setWorkspacePath] = useState('')
   const [wsInfo, setWsInfo] = useState<{ dir: string; inited: boolean; docs: { file: string; name: string }[] } | null>(null)
   const [openDoc, setOpenDoc] = useState<string | null>(null)
@@ -175,7 +175,27 @@ export default function Settings() {
       </aside>
 
       <div className="min-w-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl p-8">
+        {/* 设置读取失败：不静默回退默认值（防止误改覆盖原配置）；提供重试路径（HIG Alerts：内联+下一步动作） */}
+        {!settings && settingsErr ? (
+          <div className="mx-auto mt-16 max-w-sm rounded-xl border border-dashed border-danger/40 p-8 text-center">
+            <p className="text-sm font-medium text-danger">读取设置失败</p>
+            <p className="mt-1 break-all text-xs text-ink-3">{settingsErr}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4"
+              onClick={() => {
+                useAppStore.setState({ settingsErr: '' })
+                void loadSettings()
+              }}
+            >
+              重试
+            </Button>
+          </div>
+        ) : !settings ? (
+          <p className="pt-20 text-center text-sm text-ink-3">正在读取设置…</p>
+        ) : (
+          <div className="mx-auto max-w-2xl p-8">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold">{cur?.label}</h2>
@@ -367,6 +387,7 @@ export default function Settings() {
             </Card>
           )}
         </div>
+        )}
         <ShortcutHelp open={shortcutOpen} onOpenChange={setShortcutOpen} />
       </div>
     </div>

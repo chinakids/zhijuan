@@ -59,6 +59,8 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
   const [searchQ, setSearchQ] = useState('')
   const [hits, setHits] = useState<SearchHit[] | null>(null)
   const [searching, setSearching] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [loadErr, setLoadErr] = useState('')
   const [newCatOpen, setNewCatOpen] = useState(false)
   const [newCatName, setNewCatName] = useState('')
   const [newCatErr, setNewCatErr] = useState('')
@@ -70,13 +72,20 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
 
   const refresh = useCallback(async () => {
     if (!id) return
-    const [cats, list] = await Promise.all([
-      window.zhijuan.listLibraryCategories(id),
-      window.zhijuan.listDocs(id, '素材库')
-    ])
-    setCategories(cats)
-    setFiles(list)
-    setSelCat((s) => (s && cats.some((c) => c.name === s) ? s : (cats[0]?.name ?? null)))
+    try {
+      const [cats, list] = await Promise.all([
+        window.zhijuan.listLibraryCategories(id),
+        window.zhijuan.listDocs(id, '素材库')
+      ])
+      setCategories(cats)
+      setFiles(list)
+      setSelCat((s) => (s && cats.some((c) => c.name === s) ? s : (cats[0]?.name ?? null)))
+      setLoadErr('')
+    } catch (e) {
+      setLoadErr(String((e as Error).message ?? e))
+    } finally {
+      setLoading(false)
+    }
   }, [id])
 
   useEffect(() => {
@@ -103,8 +112,12 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
     void (async () => {
       const map = new Map<string, CardMeta>()
       for (const f of matFiles) {
-        const text = (await window.zhijuan.readDoc(id, '素材库/' + f.file)) ?? ''
-        map.set(f.file, { preview: previewOf(text), tags: tagsOf(text) })
+        try {
+          const text = (await window.zhijuan.readDoc(id, '素材库/' + f.file)) ?? ''
+          map.set(f.file, { preview: previewOf(text), tags: tagsOf(text) })
+        } catch {
+          // 单张素材读取失败不阻断列表（其余卡片照常显示；列表本身有错误卡兜底）
+        }
       }
       if (!cancel) setCards(map)
     })()
@@ -234,7 +247,11 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
               <span className="shrink-0 text-[10px] text-ink-3">{node.count}</span>
             </button>
           ))}
-          {tree.length === 0 && <p className="px-3 py-4 text-center text-xs text-ink-3">还没有类别，点下方「＋ 新类别」创建。</p>}
+          {loading && !loadErr && <p className="px-3 py-4 text-center text-xs text-ink-3">正在读取素材库…</p>}
+          {!loading && loadErr && <p className="px-3 py-4 text-center text-xs text-danger">读取失败</p>}
+          {!loading && !loadErr && tree.length === 0 && (
+            <p className="px-3 py-4 text-center text-xs text-ink-3">还没有类别，点下方「＋ 新类别」创建。</p>
+          )}
         </div>
         <div className="border-t border-hair p-2">
           <Button
@@ -287,7 +304,22 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
               </Button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-              {hits !== null ? (
+              {!loading && loadErr ? (
+                <div className="py-10 text-center">
+                  <p className="text-sm font-medium text-danger">读取素材库失败</p>
+                  <p className="mt-1 break-all text-xs text-ink-3">{loadErr}</p>
+                  <button
+                    className="mt-3 text-xs text-accent underline-offset-2 hover:underline"
+                    onClick={() => {
+                      setLoading(true)
+                      setLoadErr('')
+                      void refresh()
+                    }}
+                  >
+                    重试
+                  </button>
+                </div>
+              ) : hits !== null ? (
                 // 搜索结果
                 searching && hits.length === 0 ? (
                   <p className="py-8 text-center text-xs text-ink-3">搜索中…</p>
@@ -314,6 +346,8 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
                     ))}
                   </>
                 )
+              ) : loading ? (
+                <p className="py-8 text-center text-xs text-ink-3">正在读取素材库…</p>
               ) : !selCat ? (
                 <p className="py-8 text-center text-xs text-ink-3">先在左侧选择一个类别；顶部可以按需求发起采集，管道回填后自动出现在对应类别。</p>
               ) : matInCat.length === 0 ? (

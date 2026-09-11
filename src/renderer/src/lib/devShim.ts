@@ -286,6 +286,14 @@ const projects: ProjectSummary[] = [
     updatedAt: now - 86400_000 * 2,
     stats: { chapters: 5, characters: 4, worldviewFiles: 3, materials: 2 },
     lastChapter: '第05章_山雨'
+  },
+  {
+    id: 'demo-blank',
+    name: '空白示例',
+    description: '示例：尚未写正文的项目（空态演示）',
+    createdAt: now - 86400_000,
+    updatedAt: now - 3600_000,
+    stats: { chapters: 0, characters: 0, worldviewFiles: 0, materials: 0 }
   }
 ]
 

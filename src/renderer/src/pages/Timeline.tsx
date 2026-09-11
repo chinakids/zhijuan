@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Clock, Users } from 'lucide-react'
 import type { SliceEntry } from '../../../shared/types'
+import { Button } from '../components/ui/button'
 
 function chapterNo(chapter: string): number | null {
   const m = chapter.match(/第\s*(\d+)/)
@@ -12,23 +13,42 @@ function chapterNo(chapter: string): number | null {
 export default function Timeline() {
   const { id } = useParams<{ id: string }>()
   const [slices, setSlices] = useState<SliceEntry[] | null>(null)
+  const [loadErr, setLoadErr] = useState('')
+  const [retryTick, setRetryTick] = useState(0)
 
   useEffect(() => {
     if (!id) return
     let alive = true
+    setLoadErr('')
     void window.zhijuan
       .listSlices(id)
       .then((s) => alive && setSlices(s))
-      .catch(() => alive && setSlices([]))
+      .catch((e) => alive && setLoadErr(String((e as Error).message ?? e)))
     return () => {
       alive = false
     }
-  }, [id])
+  }, [id, retryTick])
 
-  if (slices === null) {
+  if (slices === null && !loadErr) {
     return <div className="p-6 text-sm text-ink-3">正在读取项目时间线…</div>
   }
-  if (!slices.length) {
+  if (loadErr) {
+    return (
+      <div className="mx-auto mt-24 max-w-sm rounded-xl border border-dashed border-danger/40 p-8 text-center">
+        <p className="text-sm font-medium text-danger">读取时间线失败</p>
+        <p className="mt-1 break-all text-xs text-ink-3">{loadErr}</p>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-4"
+          onClick={() => setRetryTick((t) => t + 1)}
+        >
+          重试
+        </Button>
+      </div>
+    )
+  }
+  if (!slices || !slices.length) {
     return (
       <div className="mx-auto max-w-3xl p-6">
         <h2 className="text-lg font-semibold">项目时间线</h2>

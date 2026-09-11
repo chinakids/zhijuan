@@ -8,6 +8,7 @@
 // ④ 正文页 ?zj-fail=readDoc → 点开第01章 → 「读取文档失败」+ 重试 → 编辑器加载正文
 // ⑤ 人物页 ?zj-fail=listDocs → 「读取失败」+ 重试 → 档案列表出现
 // ⑥ 首页 ?zj-fail=createProject → 新建项目 → toast「创建项目失败」
+// ⑦–⑪（体验层 2026-09-11 11:15 轮）素材库/大纲/时间线/设置读取失败卡+重试；空白项目空态「新建第一章」直达按钮
 const CDP = 'http://127.0.0.1:9224'
 const BASE = 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -156,6 +157,58 @@ await step('⑥ 首页 createProject 失败 toast', async () => {
   await sleep(200)
   await clickText(page, '创建并进入')
   await evalUntil(page, bodyHas('创建项目失败'), Boolean, 20000, 'toast error')
+  page.close()
+})
+
+// ⑦ 素材库读取失败 → 错误卡 → 重试恢复（listLibraryCategories 不被 Workspace 吞，zj-fail 一次足矣）
+await step('⑦ 素材库 listLibraryCategories 失败与重试', async () => {
+  const tab = await openTab(BASE + '/?cb=' + Date.now() + '&zj-fail=listLibraryCategories#/project/demo-aseya/library')
+  const page = await attach(tab.webSocketDebuggerUrl)
+  await evalUntil(page, bodyHas('读取素材库失败'), Boolean, 20000, 'library error card')
+  await clickText(page, '重试')
+  await evalUntil(page, bodyHas('桥段'), Boolean, 20000, 'library recovered')
+  page.close()
+})
+
+// ⑧ 大纲读取失败 → 错误卡（listChapters 被 Workspace 计数先吞一次，用 zj-fail-x 保证页面层复现）
+await step('⑧ 大纲 listChapters 错误卡', async () => {
+  const tab = await openTab(BASE + '/?cb=' + Date.now() + '&zj-fail-x=listChapters#/project/demo-aseya/outline')
+  const page = await attach(tab.webSocketDebuggerUrl)
+  await evalUntil(page, bodyHas('读取章卡失败'), Boolean, 20000, 'outline error card')
+  await clickText(page, '重试')
+  await sleep(400)
+  await evalUntil(page, bodyHas('读取章卡失败'), Boolean, 20000, 'outline error persists')
+  page.close()
+})
+
+// ⑨ 时间线读取失败 → 错误卡 → 重试恢复（listSlices 不被 Workspace 吞，zj-fail 一次足矣）
+await step('⑨ 时间线 listSlices 失败与重试', async () => {
+  const tab = await openTab(BASE + '/?cb=' + Date.now() + '&zj-fail=listSlices#/project/demo-aseya/timeline')
+  const page = await attach(tab.webSocketDebuggerUrl)
+  await evalUntil(page, bodyHas('读取时间线失败'), Boolean, 20000, 'timeline error card')
+  await clickText(page, '重试')
+  await evalUntil(page, bodyHas('第一幕_雾港之夜'), Boolean, 20000, 'timeline recovered')
+  page.close()
+})
+
+// ⑩ 设置读取失败 → 错误卡（Settings 页自身 useEffect 会再调一次 loadSettings，一次性失败会被吞，故用 zj-fail-x）
+await step('⑩ 设置 getSettings 错误卡', async () => {
+  const tab = await openTab(BASE + '/?cb=' + Date.now() + '&zj-fail-x=getSettings#/project/demo-aseya/settings')
+  const page = await attach(tab.webSocketDebuggerUrl)
+  await evalUntil(page, bodyHas('读取设置失败'), Boolean, 20000, 'settings error card')
+  await clickText(page, '重试')
+  await sleep(400)
+  await evalUntil(page, bodyHas('读取设置失败'), Boolean, 20000, 'settings error persists')
+  page.close()
+})
+
+// ⑪ 空白项目正文空态 → 「新建第一章」直达按钮 → 打开建章对话框
+await step('⑪ 空白项目空态新建第一章按钮', async () => {
+  const tab = await openTab(BASE + '/?cb=' + Date.now() + '#/project/demo-blank/novel')
+  const page = await attach(tab.webSocketDebuggerUrl)
+  await evalUntil(page, bodyHas('还没有章节'), Boolean, 20000, 'empty state')
+  await clickText(page, '新建第一章', 'aside.w-60')
+  await evalUntil(page, bodyHas('新建章节'), Boolean, 20000, 'create dialog')
   page.close()
 })
 

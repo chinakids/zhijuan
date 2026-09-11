@@ -308,7 +308,19 @@ export default function Novel() {
               </button>
             </div>
           )}
-          {!loading && !loadErr && chapters.length === 0 && <p className="px-2 py-6 text-center text-xs text-ink-3">还没有章节，点右上角「+」开始第一章。</p>}
+          {!loading && !loadErr && chapters.length === 0 && (
+            <div className="px-2 py-6 text-center">
+              <p className="text-xs text-ink-3">还没有章节，点右上角「+」开始第一章。</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2.5 h-7 shrink-0 whitespace-nowrap text-[11px]"
+                onClick={openCreate}
+              >
+                <Plus className="h-3 w-3" /> 新建第一章
+              </Button>
+            </div>
+          )}
           {chapters.map((c) => (
             <button
               key={c.file}

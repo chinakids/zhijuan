@@ -27,18 +27,27 @@ export default function Outline() {
   const [confirmAdopt, setConfirmAdopt] = useState(false)
   const [checkOpen, setCheckOpen] = useState(false)
   const [msg, setMsg] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [loadErr, setLoadErr] = useState('')
   // 当前选中章节的分幕草稿里「未写成」的段号（>0 时显示「补写缺段」按钮）
   const [draftMissing, setDraftMissing] = useState<number[]>([])
   const events = useFsEvents(id)
 
   const refresh = useCallback(async () => {
     if (!id) return
-    const [chs, docs] = await Promise.all([window.zhijuan.listChapters(id), window.zhijuan.listDocs(id, '大纲')])
-    setChapters(chs)
-    const files = docs.map((d) => '大纲/' + d.file)
-    setOutlineFiles(files)
-    setOutlineMtimes(Object.fromEntries(docs.map((d) => ['大纲/' + d.file, d.mtime])))
-    setSel((s) => (s && files.includes(s) ? s : files.includes('大纲/索引.md') ? '大纲/索引.md' : null))
+    try {
+      const [chs, docs] = await Promise.all([window.zhijuan.listChapters(id), window.zhijuan.listDocs(id, '大纲')])
+      setChapters(chs)
+      const files = docs.map((d) => '大纲/' + d.file)
+      setOutlineFiles(files)
+      setOutlineMtimes(Object.fromEntries(docs.map((d) => ['大纲/' + d.file, d.mtime])))
+      setSel((s) => (s && files.includes(s) ? s : files.includes('大纲/索引.md') ? '大纲/索引.md' : null))
+      setLoadErr('')
+    } catch (e) {
+      setLoadErr(String((e as Error).message ?? e))
+    } finally {
+      setLoading(false)
+    }
   }, [id])
 
   useEffect(() => {
@@ -309,7 +318,24 @@ export default function Outline() {
             <ScrollText className="h-3.5 w-3.5" />
             章卡索引（全书）
           </button>
-          {chapters.length === 0 && (
+          {loading && !loadErr && <p className="px-2 py-6 text-center text-xs text-ink-3">正在读取章卡…</p>}
+          {!loading && loadErr && (
+            <div className="px-2 py-5 text-center">
+              <p className="text-xs text-danger">读取章卡失败</p>
+              <p className="mt-0.5 break-all text-[11px] text-ink-3">{loadErr}</p>
+              <button
+                className="mt-1.5 text-xs text-accent underline-offset-2 hover:underline"
+                onClick={() => {
+                  setLoading(true)
+                  setLoadErr('')
+                  void refresh()
+                }}
+              >
+                重试
+              </button>
+            </div>
+          )}
+          {!loading && !loadErr && chapters.length === 0 && (
             <p className="px-2 py-6 text-center text-xs text-ink-3">还没有章节。去「正文创作」写第一章，再来回建章卡。</p>
           )}
           {chapters.map((c) => {
@@ -499,7 +525,7 @@ export default function Outline() {
         <div className="min-h-0 flex-1">
           {sel ? (
             <DocEditor projectId={id} rel={sel} extVersion={extVersion} onSave={() => void refresh()} />
-          ) : (
+          ) : loadErr ? null : (
             <div className="flex h-full items-center justify-center text-sm text-ink-3">
               还没有章卡。点右上角「回建缺失」把已有正文回建成章卡。
             </div>
