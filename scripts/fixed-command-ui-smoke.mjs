@@ -3,7 +3,8 @@
 // 前置：node scripts/serve-renderer.mjs（8123，SPA fallback）；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① / 浮层现 /巡查 /导演（带「直连」标记）；② /导演 → 工具卡+摘要入对话流（大纲/第02章_灯塔_导演.md 落资产）；
 //         ③ /巡查 → 本章小环抽屉自动跑短巡查；④ /巡查 修订 → 切分层修订；⑤ /巡查 全卷 → 全卷一致性巡查抽屉；
-//         ⑥ 回归：/续写 仍走模板展开（不误入固定逻辑）。
+//         ⑥ 回归：/续写 仍走模板展开（不误入固定逻辑）；⑦ /巡查 未知参数就地提示（不静默降级）；
+//         ⑧ /导演 运行中点「停止」→ 取消提示 + 不再落资产。 2026-09-12 追加 ⑦⑧。
 const CDP = 'http://127.0.0.1:9224'
 const BASE = 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -191,6 +192,47 @@ try {
     '/续写 模板展开'
   )
   console.log('OK ⑥ 回归 /续写 模板展开正常（未误入固定逻辑）' )
+
+  // ⑦ /巡查 未知参数 → 就地提示合法枚举，不静默降级（2026-09-12）
+  await clearText(page)
+  await typeText(page, '/巡查 乱写')
+  await pressEnter(page)
+  await evalUntil(
+    page,
+    `document.body.innerText`,
+    (v) => v.includes('无法识别') && v.includes('本章（短巡查）'),
+    8000,
+    '/巡查 参数提示'
+  )
+  console.log('OK ⑦ /巡查 未知参数就地提示（不静默降级）' )
+
+  // ⑧ /导演 运行中点「停止」→ 取消提示，且不再写入 大纲/（2026-09-12）
+  const beforeCount = (await page.eval(`document.body.innerText`)).split('已写入 大纲/').length - 1
+  await clearText(page)
+  await typeText(page, '/导演')
+  await pressEnter(page) // 选中候选（插入 /导演␣）
+  await sleep(350)
+  await pressEnter(page) // 发送 → fxBusy，出现方形停止按钮
+  await evalUntil(
+    page,
+    `!!document.querySelector('button[title^="停止导演任务"]')`,
+    (v) => v === true,
+    5000,
+    '停止按钮出现'
+  )
+  await page.eval(`document.querySelector('button[title^="停止导演任务"]')?.click()`)
+  await evalUntil(
+    page,
+    `document.body.innerText`,
+    (v) => v.includes('已取消导演任务') && v.includes('已取消（未落盘）'),
+    8000,
+    '取消提示入对话流'
+  )
+  await sleep(2200) // 等 devShim 700ms 延迟的迟到结果回来（应被作废）
+  const body8 = await page.eval(`document.body.innerText`)
+  const afterCount = body8.split('已写入 大纲/').length - 1
+  if (afterCount !== beforeCount) throw new Error(`取消后仍落盘：${beforeCount} → ${afterCount}`)
+  console.log('OK ⑧ /导演 取消：提示入对话流，迟到结果未落盘（已写入计数保持 ' + beforeCount + '）')
 
   console.log('ALL OK ✅')
 } catch (err) {

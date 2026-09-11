@@ -1,4 +1,5 @@
 // 织卷 · 章节导演真模型冒烟（无 GUI）：走真实边车 + 真模型，给一章导出导演板并落盘。
+// 2026-09-12：带「作者要求」参数跑，断言要求原样到达模型（premise 必须含指定短语）——验证 /导演 参数接线。
 // 用法：cd ~/Desktop/织卷 && LOCAL_LLM_KEY=local node scripts/director-smoke.mjs
 import { build as esbuild } from 'esbuild'
 import { writeFileSync } from 'node:fs'
@@ -8,6 +9,8 @@ import { spawnSync } from 'node:child_process'
 const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = process.env.ZJ_USERDATA || '/tmp/zj-smoke-userdata'
+
+const REQ = '(聚焦博物馆之夜)'
 
 const entry = '/tmp/zj-director-entry.mts'
 writeFileSync(
@@ -25,12 +28,14 @@ writeFileSync(
     'const t = Date.now()',
     'let exitCode = 1',
     'try {',
-    '  const r = await runDirector(PJ, CH)',
+    `  const req = ${JSON.stringify(REQ)}`,
+    "  const r = await runDirector(PJ, CH, '导演板 premise 字段必须原样以「' + req + '」结尾')",
     "  console.log('[OK ' + ((Date.now() - t) / 1000).toFixed(1) + 's] ' + JSON.stringify(r).slice(0, 2500))",
     '  if (r.ok) {',
     "    const got = readDoc(PJ, W) ?? ''",
     "    console.log('[落盘] ' + W + ' -> ' + got.length + ' 字符；片段: ' + got.slice(0, 260).replace(/\\n/g, ' '))",
-    "    exitCode = got.length > 200 ? 0 : 2",
+    "    if (!got.includes(req)) { console.log('[FAIL] 作者要求未到达模型（导演板无指定短语）'); exitCode = 3 }",
+    "    else exitCode = got.length > 200 ? 0 : 2",
     '  } else exitCode = 1',
     '} catch (e) {',
     "  console.log('[ERR ' + ((Date.now() - t) / 1000).toFixed(1) + 's] ' + String(e?.message || e).slice(0, 400))",

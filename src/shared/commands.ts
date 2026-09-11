@@ -58,13 +58,29 @@ export const BUILTIN_COMMANDS: ZjCommand[] = [
   }
 ]
 
+/** /巡查 参数模式：chapter=本章小环·短巡查（默认）；revision=分层修订；full=全卷一致性巡查 */
+export type PatrolMode = 'chapter' | 'revision' | 'full'
+
+/**
+ * /巡查 参数严格解析（枚举校验，不静默降级——2026-09-12 对话流收尾）：
+ * 空/「本章」「短巡查」→ chapter；「修订」「分层」→ revision；「全卷」「一致性」→ full；
+ * 其余返回 null，调用方就地提示合法参数，不做猜测性降级（此前 `/巡查 乱写` 会静默跑短巡查）。
+ */
+export function parsePatrolArgs(args: string): PatrolMode | null {
+  const a = args.trim()
+  if (!a || a === '本章' || a === '短巡查') return 'chapter'
+  if (a === '修订' || a === '分层') return 'revision'
+  if (a === '全卷' || a === '一致性') return 'full'
+  return null
+}
+
 /** 固定逻辑命令：发送时不走模型，直连既有入口（与按钮共用同一实现，不双写）。 */
 export const FIXED_COMMANDS: ZjCommand[] = [
   {
     id: 'patrol',
     name: '巡查',
     desc: '本章小环·短巡查：读当前章与设定找问题，逐条可转提案',
-    argHint: '[修订|全卷]',
+    argHint: '[本章|修订|全卷]',
     kind: 'action',
     run: 'chapterCheck'
   },

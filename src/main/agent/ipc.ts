@@ -4,7 +4,7 @@ import { runChat, runSync, abortRequest, type AgentOutEvent } from './engine'
 import { runAudit, runChapterCheck, type AuditKind } from './audit'
 import { runOutlineRebuild } from './outline'
 import { runMaterialTriage } from './triage'
-import { runDirector } from './director'
+import { runDirector, cancelDirector } from './director'
 import { runDirectorCheck } from './director-check'
 import { runActs, type ActsRunOpts } from './acts'
 import { ensureHarness, closeHarness, answerDir } from './runtime'
@@ -64,8 +64,15 @@ export function registerAgentIpc() {
   )
   // 大纲回建（把已有正文回建成章卡，写 大纲/ 目录；only：只回建指定的正文章节）
   ipcMain.handle('agent:outlineRebuild', (_e, projectId: string, only: string[] | undefined) => runOutlineRebuild(projectId, { only }))
-  // 章节导演（动笔前给一章先导演板，写 大纲/<章>_导演.md）
-  ipcMain.handle('agent:director', (_e, projectId: string, chapterRel: string) => runDirector(projectId, chapterRel))
+  // 章节导演（动笔前给一章先导演板，写 大纲/<章>_导演.md；requirement=/导演 参数，cancelToken=取消标记）
+  ipcMain.handle('agent:director', (_e, projectId: string, chapterRel: string, requirement?: string, cancelToken?: string) =>
+    runDirector(projectId, chapterRel, requirement, cancelToken)
+  )
+  // 取消进行中的导演任务（标记后不再落资产；模型已发起的请求允许跑完）
+  ipcMain.handle('agent:directorCancel', (_e, token: string) => {
+    cancelDirector(token)
+    return true
+  })
   // 导演兑现检查（动笔后对照导演板核对本章，结果回 UI 不落盘）
   ipcMain.handle('agent:directorCheck', (_e, projectId: string, chapterRel: string) => runDirectorCheck(projectId, chapterRel))
   // 分幕生成（按导演板情绪弧分段逐段起草整章，拼成定稿草稿落 大纲/<章>_分幕.md；

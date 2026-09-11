@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ALL_COMMANDS, BUILTIN_COMMANDS, FIXED_COMMANDS, expandCommand, filterCommandCandidates, insertCommand, matchFixedCommand, parseCommandTrigger } from '../../src/shared/commands'
+import { ALL_COMMANDS, BUILTIN_COMMANDS, FIXED_COMMANDS, expandCommand, filterCommandCandidates, insertCommand, matchFixedCommand, parseCommandTrigger, parsePatrolArgs } from '../../src/shared/commands'
 
 describe('parseCommandTrigger（/ 命令触发解析）', () => {
   it('行首 / 触发（无 query）', () => {
@@ -135,5 +135,27 @@ describe('matchFixedCommand（固定逻辑命令识别）', () => {
   it('固定命令不走进模板展开（expandCommand 返回 null）', () => {
     expect(expandCommand('/导演', '雾港')).toBeNull()
     expect(FIXED_COMMANDS.map((c) => c.name)).toEqual(['巡查', '导演'])
+  })
+})
+
+describe('parsePatrolArgs（/巡查 参数枚举校验，2026-09-12）', () => {
+  it('空/本章/短巡查 → chapter（默认短巡查）', () => {
+    expect(parsePatrolArgs('')).toBe('chapter')
+    expect(parsePatrolArgs('   ')).toBe('chapter')
+    expect(parsePatrolArgs('本章')).toBe('chapter')
+    expect(parsePatrolArgs('短巡查')).toBe('chapter')
+  })
+
+  it('修订/分层 → revision；全卷/一致性 → full', () => {
+    expect(parsePatrolArgs('修订')).toBe('revision')
+    expect(parsePatrolArgs('分层')).toBe('revision')
+    expect(parsePatrolArgs('全卷')).toBe('full')
+    expect(parsePatrolArgs('一致性')).toBe('full')
+  })
+
+  it('未知/组合参数 → null（调用方就地提示，不静默降级）', () => {
+    expect(parsePatrolArgs('瞎写')).toBeNull()
+    expect(parsePatrolArgs('修订 全卷')).toBeNull()
+    expect(parsePatrolArgs('本章甲')).toBeNull()
   })
 })

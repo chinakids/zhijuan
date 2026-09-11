@@ -22,6 +22,8 @@ function fsEmit(projectId: string, rel: string) {
 }
 
 const docs = new Map<string, string>()
+// 导演任务取消标记（与真机 director.ts 的 directorCancels 同口径：token → cancelled）
+const directorCancels = new Set<string>()
 // 被重发（writeDoc 触碰）过的演示停滞卡 key：docsOf 对它的「3天前」mtime 特判失效，恢复真机行为（mtime=写盘时刻）
 const taskTouched = new Set<string>()
 // 空类别（dev 内存无目录概念：新类别只登记名字，树/列表经 libraryTree 组装时按计数 0 展示）
@@ -774,6 +776,10 @@ const mock = {
     emit({ requestId: rid, type: 'done' })
   },
   agentCancel: async () => true,
+  agentDirectorCancel: async (token: string) => {
+    directorCancels.add(token)
+    return true
+  },
   agentAnswer: async (_batch: string, answers: unknown[]) => {
     console.log('[devShim] agent answer', JSON.stringify(answers))
     return { ok: true }
@@ -943,10 +949,16 @@ const mock = {
     fsEmit(projectId, '大纲/索引.md')
     return { ok: true, cards, written: writes }
   },
-  // 章节导演（dev 模式：写 mock 的 大纲/<章>_导演.md 并返回导演板）
-  agentDirector: async (projectId: string, chapterRel: string) => {
+  // 章节导演（dev 模式：写 mock 的 大纲/<章>_导演.md 并返回导演板；与真机同口径支持取消）
+  agentDirector: async (projectId: string, chapterRel: string, _requirement?: string, cancelToken?: string) => {
     const name = chapterRel.replace(/^正文\//, '').replace(/\.md$/, '')
     const rel = '大纲/' + name + '_导演.md'
+    // 模拟真机延迟：给 UI 冒烟留出「点停止」窗口（此前 mock 瞬时返回，取消路径没法真实驱动）
+    if (cancelToken) directorCancels.delete(cancelToken)
+    await new Promise((r) => setTimeout(r, 700))
+    if (cancelToken && directorCancels.has(cancelToken)) {
+      return { ok: false, error: '已取消' }
+    }
     const sheet = {
       premise: '把阿七从“被记忆咬住”推到“决定主动去查”，用一个旧钥匙串串起灯塔与候船厅两条线。',
       arcs: [

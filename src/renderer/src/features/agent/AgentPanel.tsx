@@ -6,7 +6,7 @@ import { Loader2, Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck,
 import type { ProseApi } from '../editor/Prose'
 import type { AuditKind, EditItem, ChapterCheckKind, DirectorSheet } from '../../../../shared/types'
 import { filterAtCandidates, insertAtMention, parseAtTrigger, type AtCandidate } from '../../../../shared/mention'
-import { expandCommand, filterCommandCandidates, insertCommand, matchFixedCommand, parseCommandTrigger, type ZjCommand } from '../../../../shared/commands'
+import { expandCommand, filterCommandCandidates, insertCommand, matchFixedCommand, parseCommandTrigger, parsePatrolArgs, type ZjCommand } from '../../../../shared/commands'
 import { useAgentStore } from './store'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
 import TodoCard from './TodoCard'
@@ -256,8 +256,11 @@ export default function AgentPanel(props: AgentPanelProps) {
   const { send, stop, streaming: sending } = useSender(props)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [audit, setAudit] = useState<{ open: boolean; tab: AuditKind }>({ open: false, tab: 'consistency' })
-  // 固定逻辑命令（/巡查 /导演）执行中：不走模型流，锁发送防连点
+  // 固定逻辑命令（/巡查 /导演）执行中：锁发送防连点
   const [fxBusy, setFxBusy] = useState(false)
+  // 取消路径（2026-09-12）：点「停止」作废在途结果（token 递增），并把取消标记发给主进程（跳过落资产）
+  const fxTokenRef = useRef(0)
+  const fxAidRef = useRef<string | null>(null)
 
   // ---------- 输入框 @ 引用（GitHub/Slack mention 范式；数据懒加载 + 会话缓存） ----------
   const taRef = useRef<HTMLTextAreaElement>(null)
@@ -443,15 +446,25 @@ export default function AgentPanel(props: AgentPanelProps) {
         st.append({ role: 'assistant', content: '先选中一个章节再 `/巡查`；本章小环是按章检查的。', error: true })
         return
       }
-      if (args === '全卷') {
+      // 参数结构化（2026-09-12）：枚举校验，识别不了就地提示，不做静默降级
+      const mode = parsePatrolArgs(args)
+      if (!mode) {
+        st.append({
+          role: 'assistant',
+          content: `「/巡查」参数只认：本章（短巡查）｜修订（分层修订）｜全卷（一致性巡查）；「${args}」无法识别。`,
+          error: true
+        })
+        return
+      }
+      if (mode === 'full') {
         setAudit({ open: true, tab: 'consistency' })
         st.append({ role: 'assistant', content: '已调起全卷一致性巡查（右侧抽屉），结论可存档到大纲。' })
         return
       }
-      props.onChapterCheck?.(args === '修订' ? 'revision' : 'chapter')
+      props.onChapterCheck?.(mode === 'revision' ? 'revision' : 'chapter')
       st.append({
         role: 'assistant',
-        content: args === '修订'
+        content: mode === 'revision'
           ? '已调起本章小环·分层修订（右侧抽屉），逐层建议可复制回正文。'
           : '已调起本章小环·短巡查（右侧抽屉），每条可转提案。'
       })
@@ -463,10 +476,14 @@ export default function AgentPanel(props: AgentPanelProps) {
         return
       }
       const aid = 'fx-' + Date.now().toString(36)
+      const token = ++fxTokenRef.current
+      fxAidRef.current = aid
       st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', toolArgs: props.chapterRel, done: false })
       setFxBusy(true)
       try {
-        const r = await window.zhijuan.agentDirector(props.projectId, props.chapterRel)
+        // /导演 参数 = 作者要求（此前被静默丢弃，2026-09-12 接线）；token 供「停止」取消
+        const r = await window.zhijuan.agentDirector(props.projectId, props.chapterRel, args || undefined, aid)
+        if (fxTokenRef.current !== token) return // 已取消：在途结果作废
         if (r.ok) {
           st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: true, content: `已写入 ${r.written}` })
           st.append({ role: 'assistant', content: fmtDirectorNote(r.written, r.sheet) })
@@ -475,13 +492,37 @@ export default function AgentPanel(props: AgentPanelProps) {
           st.append({ role: 'assistant', content: '导演创建失败：' + (r.error ?? '未知原因'), error: true })
         }
       } catch (e) {
+        if (fxTokenRef.current !== token) return
         const msg = String((e as Error)?.message ?? e)
         st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: false, content: msg })
         st.append({ role: 'assistant', content: '导演创建失败：' + msg, error: true })
       } finally {
-        setFxBusy(false)
+        fxAidRef.current = null
+        if (fxTokenRef.current === token) setFxBusy(false)
       }
     }
+  }
+
+  /** 取消进行中的固定逻辑子任务（当前＝/导演）：作废在途结果 + 通知主进程跳过落资产 */
+  function stopFx() {
+    const aid = fxAidRef.current
+    fxTokenRef.current++
+    fxAidRef.current = null
+    setFxBusy(false)
+    if (!aid) return
+    void window.zhijuan.agentDirectorCancel(aid)
+    useAgentStore.getState().upsertTool({
+      id: aid,
+      kind: 'meta',
+      tool: '章节导演',
+      done: true,
+      toolOk: false,
+      content: '已取消（未落盘）'
+    })
+    useAgentStore.getState().append({
+      role: 'assistant',
+      content: '已取消导演任务：不再等待生成，导演板不会写入大纲。'
+    })
   }
 
   function doSend() {
@@ -551,9 +592,13 @@ export default function AgentPanel(props: AgentPanelProps) {
             <Square className="h-3 w-3" />
           </button>
         ) : fxBusy ? (
-          <span className="flex h-7 w-7 items-center justify-center rounded-full border border-hair bg-surface-2 text-ink-3" title="命令执行中…">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          </span>
+          <button
+            onClick={stopFx}
+            title="停止导演任务（结果不落盘）"
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-hair bg-surface-2 text-ink-2 transition-colors hover:text-danger"
+          >
+            <Square className="h-3 w-3" />
+          </button>
         ) : (
           <button
             onClick={doSend}

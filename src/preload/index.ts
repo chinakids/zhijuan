@@ -141,11 +141,12 @@ const api = {
       | { ok: true; cards: OutlineCard[]; written: string[] }
       | { ok: false; error: string }
     >,
-  agentDirector: (projectId: string, chapterRel: string) =>
-    ipcRenderer.invoke('agent:director', projectId, chapterRel) as Promise<
+  agentDirector: (projectId: string, chapterRel: string, requirement?: string, cancelToken?: string) =>
+    ipcRenderer.invoke('agent:director', projectId, chapterRel, requirement, cancelToken) as Promise<
       | { ok: true; written: string; sheet: DirectorSheet }
       | { ok: false; error: string }
     >,
+  agentDirectorCancel: (token: string) => ipcRenderer.invoke('agent:directorCancel', token) as Promise<boolean>,
   agentDirectorCheck: (projectId: string, chapterRel: string) =>
     ipcRenderer.invoke('agent:directorCheck', projectId, chapterRel) as Promise<
       | { ok: true; result: DirectorCheckResult }

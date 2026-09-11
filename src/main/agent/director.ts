@@ -143,8 +143,11 @@ const directorDef: SubtaskDef<DirectorSheet> = {
   buildParts: async (c) => {
     const chapterRel = String(c.args?.chapterRel ?? '')
     const cast = Array.isArray(c.args?.cast) ? (c.args?.cast as string[]).filter(Boolean) : []
+    const req = String((c.args?.requirement as string | undefined) ?? '').trim()
     const ctx = await buildWritingContext(c.projectId, chapterRel)
     const parts = [directorSystem(cast)]
+    // 作者要求（/导演 参数）：紧跟系统指令、先于材料，钉在权威位置（2026-09-12 接线，此前参数被静默丢弃）
+    if (req) parts.push('【作者要求】' + req)
     for (const b of ctx.blocks) parts.push(b)
     if (ctx.blocks.length === 0) parts.push('【材料】没有可用的章节材料：请在最前面写上“先生成章节要素再导演”。')
     return parts
@@ -157,21 +160,40 @@ const directorDef: SubtaskDef<DirectorSheet> = {
 }
 registerCapability(directorDef as never)
 
+/**
+ * 进行中导演任务的取消标记（按 token；2026-09-12 对话流收尾）。
+ * 语义与 chat 的「展示性取消」同源：只能保证「不再等你、不再落资产」，
+ * 底层模型请求已发出时会在边上跑完（dsh 边车无外部中断口，与 runChat 同局限）。
+ */
+const directorCancels = new Map<string, boolean>()
+export function cancelDirector(token: string): void {
+  if (directorCancels.has(token)) directorCancels.set(token, true)
+}
+
 /** 导出一章的导演板并落盘（由 IPC 呼叫方挂起等待；结果可随时重导覆盖） */
-export async function runDirector(projectId: string, chapterRel: string): Promise<DirectorResult> {
+export async function runDirector(projectId: string, chapterRel: string, requirement?: string, cancelToken?: string): Promise<DirectorResult> {
   const rel = chapterRel.replace(/^正文\//, '')
   const ch = listChapters(projectId).find((x) => x.file === rel)
   if (!ch) return { ok: false, error: '找不到该章节。' }
   const fm = extractFrontMatter(readDoc(projectId, chapterRel) ?? '').fm as Record<string, unknown>
   const cast = Array.isArray(fm?.['涉及人物']) ? (fm?.['涉及人物'] as string[]) : []
+  if (cancelToken) directorCancels.set(cancelToken, false)
   try {
-    const out = await runSubtask(directorDef as never, projectId, { chapterRel, cast })
+    const out = await runSubtask(directorDef as never, projectId, {
+      chapterRel,
+      cast,
+      requirement: (requirement ?? '').trim() || undefined
+    })
     if (!out.ok) return { ok: false, error: out.error }
+    // 取消语义：用户已点停止 → 不再落资产（导演板不进 大纲/）
+    if (cancelToken && directorCancels.get(cancelToken)) return { ok: false, error: '已取消' }
     const sheet = out.result as DirectorSheet
     const written = directorRel(ch)
     writeDoc(projectId, written, directorToDoc(sheet, ch))
     return { ok: true, written, sheet }
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e).slice(0, 300) }
+  } finally {
+    if (cancelToken) directorCancels.delete(cancelToken)
   }
 }

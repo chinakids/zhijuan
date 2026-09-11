@@ -22,7 +22,7 @@ vi.mock('../../src/main/store', () => ({
 }))
 vi.mock('../../src/main/agent/runtime', () => ({ driveSession: vi.fn() }))
 
-import { extractDirector, runDirector, directorRel, type DirectorSheet } from '../../src/main/agent/director'
+import { extractDirector, runDirector, cancelDirector, directorRel, type DirectorSheet } from '../../src/main/agent/director'
 import { driveSession } from '../../src/main/agent/runtime'
 import { listCapabilities } from '../../src/main/agent/subtask'
 import { setSettings } from '../../src/main/settings'
@@ -131,6 +131,51 @@ describe('runDirector（走子任务骨架，结果直写 大纲/）', () => {
     expect(written).toContain('本章戏剧任务')
     expect(written).toContain('情绪弧分段')
     expect(written).toContain('写作红线')
+  })
+
+  it('/导演 参数＝作者要求：进入驱动 prompt 的【作者要求】块（2026-09-12）', async () => {
+    readMock.mockImplementation((_id: string, rel: string) => {
+      const table: Record<string, string> = {
+        '正文/第02章_灯塔.md': '---\n章号: 2\n题名: 灯塔\n切片: 第二幕\n涉及人物: [阿七]\n---\n阿七走向灯塔。',
+        '人物/阿七.md': '阿七：失忆。'
+      }
+      return table[rel] ?? ''
+    })
+    listChaptersMock.mockReturnValue([{ file: '第02章_灯塔.md', name: '第02章_灯塔', fm: { 章号: 2 }, wordCount: 0, mtime: 0, hasPendingProposal: false }] as never)
+    writeMock.mockReturnValue(undefined as never)
+    driveMock.mockResolvedValue('{"premise":"阿七主动夜航","arcs":[{"task":"推进","goal":"出海"}],"climax":{"at":1,"idea":"浪里看到灯"},"axes":[],"redlines":[],"hooks":[]}')
+    const r = await runDirector('pj', '正文/第02章_灯塔.md', '高潮必须落在灭灯瞬间')
+    expect(r.ok).toBe(true)
+    const prompt = driveMock.mock.calls[0][1]
+    expect(prompt).toContain('【作者要求】高潮必须落在灭灯瞬间')
+    // 空白参数不产生【作者要求】块
+    driveMock.mockClear()
+    await runDirector('pj', '正文/第02章_灯塔.md', '   ')
+    expect(driveMock.mock.calls[0][1]).not.toContain('【作者要求】')
+  })
+
+  it('取消路径：cancelDirector 标记后不再落资产（2026-09-12）', async () => {
+    readMock.mockImplementation((_id: string, rel: string) =>
+      rel === '正文/第02章_灯塔.md' ? '---\n章号: 2\n题名: 灯塔\n---\n阿七走向灯塔。' : ''
+    )
+    listChaptersMock.mockReturnValue([{ file: '第02章_灯塔.md', name: '第02章_灯塔', fm: { 章号: 2 }, wordCount: 0, mtime: 0, hasPendingProposal: false }] as never)
+    writeMock.mockReturnValue(undefined as never)
+    let release!: () => void
+    const sheet = '{"premise":"x","arcs":[{"task":"推进","goal":"y"}],"climax":{"at":1,"idea":"z"},"axes":[],"redlines":[],"hooks":[]}'
+    driveMock.mockImplementation(() => new Promise<string>((res) => { release = () => res(sheet) }))
+    const p = runDirector('pj', '正文/第02章_灯塔.md', undefined, 'tok-cancel-1')
+    await new Promise((r) => setTimeout(r, 10)) // 让 runSubtask 挂到 driveSession
+    cancelDirector('tok-cancel-1')
+    release()
+    const r = await p
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toBe('已取消')
+    expect(writeMock).not.toHaveBeenCalled()
+    // 标记用完即清：同 token 不取消再跑 → 正常落盘
+    driveMock.mockResolvedValue(sheet)
+    const r2 = await runDirector('pj', '正文/第02章_灯塔.md', undefined, 'tok-cancel-1')
+    expect(r2.ok).toBe(true)
+    expect(writeMock).toHaveBeenCalledTimes(1)
   })
 
   it('模型第一次跑偏成散文 → retry 后提示再跑，最终写盘', async () => {
