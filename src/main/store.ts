@@ -1,8 +1,20 @@
 // ===== 织卷 V2 · 文档式 fileStore（模块设计 §2.4 / §四） =====
 // 所有项目数据都是明文文件；本模块只做：扫描、骨架、读写、监听（设置见 settings.ts，工作区见 workspace.ts）。
 import { shell } from 'electron'
-import { join, relative, basename, dirname } from 'path'
-import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync, renameSync, statSync, watch, FSWatcher } from 'fs'
+import { join, relative, basename, dirname, resolve } from 'path'
+import {
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  rmSync,
+  renameSync,
+  statSync,
+  cpSync,
+  watch,
+  FSWatcher
+} from 'fs'
 import { extractFrontMatter, serializeFrontMatter, setFrontMatterField } from '../shared/fmatter'
 import { countWords } from '../shared/count'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, DOT_DIR } from '../shared/paths'
@@ -11,7 +23,7 @@ import { isNovelRel, snapDirFor, writeSnapshot } from './history'
 import { migrateChapter } from './proposals'
 import { libraryRoot } from './settings'
 import { applyTemplate } from './templates'
-import type { ChapterEntry, ChapterFrontMatter, FsEvent, ProjectMeta, ProjectStats, ProjectSummary } from '../shared/types'
+import type { ChapterEntry, ChapterFrontMatter, FsEvent, ProjectMeta, ProjectStats, ProjectSummary, ImportResult } from '../shared/types'
 
 // ---------- 设置与工作区路径已拆到 settings.ts（参见 docs/架构评审与调整-2026-09-04.md §二） ----------
 export function projectDir(id: string): string {
@@ -150,9 +162,26 @@ export function removeProject(id: string): { ok: boolean; error?: string } {
   }
 }
 
-export function importProject(dir: string): ProjectSummary | null {
-  if (!existsSync(dir)) return null
-  const id = basename(dir)
+export function importProject(dir: string): ImportResult {
+  if (!dir || !dir.trim()) return { ok: false, error: '目录路径为空' }
+  const src = resolve(dir.trim())
+  if (!existsSync(src) || !statSync(src).isDirectory()) {
+    return { ok: false, error: `目录不存在或不是文件夹：${src}` }
+  }
+  const id = basename(src)
+  const dst = projectDir(id)
+  let copied = false
+  if (resolve(dst) !== src) {
+    if (!existsSync(dst)) {
+      // 外部目录 → 复制进项目库（跳过 git 元数据/系统杂物），原目录不动
+      cpSync(src, dst, {
+        recursive: true,
+        filter: (p) => !['.git', '.DS_Store', 'node_modules'].includes(basename(p))
+      })
+      copied = true
+    }
+  }
+  // 补骨架与 project.md（不覆盖已有内容）
   ensureSkeleton(id)
   const f = projectFile(id)
   if (!existsSync(f)) {
@@ -160,7 +189,9 @@ export function importProject(dir: string): ProjectSummary | null {
     writeProjectMeta({ id, name: id, description: '', createdAt: now, updatedAt: now })
     writeFileSync(f, readFileSync(f, 'utf-8') + newProjectBody, 'utf-8')
   }
-  return summarize(id)
+  const summary = summarize(id)
+  if (!summary) return { ok: false, error: '导入后未生成项目元数据' }
+  return { ok: true, summary, copied }
 }
 
 // ---------- 文档读写（相对项目根） ----------

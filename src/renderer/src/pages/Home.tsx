@@ -94,13 +94,27 @@ export default function Home() {
   async function importDir() {
     if (!folder.trim()) return
     try {
-      const p = await window.zhijuan.importProject(folder.trim())
+      const r = await window.zhijuan.importProject(folder.trim())
       setImporting(false)
       setFolder('')
-      if (p) navigate(`/project/${p.id}`)
+      if (r.ok && r.summary) {
+        toast.add({
+          kind: r.copied ? 'success' : 'info',
+          title: r.copied ? `已导入「${r.summary.name}」` : `项目库中已有「${r.summary.name}」，未重复复制`,
+          description: r.copied ? '已复制进项目库并补全骨架，原目录保留不动' : '骨架已确保完整，可直接使用'
+        })
+        navigate(`/project/${r.summary.id}`)
+      } else {
+        toast.add({ kind: 'error', title: '导入失败', description: r.error ?? '未知错误' })
+      }
     } catch (e) {
       toast.add({ kind: 'error', title: '导入目录失败', description: String((e as Error).message ?? e) })
     }
+  }
+
+  async function pickImportDir() {
+    const dir = await window.zhijuan.importPicker()
+    if (dir) setFolder(dir)
   }
 
   function openProject(id: string) {
@@ -297,11 +311,17 @@ export default function Home() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>导入已有目录</DialogTitle>
-            <DialogDescription>输入一个绝对路径，织卷会补全骨架并生成 project.md，不覆盖已有内容。</DialogDescription>
+            <DialogDescription>选择一个已有作品文件夹，织卷会把它复制进项目库并补全骨架（生成 project.md），不覆盖已有内容；原目录保留不动。</DialogDescription>
           </DialogHeader>
-          <div className="space-y-1.5 py-2">
-            <Label>目录绝对路径</Label>
-            <Input placeholder="/Users/你/某个已有作品目录" value={folder} onChange={(e) => setFolder(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void importDir()} />
+          <div className="space-y-2 py-2">
+            <Label>目录路径</Label>
+            <div className="flex items-center gap-2">
+              <Input placeholder="/Users/你/某个已有作品目录" value={folder} onChange={(e) => setFolder(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void importDir()} />
+              <Button variant="outline" size="sm" className="shrink-0 whitespace-nowrap" onClick={() => void pickImportDir()}>
+                选择文件夹…
+              </Button>
+            </div>
+            <p className="text-xs text-ink-3">也可手动输入绝对路径；库内已有同名项目时不会重复复制。</p>
           </div>
           <DialogFooter>
             <DialogClose asChild>

@@ -22,6 +22,14 @@ export interface ProjectSummary extends ProjectMeta {
   lastChapter?: string
 }
 
+/** 导入已有目录的结果（copied=false 表示项目库中已有同名项目，未再复制） */
+export interface ImportResult {
+  ok: boolean
+  summary?: ProjectSummary
+  error?: string
+  copied?: boolean
+}
+
 /** 项目模板（新建项目时的「初始内容」选项） */
 export interface ProjectTemplate {
   id: string

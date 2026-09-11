@@ -64,6 +64,13 @@ export function registerIpc() {
     return r
   })
   ipcMain.handle('project:import', (_e, dir: string) => importProject(dir))
+  ipcMain.handle('project:importPicker', async () => {
+    const r = await dialog.showOpenDialog({
+      title: '选择要导入的已有目录',
+      properties: ['openDirectory']
+    })
+    return r.canceled || !r.filePaths[0] ? null : r.filePaths[0]
+  })
   ipcMain.handle('project:reveal', (_e, id: string) => {
     shell.showItemInFolder(projectDir(id))
   })

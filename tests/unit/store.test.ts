@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { existsSync, mkdirSync, readFileSync, rmSync, utimesSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
 // electron 是唯一外部依赖：这里只在测试里把 getPath 指向临时目录，其余全部走真实文件系统
@@ -170,5 +170,63 @@ describe('deleteDoc（删除项目内文档：废纸篓优先、路径校验、�
     expect(r.ok).toBe(false)
     expect(r.error).toBe('文档不存在')
     expect(shell.trashItem).not.toHaveBeenCalled()
+  })
+})
+
+describe('importProject（导入已有目录：复制入库、跳过杂物、幂等）', () => {
+  const src = join(holder.tmp, '外部作品')
+  beforeEach(() => {
+    setSettings({ workspace: join(holder.tmp, 'ws'), libraryRoot: holder.projects() })
+    rmSync(src, { recursive: true, force: true })
+    rmSync(join(holder.projects(), '外部作品'), { recursive: true, force: true })
+    // 造一个「已有作品」目录：正文/人物/素材 + git 元数据 + 系统杂物
+    mkdirSync(join(src, '正文'), { recursive: true })
+    mkdirSync(join(src, '人物'), { recursive: true })
+    mkdirSync(join(src, '.git'), { recursive: true })
+    writeFileSync(join(src, '正文', '第1章_开篇.md'), '# 第1章\n\n开头。')
+    writeFileSync(join(src, '人物', '主角.md'), '# 主角\n\n主角设定。')
+    writeFileSync(join(src, '.git', 'config'), '[core]')
+    writeFileSync(join(src, '.DS_Store'), 'junk')
+  })
+  afterEach(() => {
+    setSettings({ workspace: '', libraryRoot: '' })
+    rmSync(src, { recursive: true, force: true })
+  })
+
+  it('外部目录：内容复制入库、.git/.DS_Store 被跳过、骨架与 project.md 生成', () => {
+    const r = store.importProject(src)
+    expect(r.ok).toBe(true)
+    expect(r.copied).toBe(true)
+    const dst = join(holder.projects(), '外部作品')
+    expect(r.summary?.name).toBe('外部作品')
+    expect(readFileSync(join(dst, '正文', '第1章_开篇.md'), 'utf-8')).toContain('开头。')
+    expect(readFileSync(join(dst, '人物', '主角.md'), 'utf-8')).toContain('主角设定。')
+    expect(existsSync(join(dst, '.git'))).toBe(false)
+    expect(existsSync(join(dst, '.DS_Store'))).toBe(false)
+    expect(existsSync(join(dst, '素材库', '索引.md'))).toBe(true) // 骨架补全
+    expect(readFileSync(join(dst, 'project.md'), 'utf-8')).toContain('name: 外部作品')
+    expect(store.listProjects().some((p) => p.id === '外部作品')).toBe(true)
+  })
+
+  it('重复导入同一目录：不重复复制（copied=false），既有内容保留', () => {
+    store.importProject(src)
+    const r2 = store.importProject(src)
+    expect(r2.ok).toBe(true)
+    expect(r2.copied).toBe(false)
+    expect(existsSync(join(holder.projects(), '外部作品', '正文', '第1章_开篇.md'))).toBe(true)
+  })
+
+  it('目录不存在：返回 ok:false 与错误信息', () => {
+    const r = store.importProject(join(holder.tmp, '不存在之目录'))
+    expect(r.ok).toBe(false)
+    expect(r.error).toContain('不存在')
+  })
+
+  it('传入已在库内的项目目录（自身）：幂等返回 ok，不复制不报错', () => {
+    const p = store.createProject('库内项目', '')!
+    const r = store.importProject(join(holder.projects(), p.id))
+    expect(r.ok).toBe(true)
+    expect(r.copied).toBe(false)
+    expect(r.summary?.id).toBe(p.id)
   })
 })

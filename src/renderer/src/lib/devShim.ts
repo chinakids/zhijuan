@@ -1,5 +1,5 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
-import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent } from '../../../shared/types'
+import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
 import { countWords } from '../../../shared/count'
 import { extractFrontMatter, setFrontMatterField } from '../../../shared/fmatter'
@@ -346,7 +346,20 @@ const mock = {
     return p
   },
   listTemplates: async (): Promise<ProjectTemplate[]> => [{ id: '示例', name: '示例', builtin: true }],
-  importProject: async () => ({ ok: true }),
+  importProject: async (dir: string): Promise<ImportResult> => {
+    // 与真机同口径：外部目录复制入库（mock 直接造项目）；真机语义细节由数据层冒烟覆盖
+    const p: ProjectSummary = {
+      id: 'demo-' + (dir.split('/').pop() || dir).slice(0, 4),
+      name: dir.split('/').pop() || dir,
+      description: '已导入',
+      createdAt: now,
+      updatedAt: now,
+      stats: { chapters: 0, characters: 0, worldviewFiles: 0, materials: 0 }
+    }
+    projects.unshift(p)
+    return { ok: true, summary: p, copied: true }
+  },
+  importPicker: async (): Promise<string | null> => null,
   removeProject: async (id: string) => {
     const i = projects.findIndex((p) => p.id === id)
     if (i >= 0) projects.splice(i, 1)
