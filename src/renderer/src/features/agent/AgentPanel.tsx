@@ -262,6 +262,23 @@ export default function AgentPanel(props: AgentPanelProps) {
   const fxTokenRef = useRef(0)
   const fxAidRef = useRef<string | null>(null)
 
+  // ---------- 引擎离线前置拦截（2026-09-12）：发送前懒查一次引擎状态，离线就地提示、不丢输入 ----------
+  const [engineOff, setEngineOff] = useState<string | null>(null)
+  const checkEngine = useCallback(async (): Promise<boolean> => {
+    try {
+      const r = await window.zhijuan.agentStatus()
+      if (r.online === false) {
+        setEngineOff(r.message || '引擎状态异常')
+        return false
+      }
+      setEngineOff(null)
+      return true
+    } catch {
+      setEngineOff('引擎状态查询失败')
+      return false
+    }
+  }, [])
+
   // ---------- 输入框 @ 引用（GitHub/Slack mention 范式；数据懒加载 + 会话缓存） ----------
   const taRef = useRef<HTMLTextAreaElement>(null)
   const atDataRef = useRef<AtCandidate[]>([])
@@ -525,9 +542,11 @@ export default function AgentPanel(props: AgentPanelProps) {
     })
   }
 
-  function doSend() {
+  async function doSend() {
     const v = input
-    if (fxBusy || !v.trim()) return
+    if (fxBusy || sending || !v.trim()) return
+    // 引擎前置检查（2026-09-12）：离线禁止发送并就地提示；查询会顺带尝试拉起引擎，成功即放行
+    if (!(await checkEngine())) return
     setInput('')
     // 固定逻辑命令（/巡查 /导演）：直连既有入口执行，不经模型
     const fx = matchFixedCommand(v)
@@ -777,6 +796,22 @@ export default function AgentPanel(props: AgentPanelProps) {
             </Button>
           </div>
           <div className="mt-2">
+            {engineOff && (
+              <div className="mb-2 flex items-start gap-2 rounded-lg border border-danger/40 bg-danger-soft px-2.5 py-2">
+                <CircleX className="mt-0.5 h-3 w-3 shrink-0 text-danger" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-medium text-danger">引擎离线，无法发送</p>
+                  <p className="break-all text-[10px] leading-4 text-ink-2" title={engineOff}>{engineOff}</p>
+                </div>
+                <button
+                  onClick={() => void checkEngine()}
+                  title="重新探测引擎状态"
+                  className="shrink-0 whitespace-nowrap rounded-full border border-hair bg-surface px-2 py-0.5 text-[10px] text-ink-2 hover:text-ink"
+                >
+                  重试
+                </button>
+              </div>
+            )}
             {sendBlock}
           </div>
         </div>
