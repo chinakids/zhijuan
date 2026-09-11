@@ -40,7 +40,19 @@ export default function EngineBadge() {
         s.online === false ? 'border-hair bg-danger-soft text-danger hover:brightness-95' : 'border-hair bg-surface-2 text-ink-2 hover:bg-well'
       )}
     >
-      <span className={cn('h-1.5 w-1.5 rounded-full', s.online === false ? 'bg-danger' : 'bg-success')} />
+      {/* 状态点：SVG 状态灯（在线呼吸光晕 / 离线实心；主人 2026-09-12 SVG+动画） */}
+      <span className="inline-flex h-3 w-3 shrink-0 items-center justify-center" aria-hidden="true">
+        <svg viewBox="0 0 12 12" className="h-3 w-3">
+          {s.online ? (
+            <>
+              <circle cx="6" cy="6" r="5.5" fill="none" stroke="var(--success)" strokeOpacity="0.5" strokeWidth="1.2" className="zj-pulse-ring" />
+              <circle cx="6" cy="6" r="2.6" fill="var(--success)" />
+            </>
+          ) : (
+            <circle cx="6" cy="6" r="2.6" fill={s.online === false ? 'var(--danger)' : 'var(--ink-3)'} />
+          )}
+        </svg>
+      </span>
       {s.online === null ? '引擎…' : s.online ? '引擎在线' : '引擎离线'}
     </button>
   )

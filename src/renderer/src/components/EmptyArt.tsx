@@ -30,8 +30,8 @@ function artOf(v: ArtVariant) {
           <circle cx="38" cy="56" r="2.5" style={{ fill: accent }} />
           <rect x="52" y="46" width="18" height="26" rx="3" style={{ fill: accentSoft, stroke: accent, strokeOpacity: 0.45, strokeWidth: 1.5 }} />
           <line x1="61" y1="46" x2="61" y2="72" style={{ stroke: accent, strokeOpacity: 0.45, strokeWidth: 1.5 }} />
-          <circle cx="23" cy="38" r="1.75" style={{ fill: accent, opacity: 0.55 }} />
-          <circle cx="72" cy="38" r="1.75" style={{ fill: ink3, opacity: 0.5 }} />
+          <circle cx="23" cy="38" r="1.75" className="zj-flicker" style={{ fill: accent, opacity: 0.55 }} />
+          <circle cx="72" cy="38" r="1.75" className="zj-flicker" style={{ fill: ink3, opacity: 0.5, animationDelay: '1.2s' }} />
         </>
       )
     case 'chapter':
@@ -44,10 +44,12 @@ function artOf(v: ArtVariant) {
           <line x1="33" y1="48" x2="47" y2="48" style={{ stroke: ink3, strokeWidth: 1.5 }} />
           <circle cx="33" cy="60" r="2.5" style={{ fill: accent }} />
           <line x1="38" y1="60" x2="46" y2="60" style={{ stroke: ink3, strokeWidth: 1.5 }} />
-          {/* 笔：斜置，笔尖朝纸 */}
-          <line x1="58" y1="58" x2="72" y2="44" style={{ stroke: accent, strokeWidth: 2.5, strokeLinecap: 'round' }} />
-          <path d="M72 44 L66 52 L60 50 Z" style={{ fill: accentSoft, stroke: accent, strokeWidth: 1.5, strokeLinejoin: 'round' }} />
-          <circle cx="23" cy="46" r="1.75" style={{ fill: accent, opacity: 0.55 }} />
+          {/* 笔：斜置，笔尖朝纸（微漂浮） */}
+          <g className="zj-float">
+            <line x1="58" y1="58" x2="72" y2="44" style={{ stroke: accent, strokeWidth: 2.5, strokeLinecap: 'round' }} />
+            <path d="M72 44 L66 52 L60 50 Z" style={{ fill: accentSoft, stroke: accent, strokeWidth: 1.5, strokeLinejoin: 'round' }} />
+          </g>
+          <circle cx="23" cy="46" r="1.75" className="zj-flicker" style={{ fill: accent, opacity: 0.55 }} />
         </>
       )
     case 'character':
@@ -71,8 +73,8 @@ function artOf(v: ArtVariant) {
           <path d="M20 66 L44 34 L58 52 L70 40 L84 66 Z" style={{ fill: accentSoft, stroke: accent, strokeOpacity: 0.5, strokeWidth: 1.5, strokeLinejoin: 'round' }} />
           <circle cx="67" cy="31" r="8" style={{ fill: surf, stroke: hair, strokeWidth: 1.5 }} />
           <circle cx="64" cy="29" r="2" style={{ fill: accent, opacity: 0.5 }} />
-          <path d="M28 40 l1.5 3 3 1.5 -3 1.5 -1.5 3 -1.5 -3 -3 -1.5 3 -1.5 Z" style={{ fill: accent, opacity: 0.6 }} />
-          <path d="M36 30 l1.2 2.4 2.4 1.2 -2.4 1.2 -1.2 2.4 -1.2 -2.4 -2.4 -1.2 2.4 -1.2 Z" style={{ fill: ink3, opacity: 0.55 }} />
+          <path d="M28 40 l1.5 3 3 1.5 -3 1.5 -1.5 3 -1.5 -3 -3 -1.5 3 -1.5 Z" className="zj-flicker" style={{ fill: accent, opacity: 0.6 }} />
+          <path d="M36 30 l1.2 2.4 2.4 1.2 -2.4 1.2 -1.2 2.4 -1.2 -2.4 -2.4 -1.2 2.4 -1.2 Z" className="zj-flicker" style={{ fill: ink3, opacity: 0.55, animationDelay: '0.9s' }} />
         </>
       )
     case 'timeline':
