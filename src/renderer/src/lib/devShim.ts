@@ -1126,10 +1126,48 @@ function buildFailProbe(base: typeof window.zhijuan): typeof window.zhijuan {
   return probe as unknown as typeof window.zhijuan
 }
 
+/** 无头冒烟：`?zj-empty=<场景>[,<场景>…]` 使对应 mock 接口返回空（验证空态版式）。
+ *  场景：projects / chapters / timeline / docs:<relDir>（如 docs:人物）。仅 devShim 存在；
+ *  真机空态是同一套 React 组件。可与 zj-fail 叠加（先 empty 后 fail 包装）。 */
+function buildEmptyProbe(base: typeof window.zhijuan): typeof window.zhijuan {
+  const raw = (new URLSearchParams(location.search).get('zj-empty') ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (!raw.length) return base
+  const emptyDocs = new Set<string>()
+  let emptyProjects = false
+  let emptyChapters = false
+  let emptySlices = false
+  let emptyLibrary = false
+  for (const item of raw) {
+    if (item === 'projects') emptyProjects = true
+    else if (item === 'chapters') emptyChapters = true
+    else if (item === 'timeline' || item === 'slices') emptySlices = true
+    else if (item === 'library') emptyLibrary = true
+    else if (item.startsWith('docs:')) emptyDocs.add(item.slice('docs:'.length))
+  }
+  const probe = { ...(base as unknown as Record<string, unknown>) }
+  if (emptyProjects) probe.listProjects = async () => []
+  if (emptyChapters) probe.listChapters = async () => []
+  if (emptySlices) probe.listSlices = async () => []
+  if (emptyLibrary) {
+    // 素材库树 = 类别 + 文件推导；两者都清才能真正空树
+    probe.listLibraryCategories = async () => []
+    const orig = base.listDocs
+    probe.listDocs = async (id: string, relDir: string) => (relDir === '素材库' ? [] : orig(id, relDir))
+  }
+  if (emptyDocs.size) {
+    const orig = base.listDocs
+    probe.listDocs = async (id: string, relDir: string) => (emptyDocs.has(relDir) ? [] : orig(id, relDir))
+  }
+  return probe as unknown as typeof window.zhijuan
+}
+
 export function ensureDevShim() {
   if (window.zhijuan) return
   ;(window as unknown as { __ZJ_TEST: boolean }).__ZJ_TEST = true
-  window.zhijuan = buildFailProbe(mock as unknown as typeof window.zhijuan)
+  window.zhijuan = buildEmptyProbe(buildFailProbe(mock as unknown as typeof window.zhijuan))
   // 无头冒烟用：暴露全局 Toast API（与 __ZJ_EDITORS 同级的测试面，仅 devShim 存在）
   ;(window as unknown as { __ZJ_TOAST: typeof toast }).__ZJ_TOAST = toast
 }

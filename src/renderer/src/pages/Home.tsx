@@ -6,6 +6,7 @@ import type { RecentEntry } from '../../../shared/projects'
 import { orderProjects } from '../../../shared/projects'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
+import { EmptyState } from '../components/EmptyState'
 import { Badge } from '../components/ui/badge'
 import {
   Dialog,
@@ -196,16 +197,27 @@ export default function Home() {
           </div>
         )}
         {!loading && !loadErr && projects.length === 0 && (
-          <div className="mx-auto mt-24 max-w-sm rounded-xl border border-dashed border-hair-strong p-10 text-center">
-            <p className="text-ink-2">还没有项目。</p>
-            <p className="mt-1 text-sm text-ink-3">点右上角「新建项目」开始第一本，或导入一个已有目录。</p>
-          </div>
+          <EmptyState
+            art="library"
+            title="还没有项目"
+            hint="点右上角「新建项目」开始第一本，或导入一个已有目录。"
+            action={
+              <Button size="sm" onClick={() => setCreating(true)}>
+                <Plus /> 新建项目
+              </Button>
+            }
+            className="mx-auto mt-12 max-w-sm"
+            dataTestId="empty-projects"
+          />
         )}
         {!loading && projects.length > 0 && visible.length === 0 && (
-          <div className="mx-auto mt-24 max-w-sm rounded-xl border border-dashed border-hair-strong p-10 text-center">
-            <p className="text-ink-2">没有匹配「{query.trim()}」的项目。</p>
-            <p className="mt-1 text-sm text-ink-3">换个关键词，或清空搜索框看全部项目。</p>
-          </div>
+          <EmptyState
+            art="search"
+            title={`没有匹配「${query.trim()}」的项目`}
+            hint="换个关键词，或清空搜索框看全部项目。"
+            className="mx-auto mt-12 max-w-sm"
+            dataTestId="empty-search"
+          />
         )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {visible.map((p) => {

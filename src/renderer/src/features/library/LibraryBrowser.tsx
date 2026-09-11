@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ChevronLeft, FileText, Folder, FolderPlus, Library as LibraryIcon, Plus, Search, X } from 'lucide-react'
 import { Button } from '../../components/ui/button'
+import { EmptyState } from '../../components/EmptyState'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
@@ -250,7 +251,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
           {loading && !loadErr && <p className="px-3 py-4 text-center text-xs text-ink-3">正在读取素材库…</p>}
           {!loading && loadErr && <p className="px-3 py-4 text-center text-xs text-danger">读取失败</p>}
           {!loading && !loadErr && tree.length === 0 && (
-            <p className="px-3 py-4 text-center text-xs text-ink-3">还没有类别，点下方「＋ 新类别」创建。</p>
+            <EmptyState compact hint="还没有类别，点下方「＋ 新类别」创建。" dataTestId="empty-materials" />
           )}
         </div>
         <div className="border-t border-hair p-2">

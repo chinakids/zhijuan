@@ -4,6 +4,7 @@ import { Plus, BookOpen } from 'lucide-react'
 import type { ChapterEntry, ChapterCheckKind, UnlistedHit, MissingHit } from '../../../shared/types'
 import { serializeFrontMatter, addFrontMatterListItem, removeFrontMatterListItem } from '../../../shared/fmatter'
 import { Button } from '../components/ui/button'
+import { EmptyState } from '../components/EmptyState'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { Textarea } from '../components/ui/textarea'
@@ -311,17 +312,21 @@ export default function Novel() {
             </div>
           )}
           {!loading && !loadErr && chapters.length === 0 && (
-            <div className="px-2 py-6 text-center">
-              <p className="text-xs text-ink-3">还没有章节，点右上角「+」开始第一章。</p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2.5 h-7 shrink-0 whitespace-nowrap text-[11px]"
-                onClick={openCreate}
-              >
-                <Plus className="h-3 w-3" /> 新建第一章
-              </Button>
-            </div>
+            <EmptyState
+              compact
+              hint="还没有章节，点右上角「+」开始第一章。"
+              action={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 shrink-0 whitespace-nowrap text-[11px]"
+                  onClick={openCreate}
+                >
+                  <Plus className="h-3 w-3" /> 新建第一章
+                </Button>
+              }
+              dataTestId="empty-chapters"
+            />
           )}
           {chapters.map((c) => (
             <button

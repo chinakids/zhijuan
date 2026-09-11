@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { BookMarked, CheckCheck, CheckCircle2, CircleDashed, Clapperboard, FileText, Hammer, ListTree, Loader2, PenLine, RefreshCw, ScrollText, ShieldCheck, Wrench } from 'lucide-react'
 import type { ChapterEntry } from '../../../shared/types'
 import { cn } from '../lib/utils'
+import { EmptyState } from '../components/EmptyState'
 import DocEditor from '../features/editor/DocEditor'
 import DirectorCheckDrawer from '../features/check/DirectorCheckDrawer'
 import { useFsEvents } from '../features/fs/useFsEvents'
@@ -336,7 +337,7 @@ export default function Outline() {
             </div>
           )}
           {!loading && !loadErr && chapters.length === 0 && (
-            <p className="px-2 py-6 text-center text-xs text-ink-3">还没有章节。去「正文创作」写第一章，再来回建章卡。</p>
+            <EmptyState compact hint="还没有章节。去「正文创作」写第一章，再来回建章卡。" dataTestId="empty-outline-side" />
           )}
           {chapters.map((c) => {
             const done = hasCard(c)
@@ -526,9 +527,13 @@ export default function Outline() {
           {sel ? (
             <DocEditor projectId={id} rel={sel} extVersion={extVersion} onSave={() => void refresh()} />
           ) : loadErr ? null : (
-            <div className="flex h-full items-center justify-center text-sm text-ink-3">
-              还没有章卡。点右上角「回建缺失」把已有正文回建成章卡。
-            </div>
+            <EmptyState
+              art="outline"
+              title="还没有章卡"
+              hint="点右上角「回建缺失」把已有正文回建成章卡。"
+              className="h-full"
+              dataTestId="empty-outline"
+            />
           )}
         </div>
       </main>

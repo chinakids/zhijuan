@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { FileText, Plus } from 'lucide-react'
 import { Button } from '../../components/ui/button'
+import { EmptyState } from '../../components/EmptyState'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
@@ -103,7 +104,7 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
               </button>
             </div>
           )}
-          {!loading && !loadErr && files.length === 0 && <p className="px-2 py-6 text-center text-xs text-ink-3">{emptyHint}</p>}
+          {!loading && !loadErr && files.length === 0 && <EmptyState compact hint={emptyHint} dataTestId="empty-docs" />}
           {files.map((f) => (
             <button
               key={f.file}

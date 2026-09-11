@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { Clock, Users } from 'lucide-react'
 import type { SliceEntry } from '../../../shared/types'
 import { Button } from '../components/ui/button'
+import { EmptyState } from '../components/EmptyState'
 
 function chapterNo(chapter: string): number | null {
   const m = chapter.match(/第\s*(\d+)/)
@@ -52,9 +53,13 @@ export default function Timeline() {
     return (
       <div className="mx-auto max-w-3xl p-6">
         <h2 className="text-lg font-semibold">项目时间线</h2>
-        <p className="mt-2 text-sm text-ink-3">
-          还没有可展示的时间切片。每个带约定头的正文章节就是一个切片（front matter 里的「切片」字段）；写好正文保存后，它会出现在这里。
-        </p>
+        <EmptyState
+          art="timeline"
+          title="还没有时间切片"
+          hint="每个带约定头的正文章节就是一个切片（front matter 里的「切片」字段）；写好正文保存后，它会出现在这里。"
+          className="mt-4"
+          dataTestId="empty-timeline"
+        />
       </div>
     )
   }
