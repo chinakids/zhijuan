@@ -224,30 +224,18 @@ export default function Home() {
             const [c1, c2] = coverOf(p.id)
             return (
               <Card key={p.id} className="group cursor-pointer overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:border-hair-strong hover:shadow-[var(--shadow)]" onClick={() => openProject(p.id)}>
-                {/* 书封（书架质感 v3：竖版书 + 布纹光斑 + 书脊/书页缘；主人 2026-09-11 反馈重做） */}
-                <div className="relative aspect-[4/5] overflow-hidden">
+                {/* 纯文本封面（横版适中；无封面图不模拟材质，用文字排版撑质感；主人 2026-09-12 反馈 v4） */}
+                <div className="relative aspect-[16/9] overflow-hidden">
                   <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)` }} />
-                  {/* 纸质布纹（细）+ 顶部柔光 */}
                   <div
                     className="pointer-events-none absolute inset-0"
-                    style={{
-                      backgroundImage:
-                        'repeating-linear-gradient(115deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 8px), radial-gradient(120% 60% at 18% 0%, rgba(255,255,255,0.10), transparent 60%)'
-                    }}
+                    style={{ backgroundImage: 'radial-gradient(120% 70% at 50% -10%, rgba(255,255,255,0.09), transparent 55%)' }}
                   />
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/20" />
-                  {/* 书脊（左）与书页缘（右：多层书页厚度） */}
-                  <div className="pointer-events-none absolute inset-y-0 left-0 w-[7px] bg-black/30" />
-                  <div className="pointer-events-none absolute inset-y-0 left-[7px] w-px bg-white/25" />
-                  <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-white/30" />
-                  <div className="pointer-events-none absolute inset-y-0 right-[3px] w-px bg-white/15" />
-                  <div className="pointer-events-none absolute inset-y-0 right-[5px] w-px bg-white/8" />
-                  {/* 封面版式：书名 + 章数（其余信息入下方信息区） */}
-                  <div className="absolute inset-x-4 bottom-4 pl-4">
-                    <p className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-white/60">
-                      {p.stats.chapters} 章 · 人物 {p.stats.characters}
-                    </p>
-                    <h2 className="mt-1.5 line-clamp-3 font-serif text-xl font-semibold leading-snug text-white drop-shadow-sm">{p.name}</h2>
+                  {/* 居中文本排版：书名 + 装饰线 + 元信息（纯文本封面） */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 px-6 text-center">
+                    <h2 className="line-clamp-2 font-serif text-xl font-semibold leading-snug text-white drop-shadow-sm">{p.name}</h2>
+                    <span className="h-px w-8 bg-white/35" />
+                    <p className="truncate text-[11px] text-white/60">{p.stats.chapters} 章 · 人物 {p.stats.characters}</p>
                   </div>
                 </div>
                 {/* 信息区 */}
