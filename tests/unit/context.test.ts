@@ -258,6 +258,31 @@ describe('buildWritingContext（写作上下文装配）', () => {
     expect(blocks.join('\n')).not.toContain('本切片的世界状态（规则、事件、环境）')
   })
 
+  it('HTML 注释（元信息）装配时统一剥离：正文/人物档/世界切片的注释不进上下文，事实保留', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      const table: Record<string, string> = {
+        '正文/第1章_a.md': FM_1 + '第一章正文<!-- 作者备忘：此处铺垫 -->',
+        '人物/林晚.md':
+          '林晚档案<!-- 正文保存后，切片同步会把本章新状态写入「## 切片：…」小节 -->\n- 年龄：17',
+        '世界观/切片_第一幕.md': '# 切片：第一幕\n<!-- 骨架说明 -->\n- 事件：大雾'
+      }
+      return table[rel] ?? null
+    })
+    listChaptersMock.mockReturnValue([] as never)
+
+    const { blocks } = await buildWritingContext('p', '正文/第1章_a.md')
+    const all = blocks.join('\n')
+    // 注释（模板说明/占位提示/作者备忘）不进入模型上下文
+    expect(all).not.toContain('作者备忘')
+    expect(all).not.toContain('切片同步会把')
+    expect(all).not.toContain('骨架说明')
+    expect(all).not.toContain('<!--')
+    // 注释后的真实内容完整保留
+    expect(all).toContain('第一章正文')
+    expect(all).toContain('年龄：17')
+    expect(all).toContain('事件：大雾')
+  })
+
   it('读不到的内容静默跳过，绝不抛错', async () => {
     readDocMock.mockReturnValue(null)
     listChaptersMock.mockReturnValue([] as never)

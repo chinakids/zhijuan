@@ -3,9 +3,12 @@
 // 当前章正文 + 上一章尾部 + 涉及人物档案 + 当前切片世界观 + 本章章卡 + 本章导演板 + 素材库索引。
 // 模型开写就有事实，不必每轮都靠 zj_* 工具现读；要看更多细节仍可再读对应文件。
 // 预算硬控（沿 ROADMAP M1.3）：正文 ≤8000、前情 ≤3000、人物 ≤4000、切片 ≤4000、章卡 ≤2000、素材索引 ≤1200。
+// 装配口径（2026-09-11）：所有块注入前统一剥离 HTML 注释（`<!-- … -->`＝元信息/说明，非故事事实，
+// 见 shared/comments.ts）；不占预算；注释原文模型可 zj_read_doc 现读。
 import { readDoc, listChapters } from '../store'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { worldSliceFile } from '../../shared/paths'
+import { stripHtmlComments } from '../../shared/comments'
 
 export interface WritingContext {
   blocks: string[]
@@ -25,7 +28,7 @@ function firstLineName(rel: string): string {
  */
 export function isTemplateShell(text: string): boolean {
   // 剥离 HTML 注释（模板/说明文字以 <!-- … --> 承载，2026-09-11）；注释不算「已有设定」
-  const stripped = text.replace(/<!--[\s\S]*?-->/g, '')
+  const stripped = stripHtmlComments(text)
   return (
     stripped
       .split('\n')
@@ -41,7 +44,9 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
   const sources: string[] = []
   const read = (rel: string): string => {
     try {
-      return readDoc(projectId, rel) ?? ''
+      // 装配前剥离 HTML 注释（元信息非设定，2026-09-11）：模板说明/占位提示/作者备忘不进模型上下文；
+      // 注释不占用预算（先剥后截）；模型要看注释原文可 zj_read_doc 现读（工具直读原文）。
+      return stripHtmlComments(readDoc(projectId, rel) ?? '')
     } catch {
       return ''
     }
