@@ -493,14 +493,16 @@ const mock = {
     extraCats.add(key)
     return { ok: true }
   },
-  searchDocs: async (id: string, relDir: string, query: string, opts?: { excludePrefix?: string[] }): Promise<SearchHit[]> => {
+  searchDocs: async (id: string, relDir: string, query: string, opts?: { excludePrefix?: string[]; limit?: number }): Promise<SearchHit[]> => {
     const q = (query ?? '').trim()
     if (!q) return []
     const terms = q.split(/\s+/).map((t) => t.toLowerCase()).filter(Boolean)
     const prefix = id + '/' + relDir + '/'
     const excl = opts?.excludePrefix ?? []
+    const limit = opts?.limit ?? 50 // 与真机 main/library.searchDocs 同口径（默认 50）
     const out: SearchHit[] = []
     for (const [k, text] of docs) {
+      if (out.length >= limit) break // 真机同语义：达到 limit 后不再扫描/产生更多
       if (!k.startsWith(prefix)) continue
       const relFromRoot = relDir + '/' + k.slice(prefix.length)
       if (excl.some((p) => relFromRoot.startsWith(p))) continue
@@ -509,7 +511,12 @@ const mock = {
       if (terms.every((t) => name.toLowerCase().includes(t))) {
         out.push({ file: relFromRoot, name, mtime: now, field: 'name', snippet: name })
       } else if (terms.every((t) => lower.includes(t))) {
-        const idx = lower.indexOf(terms[0])
+        // 与真机 snippetOf 同口径：取各 term 在正文中最早出现的位置
+        let idx = -1
+        for (const t of terms) {
+          const i = lower.indexOf(t)
+          if (i >= 0 && (idx < 0 || i < idx)) idx = i
+        }
         const start = text.lastIndexOf('\n', idx) + 1
         let end = text.indexOf('\n', idx)
         if (end < 0) end = text.length
