@@ -81,12 +81,20 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
   // 3. 本章涉及人物档案（最多 CAP.maxChars 位）
   //    2026-09-10 审计修复：超 4 位时不能静默裁掉——模型会误以为本章只有 4 人（多人局直接伤创作），
   //    名单本身很便宜，全量给出并注明哪些未附档案（档案仍可 zj_read_doc 现读）。
+  //    2026-09-11 预算口径修复：超预算时装配**结尾**——切片同步把最新状态追写在文末
+  //    （「## 切片：<切片名>」小节，见 syncAnchor 约定），头部是低频静态的基础档案；
+  //    与正文「超长装结尾」同构（创作最需要最新状态），开头可用 zj_read_doc 现读。
   const castAll: string[] = Array.isArray(fm?.['涉及人物']) ? (fm?.['涉及人物'] as string[]) : []
   const cast = castAll.slice(0, CAP.maxChars)
   for (const c of cast) {
     const t = read(`人物/${c}.md`)
     if (t.trim()) {
-      blocks.push(`【人物档案：${c}】\n${t.slice(0, CAP.char)}`)
+      const over = t.length - CAP.char
+      const body =
+        over > 0
+          ? `（人物档案已超 ${CAP.char} 字符预算：装配的是**结尾**（最近切片状态）部分，开头 ${over} 字符已省略；要看基础档案请用 zj_read_doc 读取本文件）\n…\n${t.slice(-CAP.char)}`
+          : t
+      blocks.push(`【人物档案：${c}】\n${body}`)
       sources.push(`人物/${c}.md`)
     }
   }

@@ -126,6 +126,37 @@ describe('buildWritingContext（写作上下文装配）', () => {
     expect(chapter).not.toContain('已省略')
   })
 
+  it('人物档案超预算装配**结尾**：最新切片状态保留，基础档案开头省略并提示可现读', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === '正文/第1章_b.md') return FM_1 + '短正文'
+      if (rel === '人物/林晚.md') return '【基础档案头】' + '中'.repeat(3990) + '【最新切片状态尾】'
+      return null
+    })
+    listChaptersMock.mockReturnValue([] as never)
+
+    const { blocks } = await buildWritingContext('p', '正文/第1章_b.md')
+    const char = blocks.find((b) => b.includes('人物档案：林晚'))
+    expect(char).toBeTruthy()
+    expect(char).toContain('【最新切片状态尾】') // 尾部（切片同步追写的最新状态）保留
+    expect(char).not.toContain('【基础档案头】') // 头部基础档案被省略（预算内放不下首尾）
+    expect(char).toContain('已省略')
+    expect(char).toContain('zj_read_doc')
+  })
+
+  it('人物档案未超预算：原样全量装配，无省略提示', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === '正文/第1章_b.md') return FM_1 + '短正文'
+      if (rel === '人物/林晚.md') return '短档案'
+      return null
+    })
+    listChaptersMock.mockReturnValue([] as never)
+
+    const { blocks } = await buildWritingContext('p', '正文/第1章_b.md')
+    const char = blocks.find((b) => b.includes('人物档案：林晚'))
+    expect(char).toContain('短档案')
+    expect(char).not.toContain('已省略')
+  })
+
   it('第一章没有上一章；当前章不在章节列表时也没有', async () => {
     readDocMock.mockImplementation((_id: string, rel: string) => {
       const table: Record<string, string> = {
