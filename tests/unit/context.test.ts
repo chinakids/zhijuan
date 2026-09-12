@@ -163,6 +163,46 @@ describe('buildWritingContext（写作上下文装配）', () => {
     expect(chapter).not.toContain('正文断链')
   })
 
+  it('上一章含缺段占位：「上一章尾部」块注入断链提示，承接方感知上一章未写完', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      const table: Record<string, string> = {
+        '正文/第2章_雾.md': FM_2 + '第二章正文',
+        '正文/第1章_云.md': FM_1 + '第一章前半。\n\n' + actPlaceholder(3) + '\n\n第一章结尾。'
+      }
+      return table[rel] ?? null
+    })
+    listChaptersMock.mockReturnValue([chEntry('第1章_云.md'), chEntry('第2章_雾.md')] as never)
+
+    const { blocks, sources } = await buildWritingContext('p', '正文/第2章_雾.md')
+    const prev = blocks.find((b) => b.includes('上一章尾部'))
+    expect(prev).toBeTruthy()
+    // 断链提示显式注入（模型知道上一章缺第 3 段）
+    expect(prev).toContain('分幕缺段占位')
+    expect(prev).toContain('第 3 段未写成')
+    expect(prev).toContain('正文断链')
+    // 尾部正文仍注入、占位注释本体被剥
+    expect(prev).toContain('第一章结尾')
+    expect(prev).not.toContain('<!--')
+    expect(sources).toContain('正文/第1章_云.md')
+  })
+
+  it('上一章无缺段占位：上一章尾部零提示零回归', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      const table: Record<string, string> = {
+        '正文/第2章_雾.md': FM_2 + '第二章正文',
+        '正文/第1章_云.md': FM_1 + '第一章正常完结。'
+      }
+      return table[rel] ?? null
+    })
+    listChaptersMock.mockReturnValue([chEntry('第1章_云.md'), chEntry('第2章_雾.md')] as never)
+
+    const { blocks } = await buildWritingContext('p', '正文/第2章_雾.md')
+    const prev = blocks.find((b) => b.includes('上一章尾部'))
+    expect(prev).toContain('第一章正常完结')
+    expect(prev).not.toContain('分幕缺段')
+    expect(prev).not.toContain('正文断链')
+  })
+
   it('正文未超预算：原样全量装配，无省略提示', async () => {
     readDocMock.mockImplementation((_id: string, rel: string) => {
       if (rel === '正文/第1章_b.md') return FM_1 + '短正文'

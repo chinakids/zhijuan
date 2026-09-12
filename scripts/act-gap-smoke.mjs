@@ -73,6 +73,24 @@ assert('提示含「正文断链」措辞', chapter.includes('正文断链'))
 assert('占位注释本体不进上下文', !text.includes('<!--'))
 assert('正文内容（占位处两侧）真实注入', chapter.includes('第一段正文') && chapter.includes('第六段正文收尾'))
 
+// 上一章断链承接（2026-09-13）：第2章上下文里的「上一章尾部」块应带缺段提示
+writeFileSync(
+  resolve(chDir, '第02章_续.md'),
+  ['---', '章号: 2', '题名: 续写章', '切片: 第一幕', '涉及人物: [林晓]', '---', ''].join('\n') +
+    '\n第二章正文承接。'
+)
+const ctx3 = await buildWritingContext(pid, '正文/第02章_续.md')
+const prevBlock = ctx3.blocks.find((b) => b.includes('上一章尾部'))
+assert('上一章尾部块存在（承接第02章）', !!prevBlock)
+assert(
+  '上一章断链提示注入（缺第 2、5 段）',
+  !!prevBlock && prevBlock.includes('分幕缺段占位') && prevBlock.includes('第 2、5 段未写成')
+)
+assert(
+  '上一章尾部正文注入、注释不泄漏',
+  !!prevBlock && prevBlock.includes('第六段正文收尾') && !prevBlock.includes('<!--')
+)
+
 // 无占位项目 → 零提示零回归
 const pid2 = '无占位冒烟'
 const chDir2 = resolve(libRoot, pid2, '正文')

@@ -85,11 +85,26 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
   }
 
   // 2. 上一章尾部（承接前情，续写不断片）
+  //    2026-09-13 断链承接闭环：与第 1 步当前章同口径——占位注释被剥前先识别，
+  //    上一章存在缺段时提示行随「上一章尾部」块注入（承接方模型感知「上一章没写完」；
+  //    否则上一章尾部看起来是完整衔接，续写/承接会把断链当正常剧情接续——同「被剥掉
+  //    的信息=模型视角的不存在」口径，缺段提示已是上下文第四处省略/缺口明示）。
   const prev = previousChapter(projectId, chapterRel)
   if (prev) {
-    const tail = stripFrontMatter(read(prev)).slice(-CAP.prevTail)
-    if (tail.trim()) {
-      blocks.push(`【上一章尾部：${firstLineName(prev)}】（前文略，以下为上一章结尾，用于承接）\n${tail}`)
+    let prevRaw = ''
+    let prevGaps: number[] = []
+    try {
+      prevRaw = readDoc(projectId, prev) ?? ''
+      prevGaps = matchActPlaceholders(prevRaw)
+    } catch {
+      prevRaw = ''
+    }
+    const tail = stripFrontMatter(stripHtmlComments(prevRaw)).slice(-CAP.prevTail)
+    const gapWarn = prevGaps.length
+      ? `（⚠️ 上一章正文含分幕缺段占位：第 ${prevGaps.join('、')} 段未写成（正文断链）——承接续写请正视此缺口，勿当正常衔接，可建议作者先补齐）\n`
+      : ''
+    if (tail.trim() || prevGaps.length > 0) {
+      blocks.push(`【上一章尾部：${firstLineName(prev)}】（前文略，以下为上一章结尾，用于承接）\n${gapWarn}${tail}`)
       sources.push(prev)
     }
   }

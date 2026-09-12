@@ -84,4 +84,46 @@ const mentions2 = /第\s*[2二]\s*段|第[2二]段|[2二]段.{0,6}未|缺.{0,6}[
 const mentions5 = /第\s*[5五]\s*段|第[5五]段|[5五]段.{0,6}未|缺.{0,6}[5五]/.test(final)
 const ok = mentionsGap && mentions2 && mentions5
 console.log('\n核对：gap=' + mentionsGap + ' 段2=' + mentions2 + ' 段5=' + mentions5 + ' => ' + (ok ? 'PASS（模型感知断链）' : 'FAIL'))
-process.exit(ok ? 0 : 1)
+if (!ok) process.exit(1)
+
+// 上一章断链承接（2026-09-13）：第02章上下文里的「上一章尾部」提示行，模型同样应感知
+writeFileSync(
+  resolve(chDir, '第02章_续.md'),
+  ['---', '章号: 2', '题名: 续写章', '切片: 第一幕', '涉及人物: [林晓]', '---', ''].join('\n') +
+    '\n第二章正文承接。'
+)
+const ctx3 = await buildWritingContext(pid, '正文/第02章_续.md')
+const blocks3 = ctx3.blocks.join('\n\n')
+console.log('\n=== 第02章上下文块（前 400 字）===\n' + blocks3.slice(0, 400))
+
+const resp2 = await fetch('http://127.0.0.1:8888/v1/chat/completions', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    model: 'deepseek-v4-flash-vision-exp-uncensored',
+    max_tokens: 1500,
+    temperature: 0.3,
+    messages: [
+      { role: 'system', content: '你是织卷创作工作台的创作 agent 助手，回答直接、无套话。' },
+      {
+        role: 'user',
+        content:
+          blocks3 +
+          '\n\n[任务] 请只用一两句话回答，不要用工具：1）根据提供的上下文，上一章（第01章）正文是否完整？2）如果不完整，缺的是什么？'
+      }
+    ]
+  })
+})
+if (!resp2.ok) {
+  console.error('模型 API 失败：' + resp2.status + ' ' + (await resp2.text()).slice(0, 300))
+  process.exit(1)
+}
+const data2 = await resp2.json()
+const final2 = (data2.choices?.[0]?.message?.content ?? '').trim()
+console.log('\n=== 模型回答（上一章承接）===\n' + final2)
+const mentionsGap2 = /不完整|缺失|缺了|断|有洞|未写/.test(final2)
+const mentions2b = /第\s*[2二]\s*段|第[2二]段|[2二]段.{0,6}未|缺.{0,6}[2二]/.test(final2)
+const mentions5b = /第\s*[5五]\s*段|第[5五]段|[5五]段.{0,6}未|缺.{0,6}[5五]/.test(final2)
+const ok2 = mentionsGap2 && mentions2b && mentions5b && /上一章|第01章|前文/.test(final2)
+console.log('核对：gap=' + mentionsGap2 + ' 段2=' + mentions2b + ' 段5=' + mentions5b + ' 指向上一章=' + /上一章|第01章|前文/.test(final2) + ' => ' + (ok2 ? 'PASS（模型感知上一章断链）' : 'FAIL'))
+process.exit(ok2 ? 0 : 1)
