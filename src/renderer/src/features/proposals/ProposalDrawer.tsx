@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
-import { Check, X, FileText, GitCompare, Inbox, ChevronDown, Trash2 } from 'lucide-react'
+import { Check, X, FileText, GitCompare, Inbox, ChevronDown, Trash2, RefreshCw } from 'lucide-react'
 import type { Proposal } from '../../../../shared/types'
 import { Button } from '../../components/ui/button'
 import { ScrollArea } from '../../components/ui/scroll-area'
+import { toast } from '../../store/toasts'
 import { cn } from '../../lib/utils'
 
 interface Props {
@@ -89,7 +90,7 @@ function ItemCard({ p, projectId, onChanged }: { p: Proposal; projectId: string;
             <Trash2 className="mr-1" /> 清除
           </Button>
         )}
-        <span className="text-[10px] text-ink-3">来自：{p.source === 'slice-sync' ? '正文保存同步' : 'agent'}</span>
+        <span className="text-[10px] text-ink-3">来自：{p.source === 'slice-sync' ? '正文保存同步' : p.source === 'annotation-sync' ? '批注同步' : 'agent'}</span>
       </div>
       {err && <p className="mt-2 rounded-md bg-danger-soft px-2 py-1 text-[11px] text-danger">{err}</p>}
     </div>
@@ -104,13 +105,27 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose }: 
     for (const p of pending) await window.zhijuan.applyProposal(projectId, p.id)
     onChanged()
   }
+  async function doScan() {
+    try {
+      const r = await window.zhijuan.scanAnnotations(projectId)
+      if (r.generated > 0) toast.add({ kind: 'success', title: '批注定时优化', description: r.note })
+      else if (r.found > 0) toast.add({ kind: 'warning', title: '批注定时优化', description: r.note })
+      else toast.add({ kind: 'info', title: '批注定时优化', description: r.note })
+    } catch (e) {
+      toast.add({ kind: 'error', title: '批注扫描失败', description: String((e as Error).message ?? e) })
+    }
+    onChanged()
+  }
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/20 animate-in fade-in">
       <div role="dialog" aria-label="提案" className="flex h-full w-[460px] flex-col border-l border-hair bg-paper shadow-[var(--shadow)] animate-in fade-in slide-in-from-right-3">
         <div className="flex h-12 shrink-0 items-center border-b border-hair px-4">
-          <span className="text-sm font-medium">提案（切片同步）</span>
-          <span className="ml-2 text-[11px] text-ink-3">正文保存时自动判别，接受才写入设定</span>
+          <span className="text-sm font-medium">提案</span>
+          <span className="ml-2 text-[11px] text-ink-3">切片同步与批注优化都会在这里提出修改</span>
           <span className="flex-1" />
+          <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={() => void doScan()}>
+            <RefreshCw className="size-3" /> 扫描批注
+          </Button>
           <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={onClose}>收起</Button>
         </div>
         <ScrollArea className="min-h-0 flex-1 px-3 py-3">

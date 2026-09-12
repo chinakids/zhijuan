@@ -2,7 +2,7 @@
 import { ipcMain, shell, BrowserWindow, dialog, app } from 'electron'
 import { writeFileSync } from 'fs'
 import { join } from 'path'
-import type { AppSettings, FsEvent, ProposalItem, EditItem } from '../shared/types'
+import type { AppSettings, FsEvent, ProposalItem, EditItem, Proposal } from '../shared/types'
 import { adoptActsChapter } from '../shared/actsAdopt'
 import { countWords } from '../shared/count'
 import { extractFrontMatter } from '../shared/fmatter'
@@ -11,6 +11,7 @@ import { listSlices } from './slices'
 import { listSnapshots, readSnapshot } from './history'
 import { registerAgentIpc } from './agent/ipc'
 import { runChapterUnlisted, runChapterMissing } from './agent/audit'
+import { scanAnnotations, resolveAnnotationRows } from './agent/annotations'
 import { isRuntimeCreated, closeHarness } from './agent/runtime'
 import { getSettings, setSettings, libraryRoot } from './settings'
 import { getRecentEntries, recordOpen, removeRecent } from './recent'
@@ -176,10 +177,23 @@ export function registerIpc() {
 
   // 提案（S4）
   ipcMain.handle('proposal:list', (_e, id: string) => listProposals(libraryRoot(), id))
-  ipcMain.handle('proposal:create', (_e, id: string, source: 'slice-sync' | 'agent-chat', chapter: string, slice: string, items: ProposalItem[]) => createProposals(libraryRoot(), id, source, chapter, slice, items))
-  ipcMain.handle('proposal:apply', (_e, id: string, pid: string) => applyProposal(libraryRoot(), id, pid))
-  ipcMain.handle('proposal:reject', (_e, id: string, pid: string) => rejectProposal(libraryRoot(), id, pid))
+  ipcMain.handle('proposal:create', (_e, id: string, source: Proposal['source'], chapter: string, slice: string, items: ProposalItem[], meta?: Proposal['meta'], metas?: Proposal['meta'][]) => createProposals(libraryRoot(), id, source, chapter, slice, items, meta, metas))
+  ipcMain.handle('proposal:apply', (_e, id: string, pid: string) => {
+    const res = applyProposal(libraryRoot(), id, pid)
+    const p = listProposals(libraryRoot(), id).find((x) => x.id === pid)
+    if (res.ok && p?.meta?.annotations?.length) resolveAnnotationRows(id, p.meta.annotations)
+    return res
+  })
+  ipcMain.handle('proposal:reject', (_e, id: string, pid: string) => {
+    const p = listProposals(libraryRoot(), id).find((x) => x.id === pid)
+    const res = rejectProposal(libraryRoot(), id, pid)
+    if (res && p?.meta?.annotations?.length) resolveAnnotationRows(id, p.meta.annotations)
+    return res
+  })
   ipcMain.handle('proposal:discard', (_e, id: string, pid: string) => discardProposal(libraryRoot(), id, pid))
+
+  // 批注定时优化（主人 2026-09-12）：扫描项目批注 csv → 引擎改写 → 提案制闭环
+  ipcMain.handle('annotations:scan', (_e, id: string) => scanAnnotations(id))
 
   // agent（dsh 写作引擎）
   registerAgentIpc()

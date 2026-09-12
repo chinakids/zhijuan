@@ -103,12 +103,16 @@ const api = {
 
   // 提案（S4）
   listProposals: (id: string) => ipcRenderer.invoke('proposal:list', id) as Promise<Proposal[]>,
-  createProposals: (id: string, source: 'slice-sync' | 'agent-chat', chapter: string, slice: string, items: ProposalItem[]) =>
-    ipcRenderer.invoke('proposal:create', id, source, chapter, slice, items) as Promise<Proposal[]>,
+  createProposals: (id: string, source: 'slice-sync' | 'agent-chat' | 'annotation-sync', chapter: string, slice: string, items: ProposalItem[], meta?: { annotations?: { file: string; rows: number[] }[]; note?: string }, metas?: { annotations?: { file: string; rows: number[] }[]; note?: string }[]) =>
+    ipcRenderer.invoke('proposal:create', id, source, chapter, slice, items, meta, metas) as Promise<Proposal[]>,
   applyProposal: (id: string, pid: string) =>
     ipcRenderer.invoke('proposal:apply', id, pid) as Promise<{ ok: boolean; applied: string[]; errors: string[] }>,
   rejectProposal: (id: string, pid: string) => ipcRenderer.invoke('proposal:reject', id, pid) as Promise<boolean>,
   discardProposal: (id: string, pid: string) => ipcRenderer.invoke('proposal:discard', id, pid) as Promise<boolean>,
+
+  // 批注定时优化：扫描项目内 *_批注.csv → 生成修改提案（结果 note 供 toast）
+  scanAnnotations: (id: string) =>
+    ipcRenderer.invoke('annotations:scan', id) as Promise<{ found: number; generated: number; skipped: number; note: string }>,
 
   // 文件系统事件（项目目录被外部改动时）
   onFsEvent: (cb: (evt: FsEvent) => void) => {

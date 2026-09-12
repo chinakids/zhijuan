@@ -13,6 +13,7 @@ import { countWords } from '../../../shared/count'
 import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceCheck, chapterMissingFromRaw } from '../../../shared/presence'
 import { findAnchorLine, normalizeAnchor } from '../../../shared/anchor'
 import { auditDocMarkdown } from '../../../shared/auditDoc'
+import { parseAnnotationCsv, segmentFromText } from '../../../shared/annotations'
 import type { RecentEntry } from '../../../shared/projects'
 import { toast } from '../store/toasts'
 
@@ -74,6 +75,12 @@ docs.set(
     '阿七低头看手里那张泛黄的船票 —— 上面写着她的名字，日期是十年前。',
     ''
   ].join('\n')
+)
+// dev 演示：批注定时优化（主人 2026-09-12）——第01章带两条批注（L10 雨句 / L12 沈藏台词），
+// 行号按第01章内容真实定位；格式与主人批注任务脚本.py 一致：L<行>:<列>-L<行>:<列>,批注意图
+docs.set(
+  'demo-aseya/正文/第01章_雾港_批注.csv',
+  ['L10:1-L10:34,这句太文艺了，改成冷静克制：直接写阿七攥着灯的手在抖。', 'L12:1-L12:60,沈藏语气再轻一点，去掉审问感：只把「你当真不记得了？」改成「你真的不记得了？」', ''].join('\n')
 )
 docs.set(
   'demo-aseya/正文/第02章_灯塔.md',
@@ -550,9 +557,10 @@ const mock = {
   readHistory: async (_id: string, rel: string, name: string) =>
     (histories.get(_id + '/' + rel) ?? []).find((h) => h.name === name)?.content ?? null,
   listDocs: async (id: string, relDir: string) =>
-    // 与真机口径一致：name 去掉 .md 后缀（docsOf 保留 basename，真机 listDocs 剥扩展名）；按 mtime 新→旧
+    // 与真机口径一致：只列 .md（csv 等批注文件不进列表）；name 去掉 .md 后缀；按 mtime 新→旧
     docsOf(id + '/' + relDir)
-      .map((d) => ({ ...d, name: d.name.replace(/\.md$/, '') }))
+      .filter((d) => d.name.endsWith('.md'))
+      .map((d) => ({ ...d, name: d.name.replace(/\\.md$/, '') }))
       .sort((a, b) => b.mtime - a.mtime),
   // 素材库域：类别枚举（内存由 docs 推导；空类别靠 extraCats 登记）/ 新建类别 / 文件名+全文搜索
   listLibraryCategories: async (id: string): Promise<LibraryCategory[]> => {
@@ -707,7 +715,7 @@ const mock = {
   // 提案（S4）
   proposals: [] as Proposal[],
   listProposals: async () => mock.proposals.slice(),
-  createProposals: async (_id: string, source: 'slice-sync' | 'agent-chat', chapter: string, sliceName: string, items: ProposalItem[]) => {
+  createProposals: async (_id: string, source: 'slice-sync' | 'agent-chat' | 'annotation-sync', chapter: string, sliceName: string, items: ProposalItem[], meta?: { annotations?: { file: string; rows: number[] }[]; note?: string }, metas?: { annotations?: { file: string; rows: number[] }[]; note?: string }[]) => {
     console.log('[sync] items', JSON.stringify(items))
     // 与真机 createProposals 同口径：同章旧 pending 一律置 stale（2026-09-12 补）
     for (const old of mock.proposals) {
@@ -722,7 +730,8 @@ const mock = {
         slice: sliceName,
         status: 'pending',
         createdAt: nowT,
-        items: [it]
+        items: [it],
+        meta: metas?.[idx] ?? meta
       }
       mock.proposals.push(p)
       return p
@@ -745,18 +754,55 @@ const mock = {
       }
     }
     p.status = 'accepted'
+    devAnnoResolve(_id, p.meta?.annotations)
     return { ok: errs.length === 0, applied: p.items.filter((_, i) => !errs[i]).map((i) => i.target), errors: errs }
   },
   rejectProposal: async (_id: string, pid: string) => {
     const p = mock.proposals.find((x) => x.id === pid)
-    if (p) p.status = 'rejected'
-    return true
+    if (p) {
+      p.status = 'rejected'
+      devAnnoResolve(_id, p.meta?.annotations)
+    }
+    return !!p
   },
   discardProposal: async (_id: string, pid: string) => {
     const i = mock.proposals.findIndex((x) => x.id === pid && x.status === 'stale')
     if (i < 0) return false
     mock.proposals.splice(i, 1)
     return true
+  },
+
+  // 批注定时优化（主人 2026-09-12）：扫描 *_批注.csv → 按 mock 改写表生成提案（真机由引擎改写）
+  scanAnnotations: async (id: string) => {
+    const csvRel = '正文/第01章_雾港_批注.csv'
+    const csv = docs.get(id + '/' + csvRel)
+    const md = docs.get(id + '/正文/第01章_雾港.md') ?? ''
+    if (!csv) return { found: 0, generated: 0, skipped: 0, note: '没有新的待处理批注' }
+    // 防重（真机口径：pending 未决期间记账，不重复生成；dev 用 pending 存在即停）
+    if (mock.proposals.some((p) => p.source === 'annotation-sync' && p.status === 'pending')) {
+      return { found: 0, generated: 0, skipped: 0, note: '已有待确认的批注提案，先处理再扫描' }
+    }
+    const MOCK_AFTER: Record<string, string> = {
+      'L10:1-L10:34': '雨把港口淋成一片灰。阿七靠着候船厅的柱子，攥着灯的手在抖。',
+      'L12:1-L12:60': '「你真的不记得了？」沈藏点了根烟，烟雾在灯罩边绕了一圈，「这盏灯，是你自己熄的。」'
+    }
+    const targets = parseAnnotationCsv(csv)
+      .map((r, i) => ({ row: i + 1, loc: r.loc, note: r.note, before: segmentFromText(md, r.loc) }))
+      .filter((t): t is { row: number; loc: string; note: string; before: string } => Boolean(t.loc && t.before != null))
+    if (!targets.length) return { found: 0, generated: 0, skipped: 0, note: '没有新的待处理批注' }
+    const items: ProposalItem[] = []
+    const metas: { annotations: { file: string; rows: number[] }[]; note?: string }[] = []
+    const refRows: number[] = []
+    for (const t of targets) {
+      const after = MOCK_AFTER[t.loc]
+      if (!after) continue
+      items.push({ target: '正文/第01章_雾港.md', anchor: t.loc, kind: 'replace-text', before: t.before, after, reason: '批注：' + t.note })
+      metas.push({ annotations: [{ file: csvRel, rows: [t.row] }] })
+      refRows.push(t.row)
+    }
+    if (!items.length) return { found: targets.length, generated: 0, skipped: targets.length, note: '引擎未产出可用改写（批注未动，可稍后重试）' }
+    await mock.createProposals(id, 'annotation-sync', '正文/第01章_雾港.md', '', items, undefined, metas)
+    return { found: targets.length, generated: items.length, skipped: 0, note: `发现 ${targets.length} 条批注，生成 ${items.length} 条修改提案` }
   },
 
   // 采纳 agent 的正文修改（dev：改内存文档）
@@ -1189,9 +1235,30 @@ const mock = {
   })
 }
 
+/** dev：接受/拒绝批注提案后删除对应 csv 行（与真机 resolveAnnotationRows 同语义）；空文件删除 */
+function devAnnoResolve(id: string, refs?: { file: string; rows: number[] }[]): void {
+  for (const ref of refs ?? []) {
+    const key = id + '/' + ref.file
+    const raw = docs.get(key)
+    if (raw == null) continue
+    const lines = raw.replace(/\n$/, '').split('\n')
+    for (const r of [...ref.rows].sort((a, b) => b - a)) {
+      if (r >= 1 && r <= lines.length) lines.splice(r - 1, 1)
+    }
+    const out = lines.join('\n').trim()
+    if (!out) docs.delete(key)
+    else docs.set(key, out + '\n')
+    fsEmit(id, ref.file)
+  }
+}
+
 /** devShim 用的锚点写入（与 main 侧同规则：shared/anchor 精确匹配；标题下节体替换；无标题则追加 H2） */
 function applyAnchor(text: string, it: ProposalItem): string {
   if (it.kind === 'append') return text + '\n\n' + it.after
+  if (it.kind === 'replace-text') {
+    if (!it.before || !text.includes(it.before)) throw new Error('原文段已变（可能被手动编辑），请人工确认')
+    return text.replace(it.before, it.after)
+  }
   const anchor = normalizeAnchor(it.anchor || '')
   const lines = text.split('\n')
   if (!anchor) return text.trimEnd() + '\n\n## 切片状态\n\n' + it.after + '\n'

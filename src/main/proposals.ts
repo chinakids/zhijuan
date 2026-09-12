@@ -40,16 +40,17 @@ export function listProposals(root: string, projectId: string): Proposal[] {
   return readAll(root, projectId)
 }
 
-/** 同章旧的 pending 一律 stale；每个 item 一条提案（便于逐条接受/拒绝） */
-export function createProposals(root: string, projectId: string, source: Proposal['source'], chapter: string, slice: string, items: ProposalItem[]): Proposal[] {
+/** 同章旧的 pending 一律 stale；每个 item 一条提案（便于逐条接受/拒绝）；metas 与 items 对齐（逐条独立 meta） */
+export function createProposals(root: string, projectId: string, source: Proposal['source'], chapter: string, slice: string, items: ProposalItem[], meta?: Proposal['meta'], metas?: Proposal['meta'][]): Proposal[] {
   for (const old of readAll(root, projectId)) {
     if (old.chapter === chapter && old.status === 'pending') {
       old.status = 'stale'
       write(root, projectId, old)
     }
   }
-  return items.map((it) => {
-    const p: Proposal = { id: pid(), source, chapter, slice, status: 'pending', createdAt: Date.now(), items: [it] }
+  return items.map((it, idx) => {
+    const m = metas?.[idx] ?? meta
+    const p: Proposal = { id: pid(), source, chapter, slice, status: 'pending', createdAt: Date.now(), items: [it], meta: m }
     write(root, projectId, p)
     return p
   })
@@ -163,6 +164,12 @@ export function discardProposal(root: string, projectId: string, id: string): bo
  *  「切片：第一幕_夜」不得误命中「切片：第一幕_夜雨」并整节替换（2026-09-11 锚点精确化）。 */
 export function applyAnchor(text: string, it: ProposalItem): { ok: boolean; out?: string; msg?: string } {
   if (it.kind === 'append') return { ok: true, out: text + '\n\n' + it.after }
+  if (it.kind === 'replace-text') {
+    // 批注同步：按原文文段精确替换（before 校验——原文被手动编辑过则失败，提示人工确认）
+    if (!it.before) return { ok: false, msg: 'replace-text 缺少 before 文段' }
+    if (!text.includes(it.before)) return { ok: false, msg: '原文段已变（可能被手动编辑），请人工确认' }
+    return { ok: true, out: text.replace(it.before, it.after) }
+  }
   const anchor = normalizeAnchor(it.anchor || '')
   if (!anchor) return { ok: true, out: text + '\n\n## 切片状态\n\n' + it.after }
   const lines = text.split('\n')

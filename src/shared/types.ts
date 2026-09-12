@@ -207,19 +207,27 @@ export interface HistorySnapshot {
 export interface ProposalItem {
   target: string
   anchor: string
-  kind: 'upsert-section' | 'append'
+  kind: 'upsert-section' | 'append' | 'replace-text'
   before: string
   after: string
   reason: string
 }
+/** 批注同步来源引用（proposal.meta.annotations）：接受/拒绝后按行删除对应 csv 条目 */
+export interface AnnotationRef {
+  /** 批注 csv 相对路径（如 正文/第01章_雾港_批注.csv） */
+  file: string
+  /** 已生成提案的 csv 行号（1-based） */
+  rows: number[]
+}
 export interface Proposal {
   id: string
-  source: 'slice-sync' | 'agent-chat'
+  source: 'slice-sync' | 'agent-chat' | 'annotation-sync'
   chapter: string
   slice: string
   status: 'pending' | 'accepted' | 'rejected' | 'stale'
   createdAt: number
   items: ProposalItem[]
+  meta?: { annotations?: AnnotationRef[]; note?: string }
 }
 
 /** 采集任务（模块设计 §11；S5 用） */

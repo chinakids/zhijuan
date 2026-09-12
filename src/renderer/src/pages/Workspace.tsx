@@ -7,6 +7,7 @@ import LoadingIndicator from '../components/LoadingIndicator'
 import { useProposalStore } from '../store/proposals'
 import ProposalDrawer from '../features/proposals/ProposalDrawer'
 import ProjectGuide from '../features/guide/ProjectGuide'
+import { toast } from '../store/toasts'
 
 const emptyCounts: NavCounts = { novel: 0, characters: 0, worldview: 0, outline: 0, library: 0 }
 
@@ -22,6 +23,34 @@ export default function Workspace() {
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [loadErr, setLoadErr] = useState('')
   const readyRef = useRef(false)
+
+  // 批注定时优化（主人 2026-09-12）：打开项目 10s 后首扫 + 每 30 分钟静默扫描；
+  // 只在「生成了提案 / 发现了但没能生成」时 toast，无批注时保持安静
+  useEffect(() => {
+    if (!id || loadState !== 'ready') return
+    let disposed = false
+    const run = async () => {
+      try {
+        const r = await window.zhijuan.scanAnnotations(id)
+        if (disposed) return
+        if (r.generated > 0) {
+          toast.add({ kind: 'success', title: '批注定时优化', description: r.note })
+          refreshProposals()
+        } else if (r.found > 0) {
+          toast.add({ kind: 'warning', title: '批注定时优化', description: r.note })
+        }
+      } catch {
+        /* 静默：扫描器失败不打扰写作 */
+      }
+    }
+    const t1 = window.setTimeout(() => void run(), 10000)
+    const iv = window.setInterval(() => void run(), 30 * 60 * 1000)
+    return () => {
+      disposed = true
+      window.clearTimeout(t1)
+      window.clearInterval(iv)
+    }
+  }, [id, loadState])
 
   const refreshAll = useCallback(async () => {
     if (!id) return
