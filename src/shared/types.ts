@@ -1,4 +1,5 @@
 // ===== 织卷 V2 · 共享类型（模块设计 §2/§10 对应） =====
+import { AGENT_PANEL_DEFAULT_WIDTH } from './uiPrefs'
 
 /** 项目元数据：来自 <项目>/project.md 的 front matter */
 export interface ProjectMeta {
@@ -98,6 +99,8 @@ export interface AppSettings {
   collectionEnabled: boolean
   /** 批注定时优化（主人 2026-09-12 定：默认关；开启=打开项目 10s 后首扫 + 每 30 分钟自动扫描批注生成提案） */
   annotationsEnabled: boolean
+  /** Agent 面板宽度（px，模块设计 §十二「面板宽度记忆」；拖拽/方向键调整，越界钳制见 shared/uiPrefs） */
+  agentPanelWidth: number
   /** 常用 agent 工具开关（harness 引擎内） */
   agentTools?: { todo?: boolean; askUser?: boolean }
   /** agent 能力开关（模块 J / E3）：缺省 = 全开；值为 false 即关闭该能力 */
@@ -111,6 +114,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'paper',
   collectionEnabled: true,
   annotationsEnabled: false,
+  agentPanelWidth: AGENT_PANEL_DEFAULT_WIDTH,
   agentTools: { todo: true, askUser: true }
 }
 

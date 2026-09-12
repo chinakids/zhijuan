@@ -5,6 +5,7 @@ import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, sy
 import { listChapterEntries } from '../../../shared/chapters'
 import { listSliceEntries } from '../../../shared/slices'
 import { resolveLibraryRoot } from '../../../shared/settingsLogic'
+import { AGENT_PANEL_DEFAULT_WIDTH } from '../../../shared/uiPrefs'
 import { sanitizeFile } from '../../../shared/paths'
 import { nextProjectId } from '../../../shared/projects'
 import { extractFrontMatter, setFrontMatterField } from '../../../shared/fmatter'
@@ -286,6 +287,7 @@ const settings: AppSettings = {
   theme: 'paper',
   collectionEnabled: true,
   annotationsEnabled: false,
+  agentPanelWidth: AGENT_PANEL_DEFAULT_WIDTH,
   agentTools: { todo: true, askUser: true }
 }
 

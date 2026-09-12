@@ -8,6 +8,13 @@ import type { ProseApi } from '../editor/Prose'
 import type { AuditKind, EditItem, ChapterCheckKind, DirectorSheet } from '../../../../shared/types'
 import { filterAtCandidates, insertAtMention, parseAtTrigger, type AtCandidate } from '../../../../shared/mention'
 import { parseAtRefs, REF_CAP } from '../../../../shared/atRefs'
+import {
+  AGENT_PANEL_DEFAULT_WIDTH,
+  AGENT_PANEL_MAX_WIDTH,
+  AGENT_PANEL_MIN_WIDTH,
+  AGENT_PANEL_STEP,
+  clampAgentWidth
+} from '../../../../shared/uiPrefs'
 import { expandCommand, filterCommandCandidates, insertCommand, matchFixedCommand, parseCommandTrigger, parsePatrolArgs, type ZjCommand } from '../../../../shared/commands'
 import { useAgentStore } from './store'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
@@ -319,6 +326,78 @@ export default function AgentPanel(props: AgentPanelProps) {
   // 取消路径（2026-09-12）：点「停止」作废在途结果（token 递增），并把取消标记发给主进程（跳过落资产）
   const fxTokenRef = useRef(0)
   const fxAidRef = useRef<string | null>(null)
+
+  // ---------- 面板宽度记忆（模块设计 §十二：分隔条可拖拽 + AppSettings 持久化；WAI-ARIA Window Splitter） ----------
+  const [panelWd, setPanelWd] = useState(AGENT_PANEL_DEFAULT_WIDTH)
+  useEffect(() => {
+    let alive = true
+    window.zhijuan
+      .getSettings()
+      .then((s) => {
+        if (alive) setPanelWd(clampAgentWidth(s.agentPanelWidth))
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
+  const persistWd = useCallback((w: number) => {
+    void window.zhijuan.setSettings({ agentPanelWidth: clampAgentWidth(w) }).catch(() => {})
+  }, [])
+  const adjustWd = useCallback(
+    (delta: number) => {
+      setPanelWd((w) => {
+        const n = clampAgentWidth(w + delta)
+        persistWd(n)
+        return n
+      })
+    },
+    [persistWd]
+  )
+  const resetWd = useCallback(() => {
+    setPanelWd(AGENT_PANEL_DEFAULT_WIDTH)
+    persistWd(AGENT_PANEL_DEFAULT_WIDTH)
+  }, [persistWd])
+  /** 拖拽：pointerdown 记录起点 → window 级 move/up（指针移出条外也能继续跟手）→ up 时持久化 */
+  function onHandlePointerDown(e: React.PointerEvent) {
+    if (e.button !== 0) return
+    e.preventDefault()
+    const start = { x: e.clientX, w: panelWd }
+    let last = panelWd
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    const move = (ev: PointerEvent) => {
+      last = clampAgentWidth(start.w + (start.x - ev.clientX))
+      setPanelWd(last)
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      persistWd(last)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+  /** 键盘（WAI-ARIA Window Splitter）：← 变窄 / → 变宽 / Home 最窄 / End 最宽 */
+  function onHandleKey(e: React.KeyboardEvent) {
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      adjustWd(-AGENT_PANEL_STEP)
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      adjustWd(AGENT_PANEL_STEP)
+    } else if (e.key === 'Home') {
+      e.preventDefault()
+      setPanelWd(AGENT_PANEL_MIN_WIDTH)
+      persistWd(AGENT_PANEL_MIN_WIDTH)
+    } else if (e.key === 'End') {
+      e.preventDefault()
+      setPanelWd(AGENT_PANEL_MAX_WIDTH)
+      persistWd(AGENT_PANEL_MAX_WIDTH)
+    }
+  }
 
   // ---------- 引擎离线前置拦截（2026-09-12）：发送前懒查一次引擎状态，离线就地提示、不丢输入 ----------
   const [engineOff, setEngineOff] = useState<string | null>(null)
@@ -703,7 +782,29 @@ export default function AgentPanel(props: AgentPanelProps) {
 
   return (
     <>
-      <aside className="flex h-full w-80 shrink-0 flex-col border-l border-hair bg-surface-2">
+      <aside
+        id="zj-agent-panel"
+        className="relative flex h-full shrink-0 flex-col border-l border-hair bg-surface-2"
+        style={{ width: panelWd }}
+      >
+        {/* 可拖拽分隔条（模块设计 §十二「面板宽度记忆」；WAI-ARIA Window Splitter：角色/键盘/aria 值齐全） */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Agent 面板宽度"
+          aria-controls="zj-agent-panel"
+          aria-valuenow={panelWd}
+          aria-valuemin={AGENT_PANEL_MIN_WIDTH}
+          aria-valuemax={AGENT_PANEL_MAX_WIDTH}
+          tabIndex={0}
+          title="拖动调整 Agent 面板宽度（← → 微调，Home/End 最窄/最宽，双击恢复默认；自动记忆）"
+          onPointerDown={onHandlePointerDown}
+          onKeyDown={onHandleKey}
+          onDoubleClick={resetWd}
+          className="group absolute -left-[4px] top-0 z-20 flex h-full w-[9px] cursor-col-resize items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+        >
+          <span className="h-full w-px bg-transparent transition-colors group-hover:bg-accent/60 group-focus-visible:bg-accent/60" />
+        </div>
         <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hair px-4">
           <span className="text-sm font-medium text-ink">Agent</span>
           <span className="flex-1" />
