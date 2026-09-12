@@ -132,6 +132,12 @@ try {
   const outlineNew = await page.eval(readDoc('大纲/第01章_新雾都.md'))
   const outlineOld = await page.eval(readDoc('大纲/第01章_雾港.md'))
   ok('大纲章卡随同改名', outlineNew !== null && outlineOld === null, '')
+  // ③.5 副产物内容同步 + 索引重建（与真机 store.renameChapter 同口径）：fm 题名/H1/对应正文行 → 新题名与新路径
+  ok('章卡内容同步：fm 题名/H1/对应正文行', outlineNew !== null && outlineNew.includes('题名: 新雾都') && outlineNew.includes('# 章卡 第1章 新雾都') && outlineNew.includes('> 对应正文：正文/第01章_新雾都.md') && !outlineNew.includes('# 章卡 第1章 雾港'), '')
+  const boardNew = await page.eval(readDoc('大纲/第01章_新雾都_导演.md'))
+  ok('导演板内容同步：fm 题名/H1/对应正文行', boardNew !== null && boardNew.includes('题名: 新雾都') && boardNew.includes('# 导演板 · 第1章 新雾都') && boardNew.includes('> 对应正文：正文/第01章_新雾都.md'), '')
+  const idxNew = await page.eval(readDoc('大纲/索引.md'))
+  ok('索引重建：条目题名/定位更新为新题名', idxNew !== null && idxNew.includes('## 第1章 · 新雾都') && !idxNew.includes('## 第1章 · 雾港'), '')
   await shot(page, 'zj-chop-renamed.png')
 
   // ④ 导出第 2 章（devShim mock 直接回执）

@@ -16,7 +16,7 @@ import {
   FSWatcher
 } from 'fs'
 import { extractFrontMatter, serializeFrontMatter, setFrontMatterField } from '../shared/fmatter'
-import { isOutlineCardRel, outlineIndexDoc, parseOutlineCard } from '../shared/outline'
+import { isOutlineCardRel, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc } from '../shared/outline'
 import { listChapterEntries } from '../shared/chapters'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, DOT_DIR } from '../shared/paths'
 import { sanitizeFile } from '../shared/paths'
@@ -291,6 +291,21 @@ function siblingMatches(dirEntries: string[], base: string): string[] {
   })
 }
 
+/** 重命名章后同步 大纲/ 下同名写作副产物**内容**（已知旧/新题名与正文新路径时）；
+ * 章卡（fm 题名/H1/对应正文行）、导演板/分幕（同三点）一视同仁，其余原文一律保留（best-effort）。 */
+function syncOutlineSiblingsContent(id: string, base: string, oldTitle: string, newTitle: string, newChapterRel: string): void {
+  const dir = join(projectDir(id), '大纲')
+  if (!existsSync(dir)) return
+  for (const e of siblingMatches(readdirSync(dir), base)) {
+    const f = join(dir, e)
+    try {
+      const raw = readFileSync(f, 'utf-8')
+      const next = syncChapterNameInDoc(raw, oldTitle, newTitle, newChapterRel)
+      if (next !== raw) writeDoc(id, '大纲/' + e, next)
+    } catch { /* best-effort */ }
+  }
+}
+
 /** 大纲索引与章卡文件对齐：以现存章卡文件为权威重建 大纲/索引.md（剔除已删章条目、修正计数、更新题名）。
  * 删除/重命名章后调用（章卡文件已随动）；best-effort：索引是预览文档，失败不影响主操作。 */
 function refreshOutlineIndex(id: string): void {
@@ -315,7 +330,7 @@ export interface RenameChapterResult {
  * 章节重命名（模块设计 §6.2「重命名：改题名与文件名」）：改约定头 `题名` + 文件名 slug 同步。
  * 引用面（2026-09-11 调研后拍板）：
  *  - 大纲/ 下 <章名>.md 与 <章名>_*.md（章卡/导演板/分幕）→ 同步改名（存在才动，best-effort）；
- *  - 大纲/索引.md → 删除成功后整体重建（2026-09-12：章卡为权威，剔除已删章条目并修正计数）；重命名后索引暂不重建（章卡内容本身未随改名更新，见档案下一步候选）；
+ *  - 大纲/索引.md → 重命名成功后整体重建（章卡为权威：题名/对应路径随之更新，best-effort）；
  *  - .zhijuan/history/正文/<章名>/（版本历史入口）→ 同步改名（存在才动，best-effort）；
  *  - .zhijuan/slices.json 无写入调用（listSlices 每次现扫）→ 无需处理；
  *  - .zhijuan/proposals/*.json 的 chapter 字段（展示 + stale 判定键）→ 重命名时同步迁移（best-effort，见 proposals.migrateChapter）。
@@ -331,13 +346,18 @@ export function renameChapter(id: string, rel: string, newTitle: string): Rename
   const raw = readFileSync(oldAbs, 'utf-8')
   const { fm } = extractFrontMatter(raw)
   if (!fm) return { ok: false, error: '该文件没有约定头，不是织卷章节' }
+  const oldTitle = String(fm['题名'] ?? '')
   const oldName = basename(rel)
   const newBase = chapterNewBase(oldName, t) + '.md'
   const newRel = '正文/' + newBase
   const newText = setFrontMatterField(raw, '题名', t)
   if (newBase === oldName) {
-    // 文件名没变（题名清洗后同形）：只改约定头内容
+    // 文件名没变（题名清洗后同形）：只改约定头内容；若题名确实变了，同步大纲副产物内容与索引（best-effort）
     writeDoc(id, rel, newText)
+    if (oldTitle && oldTitle !== t) {
+      try { syncOutlineSiblingsContent(id, oldName.replace(/\.md$/, ''), oldTitle, t, rel) } catch { /* best-effort */ }
+      try { refreshOutlineIndex(id) } catch { /* best-effort */ }
+    }
     return { ok: true, newRel: rel }
   }
   if (existsSync(abs(id, newRel))) return { ok: false, error: '目标文件名已存在：' + newBase }
@@ -362,6 +382,9 @@ export function renameChapter(id: string, rel: string, newTitle: string): Rename
   try { migrateChapter(libraryRoot(), id, rel, newRel) } catch { /* best-effort */ }
   // 4) 删除旧文件（内容已迁移）
   rmSync(oldAbs, { force: true })
+  // 5) 大纲副产物内容同步（fm 题名/H1/对应正文 → 新题名与新路径；其余原文保留）+ 索引重建（章卡为权威，best-effort）
+  try { syncOutlineSiblingsContent(id, newBase.replace(/\.md$/, ''), oldTitle, t, newRel) } catch { /* best-effort */ }
+  try { refreshOutlineIndex(id) } catch { /* best-effort */ }
   return { ok: true, newRel }
 }
 

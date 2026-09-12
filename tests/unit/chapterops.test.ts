@@ -76,8 +76,16 @@ function seedChapter(): string {
     rel,
     ['---', '章号: 1', '题名: 雾港', '切片: 第一幕', '涉及人物: [阿七]', '---', '', '# 雾港', '', '正文内容。', ''].join('\n')
   )
-  store.writeDoc(pid, '大纲/第01章_雾港.md', '# 章卡 第1章 雾港\n\n> 对应正文：正文/第01章_雾港.md\n')
-  store.writeDoc(pid, '大纲/第01章_雾港_导演.md', '# 导演板 第1章 雾港\n')
+  store.writeDoc(
+    pid,
+    '大纲/第01章_雾港.md',
+    ['---', '章号: 1', '题名: 雾港', '切片: 第一幕', '状态: 已回建', '---', '', '# 章卡 第1章 雾港', '', '> 对应正文：正文/第01章_雾港.md', '', '## 一句话定位', '', '定位1', '', '## 关键事件', '', '- 事件1', '', '## 人物进展', '', '进1', '', '## 钩子 / 要还的债', '', '- 钩1', '', '- 手工补充：保留旧题名也无妨', ''].join('\n')
+  )
+  store.writeDoc(
+    pid,
+    '大纲/第01章_雾港_导演.md',
+    ['---', '章号: 1', '题名: 雾港', '切片: 第一幕', '状态: 已生成', '---', '', '# 导演板 · 第1章 雾港', '', '> 对应正文：正文/第01章_雾港.md', '', '## 情绪弧分段', ''].join('\n')
+  )
   const hd = join(proj(), '.zhijuan/history/正文/第01章_雾港')
   mkdirSync(hd, { recursive: true })
   writeFileSync(join(hd, '20260901-000000-000.md'), '旧版正文', 'utf-8')
@@ -109,6 +117,22 @@ describe('renameChapter（重命名：约定头题名 + 文件名 + 引用面）
     expect(existsSync(join(proj(), '大纲/第01章_雾港.md'))).toBe(false)
     expect(existsSync(join(proj(), '大纲/第01章_灯下雾.md'))).toBe(true)
     expect(existsSync(join(proj(), '大纲/第01章_灯下雾_导演.md'))).toBe(true)
+    // 副产物内容同步：fm 题名/H1 标题/对应正文行 → 新题名与新路径；其余小节与手工补充行原样保留
+    const card = readFileSync(join(proj(), '大纲/第01章_灯下雾.md'), 'utf-8')
+    expect(card).toContain('题名: 灯下雾')
+    expect(card).toContain('# 章卡 第1章 灯下雾')
+    expect(card).toContain('> 对应正文：正文/第01章_灯下雾.md')
+    expect(card).not.toContain('雾港')
+    expect(card).toContain('定位1')
+    expect(card).toContain('手工补充：保留旧题名也无妨') // 用户手工补充行（含旧题名）不动
+    const board = readFileSync(join(proj(), '大纲/第01章_灯下雾_导演.md'), 'utf-8')
+    expect(board).toContain('题名: 灯下雾')
+    expect(board).toContain('# 导演板 · 第1章 灯下雾')
+    expect(board).toContain('> 对应正文：正文/第01章_灯下雾.md')
+    // 索引以章卡为权威重建：题名/对应路径更新
+    const idx = store.readDoc(pid, '大纲/索引.md') ?? ''
+    expect(idx).toContain('## 第1章 · 灯下雾')
+    expect(idx).not.toContain('雾港')
     // 版本历史目录随同改名
     expect(existsSync(join(proj(), '.zhijuan/history/正文/第01章_雾港'))).toBe(false)
     expect(existsSync(join(proj(), '.zhijuan/history/正文/第01章_灯下雾'))).toBe(true)
@@ -122,6 +146,20 @@ describe('renameChapter（重命名：约定头题名 + 文件名 + 引用面）
     expect(existsSync(join(proj(), '正文/第01章_雾港.md'))).toBe(true)
     const next = readFileSync(join(proj(), '正文/第01章_雾港.md'), 'utf-8')
     expect(next).toContain('题名: 雾港') // 值 trim 后不变
+  })
+
+  it('同形分支的边界：slug 未变但题名确实不同（历史不一致）→ 章卡/索引内容仍同步', () => {
+    const rel = seedChapter()
+    // 制造历史不一致：正文 fm 题名与文件名 slug 脱节（如手工改过头），重命名输入「雾港」后 slug 同形
+    const raw = readFileSync(join(proj(), rel), 'utf-8')
+    store.writeDoc(pid, rel, raw.replace('题名: 雾港', '题名: 雾'))
+    const r = store.renameChapter(pid, rel, '雾港')
+    expect(r.ok).toBe(true)
+    expect(r.newRel).toBe(rel) // 同形：不产生文件改名
+    const card = readFileSync(join(proj(), '大纲/第01章_雾港.md'), 'utf-8')
+    expect(card).toContain('题名: 雾港') // fm 题名已与正文一致
+    const idx = store.readDoc(pid, '大纲/索引.md') ?? ''
+    expect(idx).toContain('## 第1章 · 雾港')
   })
 
   it('防御：空题名 / 章节不存在 / 无约定头 / 目标文件已存在', () => {

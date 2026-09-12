@@ -1,7 +1,7 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
 import type { AgentEvent, AppSettings, ChapterEntry, OutlineCard, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
-import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard } from '../../../shared/outline'
+import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc } from '../../../shared/outline'
 import { listChapterEntries } from '../../../shared/chapters'
 import { listSliceEntries } from '../../../shared/slices'
 import { resolveLibraryRoot } from '../../../shared/settingsLogic'
@@ -171,7 +171,7 @@ docs.set(
 // 让「导演板偏旧 → 建议重导」的轻提示在演示页自然出现。
 docs.set(
   'demo-aseya/大纲/第01章_雾港_导演.md',
-  ['---', '章号: 1', '题名: 雾港', '切片: 第一幕_雾港之夜', '状态: 已生成', '---', '', '# 导演板 · 第1章 雾港', '', '> （dev 示例）这张板子在正文初稿之前生成，正文后来又有改动，所以它比正文更旧。', '', '## 情绪弧分段', '', '1. **推进**：阿七借旧灯，确认失忆的裂缝开始松动', '', '## 人物行为轴', '', '- **阿七（试探）**：从什么也不记得，转为揪着船票不放', '', '## 写作红线（不许破）', '', '- 不要把沈藏写成全知的解谜工具', '', '## 钩子（要还的债 / 可新埋）', '', '- 灯是谁熄的（可新埋）', ''].join('\n')
+  ['---', '章号: 1', '题名: 雾港', '切片: 第一幕_雾港之夜', '状态: 已生成', '---', '', '# 导演板 · 第1章 雾港', '', '> 对应正文：正文/第01章_雾港.md', '', '> （dev 示例）这张板子在正文初稿之前生成，正文后来又有改动，所以它比正文更旧。', '', '## 情绪弧分段', '', '1. **推进**：阿七借旧灯，确认失忆的裂缝开始松动', '', '## 人物行为轴', '', '- **阿七（试探）**：从什么也不记得，转为揪着船票不放', '', '## 写作红线（不许破）', '', '- 不要把沈藏写成全知的解谜工具', '', '## 钩子（要还的债 / 可新埋）', '', '- 灯是谁熄的（可新埋）', ''].join('\n')
 )
 
 // dev 演示：采集池里放一张「已完成」任务卡（front matter 与管道回填格式一致），
@@ -434,6 +434,7 @@ const mock = {
     if (cur === undefined) return { ok: false, error: '章节不存在' }
     const t = (newTitle ?? '').trim()
     if (!t) return { ok: false, error: '题名不能为空' }
+    const oldTitle = String(extractFrontMatter(cur).fm?.['题名'] ?? '')
     const clean = sanitizeFile(t) // 与真机 shared/paths.sanitizeFile 同口径（2026-09-12 对齐）
     const oldName = rel.split('/').pop()!
     const idx = oldName.indexOf('_')
@@ -443,6 +444,22 @@ const mock = {
     const next = setFrontMatterField(cur, '题名', t)
     if (newRel === rel) {
       docs.set(k, next)
+      // 与真机同口径：题名变了但文件名同形 → 大纲副产物内容同步 + 索引重建
+      if (oldTitle && oldTitle !== t) {
+        for (const key of [...docs.keys()]) {
+          if (!key.startsWith(_id + '/大纲/')) continue
+          const f = key.slice((_id + '/大纲/').length)
+          const nm = f.replace(/\.md$/, '')
+          if (nm === oldName.replace(/\.md$/, '') || nm.startsWith(oldName.replace(/\.md$/, '') + '_')) {
+            const rawDoc = docs.get(key)
+            if (rawDoc !== undefined) {
+              const nextDoc = syncChapterNameInDoc(rawDoc, oldTitle, t, rel)
+              if (nextDoc !== rawDoc) { docs.set(key, nextDoc); fsEmit(_id, '大纲/' + f) }
+            }
+          }
+        }
+        devRefreshOutlineIndex(_id)
+      }
       fsEmit(_id, rel)
       return { ok: true, newRel: rel }
     }
@@ -457,12 +474,22 @@ const mock = {
       if (nm === baseOld || nm.startsWith(baseOld + '_')) {
         const newF = f.replace(baseOld, baseNew)
         const moved = _id + '/大纲/' + newF
-        if (!docs.has(moved)) { docs.set(moved, docs.get(key)!); docs.delete(key) }
+        if (!docs.has(moved)) {
+          const rawDoc = docs.get(key)
+          if (rawDoc !== undefined) {
+            // 与真机同口径：内容随改名同步（fm 题名/H1/对应正文 → 新题名与新路径）
+            const nextDoc = syncChapterNameInDoc(rawDoc, oldTitle, t, newRel)
+            docs.set(moved, nextDoc !== rawDoc ? nextDoc : rawDoc)
+            docs.delete(key)
+          }
+        }
         // 与真机 fs.watch(recursive) 同口径：每个被改动的文件各广播一次（rename=旧+新路径）
         fsEmit(_id, '大纲/' + f)
         fsEmit(_id, '大纲/' + newF)
       }
     }
+    // 与真机同口径：章卡内容已同步 → 以章卡为权威重建索引（题名/对应路径更新）
+    devRefreshOutlineIndex(_id)
     const hk = histories.get(k)
     if (hk) { histories.set(nk, hk); histories.delete(k) }
     // proposals.chapter 指针迁移（与真机 store.renameChapter → migrateChapter 同语义；无头假盘只同步内存数组）

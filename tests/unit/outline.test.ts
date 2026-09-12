@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard } from '../../src/shared/outline'
+import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc } from '../../src/shared/outline'
 import type { OutlineCard } from '../../src/shared/types'
 
 const card = (n: number, title: string): OutlineCard => ({
@@ -55,6 +55,68 @@ describe('shared/outline · 章卡生成与回读', () => {
     expect(loose).not.toBeNull()
     expect(loose?.file).toBe('正文/第01章_雾港.md')
     expect(loose?.no).toBeUndefined()
+  })
+})
+
+describe('shared/outline · 重命名章时同步副产物内容', () => {
+  it('章卡：fm 题名/H1 标题/对应正文行同步，其余小节与手工补充行原样保留', () => {
+    const doc = outlineCardDoc(card(1, '雾港'), '正文/第01章_雾港.md') + '- 手工补充：旧题名在正文里也可出现（不该被动）\n'
+    const next = syncChapterNameInDoc(doc, '雾港', '灯下雾', '正文/第01章_灯下雾.md')
+    expect(next).toContain('题名: 灯下雾')
+    expect(next).toContain('# 章卡 第1章 灯下雾')
+    expect(next).toContain('> 对应正文：正文/第01章_灯下雾.md')
+    expect(next).not.toContain('# 章卡 第1章 雾港')
+    expect(next).not.toContain('> 对应正文：正文/第01章_雾港.md')
+    // 其余内容保留：小节正文、手工补充行（含旧题名）不动
+    expect(next).toContain('定位1')
+    expect(next).toContain('- 事件1')
+    expect(next).toContain('- 手工补充：旧题名在正文里也可出现（不该被动）')
+  })
+
+  it('导演板：fm 题名与「# 导演板 · 第N章」标题同步，正文细节不动', () => {
+    const raw = [
+      '---', '章号: 1', '题名: 雾港', '切片: 第一幕', '状态: 已生成', '---', '',
+      '# 导演板 · 第1章 雾港', '', '> 对应正文：正文/第01章_雾港.md', '',
+      '## 情绪弧分段', '', '1. **推进**：雾港的灯把裂缝松动', ''
+    ].join('\n')
+    const next = syncChapterNameInDoc(raw, '雾港', '灯下雾', '正文/第01章_灯下雾.md')
+    expect(next).toContain('题名: 灯下雾')
+    expect(next).toContain('# 导演板 · 第1章 灯下雾')
+    expect(next).toContain('> 对应正文：正文/第01章_灯下雾.md')
+    expect(next).toContain('1. **推进**：雾港的灯把裂缝松动') // 小节里的旧题名不动
+    expect(next).not.toContain('# 导演板 · 第1章 雾港')
+  })
+
+  it('幂等/handling：旧题名为空只改对应行；H1 不含旧题名则只改 fm 与对应行；无约定头原样（除对应行）', () => {
+    // 旧题名为空：H1 判定跳过，仅 fm(无则无) 与对应行更新
+    const a = syncChapterNameInDoc('# 章卡\n\n> 对应正文：正文/第01章_雾港.md\n', '', '灯下雾', '正文/第01章_灯下雾.md')
+    expect(a).toContain('> 对应正文：正文/第01章_灯下雾.md')
+    expect(a).not.toContain('题名: 灯下雾') // 无 fm 不新增（setFrontMatterField 语义：无约定头原样返回）
+    // H1 不含旧题名（用户手改过标题）：H1 不动，fm 与对应行仍更新
+    const b = syncChapterNameInDoc(
+      ['---', '题名: 雾港', '---', '', '# 自定义标题', '', '> 对应正文：正文/第01章_雾港.md', ''].join('\n'),
+      '雾港', '灯下雾', '正文/第01章_灯下雾.md'
+    )
+    expect(b).toContain('题名: 灯下雾')
+    expect(b).toContain('# 自定义标题')
+    expect(b).toContain('> 对应正文：正文/第01章_灯下雾.md')
+  })
+
+  it('防御：旧题名是 H1 内题名的子串时不误伤（「雾」→「雾港」不是「雾港港」）', () => {
+    const doc = [
+      '---', '题名: 雾港', '---', '', '# 章卡 第1章 雾港', '',
+      '> 对应正文：正文/第01章_雾港.md', '', '## 一句话定位', '', '定位', ''
+    ].join('\n')
+    const next = syncChapterNameInDoc(doc, '雾', '雾港', '正文/第01章_雾港.md')
+    expect(next).toContain('# 章卡 第1章 雾港') // H1 不动（行尾是「港」不是「雾」）
+    expect(next).toContain('题名: 雾港') // fm 题名照常更新（旧题名「雾」→「雾港」）
+    expect(next).not.toContain('雾港港')
+  })
+
+  it('新题名为空：原样返回；与旧题名相同：内容无变化', () => {
+    const doc = '# 章卡 第1章 雾港\n\n> 对应正文：正文/第01章_雾港.md\n'
+    expect(syncChapterNameInDoc(doc, '雾港', '', '正文/第01章_雾港.md')).toBe(doc)
+    expect(syncChapterNameInDoc(doc, '雾港', '雾港', '正文/第01章_雾港.md')).toBe(doc)
   })
 })
 

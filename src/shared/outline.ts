@@ -3,6 +3,7 @@
 // 真机（main/agent/outline.ts 回建）、删除章后的索引重建（main/store.ts）与渲染层
 // devShim（无头冒烟）共用同一套口径——避免「无头 mock 与真机不一致」假绿（2026-09-12 创作层）。
 import type { OutlineCard } from './types'
+import { setFrontMatterField } from './fmatter'
 
 /**
  * 章卡文件判据：排除 索引.md、<章>_导演.md、<章>_分幕.md、审读_*.md 等写作副产物与 dot 文件。
@@ -75,6 +76,25 @@ export function parseOutlineCard(raw: string, rel: string): OutlineCard | null {
     hooks,
     wordCount: 0
   }
+}
+
+/**
+ * 重命名章后同步「写作副产物」内容（章卡/导演板/分幕通用，真机与 devShim 同口径）：
+ * ① fm「题名」→ newTitle；② 文档首个 `# ` 标题行里的旧题名 → 新题名（H1 是标题权威处，
+ * 正文/小节里其他出现旧题名的文字不动——副产物可能含作者手工补充）；③ 「> 对应正文：」行 → 新路径。
+ * 任一模式匹配不上则跳过该处（best-effort）；无约定头/无 H1 等场景幂等返回原文。
+ */
+export function syncChapterNameInDoc(raw: string, oldTitle: string, newTitle: string, newChapterRel: string): string {
+  if (!newTitle) return raw
+  let out = setFrontMatterField(raw, '题名', newTitle)
+  if (oldTitle && oldTitle !== newTitle) {
+    // 只处理首个 H1 行：行尾就是旧题名才换后缀（避免子串误伤，如「雾」→「雾港」不应把「雾港」变「雾港港」）
+    out = out.replace(/^(# .*)$/m, (line) =>
+      line.endsWith(oldTitle) ? line.slice(0, line.length - oldTitle.length) + newTitle : line
+    )
+  }
+  out = out.replace(/^(> 对应正文：\s*).*$/m, (_m, p1: string) => p1 + newChapterRel)
+  return out
 }
 
 /** 章卡列表 → 大纲/索引.md 文档（计数 + 逐章块；章卡文件为权威，索引是预览文档） */
