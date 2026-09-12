@@ -262,6 +262,10 @@ export default function Outline() {
     if (!id || adopting || !selChapter || !hasActs(selChapter)) return
     if (!confirmAdopt) {
       setConfirmAdopt(true)
+      // 缺段草稿采纳＝整章替换且缺段情节会无声消失：先明示缺段，主人仍可硬采（草稿文件保留可回滚）
+      if (draftMissing.length > 0) {
+        setMsg(`⚠️ 当前分幕草稿缺第 ${draftMissing.join('、')} 段（未按导演板写成）：直接采纳后这些情节不会进正文。建议先点「补写缺段」；仍要采纳请再点一次确认。`)
+      }
       return
     }
     setConfirmAdopt(false)
@@ -270,7 +274,11 @@ export default function Outline() {
     try {
       const r = await window.zhijuan.adoptActs(id, '正文/' + selChapter.file, actsRel(selChapter))
       if (r.ok) {
-        setMsg(`✓ 已把「${selChapter.name}」的正文换成当前分幕草稿（${r.words} 字）；草稿仍保留在 大纲/，可再改再采纳。切片同步中…`)
+        setMsg(
+          draftMissing.length > 0
+            ? `✓ 已把「${selChapter.name}」的正文换成当前分幕草稿（${r.words} 字；注意草稿缺第 ${draftMissing.join('、')} 段，缺段处情节未进正文，需自行补齐）。切片同步中…`
+            : `✓ 已把「${selChapter.name}」的正文换成当前分幕草稿（${r.words} 字）；草稿仍保留在 大纲/，可再改再采纳。切片同步中…`
+        )
         // 采纳=整章正文被替换（正文为源、设定为流）：与「保存正文」同口径，完成后触发切片同步出新提案
         const tid = toast.add({ kind: 'success', title: '已采纳为正文', description: `「${selChapter.name}」正文已替换（${r.words} 字），切片同步中…`, duration: 0 })
         void runSliceSync(id, '正文/' + selChapter.file).then((s) => {
@@ -515,7 +523,9 @@ export default function Outline() {
             title={
               selChapter && hasActs(selChapter)
                 ? confirmAdopt
-                  ? `再点一次：把「${selChapter.name}」的正文整体替换为当前分幕草稿（保留约定头，草稿文件仍保留）`
+                  ? draftMissing.length > 0
+                    ? `再点一次：仍采纳（注意草稿缺第 ${draftMissing.join('、')} 段，缺段情节不会进正文；草稿文件保留可回滚）`
+                    : `再点一次：把「${selChapter.name}」的正文整体替换为当前分幕草稿（保留约定头，草稿文件仍保留）`
                   : `把「${selChapter.name}」的正文换成当前分幕草稿（保留约定头与题名，草稿仍保留在 大纲/）`
                 : selChapter
                   ? '本章还没有分幕草稿，先点「分幕生成」'

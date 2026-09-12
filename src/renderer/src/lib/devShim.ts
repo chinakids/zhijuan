@@ -7,6 +7,8 @@ import { listSliceEntries } from '../../../shared/slices'
 import { resolveLibraryRoot } from '../../../shared/settingsLogic'
 import { sanitizeFile } from '../../../shared/paths'
 import { extractFrontMatter, setFrontMatterField } from '../../../shared/fmatter'
+import { adoptActsChapter } from '../../../shared/actsAdopt'
+import { countWords } from '../../../shared/count'
 import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceCheck, chapterMissingFromRaw } from '../../../shared/presence'
 import { findAnchorLine, normalizeAnchor } from '../../../shared/anchor'
 import { auditDocMarkdown } from '../../../shared/auditDoc'
@@ -1146,25 +1148,18 @@ const mock = {
     fsEmit(projectId, rel)
     return { ok: true, written: rel, acts: 2, words: 128 }
   },
-  // 采纳分幕草稿为本章正文（dev 模式：与主进程同语义的简易实现，方便无头验证入口）
+  // 采纳分幕草稿为本章正文（dev 模式：复用 shared/actsAdopt 纯函数，与真机 handler 同口径——剥段标记/缺段警示、保留本章题名、countWords 计数）
   adoptActs: async (projectId: string, chapterRel: string, draftRel: string) => {
     const cur = docs.get(projectId + '/' + chapterRel)
     if (cur == null) return { ok: false, error: '章节正文已不存在' }
     const draft = docs.get(projectId + '/' + draftRel)
     if (draft == null) return { ok: false, error: '分幕草稿已不存在' }
-    const stripped = draft.replace(/^---\n[\s\S]*?\n---\s*(\n|$)/, '')
-    const body = stripped
-      .split('\n')
-      .filter((l) => !(l.startsWith('# ') && l.includes('分幕草稿')) && !l.startsWith('> 由「分幕生成」'))
-      .join('\n')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim()
-    if (!body) return { ok: false, error: '分幕草稿里没有可用的正文内容' }
-    const fm = String(cur.match(/^---\n[\s\S]*?\n---/) ?? '')
     const name = chapterRel.replace(/^正文\//, '').replace(/\.md$/, '')
-    docs.set(projectId + '/' + chapterRel, fm + '\n\n# ' + name + '\n\n' + body + '\n')
+    const r = adoptActsChapter(cur, draft, name)
+    if ('error' in r) return { ok: false, error: r.error }
+    docs.set(projectId + '/' + chapterRel, r.next)
     fsEmit(projectId, chapterRel)
-    return { ok: true, words: body.length }
+    return { ok: true, words: countWords(r.body) }
   },
   // 素材→设定升格（dev 模式：固定演示判定）
   agentTriage: async () => ({

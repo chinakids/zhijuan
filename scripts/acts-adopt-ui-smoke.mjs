@@ -104,7 +104,44 @@ try {
   if (!body || !body.includes('锈钥匙')) throw new Error('正文未被分幕草稿替换')
   console.log('OK 正文已替换（含分幕内容）')
 
-  console.log('\\nPASS: 采纳分幕→自动切片同步 链路 OK')
+  // ── ⑤ 缺段草稿采纳：第一步确认必须给出缺段警告（devShim writeDoc 注入缺段警示草稿） ──
+  const badDraft = [
+    '---', '状态: 分幕草稿', '题名: 雾港', '---', '',
+    '# 雾港（分幕草稿）', '',
+    '> 由「分幕生成」按导演板情绪弧分段逐段写出（演示数据）。确认后把下面的正文部分搬进正文文件即可。',
+    '> ⚠️ 第 2 段未按导演板写成，草稿只含 1/2 段（缺段处情节会断）。请勿直接采纳：先点「补写缺段」只重写失败段，或手动补齐缺段。', '',
+    '## 第 1 段', '',
+    '第一段：阿七摸到一枚铜哨，哨绳上缠着褪色的红绳。', ''
+  ].join('\n')
+  await page.eval(`window.zhijuan.writeDoc('demo-aseya', '大纲/第01章_雾港_分幕.md', ${JSON.stringify(badDraft)})`)
+  await evalUntil(page, `document.body.innerText.includes('补写缺段')`, (v) => v === true, 8000, '缺段草稿注入后出现「补写缺段」按钮')
+  console.log('OK 缺段草稿已注入，出现「补写缺段」按钮')
+  console.log('采纳(缺段 1):', await page.eval(clickByText('采纳为正文')))
+  await evalUntil(page, `document.body.innerText.includes('缺第 2 段')`, (v) => v === true, 6000, '第一步确认出现缺段警告')
+  const warnMsg = await page.eval(
+    `(() => { const s = [...document.querySelectorAll('span')].map((x) => x.textContent).find((t) => t.includes('缺第 2 段')); return s ?? '' })()`
+  )
+  if (!warnMsg.includes('不会进正文')) throw new Error('缺段警告 msg 内容不符: ' + warnMsg.slice(0, 80))
+  console.log('OK 缺段警告 msg:', warnMsg.slice(0, 60) + '…')
+  const confirmTitle = await page.eval(
+    `(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.includes('再点一次确认采纳')); return b ? b.title : '' })()`
+  )
+  if (!confirmTitle.includes('缺第 2 段')) throw new Error('确认按钮 title 未带缺段提示: ' + confirmTitle)
+  console.log('OK 确认按钮 title 带缺段提示')
+  console.log('采纳(缺段 2 确认):', await page.eval(clickByText('再点一次确认采纳')))
+  await evalUntil(page, `document.body.innerText.includes('切片同步')`, (v) => v === true, 15000, '缺段采纳也走切片同步')
+  console.log('OK 缺段采纳完成，切片同步已触发（成功后 msg 含缺段提醒）')
+
+  // ── ⑥ devShim adoptActs 与真机同口径：正文不含段标记/警示/草稿标题，标题用 fm 题名 ──
+  const body2 = await page.eval(`window.zhijuan.readDoc('demo-aseya', '正文/第01章_雾港.md')`)
+  if (!body2) throw new Error('正文缺失')
+  if (body2.includes('## 第 1 段') || body2.includes('## 第 2 段')) throw new Error('正文残留分幕段标记（devShim 与真机口径不一致）')
+  if (body2.includes('⚠️') || body2.includes('请勿直接采纳') || body2.includes('（分幕草稿）')) throw new Error('正文残留草稿警示/草稿标题')
+  if (!body2.includes('铜哨')) throw new Error('缺段草稿正文未进正文')
+  if (!body2.includes('# 雾港')) throw new Error('正文标题未用 fm 题名')
+  console.log('OK devShim 采纳口径与真机一致（剥段标记/警示、fm 题名）')
+
+  console.log('\nPASS: 采纳分幕→自动切片同步 链路 OK')
 } finally {
   await fetch(CDP + '/json/close/' + tab.id)
   page.close()
