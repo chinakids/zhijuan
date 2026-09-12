@@ -1,10 +1,11 @@
-import { CheckCircle2, Circle, ListChecks, Loader2 } from 'lucide-react'
+import { CheckCircle2, Circle, ListChecks } from 'lucide-react'
+import LoadingIndicator from '../../components/LoadingIndicator'
 import type { TodoItem } from '../../../../shared/types'
 import { cn } from '../../lib/utils'
 
 const statusMeta: Record<TodoItem['status'], { label: string; icon: React.ReactNode; cls: string }> = {
   pending: { label: '待办', icon: <Circle className="h-3.5 w-3.5 text-ink-3" />, cls: 'text-ink-2' },
-  in_progress: { label: '进行中', icon: <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />, cls: 'text-ink' },
+  in_progress: { label: '进行中', icon: <LoadingIndicator size={14} className="text-accent" />, cls: 'text-ink' },
   completed: { label: '完成', icon: <CheckCircle2 className="h-3.5 w-3.5 text-success" />, cls: 'text-ink-3 line-through' }
 }
 

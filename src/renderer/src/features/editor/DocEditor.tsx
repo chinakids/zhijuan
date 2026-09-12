@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { cn } from '../../lib/utils'
+import LoadingIndicator from '../../components/LoadingIndicator'
 import Prose, { type ProseApi } from './Prose'
 import HistoryDrawer from './HistoryDrawer'
 import { withBody } from '../../../../shared/fmatter'
@@ -128,7 +129,12 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
   useEffect(() => onDirty?.(dirty), [dirty, onDirty])
 
   if (loading) {
-    return <div className={cn('flex h-full items-center justify-center text-sm text-ink-3', className)}>正在读取文档…</div>
+    return (
+      <div className={cn('flex h-full items-center justify-center gap-2 text-sm text-ink-3', className)}>
+        <LoadingIndicator size={16} />
+        <span>正在读取文档…</span>
+      </div>
+    )
   }
   if (readErr) {
     return (

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams, useOutletContext } from 'react-router-dom'
 import { Plus, BookOpen } from 'lucide-react'
+import LoadingIndicator from '../components/LoadingIndicator'
 import type { ChapterEntry, ChapterCheckKind, UnlistedHit, MissingHit } from '../../../shared/types'
 import { serializeFrontMatter, addFrontMatterListItem, removeFrontMatterListItem } from '../../../shared/fmatter'
 import { Button } from '../components/ui/button'
@@ -298,7 +299,12 @@ export default function Novel() {
           </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
-          {loading && <p className="px-2 py-6 text-center text-xs text-ink-3">正在读取章节…</p>}
+          {loading && (
+            <div className="flex items-center justify-center gap-2 px-2 py-6 text-xs text-ink-3">
+              <LoadingIndicator size={16} />
+              <span>正在读取章节…</span>
+            </div>
+          )}
           {!loading && loadErr && (
             <div className="px-2 py-5 text-center">
               <p className="text-xs text-danger">读取章节失败</p>

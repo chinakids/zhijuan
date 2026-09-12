@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ChevronLeft, FileText, Folder, FolderPlus, Library as LibraryIcon, Plus, Search, X } from 'lucide-react'
+import LoadingIndicator from '../../components/LoadingIndicator'
 import { Button } from '../../components/ui/button'
 import { EmptyState } from '../../components/EmptyState'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog'
@@ -248,7 +249,12 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
               <span className="shrink-0 text-[10px] text-ink-3">{node.count}</span>
             </button>
           ))}
-          {loading && !loadErr && <p className="px-3 py-4 text-center text-xs text-ink-3">正在读取素材库…</p>}
+          {loading && !loadErr && (
+            <div className="flex items-center justify-center gap-2 px-3 py-4 text-xs text-ink-3">
+              <LoadingIndicator size={16} />
+              <span>正在读取素材库…</span>
+            </div>
+          )}
           {!loading && loadErr && <p className="px-3 py-4 text-center text-xs text-danger">读取失败</p>}
           {!loading && !loadErr && tree.length === 0 && (
             <EmptyState compact hint="还没有类别，点下方「＋ 新类别」创建。" dataTestId="empty-materials" />
@@ -348,7 +354,10 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
                   </>
                 )
               ) : loading ? (
-                <p className="py-8 text-center text-xs text-ink-3">正在读取素材库…</p>
+                <div className="flex items-center justify-center gap-2 py-8 text-xs text-ink-3">
+                  <LoadingIndicator size={16} />
+                  <span>正在读取素材库…</span>
+                </div>
               ) : !selCat ? (
                 <p className="py-8 text-center text-xs text-ink-3">先在左侧选择一个类别；顶部可以按需求发起采集，管道回填后自动出现在对应类别。</p>
               ) : matInCat.length === 0 ? (

@@ -1,14 +1,14 @@
 import type { ComponentType } from 'react'
-import { AlertCircle, AlertTriangle, CheckCircle2, Info, Loader2, X } from 'lucide-react'
+import { AlertCircle, AlertTriangle, CheckCircle2, Info, X } from 'lucide-react'
+import LoadingIndicator from '../LoadingIndicator'
 import { useToastsStore, toast, type ToastItem, type ToastKind } from '../../store/toasts'
 import { cn } from '../../lib/utils'
 
-const ICON: Record<ToastKind, ComponentType<{ className?: string }>> = {
+const ICON: Partial<Record<ToastKind, ComponentType<{ className?: string }>>> = {
   success: CheckCircle2,
   info: Info,
   warning: AlertTriangle,
-  error: AlertCircle,
-  loading: Loader2
+  error: AlertCircle
 }
 
 const ICON_CLS: Record<ToastKind, string> = {
@@ -35,9 +35,11 @@ function ToastCard({ t }: { t: ToastItem }) {
       onMouseEnter={() => toastPause(t.id)}
       onMouseLeave={() => toastResume(t.id)}
     >
-      <Icon
-        className={cn('mt-0.5 h-4 w-4 shrink-0', ICON_CLS[t.kind], t.kind === 'loading' && 'animate-spin')}
-      />
+      {t.kind === 'loading' ? (
+        <LoadingIndicator size={16} className="mt-0.5" />
+      ) : Icon ? (
+        <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', ICON_CLS[t.kind])} />
+      ) : null}
       <div className="min-w-0 flex-1">
         <div className="text-xs font-medium leading-5 text-ink">{t.title}</div>
         {t.description && <div className="mt-0.5 break-all text-[11px] leading-4 text-ink-2">{t.description}</div>}

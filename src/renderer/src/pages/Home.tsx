@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FolderOpen, Plus, Trash2, MoreHorizontal, Search } from 'lucide-react'
+import LoadingIndicator from '../components/LoadingIndicator'
 import type { ProjectSummary, ProjectTemplate } from '../../../shared/types'
 import type { RecentEntry } from '../../../shared/projects'
 import { orderProjects } from '../../../shared/projects'
@@ -192,7 +193,12 @@ export default function Home() {
           <div className="flex-1" />
           <p className="hidden shrink-0 text-xs text-ink-3 sm:block">排序：最近打开优先 · 未打开的按最近编辑</p>
         </div>
-        {loading && <p className="text-center text-sm text-ink-3 pt-20">正在读取项目库…</p>}
+        {loading && (
+          <div className="flex items-center justify-center gap-2 pt-20 text-sm text-ink-3">
+            <LoadingIndicator size={16} />
+            <span>正在读取项目库…</span>
+          </div>
+        )}
         {!loading && loadErr && (
           <div className="mx-auto mt-24 max-w-sm rounded-xl border border-dashed border-danger/40 p-8 text-center">
             <p className="text-sm font-medium text-danger">读取项目库失败</p>

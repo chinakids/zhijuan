@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { FileText, Plus } from 'lucide-react'
+import LoadingIndicator from '../../components/LoadingIndicator'
 import { Button } from '../../components/ui/button'
 import { EmptyState } from '../../components/EmptyState'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog'
@@ -87,7 +88,12 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
           </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
-          {loading && <p className="px-2 py-6 text-center text-xs text-ink-3">正在读取…</p>}
+          {loading && (
+            <div className="flex items-center justify-center gap-2 px-2 py-6 text-xs text-ink-3">
+              <LoadingIndicator size={16} />
+              <span>正在读取…</span>
+            </div>
+          )}
           {!loading && loadErr && (
             <div className="px-2 py-5 text-center">
               <p className="text-xs text-danger">读取失败</p>

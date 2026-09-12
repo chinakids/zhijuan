@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Check, ClipboardCopy, Loader2, RefreshCw, ShieldAlert, Sparkles, X } from 'lucide-react'
+import { AlertTriangle, Check, ClipboardCopy, RefreshCw, ShieldAlert, Sparkles, X } from 'lucide-react'
+import LoadingIndicator from '../../components/LoadingIndicator'
 import type { ChapterCheckItem, ChapterCheckKind, ChapterCheckResult, RevisionLayer } from '../../../../shared/types'
 import { cn } from '../../lib/utils'
 import { toast } from '../../components/ui/toast'
@@ -155,7 +156,7 @@ export default function ChapterCheckDrawer({ projectId, chapter, chapterTitle, o
               )}
               {running || !cur ? (
                 !err ? (
-                  <span className="flex items-center gap-1 text-accent"><Loader2 className="h-3 w-3 animate-spin" /> 写作引擎读本章…（一两分钟）</span>
+                  <span className="flex items-center gap-1 text-accent"><LoadingIndicator size={12} /> 写作引擎读本章…（一两分钟）</span>
                 ) : (
                   <span className="text-danger">{err}</span>
                 )

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Loader2, Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, Users, UserCheck, ListOrdered, FileWarning, CircleX } from 'lucide-react'
+import { Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, Users, UserCheck, ListOrdered, FileWarning, CircleX } from 'lucide-react'
+import LoadingIndicator from '../../components/LoadingIndicator'
 import type { ProseApi } from '../editor/Prose'
 import type { AuditKind, EditItem, ChapterCheckKind, DirectorSheet } from '../../../../shared/types'
 import { filterAtCandidates, insertAtMention, parseAtTrigger, type AtCandidate } from '../../../../shared/mention'
@@ -45,7 +46,7 @@ function ToolActivity({ tool, args, done, toolOk, summary }: { tool: string; arg
       ) : done ? (
         <Check className="h-3 w-3 shrink-0 text-success" />
       ) : (
-        <Loader2 className="h-3 w-3 shrink-0 animate-spin text-accent" />
+        <LoadingIndicator size={12} className="shrink-0 text-accent" />
       )}
       <span className={cn('shrink-0 font-medium', failed ? 'text-danger' : 'text-ink-2')}>{toolLabel(tool)}</span>
       {args && <span className="flex-1 break-all font-mono text-[10px] leading-4 text-ink-3" title={args}>{args}</span>}
@@ -117,7 +118,7 @@ function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
       {st === 'pending' && (
         <div className="mt-2.5 flex items-center gap-2">
           <Button size="sm" className="h-7 px-2.5 text-[11px] [&_svg]:size-3" onClick={() => void accept()} disabled={busy || !edits.length}>
-            {busy ? <Loader2 className="mr-1 animate-spin" /> : <Check className="mr-1" />}
+            {busy ? <LoadingIndicator size={12} className="mr-1" /> : <Check className="mr-1" />}
             采纳并写入
           </Button>
           <Button size="sm" variant="outline" className="h-7 px-2.5 text-[11px] [&_svg]:size-3" onClick={() => useAgentStore.getState().setEditState(id, 'rejected')} disabled={busy}>
@@ -776,7 +777,7 @@ export default function AgentPanel(props: AgentPanelProps) {
           })}
           {streaming && (
             <div className="flex items-center gap-2 px-2 text-[11px] text-ink-3">
-              <Loader2 className="h-3 w-3 animate-spin" /> 生成中…
+              <LoadingIndicator size={12} /> 生成中…
             </div>
           )}
         </div>

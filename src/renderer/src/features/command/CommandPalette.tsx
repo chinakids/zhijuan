@@ -9,7 +9,8 @@ import {
   CommandList,
   CommandSeparator
 } from '../../components/ui/command'
-import { BookOpen, FileText, FolderOpen, Globe2, History, Keyboard, Library as LibraryIcon, ListTree, Loader2, PenLine, Settings as SettingsIcon, Users } from 'lucide-react'
+import { BookOpen, FileText, FolderOpen, Globe2, History, Keyboard, Library as LibraryIcon, ListTree, PenLine, Settings as SettingsIcon, Users } from 'lucide-react'
+import LoadingIndicator from '../../components/LoadingIndicator'
 import type { ChapterEntry, ProjectSummary, RecentLibraryDoc, SearchHit } from '../../../../shared/types'
 import { libraryCategoryOf } from '../../../../shared/libraryTree'
 import { formatRelativeTime } from '../../../../shared/relativeTime'
@@ -176,7 +177,7 @@ export default function CommandPalette() {
             <CommandGroup heading="打开章节">
               {chLoading && !chapters.length && (
                 <CommandItem disabled value="读取章节…">
-                  <BookOpen className="h-4 w-4 text-ink-3" />
+                  <LoadingIndicator size={16} />
                   <span>正在读取章节…</span>
                 </CommandItem>
               )}
@@ -209,7 +210,7 @@ export default function CommandPalette() {
             <CommandGroup heading={`素材 · 全文搜索${matHits ? `（${matHits.length} 条）` : ''}`}>
               {matLoading && (!matHits || matHits.length === 0) && (
                 <CommandItem disabled value="正在搜索素材…">
-                  <Loader2 className="h-4 w-4 animate-spin text-ink-3" />
+                  <LoadingIndicator size={16} />
                   <span>正在搜索素材…</span>
                 </CommandItem>
               )}

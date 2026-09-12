@@ -3,6 +3,7 @@ import { useParams, Outlet, useSearchParams } from 'react-router-dom'
 import type { FsEvent, ProjectSummary } from '../../../shared/types'
 import SectionNav, { type NavCounts } from '../features/nav/SectionNav'
 import { ListChecks } from 'lucide-react'
+import LoadingIndicator from '../components/LoadingIndicator'
 import { useProposalStore } from '../store/proposals'
 import ProposalDrawer from '../features/proposals/ProposalDrawer'
 import ProjectGuide from '../features/guide/ProjectGuide'
@@ -81,7 +82,12 @@ export default function Workspace() {
   }, [refreshProposals, tick])
 
   if (loadState === 'loading') {
-    return <div className="flex h-full items-center justify-center text-sm text-ink-3">正在打开项目…</div>
+    return (
+      <div className="flex h-full items-center justify-center gap-2 text-sm text-ink-3">
+        <LoadingIndicator size={16} />
+        <span>正在打开项目…</span>
+      </div>
+    )
   }
   if (loadState === 'error') {
     return (

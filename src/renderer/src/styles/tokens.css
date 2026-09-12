@@ -259,10 +259,23 @@ summary {
 .zj-flicker {
   animation: zj-flicker 2.8s ease-in-out infinite;
 }
+/* 定制加载指示器（LoadingIndicator）：细环 + 青黛行走弧，1.2s 匀速旋转。
+ * 对照 Apple HIG Progress indicators：活动指示器应小而克制、持续运动；不要给频繁出现的页面加载加夸张形变。 */
+@keyframes zj-ind-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.zj-ind-arc {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: zj-ind-spin 1.2s linear infinite;
+}
 @media (prefers-reduced-motion: reduce) {
   .zj-pulse-ring,
   .zj-float,
-  .zj-flicker {
+  .zj-flicker,
+  .zj-ind-arc {
     animation: none;
   }
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { BookMarked, CheckCheck, CheckCircle2, CircleDashed, Clapperboard, FileText, Hammer, ListTree, Loader2, PenLine, RefreshCw, ScrollText, ShieldCheck, Wrench } from 'lucide-react'
+import { BookMarked, CheckCheck, CheckCircle2, CircleDashed, Clapperboard, FileText, Hammer, ListTree, PenLine, RefreshCw, ScrollText, ShieldCheck, Wrench } from 'lucide-react'
+import LoadingIndicator from '../components/LoadingIndicator'
 import type { ChapterEntry } from '../../../shared/types'
 import { cn } from '../lib/utils'
 import { EmptyState } from '../components/EmptyState'
@@ -319,7 +320,12 @@ export default function Outline() {
             <ScrollText className="h-3.5 w-3.5" />
             章卡索引（全书）
           </button>
-          {loading && !loadErr && <p className="px-2 py-6 text-center text-xs text-ink-3">正在读取章卡…</p>}
+          {loading && !loadErr && (
+            <div className="flex items-center justify-center gap-2 px-2 py-6 text-xs text-ink-3">
+              <LoadingIndicator size={16} />
+              <span>正在读取章卡…</span>
+            </div>
+          )}
           {!loading && loadErr && (
             <div className="px-2 py-5 text-center">
               <p className="text-xs text-danger">读取章卡失败</p>
@@ -422,7 +428,7 @@ export default function Outline() {
           {msg && <span className={cn('max-w-[40vw] truncate rounded-full px-2.5 py-0.5 text-[11px]', msg.startsWith('✓') ? 'bg-success-soft text-success' : msg.startsWith('✗') ? 'bg-danger-soft text-danger' : 'bg-accent-soft text-accent')}>{msg}</span>}
           {building && (
             <span className="flex items-center gap-1 text-[11px] text-accent">
-              <Loader2 className="h-3 w-3 animate-spin" /> 写作引擎逐章回建中…（每章约一两分钟）
+              <LoadingIndicator size={12} /> 写作引擎逐章回建中…（每章约一两分钟）
             </span>
           )}
           <button
@@ -435,7 +441,7 @@ export default function Outline() {
           </button>
           {directing && (
             <span className="flex items-center gap-1 text-[11px] text-accent">
-              <Loader2 className="h-3 w-3 animate-spin" /> 写作引擎导演中…（约一两分钟）
+              <LoadingIndicator size={12} /> 写作引擎导演中…（约一两分钟）
             </span>
           )}
           <button
@@ -456,7 +462,7 @@ export default function Outline() {
           </button>
           {(acting || repairing) && (
             <span className="flex items-center gap-1 text-[11px] text-accent">
-              <Loader2 className="h-3 w-3 animate-spin" />
+              <LoadingIndicator size={12} />
               {repairing ? '写作引擎补写缺段中…（每段约一两分钟）' : '写作引擎分幕起草中…（每段约一两分钟）'}
             </span>
           )}
@@ -484,7 +490,7 @@ export default function Outline() {
           )}
           {adopting && (
             <span className="flex items-center gap-1 text-[11px] text-accent">
-              <Loader2 className="h-3 w-3 animate-spin" /> 采纳为正文中…
+              <LoadingIndicator size={12} /> 采纳为正文中…
             </span>
           )}
           <button

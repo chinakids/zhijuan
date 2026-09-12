@@ -2,7 +2,8 @@
 // 形态：自动快照制（见 docs/正文版本历史-产品规划-2026-09-10.md）。
 // 恢复 = 读该版全文 → writeDoc（主进程写入前会自动把当前版再留一档，恢复天然可反悔）。
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { History, Inbox, Loader2, RotateCcw } from 'lucide-react'
+import { History, Inbox, RotateCcw } from 'lucide-react'
+import LoadingIndicator from '../../components/LoadingIndicator'
 import type { HistorySnapshot } from '../../../../shared/types'
 import { countWords } from '../../../../shared/count'
 import { Button } from '../../components/ui/button'
@@ -101,7 +102,7 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
 
         {loading ? (
           <div className="flex flex-1 items-center justify-center gap-2 text-xs text-ink-3">
-            <Loader2 className="h-4 w-4 animate-spin" /> 读取历史…
+            <LoadingIndicator size={16} /> 读取历史…
           </div>
         ) : snaps.length === 0 ? (
           <div className="flex flex-1 flex-col items-center gap-2 py-20 text-ink-3">

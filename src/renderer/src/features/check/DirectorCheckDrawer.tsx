@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, Clapperboard, Loader2, RefreshCw, ShieldCheck, X } from 'lucide-react'
+import { Check, Clapperboard, RefreshCw, ShieldCheck, X } from 'lucide-react'
+import LoadingIndicator from '../../components/LoadingIndicator'
 import type { DirectorCheckResult } from '../../../../shared/types'
 import { cn } from '../../lib/utils'
 import { toast } from '../../components/ui/toast'
@@ -120,7 +121,7 @@ export default function DirectorCheckDrawer({ projectId, chapter, open, onClose,
             <div className="flex items-center gap-2 border-b border-hair px-4 py-2 text-[11px] text-ink-3">
               <ShieldCheck className="h-3.5 w-3.5" />
               {running ? (
-                <span className="flex items-center gap-1 text-accent"><Loader2 className="h-3 w-3 animate-spin" /> 写作引擎对照导演板核本章…（一两分钟）</span>
+                <span className="flex items-center gap-1 text-accent"><LoadingIndicator size={12} /> 写作引擎对照导演板核本章…（一两分钟）</span>
               ) : err ? (
                 <span className="text-danger">{err}</span>
               ) : (

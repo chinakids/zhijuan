@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, BookOpenCheck, Check, Loader2, RefreshCw, Send, ShieldAlert, Sparkles, X } from 'lucide-react'
+import { AlertTriangle, BookOpenCheck, Check, RefreshCw, Send, ShieldAlert, Sparkles, X } from 'lucide-react'
+import LoadingIndicator from '../../components/LoadingIndicator'
 import type { AuditItem, AuditKind, AuditResult } from '../../../../shared/types'
 import { auditItemToAgentPrompt } from '../../../../shared/auditToAgent'
 import { cn } from '../../lib/utils'
@@ -145,7 +146,7 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
           <BookOpenCheck className="h-3.5 w-3.5" />
           {(running || !cur) && !err ? (
             <span className="flex items-center gap-1 text-accent">
-              <Loader2 className="h-3 w-3 animate-spin" /> {(tab === 'presence' || tab === 'order' || tab === 'unused') ? '本地规则核查中…' : '写作引擎通读全卷…（几分钟）'}
+              <LoadingIndicator size={12} /> {(tab === 'presence' || tab === 'order' || tab === 'unused') ? '本地规则核查中…' : '写作引擎通读全卷…（几分钟）'}
             </span>
           ) : err ? (
             <span className="text-danger">{err}</span>

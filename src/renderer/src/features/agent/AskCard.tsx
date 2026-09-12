@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Check, HelpCircle, Loader2, Send } from 'lucide-react'
+import { Check, HelpCircle, Send } from 'lucide-react'
+import LoadingIndicator from '../../components/LoadingIndicator'
 import type { AskQuestion, AskAnswer } from '../../../../shared/types'
 import { answerAgent } from './harness'
 import { Button } from '../../components/ui/button'
@@ -133,7 +134,7 @@ export default function AskCard({ id, batch, questions, onAnswered }: Props) {
         ) : (
           <>
             <Button size="sm" className="h-7 px-3 text-xs [&_svg]:size-3" onClick={() => void submit()} disabled={!ready || submitting}>
-              {submitting ? <Loader2 className="animate-spin" /> : <Send />}
+              {submitting ? <LoadingIndicator size={12} /> : <Send />}
               <span className="ml-1">提交回答</span>
             </Button>
             {err && <span className="text-[11px] text-danger">{err}</span>}

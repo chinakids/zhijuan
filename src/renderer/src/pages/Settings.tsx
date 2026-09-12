@@ -8,6 +8,7 @@ import { Switch } from '../components/ui/switch'
 import { Card } from '../components/ui/card'
 import { cn } from '../lib/utils'
 import { Keyboard } from 'lucide-react'
+import LoadingIndicator from '../components/LoadingIndicator'
 import ShortcutHelp from '../features/command/ShortcutHelp'
 import { PROVIDER_PRESETS, providerById } from '../../../shared/providers'
 import type { LlmProviderId } from '../../../shared/types'
@@ -205,7 +206,10 @@ export default function Settings() {
             </Button>
           </div>
         ) : !settings ? (
-          <p className="pt-20 text-center text-sm text-ink-3">正在读取设置…</p>
+          <div className="flex items-center justify-center gap-2 pt-20 text-sm text-ink-3">
+            <LoadingIndicator size={16} />
+            <span>正在读取设置…</span>
+          </div>
         ) : (
           <div className="mx-auto max-w-2xl p-8">
           <div className="flex items-center justify-between">

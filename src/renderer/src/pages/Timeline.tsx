@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Clock, Users } from 'lucide-react'
+import LoadingIndicator from '../components/LoadingIndicator'
 import type { SliceEntry } from '../../../shared/types'
 import { Button } from '../components/ui/button'
 import { EmptyState } from '../components/EmptyState'
@@ -31,7 +32,12 @@ export default function Timeline() {
   }, [id, retryTick])
 
   if (slices === null && !loadErr) {
-    return <div className="p-6 text-sm text-ink-3">正在读取项目时间线…</div>
+    return (
+      <div className="flex items-center justify-center gap-2 p-6 text-sm text-ink-3">
+        <LoadingIndicator size={16} />
+        <span>正在读取项目时间线…</span>
+      </div>
+    )
   }
   if (loadErr) {
     return (
