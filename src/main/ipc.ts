@@ -11,7 +11,7 @@ import { listSlices } from './slices'
 import { listSnapshots, readSnapshot } from './history'
 import { registerAgentIpc } from './agent/ipc'
 import { runChapterUnlisted, runChapterMissing } from './agent/audit'
-import { scanAnnotations, resolveAnnotationRows, addAnnotation, listAnnotations } from './agent/annotations'
+import { scanAnnotations, resolveAnnotationRows, addAnnotation, listAnnotations, removeAnnotation } from './agent/annotations'
 import { isRuntimeCreated, closeHarness } from './agent/runtime'
 import { getSettings, setSettings, libraryRoot } from './settings'
 import { getRecentEntries, recordOpen, removeRecent } from './recent'
@@ -209,6 +209,7 @@ export function registerIpc() {
   ipcMain.handle('annotations:scan', (_e, id: string) => scanAnnotations(id))
   ipcMain.handle('annotations:add', (_e, id: string, mdRel: string, entry: { loc: string; before: string; note: string }) => addAnnotation(id, mdRel, entry))
   ipcMain.handle('annotations:list', (_e, id: string, mdRel: string) => listAnnotations(id, mdRel))
+  ipcMain.handle('annotations:remove', (_e, id: string, mdRel: string, row: number) => removeAnnotation(id, mdRel, row))
 
   // agent（dsh 写作引擎）
   registerAgentIpc()

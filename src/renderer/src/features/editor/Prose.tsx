@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type MutableRefObject } from 'react'
 import { Editor, rootCtx, defaultValueCtx, editorViewCtx, parserCtx, serializerCtx, prosePluginsCtx } from '@milkdown/kit/core'
 import { commonmark } from '@milkdown/kit/preset/commonmark'
 import { gfm } from '@milkdown/kit/preset/gfm'
@@ -12,7 +12,7 @@ import { Plugin, TextSelection } from 'prosemirror-state'
 import { Decoration, DecorationSet } from 'prosemirror-view'
 import '@milkdown/theme-nord/style.css'
 import '../../styles/milkdown.css'
-import { ClipboardPaste, Copy, MessageSquarePlus, MessageSquareText, Scissors, TextSelect } from 'lucide-react'
+import { ClipboardPaste, Copy, MessageSquarePlus, MessageSquareText, Scissors, TextSelect, Trash2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import EditorToolbar from './EditorToolbar'
 import FindBar from './FindBar'
@@ -103,7 +103,14 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
             for (const a of list) {
               if (!a.before) continue
               const hit = findInDoc(state.doc, a.before)[0]
-              if (hit) decos.push(Decoration.inline(hit.from, hit.to, { class: 'zj-anno', title: a.note }))
+              if (hit)
+                decos.push(
+                  Decoration.inline(hit.from, hit.to, {
+                    class: 'zj-anno',
+                    title: a.note,
+                    'data-anno-row': String(a.row ?? 0)
+                  })
+                )
             }
             return decos.length ? DecorationSet.create(state.doc, decos) : null
           }
@@ -178,6 +185,41 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
     window.dispatchEvent(new CustomEvent('zj:anno-compose', { detail: { loc, before: bubble.text } }))
     setBubble(null)
   }
+
+  /* —— 批注气泡（2026-09-13 体验层：点击高亮弹出意图卡片，替代纯 title 提示；含加入对话/删除该批注）——
+   * 位置锚定高亮首行矩形，上方/下方自适应；点击别处/Esc/滚动即关（HIG Popovers：小量信息、箭头指向触发元素、点外关闭）。 */
+  const [annoPop, setAnnoPop] = useState<{ row: number; x: number; y: number; below: boolean } | null>(null)
+  useEffect(() => {
+    if (!annoPop) return
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t?.closest?.('.zj-anno-pop') || t?.closest?.('.zj-anno')) return
+      setAnnoPop(null)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAnnoPop(null)
+    }
+    const onScroll = () => setAnnoPop(null)
+    document.addEventListener('mousedown', onDown, true)
+    window.addEventListener('keydown', onKey) // 非捕获：查找条 Esc（捕获+stop）优先
+    window.addEventListener('scroll', onScroll, true)
+    return () => {
+      document.removeEventListener('mousedown', onDown, true)
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('scroll', onScroll, true)
+    }
+  }, [annoPop])
+  const onHostClickAnno = (e: ReactMouseEvent) => {
+    const el = (e.target as Element | null)?.closest?.('.zj-anno')
+    if (!el) return
+    const row = Number((el as HTMLElement).getAttribute('data-anno-row'))
+    if (!Number.isFinite(row) || row < 1) return
+    const rects = (el as HTMLElement).getClientRects()
+    const r = rects.length ? rects[0] : (el as HTMLElement).getBoundingClientRect()
+    const below = r.top < 140
+    setAnnoPop((cur) => (cur && cur.row === row ? null : { row, x: r.left + r.width / 2, y: below ? r.bottom : r.top, below }))
+  }
+  const annoPopRow = annoPop ? (annoRef.current.find((a) => a.row === annoPop.row) ?? null) : null
 
   /* —— 正文右键菜单（Apple HIG Context menus：上下文相关/≤3 组/隐藏不可用/无快捷键文字）—— */
   const [menuSel, setMenuSel] = useState<string | null>(null)
@@ -612,7 +654,7 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
         />
         <ContextMenu onOpenChange={onMenuOpenChange}>
           <ContextMenuTrigger asChild>
-            <div ref={hostRef} className="min-h-0 flex-1 overflow-y-auto" onContextMenuCapture={snapMenuSel} />
+            <div ref={hostRef} className="min-h-0 flex-1 overflow-y-auto" onClick={onHostClickAnno} onContextMenuCapture={snapMenuSel} />
           </ContextMenuTrigger>
           <ContextMenuContent className="min-w-[9.5rem]">
             {menuSel && (
@@ -668,6 +710,48 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
             <MessageSquareText className="h-3.5 w-3.5" />
             批注
           </button>
+        </div>
+      )}
+      {annoPop && annoPopRow && (
+        <div
+          className="zj-anno-pop"
+          role="tooltip"
+          style={{
+            left: annoPop.x,
+            top: annoPop.below ? annoPop.y + 10 : annoPop.y,
+            transform: annoPop.below ? 'translate(-50%, 4px)' : 'translate(-50%, calc(-100% - 10px))'
+          }}
+        >
+          <div className="zj-anno-pop-note">{annoPopRow.note}</div>
+          <div className="zj-anno-pop-meta">
+            {annoPopRow.loc ? `L${annoPopRow.loc}` : `批注 #${annoPopRow.row ?? '?'}`}
+            {annoPopRow.before ? ` · 「${annoPopRow.before.length > 32 ? annoPopRow.before.slice(0, 32) + '…' : annoPopRow.before}」` : ''}
+          </div>
+          <div className="zj-anno-pop-actions">
+            <button
+              onClick={() => {
+                if (annoPopRow.before) window.dispatchEvent(new CustomEvent('zj:quote-text', { detail: annoPopRow.before }))
+                setAnnoPop(null)
+              }}
+              title="把批注原文作为引用添加到右下对话"
+              aria-label="加入对话"
+            >
+              <MessageSquarePlus className="h-3.5 w-3.5" />
+              加入对话
+            </button>
+            <button
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('zj:anno-remove', { detail: { row: annoPop.row } }))
+                setAnnoPop(null)
+              }}
+              className="zj-anno-pop-remove"
+              title="删除这条批注（从 .csv 移除，空文件删除）"
+              aria-label="删除该批注"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              删除该批注
+            </button>
+          </div>
         </div>
       )}
     </>

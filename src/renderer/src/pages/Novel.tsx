@@ -207,6 +207,28 @@ export default function Novel() {
   useEffect(() => {
     if (annoEvents > 0) void loadAnnotations()
   }, [annoEvents, loadAnnotations])
+  // 批注气泡「删除该批注」（体验层 2026-09-13）→ 删 csv 行（与批注脚本 remove/cull 同语义）→ 刷新高亮
+  useEffect(() => {
+    const h = (e: Event) => {
+      const row = (e as CustomEvent<{ row: number }>).detail?.row
+      if (typeof row !== 'number' || !sel) return
+      void (async () => {
+        try {
+          const r = await window.zhijuan.annotationRemove(id, '正文/' + sel, row)
+          if (r.ok) {
+            toast.add({ kind: 'success', title: '批注已删除', description: r.remaining > 0 ? `剩余 ${r.remaining} 条` : '本章批注已清空' })
+            void loadAnnotations()
+          } else {
+            toast.add({ kind: 'error', title: '删除批注失败', description: r.note || '批注行不存在' })
+          }
+        } catch (err) {
+          toast.add({ kind: 'error', title: '删除批注失败', description: String((err as Error).message ?? err) })
+        }
+      })()
+    }
+    window.addEventListener('zj:anno-remove', h)
+    return () => window.removeEventListener('zj:anno-remove', h)
+  }, [id, sel, loadAnnotations])
 
   // 切换章节：收起「清单不一致」提示卡（忽略记录保留，本会话内不重复打扰该章）
   useEffect(() => {

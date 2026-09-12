@@ -183,7 +183,7 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
           <button
             onClick={() => apiRef.current?.jumpToAnnotation(0)}
             className="shrink-0 whitespace-nowrap text-xs text-warn underline-offset-2 hover:underline"
-            title={`正文有 ${annotations!.length} 条批注，点击跳到第一条（悬停高亮可看批注意图）`}
+            title={`正文有 ${annotations!.length} 条批注，点击跳到第一条（点击高亮可查看意图或删除）`}
           >
             批注 {annotations!.length}
           </button>

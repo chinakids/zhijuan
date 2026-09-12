@@ -148,7 +148,7 @@ export function listAnnotations(projectId: string, mdRel: string): AnnotationRow
   } catch {
     return []
   }
-  return rows.map((r) => {
+  return rows.map((r, i) => {
     let before = ''
     if (r.before && mdText.includes(r.before)) {
       before = r.before
@@ -156,8 +156,30 @@ export function listAnnotations(projectId: string, mdRel: string): AnnotationRow
       const seg = segmentFromText(mdText, r.loc)
       if (seg != null) before = seg
     }
-    return { loc: r.loc, note: r.note, before }
+    return { row: i + 1, loc: r.loc, note: r.note, before }
   })
+}
+
+/** 删除一条批注（1-based csv 行号）：复用 resolveAnnotationRows 的删行+空文件删除语义；返回删除后剩余有效行数 */
+export function removeAnnotation(
+  projectId: string,
+  mdRel: string,
+  row: number
+): { ok: boolean; remaining: number; note: string } {
+  if (!Number.isInteger(row) || row < 1) return { ok: false, remaining: -1, note: '批注行号非法' }
+  const root = projectDir(projectId)
+  const mdNorm = mdRel.endsWith('.md') ? mdRel : mdRel + '.md'
+  const csvRel = mdNorm.replace(/\.md$/, '') + '_批注.csv'
+  const n = resolveAnnotationRows(projectId, [{ file: csvRel, rows: [row] }])
+  if (n <= 0) return { ok: false, remaining: -1, note: '批注行不存在' }
+  // 剩余 = csv 中「有位置或原文」的有效行数（空行/坏行不计，与显示口径一致）
+  let remaining = 0
+  try {
+    remaining = parseAnnotationCsv(readFileSync(join(root, csvRel), 'utf-8')).filter((r) => r.loc || r.before).length
+  } catch {
+    remaining = 0 // 文件已删除（全删空）
+  }
+  return { ok: true, remaining, note: '已删除批注' }
 }
 
 /** 编辑器划词写入批注（追加到 <md 同名>_批注.csv；loc 尽力而为（同行），before=选中原文，定位兜底） */

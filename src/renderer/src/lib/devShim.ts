@@ -835,15 +835,37 @@ const mock = {
     const md = docs.get(id + '/' + mdNorm) ?? ''
     const csv = docs.get(id + '/' + csvRel)
     if (csv == null) return []
-    return parseAnnotationCsv(csv).map((r) => {
+    return parseAnnotationCsv(csv).map((r, i) => {
       let before = ''
       if (r.before && md.includes(r.before)) before = r.before
       else {
         const seg = segmentFromText(md, r.loc)
         if (seg != null) before = seg
       }
-      return { loc: r.loc, note: r.note, before }
+      return { row: i + 1, loc: r.loc, note: r.note, before }
     })
+  },
+
+  // 删除一条批注（dev：从内存 csv 删第 row 行，空文件删除；与真机 removeAnnotation 同构）
+  annotationRemove: async (id: string, mdRel: string, row: number) => {
+    const mdNorm = mdRel.endsWith('.md') ? mdRel : mdRel + '.md'
+    const csvRel = mdNorm.replace(/\.md$/, '') + '_批注.csv'
+    const key = id + '/' + csvRel
+    const csv = docs.get(key)
+    if (csv == null) return { ok: false, remaining: -1, note: '批注文件不存在' }
+    let lines = csv.replace(/\n$/, '').split('\n')
+    if (!(Number.isInteger(row) && row >= 1 && row <= lines.length)) return { ok: false, remaining: -1, note: '批注行号非法' }
+    lines.splice(row - 1, 1)
+    if (!lines.join('\n').trim()) docs.delete(key)
+    else docs.set(key, lines.join('\n') + '\n')
+    fsEmit(id, csvRel)
+    let remaining = 0
+    try {
+      remaining = parseAnnotationCsv(docs.get(key) ?? '').filter((r) => r.loc || r.before).length
+    } catch {
+      remaining = 0
+    }
+    return { ok: true, remaining, note: '已删除批注' }
   },
 
   // 采纳 agent 的正文修改（dev：改内存文档）

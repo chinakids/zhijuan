@@ -10,6 +10,8 @@ export interface AnnotationRow {
   note: string
   /** 可选第 3 列：选中原文（编辑器划词批注写入；定位优先用它，loc 仅作外部审计兼容） */
   before: string
+  /** 仅 listAnnotations 输出：1-based csv 行号（渲染层删除/定位用；parseAnnotationCsv 保留空行占位，下标+1 即行号） */
+  row?: number
 }
 
 /** CSV 字段转义（含逗号/引号/换行时按 RFC4180 双引号包裹） */

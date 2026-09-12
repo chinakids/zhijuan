@@ -16,7 +16,7 @@ vi.mock('electron', () => ({
 }))
 vi.mock('../../src/main/agent/runtime', () => ({ driveSession: vi.fn() }))
 
-import { scanAnnotations, listAnnotations } from '../../src/main/agent/annotations'
+import { scanAnnotations, listAnnotations, removeAnnotation } from '../../src/main/agent/annotations'
 import { driveSession } from '../../src/main/agent/runtime'
 import { setSettings } from '../../src/main/settings'
 
@@ -107,9 +107,33 @@ describe('listAnnotations 显示定位（before 优先、loc 切片兜底；loc 
     const r = listAnnotations(PID, '正文/第01章.md')
     expect(r).toHaveLength(3)
     // Python 切片语义 [sc-1, ec-1)：L5:1-L5:10 → 前 9 字符（不含句号——定位前缀即可在正文匹配）
-    expect(r[0]).toEqual({ loc: 'L5:1-L5:10', note: '改雨句', before: '雨把港口淋成一片灰' })
+    expect(r[0]).toEqual({ row: 1, loc: 'L5:1-L5:10', note: '改雨句', before: '雨把港口淋成一片灰' })
+    expect(r[1]).toMatchObject({ row: 2 })
     expect(r[1].before).toBe('阿七攥着灯')
     expect(r[2].before).toBe('她没说话')
+  })
+
+  it('removeAnnotation：删指定行（行号对齐 csv 原文），空文件删除', () => {
+    // 删第 2 行 → 剩 2 条；行号保持 csv 原行（第 1/3 行重新编号后 row 不变语义由 list 反映）
+    let r = removeAnnotation(PID, '正文/第01章.md', 2)
+    expect(r.ok).toBe(true)
+    expect(r.remaining).toBe(2)
+    const left = listAnnotations(PID, '正文/第01章.md')
+    expect(left.map((x) => x.note)).toEqual(['改雨句', '改她说'])
+    expect(left.map((x) => x.row)).toEqual([1, 2])
+    // 删第 1 行（改雨句）→ 剩 1 条
+    r = removeAnnotation(PID, '正文/第01章.md', 1)
+    expect(r.ok).toBe(true)
+    expect(r.remaining).toBe(1)
+    // 删最后一条 → 文件删除、remaining 0
+    r = removeAnnotation(PID, '正文/第01章.md', 1)
+    expect(r.ok).toBe(true)
+    expect(r.remaining).toBe(0)
+    expect(existsSync(join(ROOT, PID, '正文', '第01章_批注.csv'))).toBe(false)
+    // 再删不存在的行 → 失败
+    r = removeAnnotation(PID, '正文/第01章.md', 5)
+    expect(r.ok).toBe(false)
+    expect(r.note).toBe('批注行不存在')
   })
 
   it('三列 csv：before 原文优先（loc 失效也命中）', () => {

@@ -133,6 +133,62 @@
 }
 .dark .zj-sel-bubble { background: var(--surface-2); border-color: var(--hair-strong); }
 
+/* 批注气泡（体验层 2026-09-13：点击高亮弹出，意图+位置+动作；对齐 HIG Popovers——小量信息、点外关闭、不大） */
+.zj-anno-pop {
+  position: fixed;
+  z-index: 61;
+  max-width: 22rem;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--hair-strong);
+  box-shadow: var(--shadow);
+  text-align: left;
+  animation: zj-pop-in 150ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .zj-anno-pop {
+    animation: none;
+  }
+}
+.zj-anno-pop-note {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.zj-anno-pop-meta {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.zj-anno-pop-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+.zj-anno-pop-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.zj-anno-pop-actions button:hover {
+  background: var(--well);
+  color: var(--accent);
+}
+.zj-anno-pop-actions button.zj-anno-pop-remove:hover {
+  color: var(--danger);
+}
+.dark .zj-anno-pop { background: var(--surface-2); border-color: var(--hair-strong); }
+
 /* 深色跟随我们的 tokens */
 .dark .zj-md { background: var(--surface); }
 .dark .zj-md .milkdown, .dark .zj-md .ProseMirror { background: var(--surface) !important; color: var(--ink); }
@@ -219,6 +275,7 @@
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
   transition: background 120ms;
+  cursor: pointer;
 }
 :where(.zj-md) .ProseMirror span.zj-anno:hover {
   background: color-mix(in srgb, var(--warn-soft) 60%, var(--warn) 40%);

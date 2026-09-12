@@ -121,7 +121,9 @@ const api = {
     ipcRenderer.invoke('annotations:add', id, mdRel, entry) as Promise<{ csvRel: string; row: number; ok: boolean }>,
   // 读某章批注（显示 UI 用）：返回定位后的行（loc/note/before；before=可在编辑器正文匹配的文段，定位不到为空）
   annotationList: (id: string, mdRel: string) =>
-    ipcRenderer.invoke('annotations:list', id, mdRel) as Promise<{ loc: string; note: string; before: string }[]>,
+    ipcRenderer.invoke('annotations:list', id, mdRel) as Promise<{ row: number; loc: string; note: string; before: string }[]>,
+  annotationRemove: (id: string, mdRel: string, row: number) =>
+    ipcRenderer.invoke('annotations:remove', id, mdRel, row) as Promise<{ ok: boolean; remaining: number; note: string }>,
 
   // 文件系统事件（项目目录被外部改动时）
   onFsEvent: (cb: (evt: FsEvent) => void) => {
