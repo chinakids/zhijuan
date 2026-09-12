@@ -16,7 +16,7 @@ vi.mock('electron', () => ({
 }))
 vi.mock('../../src/main/agent/runtime', () => ({ driveSession: vi.fn() }))
 
-import { scanAnnotations } from '../../src/main/agent/annotations'
+import { scanAnnotations, listAnnotations } from '../../src/main/agent/annotations'
 import { driveSession } from '../../src/main/agent/runtime'
 import { setSettings } from '../../src/main/settings'
 
@@ -95,5 +95,35 @@ describe('scanAnnotations 记账（未匹配行不得误记账，保留下轮重
     expect(second.found).toBe(2)
     expect(second.generated).toBe(2)
     expect(doneRows()).toEqual([1, 2, 3])
+  })
+})
+
+describe('listAnnotations 显示定位（before 优先、loc 切片兜底；loc 为含 fm 全文行号）', () => {
+  it('无 csv → 空数组', () => {
+    expect(listAnnotations(PID, '正文/第02章.md')).toEqual([])
+  })
+
+  it('两列 csv：按 loc（含 front matter 行号）从全文切片定位', () => {
+    const r = listAnnotations(PID, '正文/第01章.md')
+    expect(r).toHaveLength(3)
+    // Python 切片语义 [sc-1, ec-1)：L5:1-L5:10 → 前 9 字符（不含句号——定位前缀即可在正文匹配）
+    expect(r[0]).toEqual({ loc: 'L5:1-L5:10', note: '改雨句', before: '雨把港口淋成一片灰' })
+    expect(r[1].before).toBe('阿七攥着灯')
+    expect(r[2].before).toBe('她没说话')
+  })
+
+  it('三列 csv：before 原文优先（loc 失效也命中）', () => {
+    writeFileSync(join(ROOT, PID, '正文', '第01章_批注.csv'), 'L99:1-L99:5,改写灯句,阿七攥着灯。\n', 'utf-8')
+    const r = listAnnotations(PID, '正文/第01章.md')
+    expect(r).toHaveLength(1)
+    expect(r[0].note).toBe('改写灯句')
+    expect(r[0].before).toBe('阿七攥着灯。')
+  })
+
+  it('loc 与 before 都定位不到 → before 留空', () => {
+    writeFileSync(join(ROOT, PID, '正文', '第01章_批注.csv'), 'L99:1-L99:5,坏行\n', 'utf-8')
+    const r = listAnnotations(PID, '正文/第01章.md')
+    expect(r).toHaveLength(1)
+    expect(r[0].before).toBe('')
   })
 })

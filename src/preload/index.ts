@@ -116,6 +116,9 @@ const api = {
   // 划词添加批注：追加到 <md 同名>_批注.csv（loc 尽力而行，before=选中原文）
   annotationAdd: (id: string, mdRel: string, entry: { loc: string; before: string; note: string }) =>
     ipcRenderer.invoke('annotations:add', id, mdRel, entry) as Promise<{ csvRel: string; row: number; ok: boolean }>,
+  // 读某章批注（显示 UI 用）：返回定位后的行（loc/note/before；before=可在编辑器正文匹配的文段，定位不到为空）
+  annotationList: (id: string, mdRel: string) =>
+    ipcRenderer.invoke('annotations:list', id, mdRel) as Promise<{ loc: string; note: string; before: string }[]>,
 
   // 文件系统事件（项目目录被外部改动时）
   onFsEvent: (cb: (evt: FsEvent) => void) => {

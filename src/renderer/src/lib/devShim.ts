@@ -826,6 +826,24 @@ const mock = {
     return { csvRel, row: parseAnnotationCsv(docs.get(key) ?? '').length, ok: true }
   },
 
+  // 读某章批注并定位文段（dev：与真机 listAnnotations 同构——before 优先、loc 切片兜底）
+  annotationList: async (id: string, mdRel: string) => {
+    const mdNorm = mdRel.endsWith('.md') ? mdRel : mdRel + '.md'
+    const csvRel = mdNorm.replace(/\.md$/, '') + '_批注.csv'
+    const md = docs.get(id + '/' + mdNorm) ?? ''
+    const csv = docs.get(id + '/' + csvRel)
+    if (csv == null) return []
+    return parseAnnotationCsv(csv).map((r) => {
+      let before = ''
+      if (r.before && md.includes(r.before)) before = r.before
+      else {
+        const seg = segmentFromText(md, r.loc)
+        if (seg != null) before = seg
+      }
+      return { loc: r.loc, note: r.note, before }
+    })
+  },
+
   // 采纳 agent 的正文修改（dev：改内存文档）
   applyDocEdit: async (_id: string, rel: string, edits: EditItem[]) => {
     const key = _id + '/' + rel

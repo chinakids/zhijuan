@@ -4,6 +4,7 @@ import LoadingIndicator from '../../components/LoadingIndicator'
 import Prose, { type ProseApi } from './Prose'
 import HistoryDrawer from './HistoryDrawer'
 import { withBody } from '../../../../shared/fmatter'
+import type { AnnotationRow } from '../../../../shared/annotations'
 
 type DocStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'external' | 'error'
 
@@ -20,9 +21,11 @@ interface DocEditorProps {
   onDirty?: (dirty: boolean) => void
   onSave?: () => void
   className?: string
+  /** 本章批注（仅章节正文页传入）：正文中被批注片段高亮 + 底部「批注 N」徽标跳转 */
+  annotations?: AnnotationRow[]
 }
 
-export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty, onSave, className, editorApiRef }: DocEditorProps) {
+export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty, onSave, className, editorApiRef, annotations }: DocEditorProps) {
   const innerApi = useRef<ProseApi | null>(null)
   const apiRef = editorApiRef ?? innerApi
   const rawRef = useRef('') // 磁盘上的原文（含约定头）
@@ -171,10 +174,20 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
           value={savedMdRef.current}
           onEdit={(md) => setStatus(md === savedMdRef.current ? 'idle' : 'dirty')}
           className="h-full w-full"
+          annotations={annotations}
         />
       </div>
       <div className="flex h-7 items-center gap-2 border-t border-hair px-4 text-xs">
         <button onClick={() => setHistoryOpen(true)} className="shrink-0 whitespace-nowrap text-xs text-ink-2 underline-offset-2 hover:underline" title="正文自动留档的版本历史（查看差异 / 恢复）">历史</button>
+        {(annotations?.length ?? 0) > 0 && (
+          <button
+            onClick={() => apiRef.current?.jumpToAnnotation(0)}
+            className="shrink-0 whitespace-nowrap text-xs text-warn underline-offset-2 hover:underline"
+            title={`正文有 ${annotations!.length} 条批注，点击跳到第一条（悬停高亮可看批注意图）`}
+          >
+            批注 {annotations!.length}
+          </button>
+        )}
         <span className={cn('font-medium', st.cls)}>{st.text}</span>
         <span className="flex-1" />
         <button onClick={() => void doSave()} disabled={!dirty || busy} className="text-xs text-ink-2 underline-offset-2 hover:underline disabled:opacity-40">保存 ⌘S</button>

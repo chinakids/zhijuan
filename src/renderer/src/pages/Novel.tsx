@@ -20,6 +20,7 @@ import ChapterCheckDrawer from '../features/check/ChapterCheckDrawer'
 import { useFsChanged, useFsEvents } from '../features/fs/useFsEvents'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog'
 import { toast } from '../store/toasts'
+import type { AnnotationRow } from '../../../shared/annotations'
 
 export default function Novel() {
   const { id = '' } = useParams()
@@ -51,6 +52,7 @@ export default function Novel() {
       })
       if (r.ok) {
         toast.add({ kind: 'success', title: '批注已添加', description: `已写入 ${r.csvRel}（第 ${r.row} 行）；批注优化扫描后会生成修改提案` })
+        void loadAnnotations() // 即时在编辑器中高亮新批注
       } else {
         toast.add({ kind: 'error', title: '批注添加失败', description: '写入批注文件失败' })
       }
@@ -182,6 +184,29 @@ export default function Novel() {
       setLoading(false)
     }
   }, [id])
+
+  // 批注显示（F-20260912-04 后半）：读取本章 *_批注.csv → 编辑器高亮 + 底部计数徽标。
+  // 读失败静默：显示是增强，不影响编辑；csv 不存在返回空。
+  const [annotations, setAnnotations] = useState<AnnotationRow[]>([])
+  const loadAnnotations = useCallback(async () => {
+    if (!id || !sel) {
+      setAnnotations([])
+      return
+    }
+    try {
+      setAnnotations(await window.zhijuan.annotationList(id, '正文/' + sel))
+    } catch {
+      setAnnotations([])
+    }
+  }, [id, sel])
+  useEffect(() => {
+    void loadAnnotations()
+  }, [loadAnnotations])
+  // csv（批注文件）被外部改写（如 Hermes 侧批注脚本）→ 刷新显示
+  const annoEvents = useMemo(() => events.filter((e) => e.path.endsWith('_批注.csv')).length, [events])
+  useEffect(() => {
+    if (annoEvents > 0) void loadAnnotations()
+  }, [annoEvents, loadAnnotations])
 
   // 切换章节：收起「清单不一致」提示卡（忽略记录保留，本会话内不重复打扰该章）
   useEffect(() => {
@@ -438,7 +463,7 @@ export default function Novel() {
         {sel ? (
           <>
             <div className="min-h-0 flex-1">
-              <DocEditor projectId={id} rel={chapterRel} withFm extVersion={extVersion} editorApiRef={apiRef} onSave={() => { void refresh(); void handleChapterSaved(chapterRel) }} />
+              <DocEditor projectId={id} rel={chapterRel} withFm extVersion={extVersion} editorApiRef={apiRef} annotations={annotations} onSave={() => { void refresh(); void handleChapterSaved(chapterRel) }} />
             </div>
           </>
         ) : (

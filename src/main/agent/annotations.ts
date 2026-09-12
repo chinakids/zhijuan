@@ -9,7 +9,7 @@ import { join, relative, dirname } from 'path'
 import { projectDir } from '../store'
 import { libraryRoot } from '../settings'
 import { createProposals } from '../proposals'
-import { parseAnnotationCsv, segmentFromText, escapeCsvField } from '../../shared/annotations'
+import { parseAnnotationCsv, segmentFromText, escapeCsvField, type AnnotationRow } from '../../shared/annotations'
 import { registerCapability, runSubtask, extractJson, type SubtaskDef } from './subtask'
 import type { Proposal, ProposalItem, AnnotationRef } from '../../shared/types'
 
@@ -126,6 +126,38 @@ export function resolveAnnotationRows(projectId: string, refs: AnnotationRef[] |
   for (const ref of refs) delete done[ref.file]
   saveDone(root, done)
   return n
+}
+
+/** 读某章批注并定位文段（显示 UI 用；纯读不做事）：定位口径与 findAnnotationTargets 一致——
+ * csv 第 3 列「原文」精确匹配优先，loc 行列区间切片兜底；两条都定位不到的 before 留空（渲染层跳过）。
+ * 注意：loc 行号按**含 front matter 的 md 文件全文**计（主人批注脚本口径），而编辑器只见剥离约定头的正文，
+ * 所以这里从完整 md 切出的文段（纯文本）才是渲染层能在编辑器 doc 里匹配的片段。 */
+export function listAnnotations(projectId: string, mdRel: string): AnnotationRow[] {
+  const root = projectDir(projectId)
+  const mdNorm = mdRel.endsWith('.md') ? mdRel : mdRel + '.md'
+  const csvRel = mdNorm.replace(/\.md$/, '') + '_批注.csv'
+  let mdText = ''
+  try {
+    mdText = readFileSync(join(root, mdNorm), 'utf-8')
+  } catch {
+    /* md 不存在：仅能返回 loc 原文行 */
+  }
+  let rows: AnnotationRow[]
+  try {
+    rows = parseAnnotationCsv(readFileSync(join(root, csvRel), 'utf-8'))
+  } catch {
+    return []
+  }
+  return rows.map((r) => {
+    let before = ''
+    if (r.before && mdText.includes(r.before)) {
+      before = r.before
+    } else {
+      const seg = segmentFromText(mdText, r.loc)
+      if (seg != null) before = seg
+    }
+    return { loc: r.loc, note: r.note, before }
+  })
 }
 
 /** 编辑器划词写入批注（追加到 <md 同名>_批注.csv；loc 尽力而为（同行），before=选中原文，定位兜底） */

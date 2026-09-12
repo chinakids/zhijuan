@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type MutableRefObject } from 'react'
-import { Editor, rootCtx, defaultValueCtx, editorViewCtx, parserCtx, serializerCtx } from '@milkdown/kit/core'
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
+import { Editor, rootCtx, defaultValueCtx, editorViewCtx, parserCtx, serializerCtx, prosePluginsCtx } from '@milkdown/kit/core'
 import { commonmark } from '@milkdown/kit/preset/commonmark'
 import { gfm } from '@milkdown/kit/preset/gfm'
 import { history } from '@milkdown/kit/plugin/history'
@@ -8,7 +8,8 @@ import { cursor } from '@milkdown/kit/plugin/cursor'
 import { clipboard } from '@milkdown/kit/plugin/clipboard'
 import { trailing } from '@milkdown/kit/plugin/trailing'
 import { selectAll } from 'prosemirror-commands'
-import { TextSelection } from 'prosemirror-state'
+import { Plugin, TextSelection } from 'prosemirror-state'
+import { Decoration, DecorationSet } from 'prosemirror-view'
 import '@milkdown/theme-nord/style.css'
 import '../../styles/milkdown.css'
 import { ClipboardPaste, Copy, MessageSquarePlus, MessageSquareText, Scissors, TextSelect } from 'lucide-react'
@@ -16,6 +17,7 @@ import { cn } from '../../lib/utils'
 import EditorToolbar from './EditorToolbar'
 import FindBar from './FindBar'
 import { findInDoc, type FindPos } from './finder'
+import type { AnnotationRow } from '../../../../shared/annotations'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -31,6 +33,8 @@ export interface ProseApi {
   applyMarkdown(md: string, replaceSel: boolean): void
   setContent(md: string): void
   focus(): void
+  /** 跳到第 idx 条（默认 0=第一条）可定位的批注（选中并滚动到它）；找不到不动作 */
+  jumpToAnnotation(idx?: number): void
   destroy(): void
 }
 
@@ -40,6 +44,8 @@ interface ProseProps {
   onEdit?: (md: string) => void
   apiRef?: MutableRefObject<ProseApi | null>
   className?: string
+  /** 本章批注（显示 UI：定位后的 loc/note/before；before 为可在正文匹配的文段，空则跳过） */
+  annotations?: AnnotationRow[]
 }
 
 interface WinWithEditors {
@@ -72,13 +78,52 @@ function testUnregister(api: ProseApi) {
   if (i >= 0) a.splice(i, 1)
 }
 
-export default function Prose({ value, onEdit, apiRef, className }: ProseProps) {
+export default function Prose({ value, onEdit, apiRef, className, annotations }: ProseProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const initialRef = useRef<string>(value)
   const onEditRef = useRef(onEdit)
   onEditRef.current = onEdit
   const liveRef = useRef(true)
   const edRef = useRef<any>(null) // Milkdown Editor 实例（工具栏用）
+
+  /* —— 批注显示（F-20260912-04 后半）：被批注片段高亮（PM inline Decoration，class=zj-anno，title=批注意图）。
+   * 用 ProseMirror 装饰而非 CSS Custom Highlight：能承载 hover 提示（title）与点击跳转，且与查找高亮
+   * （CSS.highlights 原生 Range 层）和选区天然共存。定位口径：before 在 doc 内的文本匹配（findInDoc，
+   * 与⌘F 同纯逻辑），匹配不到的行跳过（计数由调用方按 csv 行数展示）。 */
+  const annoRef = useRef<AnnotationRow[]>([])
+  annoRef.current = annotations ?? []
+  const annoPlugin = useMemo(
+    () =>
+      new Plugin({
+        props: {
+          decorations(state) {
+            const list = annoRef.current
+            if (!list.length) return null
+            const decos: Decoration[] = []
+            for (const a of list) {
+              if (!a.before) continue
+              const hit = findInDoc(state.doc, a.before)[0]
+              if (hit) decos.push(Decoration.inline(hit.from, hit.to, { class: 'zj-anno', title: a.note }))
+            }
+            return decos.length ? DecorationSet.create(state.doc, decos) : null
+          }
+        }
+      }),
+    []
+  )
+  // 批注变化（加载/划词新增/外部 csv 写入）→ 记到 ref 并触发一次空事务让 view 重算装饰。
+  // 编辑器未建时 no-op：建好后 decorations 函数读到的是最新 ref，无需补刷。
+  useEffect(() => {
+    annoRef.current = annotations ?? []
+    edRef.current?.action((ctx: any) => {
+      try {
+        const view = ctx.get(editorViewCtx)
+        view.dispatch(view.state.tr.setMeta('zj-anno-refresh', true))
+      } catch {
+        /* 视图未就绪时忽略 */
+      }
+    })
+  }, [annotations])
 
   /* —— 划词浮层：选中文本 → 送进对话引用（全局事件 zj:quote-text）—— */
   const [bubble, setBubble] = useState<{ text: string; x: number; y: number; below: boolean } | null>(null)
@@ -420,6 +465,7 @@ export default function Prose({ value, onEdit, apiRef, className }: ProseProps) 
       .config((ctx) => {
         ctx.set(rootCtx, hostRef.current!)
         ctx.set(defaultValueCtx, initialRef.current)
+        ctx.set(prosePluginsCtx, [annoPlugin])
         ctx.get(listenerCtx).markdownUpdated((_, md) => {
           if (!liveRef.current) return
           onEditRef.current?.(md)
@@ -470,6 +516,26 @@ export default function Prose({ value, onEdit, apiRef, className }: ProseProps) 
             view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, doc))
           }),
         focus: () => e.action((ctx) => ctx.get(editorViewCtx).focus()),
+        jumpToAnnotation: (idx = 0) =>
+          e.action((ctx) => {
+            const view = ctx.get(editorViewCtx)
+            let seen = -1
+            for (const a of annoRef.current) {
+              if (!a.before) continue
+              const hits = findInDoc(view.state.doc, a.before)
+              if (!hits.length) continue
+              seen++
+              if (seen === idx) {
+                const f = hits[0]
+                const tr = view.state.tr
+                tr.setSelection(TextSelection.create(view.state.doc, f.from, f.to))
+                tr.scrollIntoView()
+                view.dispatch(tr)
+                view.focus()
+                return
+              }
+            }
+          }),
         destroy: () => e.destroy()
       }
       if (apiRef) apiRef.current = api

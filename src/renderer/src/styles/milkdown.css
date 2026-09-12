@@ -209,3 +209,17 @@
   background: var(--accent);
   color: var(--accent-ink);
 }
+
+/* 批注高亮（F-20260912-04 后半）：被批注片段「琥珀贴纸条」——淡底+下沿，悬停加深并弹出意图（title）。
+ * 色系用 warn（暖琥珀）而非 accent（青黛）：与查找高亮、选区（青黛系）一眼区分；亮暗主题都走语义变量。 */
+:where(.zj-md) .ProseMirror span.zj-anno {
+  background: var(--warn-soft);
+  border-bottom: 1px solid color-mix(in srgb, var(--warn) 55%, transparent);
+  border-radius: 2px 2px 0 0;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  transition: background 120ms;
+}
+:where(.zj-md) .ProseMirror span.zj-anno:hover {
+  background: color-mix(in srgb, var(--warn-soft) 60%, var(--warn) 40%);
+}
