@@ -212,16 +212,23 @@ export async function scanAnnotations(
     }
     createProposals(root, projectId, 'annotation-sync', chapter, '', items, undefined, metas)
   }
-  // 记账（仅成功生成的批注行；csv 被改动时 mtime 变化 → 自动重扫）
+  // 记账（只记实际生成提案的批注行；csv 被改动时 mtime 变化 → 自动重扫；未匹配行不记账，保留到下一轮重试）
   const rootP = projectDir(projectId)
   const done = loadDone(rootP)
+  const toRecord = new Map<string, number[]>()
   for (const t of targets) {
-    if (!itemsBy.has(t.mdRel)) continue
-    const st = statSync(join(rootP, t.csvRel))
-    const rec = done[t.csvRel] ?? { mtimeMs: st.mtimeMs, rows: [] }
-    if (st.mtimeMs <= rec.mtimeMs) rec.rows.push(t.row)
-    else rec.rows = [t.row]
-    done[t.csvRel] = rec
+    const hit = result.find((x) => x.before && x.before.trim() === t.before.trim())
+    if (!hit) continue
+    const arr = toRecord.get(t.csvRel) ?? []
+    arr.push(t.row)
+    toRecord.set(t.csvRel, arr)
+  }
+  for (const [csvRel, rows] of toRecord) {
+    const st = statSync(join(rootP, csvRel))
+    const rec = done[csvRel] ?? { mtimeMs: st.mtimeMs, rows: [] }
+    if (st.mtimeMs <= rec.mtimeMs) rec.rows.push(...rows)
+    else rec.rows = rows
+    done[csvRel] = rec
   }
   saveDone(rootP, done)
   return {
