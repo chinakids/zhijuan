@@ -18,6 +18,7 @@ import AtMentionMenu from './AtMentionMenu'
 import CommandMenu from './CommandMenu'
 import { cn } from '../../lib/utils'
 import { Button } from '../../components/ui/button'
+import { runSliceSync } from '../sync/sliceSync'
 
 interface AgentPanelProps {
   projectId: string
@@ -97,6 +98,27 @@ function toolLabel(tool: string): string {
 }
 
 /* ---------- 正文修改卡（edit，IDE 式前后对比） ---------- */
+// 正文为源、设定为流：EditCard 采纳（doc:applyEdit）写入正文后，与「保存正文」「分幕采纳」同口径触发切片同步；
+// 60s 窗口内同一文件已同步过则跳过（一次对话里连续多条 edit 采纳不重复烧引擎），失败不节流（用户可再采纳/保存重试）
+let lastEditSync: { file: string; at: number } | null = null
+function syncAfterEdit(projectId: string, file: string, setMsg: (m: string | null) => void) {
+  const now = Date.now()
+  if (lastEditSync && lastEditSync.file === file && now - lastEditSync.at < 60_000) {
+    setMsg('✓ 已采纳；本分钟内已同步过切片，不重复')
+    return
+  }
+  lastEditSync = { file, at: now }
+  setMsg('切片同步中…')
+  void runSliceSync(projectId, file)
+    .then((s) => {
+      if (!s.ok) lastEditSync = null // 失败不节流：用户再采纳/保存可重试
+      setMsg(s.ok ? (s.items > 0 ? `✓ 切片同步：${s.items} 条提案待确认` : '✓ 切片同步：无设定变化') : `✗ 切片同步失败：${s.error ?? '未知错误'}`)
+    })
+    .catch((e) => {
+      lastEditSync = null
+      setMsg(`✗ 切片同步失败：${String((e as Error).message || e)}`)
+    })
+}
 function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
   id: string
   file: string
@@ -107,6 +129,7 @@ function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
   onChanged?: () => void
 }) {
   const [busy, setBusy] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
   async function accept() {
     if (busy || !edits.length) return
     setBusy(true)
@@ -115,6 +138,8 @@ function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
     if (r.ok) {
       useAgentStore.getState().setEditState(id, 'applied')
       onChanged?.() // 交给父级：刷新章节列表（文件已变）
+      // 正文为源、设定为流：采纳写入后与「保存正文/分幕采纳」同口径触发切片同步（仅正文文档；设定档仍走提案制）
+      if (file.startsWith('正文/')) syncAfterEdit(projectId, file, setSyncMsg)
     } else {
       useAgentStore.getState().setEditState(id, 'error', (r.errors ?? []).join('；'))
     }
@@ -155,6 +180,7 @@ function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
         </div>
       )}
       {st === 'error' && error && <p className="mt-2 rounded-md bg-danger-soft px-2 py-1 text-[11px] text-danger">{error}</p>}
+      {syncMsg && <p className={cn('mt-2 text-[11px]', syncMsg.startsWith('✗') ? 'text-danger' : 'text-ink-2')}>{syncMsg}</p>}
     </div>
   )
 }

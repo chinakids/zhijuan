@@ -563,7 +563,7 @@ const mock = {
     // 与真机口径一致：只列 .md（csv 等批注文件不进列表）；name 去掉 .md 后缀；按 mtime 新→旧
     docsOf(id + '/' + relDir)
       .filter((d) => d.name.endsWith('.md'))
-      .map((d) => ({ ...d, name: d.name.replace(/\\.md$/, '') }))
+      .map((d) => ({ ...d, name: d.name.replace(/\.md$/, '') }))
       .sort((a, b) => b.mtime - a.mtime),
   // 素材库域：类别枚举（内存由 docs 推导；空类别靠 extraCats 登记）/ 新建类别 / 文件名+全文搜索
   listLibraryCategories: async (id: string): Promise<LibraryCategory[]> => {
