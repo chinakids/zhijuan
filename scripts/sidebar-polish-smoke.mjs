@@ -104,7 +104,7 @@ async function main() {
   await evalUntil(page, headExpr('章节'), (v) => v !== null && v.color === hNovel.color, 10000, '恢复浅色')
 
   // ③ Characters / Worldview / Library / Outline
-  const hChar = await checkHead(page, 'characters', '角色档案', 'Characters')
+  const hChar = await checkHead(page, 'characters', '人物档案', 'Characters')
   const hWorld = await checkHead(page, 'worldview', '世界观设定', 'Worldview')
   const hLib = await checkHead(page, 'library', '素材库', 'Library')
   const hOutline = await checkHead(page, 'outline', '章卡', 'Outline')

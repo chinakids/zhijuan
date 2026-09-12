@@ -226,7 +226,7 @@ export function presenceCheck(opts: { knownChars: string[]; chapters: PresenceCh
           type: 'character',
           where,
           what: `「涉及人物」列了「${n}」，但本章正文未出现 TA 的署名或登记的别名（${aliases.length ? aliases.join('、') + ' 均未出现' : '档案未登记别名'}）——可能已删戏，或用了未登记的别称/指代。`,
-          suggest: `确认本章是否真需要「${n}」出场：需要则在正文补写该角色，不需要就把 TA 移出本章约定头的「涉及人物」。`
+          suggest: `确认本章是否真需要「${n}」出场：需要则在正文补写该人物，不需要就把 TA 移出本章约定头的「涉及人物」。`
         })
       }
     }

@@ -106,9 +106,9 @@ const inputVal = (ph) => `(document.querySelector('input[placeholder=${JSON.stri
     await sleep(150)
     await page.eval(clickBtn('创建并进入'))
     await evalUntil(page, pageHas('开始《连续写作冒烟》'), (v) => v === true, 20000, '引导弹窗出现')
-    // 引导：世界观一步（直接下一步，材料可空）→ 角色一步加林晚 → 完成，进入正文
-    await evalUntil(page, pageHas('下一步：主要角色'), (v) => v === true, 10000, '引导世界观步')
-    await page.eval(clickBtn('下一步：主要角色'))
+    // 引导：世界观一步（直接下一步，材料可空）→ 人物一步加林晚 → 完成，进入正文
+    await evalUntil(page, pageHas('下一步：主要人物'), (v) => v === true, 10000, '引导世界观步')
+    await page.eval(clickBtn('下一步：主要人物'))
     await evalUntil(page, `document.querySelector('input[placeholder="姓名 *"]') !== null`, (v) => v === true, 10000, '引导角色步')
     await page.eval(fill('input[placeholder="姓名 *"]', '林晚'))
     await sleep(150)

@@ -122,7 +122,7 @@ docs.set(
 )
 docs.set(
   'demo-aseya/素材库/索引.md',
-  ['# 素材库索引', '', '- 桥段 / 环境：雾海、旧灯塔、泛黄船票', '- 人物原型 / 角色原型：冰山沉默系守灯人', ''].join('\n')
+  ['# 素材库索引', '', '- 桥段 / 环境：雾海、旧灯塔、泛黄船票', '- 人物原型：冰山沉默系守灯人', ''].join('\n')
 )
 docs.set(
   'demo-aseya/素材库/桥段/追忆型开头.md',
@@ -838,7 +838,7 @@ const mock = {
             question: '这段续写打算用什么语气？',
             options: [
               { label: '保持现状', description: '延续全章的沉郁氛围' },
-              { label: '轻快一些', description: '给角色一个透气的瞬间' }
+              { label: '轻快一些', description: '给人物一个透气的瞬间' }
             ],
             multiSelect: false
           }

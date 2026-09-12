@@ -52,7 +52,7 @@ export const BUILTIN_COMMANDS: ZjCommand[] = [
     argHint: '[焦点]',
     kind: 'template',
     template: (title, args) =>
-      `创作任务：围绕《${title}》当前情节，给出 3 个可发展的走向（冲突、悬念、角色动机各一），` +
+      `创作任务：围绕《${title}》当前情节，给出 3 个可发展的走向（冲突、悬念、人物动机各一），` +
       `每条 2-3 句说明如何接上、可埋什么；只给走向，不写正文。` +
       (args ? `\n聚焦：${args}` : '')
   }

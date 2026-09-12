@@ -30,11 +30,11 @@ interface Props {
 
 const steps = [
   { icon: Globe2, label: '世界观设定' },
-  { icon: Users, label: '主要角色' },
+  { icon: Users, label: '主要人物' },
   { icon: PartyPopper, label: '完成' }
 ]
 
-/** 角色档案模板（正文保存时切片同步会把各章新状态补进「## 切片：<切片名>」小节） */
+/** 人物档案模板（正文保存时切片同步会把各章新状态补进「## 切片：<切片名>」小节） */
 function charDoc(name: string, role: string, traits: string): string {
   return (
     `---\n别名: []\n---\n` +
@@ -60,8 +60,8 @@ function worldDoc(world: { background: string; tone: string; rules: string }, ke
     `## 时间线总纲\n\n（本作品的故事时间线。每个章节 = 一个时间切片，切片名写在该章正文的约定头里。）\n\n` +
     `## 目录约定\n\n` +
     `- 正文：\`正文/第NN章_题名.md\`，每章开头有一段 front matter（章号/题名/切片/涉及人物）。\n` +
-    `- 人物：每角色一个 \`人物/<角色名>.md\`，基础设定 + 按切片的状态小节。\n` +
-    `- 世界观：\`世界观/总纲.md\` + 每个切片的 \`世界观/切片_切片名.md\`。\n` +
+    `- 人物：每个人物一个 \`人物/<人物名>.md\`，基础设定 + 按切片的状态小节。\n` +
+    `- 世界观：\`世界观/总纲.md\` + 每个切片的 \`世界观/切片_<切片名>.md\`。\n` +
     `- 素材库：按类别目录存放素材文档；联网采集的原始任务在 \`素材库/采集池/\`。\n` +
     (keepOriginal ? '' : `- 工具数据（提案、会话）在 \`.zhijuan/\`，不是设定本体。\n`)
   )
@@ -145,13 +145,13 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
         {step === 1 && (
           <div className="space-y-3 py-2">
             <DialogDescription>
-              列几个主要角色。每人一个档案文件，之后正文保存时会按切片补进成长轨迹。
+              列几个主要人物。每人一个档案文件，之后正文保存时会按切片补进成长轨迹。
             </DialogDescription>
             {chars.map((r, i) => (
               <div key={i} className="rounded-lg border border-hair bg-surface-2 p-2.5">
                 <div className="flex items-center gap-2">
                   <Input className="flex-1" placeholder="姓名 *" value={r.name} onChange={(e) => patchRow(i, 'name', e.target.value)} />
-                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" title="删除该角色" onClick={() => delRow(i)}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" title="删除该人物" onClick={() => delRow(i)}>
                     <Trash2 />
                   </Button>
                 </div>
@@ -162,7 +162,7 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
               </div>
             ))}
             <Button variant="outline" size="sm" className="w-full border-dashed [&_svg]:size-3.5" onClick={addRow}>
-              <Plus /> 加一个角色
+              <Plus /> 加一个人物
             </Button>
           </div>
         )}
@@ -172,7 +172,7 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
             <p className="flex items-center gap-2 text-ink"><PartyPopper className="h-4 w-4 text-accent" /> 创作物料就位</p>
             <ul className="mt-2 list-disc pl-5 text-[13px] text-ink-2">
               <li>世界观写入了 <code>世界观/总纲.md</code></li>
-              <li>{chars.filter((c) => c.name.trim()).length} 个角色的档案已生成</li>
+              <li>{chars.filter((c) => c.name.trim()).length} 个人物的档案已生成</li>
               <li>接下来去「正文创作」新建第一章：填好本章要素即可开写</li>
             </ul>
           </div>
@@ -189,7 +189,7 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
               <Button variant="outline" size="sm" onClick={() => setStep(step - 1)}>上一步</Button>
             )}
             {step === 0 && (
-              <Button size="sm" onClick={() => setStep(1)}>下一步：主要角色</Button>
+              <Button size="sm" onClick={() => setStep(1)}>下一步：主要人物</Button>
             )}
             {step === 1 && (
               <Button size="sm" onClick={() => void finish()} disabled={saving}>{saving ? '写入中…' : '完成，进入正文'}</Button>

@@ -73,7 +73,7 @@ export function ensureSkeleton(id: string) {
   for (const d of SKELETON_DIRS) ensureDir(join(root, d))
   // 缺省模板文件（不覆盖已有内容）
   const templates: [string, string][] = [
-    [DEFAULT_FILES.charsOverview, '# 人物 · 总览\n\n> 本文件是角色目录：每个角色一个 `人物/<角色名>.md`。在正文创作里保存章节后，这里会通过提案制得到更新。\n'],
+    [DEFAULT_FILES.charsOverview, '# 人物 · 总览\n\n> 本文件是人物目录：每个人物一个 `人物/<人物名>.md`。在正文创作里保存章节后，这里会通过提案制得到更新。\n'],
     [DEFAULT_FILES.worldOverview, '# 世界观 · 总纲\n\n> 长期不变的世界设定写在这里；每个时间切片的世界状态写在 `世界观/切片_<切片名>.md`。\n'],
     [DEFAULT_FILES.libIndex, '# 素材库 · 索引\n\n> 按类别分类存放，每个素材一个 `素材库/<类别>/<素材>.md`。采集任务先落 `素材库/采集池/`。\n']
   ]
@@ -83,7 +83,7 @@ export function ensureSkeleton(id: string) {
   }
 }
 
-const newProjectBody = `\n## 时间线总纲\n\n（本作品的故事时间线。每个章节 = 一个时间切片，切片名写在该章正文的约定头里。）\n\n## 目录约定\n\n- 正文：\`正文/第NN章_题名.md\`，每章开头有一段 front matter（章号/题名/切片/涉及人物）。\n- 人物：每角色一个 \`人物/<角色名>.md\`，基础设定 + 按切片的状态小节。\n- 世界观：\`世界观/总纲.md\` + 每个切片的 \`世界观/切片_<切片名>.md\`。\n- 素材库：按类别目录存放素材文档；联网采集的原始任务在 \`素材库/采集池/\`。\n- 工具数据（提案、会话）在 \`.zhijuan/\`，不是设定本体。\n`
+const newProjectBody = `\n## 时间线总纲\n\n（本作品的故事时间线。每个章节 = 一个时间切片，切片名写在该章正文的约定头里。）\n\n## 目录约定\n\n- 正文：\`正文/第NN章_题名.md\`，每章开头有一段 front matter（章号/题名/切片/涉及人物）。\n- 人物：每个人物一个 \`人物/<人物名>.md\`，基础设定 + 按切片的状态小节。\n- 世界观：\`世界观/总纲.md\` + 每个切片的 \`世界观/切片_<切片名>.md\`。\n- 素材库：按类别目录存放素材文档；联网采集的原始任务在 \`素材库/采集池/\`。\n- 工具数据（提案、会话）在 \`.zhijuan/\`，不是设定本体。\n`
 
 // ---------- 项目操作 ----------
 export function createProject(name: string, description: string, template?: string): ProjectSummary | null {

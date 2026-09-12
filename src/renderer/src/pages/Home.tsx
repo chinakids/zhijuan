@@ -329,7 +329,7 @@ export default function Home() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-ink-3">选「示例」会带一份角色档案、切片设定和一章示例正文，可随时删除；自定义模板放在 工作区/模板/项目模板/ 下。</p>
+              <p className="text-xs text-ink-3">选「示例」会带一份人物档案、切片设定和一章示例正文，可随时删除；自定义模板放在 工作区/模板/项目模板/ 下。</p>
             </div>
           </div>
           <DialogFooter>

@@ -107,16 +107,16 @@ const ok = (name, cond, extra = '') => {
     await sleep(200)
     await page.eval(clickBtn('创建并进入'))
     await evalUntil(page, pageHas('开始《引导冒烟测试》'), (v) => v === true, 20000, '引导弹窗出现')
-    ok('A3 建项目后项目引导弹窗出现（世界观→主要角色→完成）', true)
+    ok('A3 建项目后项目引导弹窗出现（世界观→主要人物→完成）', true)
 
     // 世界观一步：填三项 → 下一步
     await page.eval(fill('textarea[placeholder^="如：近未来的柳城"]', '海边的旧城，灯塔立在防波堤尽头。'))
     await page.eval(fill('textarea[placeholder^="如：潮湿、克制"]', '潮湿、克制，旧物件有温度。'))
     await page.eval(fill('textarea[placeholder^="每条一行：如"]', '· 灯塔每晚入夜亮起，清晨熄灭'))
     await sleep(150)
-    await page.eval(clickBtn('下一步：主要角色'))
-    await evalUntil(page, `document.querySelector('input[placeholder="在故事里的身份"]') !== null`, (v) => v === true, 8000, '角色步骤')
-    ok('A4 引导进入「主要角色」步骤', true)
+    await page.eval(clickBtn('下一步：主要人物'))
+    await evalUntil(page, `document.querySelector('input[placeholder="在故事里的身份"]') !== null`, (v) => v === true, 8000, '人物步骤')
+    ok('A4 引导进入「主要人物」步骤', true)
 
     // 角色一步：加一名 → 完成
     await page.eval(fill('input[placeholder="姓名 *"]', '林晚'))

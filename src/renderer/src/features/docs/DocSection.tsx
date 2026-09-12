@@ -19,7 +19,7 @@ interface DocSectionProps {
   addLabel: string
   addHint: string
   emptyHint: string
-  /** 侧栏组头名称（默认「文档」；按语义传入，如 角色档案 / 世界观设定） */
+  /** 侧栏组头名称（默认「文档」；按语义传入，如 人物档案 / 世界观设定） */
   listLabel?: string
   /** 新建文件时写入的模板正文（需返回漏斗与角标即可） */
   templateFor?: (name: string) => string
