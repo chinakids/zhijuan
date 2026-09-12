@@ -172,7 +172,7 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
     const cardRel = '大纲/' + chapterRel.replace(/^正文\//, '')
     const t = read(cardRel)
     if (t.trim()) {
-      blocks.push(`【本章章卡：${firstLineName(chapterRel)}】\n${t.slice(0, CAP.card)}`)
+      blocks.push(`【本章章卡：${firstLineName(chapterRel)}】\n${capHead(t, CAP.card, '本章章卡', cardRel)}`)
       sources.push(cardRel)
     }
   }
@@ -182,7 +182,7 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
     const dirRel = '大纲/' + chapterRel.replace(/^正文\//, '').replace(/\.md$/, '') + '_导演.md'
     const t = stripFrontMatter(read(dirRel))
     if (t.trim()) {
-      blocks.push(`【本章导演板：${firstLineName(chapterRel)}】（硬指令：本段正文的情绪推进、人物行为必须沿导演板的情绪弧分段与行为轴写，红线不许破，钩子到结尾要还）\n${t.slice(0, CAP.director)}`)
+      blocks.push(`【本章导演板：${firstLineName(chapterRel)}】（硬指令：本段正文的情绪推进、人物行为必须沿导演板的情绪弧分段与行为轴写，红线不许破，钩子到结尾要还）\n${capHead(t, CAP.director, '导演板', dirRel)}`)
       sources.push(dirRel)
     }
   }
@@ -190,7 +190,7 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
   // 6. 素材库索引（只给路标，细节仍 zj_* 现读）
   const idx = read('素材库/索引.md')
   if (idx.trim()) {
-    blocks.push(`【素材库索引】\n${idx.slice(0, CAP.material)}`)
+    blocks.push(`【素材库索引】\n${capHead(idx, CAP.material, '素材库索引', '素材库/索引.md')}`)
     sources.push('素材库/索引.md')
   }
 
@@ -216,12 +216,12 @@ export async function buildProjectContext(projectId: string): Promise<WritingCon
   }
   const proj = read('project.md')
   if (proj.trim()) {
-    blocks.push(`【作品总纲】\n${proj.slice(0, 3000)}`)
+    blocks.push(`【作品总纲】\n${capHead(proj, 3000, '作品总纲', 'project.md')}`)
     sources.push('project.md')
   }
   const world = read('世界观/总纲.md')
   if (world.trim()) {
-    blocks.push(`【世界观总纲】\n${world.slice(0, 2000)}`)
+    blocks.push(`【世界观总纲】\n${capHead(world, 2000, '世界观总纲', '世界观/总纲.md')}`)
     sources.push('世界观/总纲.md')
   }
   const LIST_CAP = 12
@@ -239,6 +239,17 @@ export async function buildProjectContext(projectId: string): Promise<WritingCon
 function stripFrontMatter(raw: string): string {
   const m = raw.match(/^---\n[\s\S]*?\n---\n/)
   return m ? raw.slice(m[0].length) : raw
+}
+
+/**
+ * 概要/指令型块的预算截断（保头）+ 超限注明：模型必须知道「这块被截了、还有更多可现读」
+ * （2026-09-13 上下文审计第二轮收口：章卡/导演板/素材索引/总纲曾静默截断无提示——模型会把被截块当完整内容）。
+ * 与切片「超限保头+注明+可现读」同口径；正文/人物档是「最新在尾部」语义走保尾，不走这里。
+ */
+function capHead(text: string, cap: number, what: string, rel: string): string {
+  const over = text.length - cap
+  if (over <= 0) return text
+  return `（${what}已超 ${cap} 字符预算：装配的是**开头**部分，末尾 ${over} 字符已省略；要看完整${what}请用 zj_read_doc 读取 ${rel}）\n…\n${text.slice(0, cap)}`
 }
 
 /** 按章号顺序找上一章；当前章不在列表或已是第一章时返回 null */

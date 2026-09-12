@@ -1,15 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// store 的 readDoc / listChapters 打桩，其余（fmatter 等）走真实实现
-vi.mock('../../src/main/store', () => ({ readDoc: vi.fn(), listChapters: vi.fn() }))
+// store 的 readDoc / listChapters / listDocs 打桩，其余（fmatter 等）走真实实现
+vi.mock('../../src/main/store', () => ({ readDoc: vi.fn(), listChapters: vi.fn(), listDocs: vi.fn() }))
 
-import { buildWritingContext, isTemplateShell } from '../../src/main/agent/context'
+import { buildWritingContext, buildProjectContext, isTemplateShell } from '../../src/main/agent/context'
 import { findAnchorLine } from '../../src/shared/anchor'
 import { actPlaceholder } from '../../src/shared/actsSeg'
-import { readDoc, listChapters } from '../../src/main/store'
+import { readDoc, listChapters, listDocs } from '../../src/main/store'
 
 const readDocMock = vi.mocked(readDoc)
 const listChaptersMock = vi.mocked(listChapters)
+const listDocsMock = vi.mocked(listDocs)
 
 const FM_1 = ['---', '章号: 1', '题名: 第一章', '切片: 第一幕', '涉及人物: [林晚]', '---'].join('\n') + '\n'
 const FM_2 = ['---', '章号: 2', '题名: 第二章', '切片: 第二幕', '涉及人物: [林晚, 周守, 顾知远, 苏禾, 第五]', '---'].join('\n') + '\n'
@@ -405,5 +406,108 @@ describe('buildWritingContext（写作上下文装配）', () => {
     expect(isTemplateShell(tpl)).toBe(true)
     // 锚点「切片：示例切片_初遇」归一化后与 H1 精确相等（旧形态「# 世界观 · 切片：…」会 miss）
     expect(findAnchorLine(tpl.split('\n'), '切片：示例切片_初遇')).toEqual({ line: 0, level: 1 })
+  })
+})
+
+describe('预算截断可见性（2026-09-13 上下文审计第二轮收口）', () => {
+  const noPrev = [] as never
+
+  it('章卡超预算：保头 + 注明「已超/已省略/可现读」；开头保留、被裁的尾部不在上下文', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === '正文/第1章_a.md') return FM_1 + '第一章正文'
+      if (rel === '大纲/第1章_a.md') return '【卡首标记】' + '卡'.repeat(2200) + '【卡尾标记】'
+      return null
+    })
+    listChaptersMock.mockReturnValue(noPrev)
+    const { blocks } = await buildWritingContext('p', '正文/第1章_a.md')
+    const card = blocks.find((b) => b.includes('本章章卡'))
+    expect(card).toBeTruthy()
+    expect(card).toContain('已超 2000 字符预算')
+    expect(card).toContain('已省略')
+    expect(card).toContain('zj_read_doc')
+    expect(card).toContain('【卡首标记】')
+    expect(card).not.toContain('【卡尾标记】')
+  })
+
+  it('导演板超预算：保头 + 注明 + 可现读；硬指令说明仍在', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === '正文/第1章_a.md') return FM_1 + '第一章正文'
+      if (rel === '大纲/第1章_a_导演.md') return '【板首标记】' + '板'.repeat(2600) + '【板尾标记】'
+      return null
+    })
+    listChaptersMock.mockReturnValue(noPrev)
+    const { blocks } = await buildWritingContext('p', '正文/第1章_a.md')
+    const board = blocks.find((b) => b.includes('本章导演板'))
+    expect(board).toBeTruthy()
+    expect(board).toContain('硬指令')
+    expect(board).toContain('已超 2500 字符预算')
+    expect(board).toContain('已省略')
+    expect(board).toContain('【板首标记】')
+    expect(board).not.toContain('【板尾标记】')
+  })
+
+  it('素材库索引超预算：保头 + 注明 + 可现读（路标被截也告知模型可再读）', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === '正文/第1章_a.md') return FM_1 + '第一章正文'
+      if (rel === '素材库/索引.md') return '【索首标记】' + '索'.repeat(1500) + '【索尾标记】'
+      return null
+    })
+    listChaptersMock.mockReturnValue(noPrev)
+    const { blocks } = await buildWritingContext('p', '正文/第1章_a.md')
+    const idx = blocks.find((b) => b.includes('素材库索引'))
+    expect(idx).toBeTruthy()
+    expect(idx).toContain('已超 1200 字符预算')
+    expect(idx).toContain('已省略')
+    expect(idx).toContain('素材库/索引.md')
+    expect(idx).toContain('【索首标记】')
+    expect(idx).not.toContain('【索尾标记】')
+  })
+
+  it('章卡/导演板/素材索引未超预算：原样全量装配，零提示零回归', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === '正文/第1章_a.md') return FM_1 + '第一章正文'
+      if (rel === '大纲/第1章_a.md') return '章卡一句话'
+      if (rel === '大纲/第1章_a_导演.md') return '导演板一句话'
+      if (rel === '素材库/索引.md') return '索引路标'
+      return null
+    })
+    listChaptersMock.mockReturnValue(noPrev)
+    const { blocks } = await buildWritingContext('p', '正文/第1章_a.md')
+    const all = blocks.join('\n')
+    expect(all).toContain('章卡一句话')
+    expect(all).toContain('导演板一句话')
+    expect(all).toContain('索引路标')
+    expect(all).not.toContain('已超')
+    expect(all).not.toContain('已省略')
+    expect(all).not.toContain('…')
+  })
+
+  it('buildProjectContext：作品总纲/世界观总纲超预算注明省略，文档清单路标仍全量', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === 'project.md') return '【总纲首标记】' + '纲'.repeat(3200) + '【总纲尾标记】'
+      if (rel === '世界观/总纲.md') return '【世首标记】' + '世'.repeat(2300) + '【世尾标记】'
+      return null
+    })
+    listDocsMock.mockImplementation((_id: string, dir: string) => {
+      const table: Record<string, { name: string; file: string }[]> = {
+        正文: [{ name: '第1章_a', file: '正文/第1章_a.md' }],
+        人物: [{ name: '林晚', file: '人物/林晚.md' }],
+        世界观: [{ name: '总纲', file: '世界观/总纲.md' }],
+        素材库: []
+      }
+      return (table[dir] ?? []) as never
+    })
+    const { blocks } = await buildProjectContext('p')
+    const all = blocks.join('\n')
+    expect(all).toContain('已超 3000 字符预算')
+    expect(all).toContain('已超 2000 字符预算')
+    expect(all).toContain('【总纲首标记】')
+    expect(all).not.toContain('【总纲尾标记】')
+    expect(all).toContain('【世首标记】')
+    expect(all).not.toContain('【世尾标记】')
+    // 文档清单仍是全量路标（不因总纲截断受影响）
+    const doclist = blocks.find((b) => b.includes('文档清单'))
+    expect(doclist).toContain('正文/：1 篇')
+    expect(doclist).toContain('人物/：1 篇')
   })
 })
