@@ -27,6 +27,7 @@ vi.mock('electron', () => ({
 import { shell } from 'electron'
 import * as store from '../../src/main/store'
 import { setSettings, libraryRoot } from '../../src/main/settings'
+import { listSnapshots, readSnapshot } from '../../src/main/history'
 import { sanitizeFile } from '../../src/shared/paths'
 
 afterAll(() => {
@@ -280,5 +281,50 @@ describe('importProject（导入已有目录：复制入库、跳过杂物、幂
     expect(r.ok).toBe(true)
     expect(r.copied).toBe(false)
     expect(r.summary?.id).toBe(p.id)
+  })
+})
+
+describe('writeDoc 版本快照挂接（2026-09-12：正文 ∪ 大纲/审读_）', () => {
+  beforeEach(() => {
+    setSettings({ workspace: join(holder.tmp, 'ws'), libraryRoot: holder.projects() })
+  })
+  afterEach(() => {
+    setSettings({ workspace: '', libraryRoot: '' })
+  })
+
+  it('审读报告：两次不同内容重跑 → 旧版入史；同内容重跑不增版', () => {
+    const p = store.createProject('审计史', '')!
+    const rel = '大纲/审读_一致性巡查.md'
+    store.writeDoc(p.id, rel, '# 审读报告 · 一致性巡查\n\n## 一句话结论\n\n结论 v1')
+    expect(listSnapshots(join(holder.projects(), p.id), rel)).toHaveLength(0) // 首写无旧内容，不产生快照
+    store.writeDoc(p.id, rel, '# 审读报告 · 一致性巡查\n\n## 一句话结论\n\n结论 v2')
+    const snaps = listSnapshots(join(holder.projects(), p.id), rel)
+    expect(snaps).toHaveLength(1)
+    expect(readSnapshot(join(holder.projects(), p.id), rel, snaps[0].name)).toContain('结论 v1')
+    // 同内容重跑：不增版
+    store.writeDoc(p.id, rel, '# 审读报告 · 一致性巡查\n\n## 一句话结论\n\n结论 v2')
+    expect(listSnapshots(join(holder.projects(), p.id), rel)).toHaveLength(1)
+  })
+
+  it('正文回归：第二次写仍触发快照（行为不变）', () => {
+    const p = store.createProject('正文史回归', '')!
+    const rel = '正文/第01章_雾港.md'
+    store.writeDoc(p.id, rel, '---\n章号: 1\n题名: 雾港\n---\n\nv1')
+    store.writeDoc(p.id, rel, '---\n章号: 1\n题名: 雾港\n---\n\nv2')
+    const snaps = listSnapshots(join(holder.projects(), p.id), rel)
+    expect(snaps).toHaveLength(1)
+  })
+
+  it('章卡/导演板/自然页：不产生快照', () => {
+    const p = store.createProject('副产物不入史', '')!
+    store.writeDoc(p.id, '大纲/第01章_雾港.md', '# 章卡\n\n目标…')
+    store.writeDoc(p.id, '大纲/第01章_雾港.md', '# 章卡2\n\n目标…')
+    store.writeDoc(p.id, '大纲/第01章_雾港_导演.md', '# 导演板\n\n…')
+    store.writeDoc(p.id, '大纲/第01章_雾港_导演.md', '# 导演板2\n\n…')
+    store.writeDoc(p.id, '人物/林晚.md', '# 林晚\n\n档案 v1')
+    store.writeDoc(p.id, '人物/林晚.md', '# 林晚\n\n档案 v2')
+    expect(listSnapshots(join(holder.projects(), p.id), '大纲/第01章_雾港.md')).toHaveLength(0)
+    expect(listSnapshots(join(holder.projects(), p.id), '大纲/第01章_雾港_导演.md')).toHaveLength(0)
+    expect(listSnapshots(join(holder.projects(), p.id), '人物/林晚.md')).toHaveLength(0)
   })
 })

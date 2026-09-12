@@ -174,7 +174,7 @@ export function auditToMarkdown(
   const lines: string[] = []
   lines.push(`# 审读报告 · ${AUDIT_NAMES[kind]}`)
   lines.push('')
-  lines.push(`> 织卷写作引擎 · ${now} · 每次重跑覆盖本文件，历史版本在 git 可回溯`)
+  lines.push(`> 织卷写作引擎 · ${now} · 每次重跑覆盖本文件，上一版历史自动留存于项目内 .zhijuan/history/（大纲/审读_<类名>/）`)
   lines.push('')
   lines.push('## 一句话结论')
   lines.push('')

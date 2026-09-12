@@ -19,7 +19,7 @@ import { extractFrontMatter, serializeFrontMatter, setFrontMatterField } from '.
 import { countWords } from '../shared/count'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, DOT_DIR } from '../shared/paths'
 import { sanitizeFile } from '../shared/paths'
-import { isNovelRel, snapDirFor, writeSnapshot } from './history'
+import { isVersionedRel, snapDirFor, writeSnapshot } from './history'
 import { migrateChapter, invalidateChapter } from './proposals'
 import { libraryRoot } from './settings'
 import { applyTemplate } from './templates'
@@ -207,8 +207,8 @@ export function readDoc(id: string, rel: string): string | null {
 export function writeDoc(id: string, rel: string, content: string) {
   const f = abs(id, rel)
   ensureDir(dirname(f))
-  // 正文版本历史：写盘前把旧内容存档（仅正文、且内容有变化时；见 docs/正文版本历史-产品规划-2026-09-10.md）
-  if (isNovelRel(rel) && existsSync(f)) {
+  // 版本历史快照：写盘前把旧内容存档（仅版本化 rel：正文/ 与 大纲/审读_*，且内容有变化时；见 docs/正文版本历史-产品规划-2026-09-10.md、docs/审读存档版本化-产品规划-2026-09-12.md）
+  if (isVersionedRel(rel) && existsSync(f)) {
     const prev = readFileSync(f, 'utf-8')
     if (prev !== content) writeSnapshot(projectDir(id), rel, prev)
   }
