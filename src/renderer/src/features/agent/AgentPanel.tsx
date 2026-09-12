@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -32,8 +32,25 @@ let ridSeq = 0
 const newRid = () => 'r' + Date.now().toString(36) + (ridSeq++).toString(36)
 
 /* ---------- 工具活动卡（meta） ---------- */
-function ToolActivity({ tool, args, done, toolOk, summary }: { tool: string; args?: string; done?: boolean; toolOk?: boolean; summary?: string }) {
+function fmtDur(ms: number): string {
+  const s = ms / 1000
+  if (s < 60) return s.toFixed(1) + 's'
+  const m = Math.floor(s / 60)
+  return m + 'm' + Math.round(s - m * 60) + 's'
+}
+
+function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs }: {
+  tool: string; args?: string; done?: boolean; toolOk?: boolean; summary?: string; startedAt?: number; elapsedMs?: number
+}) {
   const failed = done === true && toolOk === false
+  // 进行中态：每秒刷新「已 Ns」；完成后不再刷新（meta-done 事件里已带最终耗时）
+  const [, tick] = useReducer((x: number) => x + 1, 0)
+  useEffect(() => {
+    if (done || startedAt == null) return
+    const h = window.setInterval(tick, 1000)
+    return () => window.clearInterval(h)
+  }, [done, startedAt])
+  const live = !done && startedAt != null ? Math.max(0, performance.now() - startedAt) : undefined
   return (
     <div
       className={cn(
@@ -53,6 +70,15 @@ function ToolActivity({ tool, args, done, toolOk, summary }: { tool: string; arg
       {failed && <span className="shrink-0 rounded-full bg-danger-soft px-2 py-0.5 text-[10px] text-danger">失败</span>}
       {done && summary && (
         <span className={cn('shrink-0 whitespace-nowrap', failed ? 'text-danger' : 'text-ink-3')}>{summary}</span>
+      )}
+      {live != null && (
+        <span className="shrink-0 whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-[10px] text-accent">已 {fmtDur(live)}</span>
+      )}
+      {!done && live == null && elapsedMs != null && (
+        <span className="shrink-0 whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-[10px] text-accent">已 {fmtDur(elapsedMs)}</span>
+      )}
+      {done && elapsedMs != null && (
+        <span className="shrink-0 whitespace-nowrap rounded-full bg-surface px-2 py-0.5 text-[10px] text-ink-3">{fmtDur(elapsedMs)}</span>
       )}
     </div>
   )
@@ -213,11 +239,15 @@ function useSender(props: AgentPanelProps) {
             } else if (e.type === 'meta') {
               const id = rid + '-m' + metaSeq++
               metaStack.push(id)
-              useAgentStore.getState().upsertTool({ id, kind: 'meta', tool: e.tool ?? '', toolArgs: e.args, done: false })
+              useAgentStore.getState().upsertTool({ id, kind: 'meta', tool: e.tool ?? '', toolArgs: e.args, done: false, startedAt: performance.now() })
             } else if (e.type === 'meta-done') {
               const id = activeMeta()
               if (id) metaStack.pop()
-              if (id) useAgentStore.getState().upsertTool({ id, kind: 'meta', tool: e.tool ?? '', done: true, toolOk: e.ok !== false, content: e.message ?? '' })
+              if (id) {
+                const prev = useAgentStore.getState().messages.find((x) => x.id === id)
+                const elapsedMs = prev?.startedAt != null ? Math.max(0, performance.now() - prev.startedAt) : undefined
+                useAgentStore.getState().upsertTool({ id, kind: 'meta', tool: e.tool ?? '', done: true, toolOk: e.ok !== false, content: e.message ?? '', elapsedMs })
+              }
             } else if (e.type === 'edit') {
               if (e.file && e.edits?.length) {
                 const eid = rid + '-e' + Date.now().toString(36)
@@ -495,24 +525,25 @@ export default function AgentPanel(props: AgentPanelProps) {
       }
       const aid = 'fx-' + Date.now().toString(36)
       const token = ++fxTokenRef.current
+      const t0 = performance.now()
       fxAidRef.current = aid
-      st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', toolArgs: props.chapterRel, done: false })
+      st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', toolArgs: props.chapterRel, done: false, startedAt: t0 })
       setFxBusy(true)
       try {
         // /导演 参数 = 作者要求（此前被静默丢弃，2026-09-12 接线）；token 供「停止」取消
         const r = await window.zhijuan.agentDirector(props.projectId, props.chapterRel, args || undefined, aid)
         if (fxTokenRef.current !== token) return // 已取消：在途结果作废
         if (r.ok) {
-          st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: true, content: `已写入 ${r.written}` })
+          st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: true, content: `已写入 ${r.written}`, elapsedMs: Math.max(0, performance.now() - t0) })
           st.append({ role: 'assistant', content: fmtDirectorNote(r.written, r.sheet) })
         } else {
-          st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: false, content: r.error ?? '导演板生成失败' })
+          st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: false, content: r.error ?? '导演板生成失败', elapsedMs: Math.max(0, performance.now() - t0) })
           st.append({ role: 'assistant', content: '导演板生成失败：' + (r.error ?? '未知原因'), error: true })
         }
       } catch (e) {
         if (fxTokenRef.current !== token) return
         const msg = String((e as Error)?.message ?? e)
-        st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: false, content: msg })
+        st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: false, content: msg, elapsedMs: Math.max(0, performance.now() - t0) })
         st.append({ role: 'assistant', content: '导演板生成失败：' + msg, error: true })
       } finally {
         fxAidRef.current = null
@@ -743,7 +774,7 @@ export default function AgentPanel(props: AgentPanelProps) {
               if (m.kind === 'meta')
                 return (
                   <div key={m.id} className="w-full">
-                    <ToolActivity tool={m.tool ?? ''} args={m.toolArgs} done={m.done} toolOk={m.toolOk} summary={m.content} />
+                    <ToolActivity tool={m.tool ?? ''} args={m.toolArgs} done={m.done} toolOk={m.toolOk} summary={m.content} startedAt={m.startedAt} elapsedMs={m.elapsedMs} />
                   </div>
                 )
               return <div key={m.id} className="h-px" />

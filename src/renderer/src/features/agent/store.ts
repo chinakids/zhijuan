@@ -21,6 +21,9 @@ export interface AgentMsg {
   done?: boolean
   /** meta 卡：工具结果是否成功（done 后才有意义；false=失败态） */
   toolOk?: boolean
+  /** meta 卡：工具开始时刻（performance.now）与耗时（meta-done 时计算，ms） */
+  startedAt?: number
+  elapsedMs?: number
   /** edit 卡：目标文件与修改条目 */
   file?: string
   edits?: EditItem[]

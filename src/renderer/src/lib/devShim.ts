@@ -18,6 +18,13 @@ import { toast } from '../store/toasts'
 
 const now = Date.now()
 
+// 无头冒烟：?zj-agent-delay=<ms> 拉长 agent 演示事件间隔（默认 60ms；冒烟用大值验证工具卡「进行中已 Ns」与完成耗时）
+const DEMO_DELAY = (() => {
+  const v = Number(new URLSearchParams(location.search).get('zj-agent-delay') ?? '')
+  return Number.isFinite(v) && v > 0 ? v : 60
+})()
+const demoDelay = (ms?: number) => new Promise<void>((r) => setTimeout(r, ms ?? DEMO_DELAY))
+
 // ---- 文件系统事件模拟（2026-09-10）：与主进程 watchProject→fs:event 链路同语义 ----
 // 真机：store.writeDoc 写盘 → chokidar watcher 广播 {projectId, kind:'change', path:相对项目根}，
 //       .zhijuan 等点路径被 DOT_DIR 过滤不广播。devShim 无真实磁盘与 watcher，改为写入口显式模拟：
@@ -782,26 +789,26 @@ const mock = {
   agentSend: async (input: { requestId: string; prompt: string }) => {
     const rid = input.requestId
     const emit = (e: AgentEvent) => mock.agentListeners.forEach((h) => h(e))
-    await new Promise((r) => setTimeout(r, 60))
+    await demoDelay()
     // 思考过程演示
     emit({ requestId: rid, type: 'think', text: '先看一下当前章节里需要改的位置，再决定怎么改…' })
     await new Promise((r) => setTimeout(r, 40))
     // 工具调用：带参数（读了哪个文档）
     emit({ requestId: rid, type: 'meta', tool: 'zj_read_doc', args: '正文/第01章_雾港.md' })
-    await new Promise((r) => setTimeout(r, 60))
+    await demoDelay()
     emit({ requestId: rid, type: 'meta-done', tool: 'zj_read_doc', message: '章节已读完' })
     // 工具失败演示：prompt 提到「失败/读不到/不存在」时演示一次失败工具卡（红色徽标）
     if (/失败|读不到|不存在/.test(input.prompt)) {
-      await new Promise((r) => setTimeout(r, 60))
+      await demoDelay()
       emit({ requestId: rid, type: 'meta', tool: 'zj_search', args: '幽灵船' })
-      await new Promise((r) => setTimeout(r, 60))
+      await demoDelay()
       emit({ requestId: rid, type: 'meta-done', tool: 'zj_search', message: '未找到匹配（ENOENT）', ok: false })
     }
     // 正文修改演示：prompt 提到「改」时给出 IDE 式修改方案
     if (/改|修|润|错别/.test(input.prompt)) {
-      await new Promise((r) => setTimeout(r, 60))
+      await demoDelay()
       emit({ requestId: rid, type: 'meta', tool: 'zj_edit_doc', args: '正文/第01章_雾港.md' })
-      await new Promise((r) => setTimeout(r, 60))
+      await demoDelay()
       emit({
         requestId: rid,
         type: 'edit',
@@ -817,15 +824,15 @@ const mock = {
           }
         ]
       })
-      await new Promise((r) => setTimeout(r, 60))
+      await demoDelay()
       emit({ requestId: rid, type: 'meta-done', tool: 'zj_edit_doc', message: '已生成正文修改方案（1 处），采纳后写入' })
     }
     // 只有明确提到计划/提问词时才演示卡片（避免平时也冒一堆卡）
     const needDemo = /计划|todo|任务|问|确认/.test(input.prompt)
     if (needDemo) {
-      await new Promise((r) => setTimeout(r, 60))
+      await demoDelay()
       emit({ requestId: rid, type: 'meta', tool: 'todo_write' })
-      await new Promise((r) => setTimeout(r, 60))
+      await demoDelay()
       emit({
         requestId: rid,
         type: 'todo',
@@ -835,9 +842,9 @@ const mock = {
           { content: '等待确认后应用到正文', status: 'pending' }
         ]
       })
-      await new Promise((r) => setTimeout(r, 60))
+      await demoDelay()
       emit({ requestId: rid, type: 'meta', tool: 'ask_user_question' })
-      await new Promise((r) => setTimeout(r, 60))
+      await demoDelay()
       emit({
         requestId: rid,
         type: 'ask',
@@ -855,7 +862,7 @@ const mock = {
           }
         ]
       })
-      await new Promise((r) => setTimeout(r, 60))
+      await demoDelay()
     }
     const demo =
       '（dev 模式模拟回复）\n\n刚把当前章节和人物相关设定读了一遍。结合现在的进度，建议先从灯入手：让主角在雨夜里再靠近一次那盏旧灯，把「灯语约定」的伏笔再点一下，然后留一个悬念给下一幕。\n\n要不要我直接按这个思路把这一段写出来？'
