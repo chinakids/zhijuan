@@ -141,6 +141,29 @@ try {
   if (!body2.includes('# 雾港')) throw new Error('正文标题未用 fm 题名')
   console.log('OK devShim 采纳口径与真机一致（剥段标记/警示、fm 题名）')
 
+  // ── ⑦ 断链可见性：缺段硬采后正文留占位注释（数据层），编辑器可见（渲染层） ──
+  if (!body2.includes('<!-- 分幕草稿缺第 2 段：此处情节未写成，待补齐 -->'))
+    throw new Error('缺段硬采后正文未留占位注释（断链仍无声）')
+  console.log('OK 正文含缺段占位注释：<!-- 分幕草稿缺第 2 段… -->')
+  // 编辑器可见性：切到正文页，先点选第1章，ProseMirror 内应能看到占位注释原文（html 节点 textContent）
+  await page.eval(`location.hash = '#/project/demo-aseya/novel'`)
+  await evalUntil(page, `document.body.innerText.includes('第1章 · 雾港')`, (v) => v === true, 15000, '正文页章节列表就绪')
+  console.log('点击:', await page.eval(`(() => {
+    const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').includes('第1章') && (x.textContent || '').includes('雾港'))
+    if (!b) return 'NOT_FOUND'
+    b.click()
+    return 'CLICKED:第1章 雾港'
+  })()`))
+  await evalUntil(page, `document.querySelector('.ProseMirror') !== null`, (v) => v === true, 15000, '正文页编辑器就绪')
+  await evalUntil(
+    page,
+    `(document.querySelector('.ProseMirror')?.innerText ?? '').includes('分幕草稿缺第 2 段')`,
+    (v) => v === true,
+    10000,
+    '编辑器可见占位注释'
+  )
+  console.log('OK 编辑器内可见缺段占位注释（span[data-type=html] 原文显示）')
+
   console.log('\nPASS: 采纳分幕→自动切片同步 链路 OK')
 } finally {
   await fetch(CDP + '/json/close/' + tab.id)

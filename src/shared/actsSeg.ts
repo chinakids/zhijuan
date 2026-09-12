@@ -9,7 +9,17 @@
 export const ACT_SEG_TITLE = /^##\s*第\s*\d+\s*段\s*$/
 
 /** 段标题行带段号捕获（split 用） */
-const ACT_SEG_TITLE_CAP = /^##\s*第\s*(\d+)\s*段\s*$/
+export const ACT_SEG_TITLE_CAP = /^##\s*第\s*(\d+)\s*段\s*$/
+
+/**
+ * 缺段占位注释：分幕草稿有缺段而「采纳为正文」（整章替换）后，
+ * 草稿头的缺段警示会被剥掉——缺段处必须留下可检索的痕迹（断链可见性，2026-09-12）。
+ * 语义沿用 comments.ts：`<!-- … -->`＝元信息/占位提示，编辑器可见（Milkdown html 节点显示原文）、
+ * 模型上下文装配剥离、字数不计；模型需知缺段可 zj_read_doc 现读。
+ */
+export function actPlaceholder(n: number): string {
+  return `<!-- 分幕草稿缺第 ${n} 段：此处情节未写成，待补齐 -->`
+}
 
 /** 缺段警示行开头（草稿头部 `> ⚠️ 第 X 段未按导演板写成…`），采纳/解析共用 */
 const ACT_WARN_LINE = /^>\s*⚠️/

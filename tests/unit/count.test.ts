@@ -33,4 +33,9 @@ describe('countWords（真实正文字数）', () => {
     expect(countWords('只有正文')).toBe(4)
     expect(countWords('---\n键: 值\n---')).toBe(0)
   })
+
+  it('HTML 注释（元信息/占位提示）不计入字数，且跨行注释也剥', () => {
+    expect(countWords('<!-- 分幕草稿缺第 2 段：此处情节未写成，待补齐 -->\n\n正文内容')).toBe(4)
+    expect(countWords('开头\n<!-- 跨行\n注释 -->\n结尾')).toBe(4)
+  })
 })
