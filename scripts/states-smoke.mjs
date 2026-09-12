@@ -7,7 +7,7 @@
 // ③ 正文页 ?zj-fail=listChapters → 「读取章节失败」+ 重试 → 章节列表出现
 // ④ 正文页 ?zj-fail=readDoc → 点开第01章 → 「读取文档失败」+ 重试 → 编辑器加载正文
 // ⑤ 人物页 ?zj-fail=listDocs → 「读取失败」+ 重试 → 档案列表出现
-// ⑥ 首页 ?zj-fail=createProject → 新建项目 → toast「创建项目失败」
+// ⑥ 首页 ?zj-fail=createProject → 新建项目 → toast「新建项目失败」
 // ⑦–⑪（体验层 2026-09-11 11:15 轮）素材库/大纲/时间线/设置读取失败卡+重试；空白项目空态「新建第一章」直达按钮
 const CDP = 'http://127.0.0.1:9224'
 const BASE = 'http://localhost:8123'
@@ -146,7 +146,7 @@ await step('⑤ 人物页 listDocs 错误卡', async () => {
   page.close()
 })
 
-// ⑥ 首页创建项目失败 → toast
+// ⑥ 首页新建项目失败 → toast
 await step('⑥ 首页 createProject 失败 toast', async () => {
   const tab = await openTab(BASE + '/?cb=' + Date.now() + '&zj-fail=createProject#/')
   const page = await attach(tab.webSocketDebuggerUrl)
@@ -156,7 +156,7 @@ await step('⑥ 首页 createProject 失败 toast', async () => {
   await setInput(page, 'input[placeholder*="山那边"]', '测试失败项目')
   await sleep(200)
   await clickText(page, '创建并进入')
-  await evalUntil(page, bodyHas('创建项目失败'), Boolean, 20000, 'toast error')
+  await evalUntil(page, bodyHas('新建项目失败'), Boolean, 20000, 'toast error')
   page.close()
 })
 

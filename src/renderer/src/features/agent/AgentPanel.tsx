@@ -506,14 +506,14 @@ export default function AgentPanel(props: AgentPanelProps) {
           st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: true, content: `已写入 ${r.written}` })
           st.append({ role: 'assistant', content: fmtDirectorNote(r.written, r.sheet) })
         } else {
-          st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: false, content: r.error ?? '导演创建失败' })
-          st.append({ role: 'assistant', content: '导演创建失败：' + (r.error ?? '未知原因'), error: true })
+          st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: false, content: r.error ?? '导演板生成失败' })
+          st.append({ role: 'assistant', content: '导演板生成失败：' + (r.error ?? '未知原因'), error: true })
         }
       } catch (e) {
         if (fxTokenRef.current !== token) return
         const msg = String((e as Error)?.message ?? e)
         st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: false, content: msg })
-        st.append({ role: 'assistant', content: '导演创建失败：' + msg, error: true })
+        st.append({ role: 'assistant', content: '导演板生成失败：' + msg, error: true })
       } finally {
         fxAidRef.current = null
         if (fxTokenRef.current === token) setFxBusy(false)

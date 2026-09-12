@@ -96,7 +96,7 @@ export default function Novel() {
   const openCreate = useCallback(() => {
     const pf = prevChapter?.fm
     setSlice(typeof pf?.['切片'] === 'string' ? pf['切片'] : '')
-    setCast(Array.isArray(pf?.['涉及人物']) ? pf['涉及人物'].join(', ') : '')
+    setCast(Array.isArray(pf?.['涉及人物']) ? pf['涉及人物'].join('，') : '')
     setCreating(true)
   }, [prevChapter])
 
@@ -321,7 +321,7 @@ export default function Novel() {
           {!loading && !loadErr && chapters.length === 0 && (
             <EmptyState
               compact
-              hint="还没有章节，点右上角「+」开始第一章。"
+              hint="还没有章节，点右上角「新建第一章」开始。"
               action={
                 <Button
                   variant="outline"
@@ -502,7 +502,7 @@ export default function Novel() {
             </div>
             <div className="space-y-1.5">
               <Label>涉及人物（逗号分隔）</Label>
-              <Input placeholder="如：林晚, 顾知远" value={cast} onChange={(e) => setCast(e.target.value)} />
+              <Input placeholder="如：林晚，顾知远" value={cast} onChange={(e) => setCast(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label>本章目标</Label>

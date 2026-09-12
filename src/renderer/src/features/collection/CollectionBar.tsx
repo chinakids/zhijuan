@@ -230,7 +230,7 @@ export default function CollectionBar() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>关键词（逗号分隔）</Label>
-                <Input placeholder="如：旧图书馆, 借书卡" value={keywords} onChange={(e) => setKeywords(e.target.value)} />
+                <Input placeholder="如：旧图书馆，借书卡" value={keywords} onChange={(e) => setKeywords(e.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <Label>目标类别</Label>

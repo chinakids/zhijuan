@@ -171,7 +171,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
     const r = await window.zhijuan.createLibraryCategory(id, newCatName.trim())
     setCreating(false)
     if (!r.ok) {
-      setNewCatErr(r.error ?? '创建失败')
+      setNewCatErr(r.error ?? '新建类别失败')
       return
     }
     setNewCatOpen(false)

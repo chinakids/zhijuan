@@ -133,7 +133,7 @@ try {
   await page.cmd('Input.insertText', { text: 'zzzz' })
   await sleep(600)
   const emptyText = await page.eval(`document.querySelector('[cmdk-empty]')?.innerText ?? ''`)
-  ok('无匹配显示空态', emptyText.includes('没有匹配项'), emptyText)
+  ok('无匹配显示空态', emptyText.includes('没有匹配的结果'), emptyText)
 
   // ⑥ 无页面异常
   await sleep(800)

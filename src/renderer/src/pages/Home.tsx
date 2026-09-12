@@ -89,7 +89,7 @@ export default function Home() {
       setDesc('')
       if (p) navigate(`/project/${p.id}?guide=1`)
     } catch (e) {
-      toast.add({ kind: 'error', title: '创建项目失败', description: String((e as Error).message ?? e) })
+      toast.add({ kind: 'error', title: '新建项目失败', description: String((e as Error).message ?? e) })
     }
   }
 

@@ -121,7 +121,7 @@ export default function CommandPalette() {
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandInput placeholder="输入页面、章节、项目或素材关键词…" autoFocus onValueChange={setQ} />
       <CommandList>
-        <CommandEmpty>没有匹配项（试试「正文」、章节题名或素材里的关键词）</CommandEmpty>
+        <CommandEmpty>没有匹配的结果（试试「正文」、章节题名或素材里的关键词）</CommandEmpty>
 
         {projectId ? (
           <CommandGroup heading="页面">

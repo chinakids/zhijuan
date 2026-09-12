@@ -118,14 +118,14 @@ const inputVal = (ph) => `(document.querySelector('input[placeholder=${JSON.stri
     await evalUntil(page, `document.querySelector('input[placeholder="如：夏夜的信"]') !== null`, (v) => v === true, 10000, '建章对话框')
     ok('P1 无上一章：建章对话框打开且切片/人物空开',
       (await page.eval(inputVal('如：第二幕_台风夜（留空则用章号）'))) === '' &&
-      (await page.eval(inputVal('如：林晚, 顾知远'))) === '',
+      (await page.eval(inputVal('如：林晚，顾知远'))) === '',
       'slice=' + JSON.stringify(await page.eval(inputVal('如：第二幕_台风夜（留空则用章号）'))))
     ok('P2 无上一章：不显示「已沿用上一章」提示', !(await page.eval(pageHas('已沿用上一章'))))
 
     // 建第 1 章：亮明切片与人物（后续第 2 章应预填它们）
     await page.eval(fill('input[placeholder="如：夏夜的信"]', '第一章 启程'))
     await page.eval(fill('input[placeholder="如：第二幕_台风夜（留空则用章号）"]', '第一幕_雾港夜'))
-    await page.eval(fill('input[placeholder="如：林晚, 顾知远"]', '林晚, 顾知远'))
+    await page.eval(fill('input[placeholder="如：林晚，顾知远"]', '林晚，顾知远'))
     await sleep(150)
     await page.eval(clickBtn('创建'))
     await evalUntil(page, pageHas('第1章 · 第一章 启程'), (v) => v === true, 15000, '第1章列表出现')
@@ -136,13 +136,13 @@ const inputVal = (ph) => `(document.querySelector('input[placeholder=${JSON.stri
     await evalUntil(page, `document.querySelector('input[placeholder="如：夏夜的信"]') !== null`, (v) => v === true, 10000, '第2章建章对话框')
     ok('P4 有上一章：切片预填=上一章「第一幕_雾港夜」',
       (await page.eval(inputVal('如：第二幕_台风夜（留空则用章号）'))) === '第一幕_雾港夜')
-    ok('P5 有上一章：涉及人物预填=上一章「林晚, 顾知远」',
-      (await page.eval(inputVal('如：林晚, 顾知远'))) === '林晚, 顾知远')
+    ok('P5 有上一章：涉及人物预填=上一章「林晚，顾知远」',
+      (await page.eval(inputVal('如：林晚，顾知远'))) === '林晚，顾知远')
     ok('P6 有上一章：显示「已沿用上一章」提示', await page.eval(pageHas('已沿用上一章')))
 
     // 修改人物（预填可改）→ 创建第 2 章
     await page.eval(fill('input[placeholder="如：夏夜的信"]', '第二章 夜航'))
-    await page.eval(fill('input[placeholder="如：林晚, 顾知远"]', '林晚, 陈默'))
+    await page.eval(fill('input[placeholder="如：林晚，顾知远"]', '林晚，陈默'))
     await sleep(150)
     await page.eval(clickBtn('创建'))
     await evalUntil(page, pageHas('第2章 · 第二章 夜航'), (v) => v === true, 15000, '第2章列表出现')
@@ -151,8 +151,8 @@ const inputVal = (ph) => `(document.querySelector('input[placeholder=${JSON.stri
     // —— 第三次点「＋」：预填应跟随最新上一章（人物=林晚, 陈默）——
     await page.eval(`(() => { const els=[...document.querySelectorAll('button')]; const el=els.find(b=>b.title==='新建章节'); if(!el) return false; el.click(); return true })()`)
     await evalUntil(page, `document.querySelector('input[placeholder="如：夏夜的信"]') !== null`, (v) => v === true, 10000, '第3章建章对话框')
-    ok('P8 预填跟随最新上一章：人物=「林晚, 陈默」（非首次缓存）',
-      (await page.eval(inputVal('如：林晚, 顾知远'))) === '林晚, 陈默')
+    ok('P8 预填跟随最新上一章：人物=「林晚，陈默」（非首次缓存）',
+      (await page.eval(inputVal('如：林晚，顾知远'))) === '林晚，陈默')
     ok('P9 预填跟随最新上一章：切片仍「第一幕_雾港夜」',
       (await page.eval(inputVal('如：第二幕_台风夜（留空则用章号）'))) === '第一幕_雾港夜')
     await page.eval(clickBtn('取消'))
