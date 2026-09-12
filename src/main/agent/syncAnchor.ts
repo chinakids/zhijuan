@@ -8,34 +8,19 @@ import { join, dirname } from 'path'
 import type { ProposalItem } from '../../shared/types'
 import { worldSliceFile } from '../../shared/paths'
 
-/** 长期小节（只读，禁止作为「切片状态」写入锚点）；命中时归一化到「切片：<切片名>」 */
-const RESERVED_ANCHORS = [
-  '基础档案',
-  '基础设定',
-  '成长轨迹',
-  '成长轨迹（按时间切片）',
-  '切片状态',
-  '定位',
-  '关键特征',
-  '姓名',
-  '身份'
-]
-
-function isReserved(a: string): boolean {
-  const s = (a ?? '').replace(/^#+\s*/, '').trim()
-  if (!s) return true
-  return RESERVED_ANCHORS.some((r) => s === r || s.startsWith(r))
-}
-
 function sliceAnchor(sliceName: string): string {
   return sliceName ? `切片：${sliceName}` : '切片状态'
 }
 
 /**
- * 把切片同步产物归一到模块设计约定：
- * - 人物/* 的目标：anchor 为空或指向长期小节 → 归一为「切片：<切片名>」（新增/替换切片小节，绝不动基础档案）；
- * - 世界观/* 的目标：只要切片名非空就指向 世界观/切片_<切片名>.md（总纲等长期文件只读）；anchor 同样归一。
- * 其余（target 不在两目录内）不动，交给后续校验。
+ * 把切片同步产物归一到模块设计 §7/§8 的唯一合法形态（2026-09-13 白名单制导）：
+ * - 人物/*：anchor 一律「切片：<切片名>」——切片小节唯一合法；基础档案等长期小节只读；
+ * - 世界观/*：target 一律 世界观/切片_<切片名>.md（总纲只读），anchor 同样归一。
+ * 背景：2026-09-09 黑名单（RESERVED_ANCHORS）只兜「基础档案/总纲」等已知错法；实踩模型还会产出
+ * 「无切片前缀」「带 # 号」「后缀废话」（如 切片：第一幕_夏夜（深夜续））、世界锚点写「总纲」等形态
+ * ——黑名单枚举盖不住：任意异形锚点会让 applyAnchor 追加重复小节（人物文件堆积近重复切片小节、
+ * 世界文件混入异号标题），破坏「一个切片一个小节」约定与注入端读取口径。白名单制导后
+ * 只剩一种合法产物：错误写法无法越网（kind=append 不用 anchor，无影响）。
  */
 export function normalizeSyncItems(items: ProposalItem[], sliceName: string): ProposalItem[] {
   const anchor = sliceAnchor(sliceName)
@@ -44,10 +29,10 @@ export function normalizeSyncItems(items: ProposalItem[], sliceName: string): Pr
     let target = it.target
     let a = it.anchor ?? ''
     if (target.startsWith('人物/')) {
-      if (isReserved(a)) a = anchor
+      a = anchor
     } else if (target.startsWith('世界观/')) {
-      if (sliceName && target !== wf) target = wf
-      if (isReserved(a)) a = anchor
+      if (sliceName) target = wf
+      a = anchor
     }
     return { ...it, target, anchor: a }
   })

@@ -39,6 +39,21 @@ describe('normalizeSyncItems（切片同步产物归一化）', () => {
     expect(r.anchor).toBe('切片：第二幕_台风夜')
   })
 
+  it('白名单制导（2026-09-13）：人物任意异形锚点（无前缀/带#号/后缀废话/超长自定义）一律归一到「切片：<切片名>」', () => {
+    for (const bad of ['第一幕_夏夜', '## 切片：第一幕_夏夜', '切片：第一幕_夏夜（深夜续）', '切片：第一幕_夏夜——台风来袭的详细记录']) {
+      const [r] = normalizeSyncItems([item({ anchor: bad })], '第一幕_夏夜')
+      expect(r.anchor).toBe('切片：第一幕_夏夜')
+    }
+  })
+
+  it('白名单制导：世界锚点写「总纲」等异形 → 同样归一为「切片：<切片名>」（不再混入异号标题）', () => {
+    for (const bad of ['总纲', '## 第一幕_夏夜', '']) {
+      const [r] = normalizeSyncItems([item({ target: '世界观/总纲.md', anchor: bad })], '第一幕_夏夜')
+      expect(r.target).toBe('世界观/切片_第一幕_夏夜.md')
+      expect(r.anchor).toBe('切片：第一幕_夏夜')
+    }
+  })
+
   it('世界观 target/总纲.md → 归一为 切片_<切片名>.md，anchor 同步归一', () => {
     const [r] = normalizeSyncItems([item({ target: '世界观/总纲.md', anchor: '' })], '第一幕_夏夜')
     expect(r.target).toBe('世界观/切片_第一幕_夏夜.md')
