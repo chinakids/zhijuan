@@ -107,6 +107,6 @@ registerCapability(triageDef as never)
 
 export async function runMaterialTriage(
   projectId: string
-): Promise<{ ok: true; result: TriageResult } | { ok: false; error: string }> {
+): Promise<{ ok: true; result: TriageResult; lastRaw?: string } | { ok: false; error: string }> {
   return runSubtask(triageDef, projectId)
 }

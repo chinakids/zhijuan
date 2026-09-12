@@ -12,7 +12,7 @@ import type { ChapterEntry, DirectorSheet } from '../../shared/types'
 export type { DirectorSheet }
 
 export type DirectorResult =
-  | { ok: true; written: string; sheet: DirectorSheet }
+  | { ok: true; written: string; sheet: DirectorSheet; /** 诊断：导演板仍为空时附模型原始回复 */ lastRaw?: string }
   | { ok: false; error: string }
 
 const TASKS = ['推进', '白热化', '拉锯', '低谷'] as const
@@ -190,7 +190,7 @@ export async function runDirector(projectId: string, chapterRel: string, require
     const sheet = out.result as DirectorSheet
     const written = directorRel(ch)
     writeDoc(projectId, written, directorToDoc(sheet, ch))
-    return { ok: true, written, sheet }
+    return { ok: true, written, sheet, ...(out.lastRaw ? { lastRaw: out.lastRaw } : {}) }
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e).slice(0, 300) }
   } finally {

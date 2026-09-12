@@ -60,7 +60,12 @@ export async function runSubtask<T>(
   const blocked = subtaskBlocked(def.id, def.title)
   if (blocked) return { ok: false, error: blocked }
   try {
-    return { ok: true, result: await runOnce(def, { projectId, args, seq: runSeq++ }) }
+    const out = await runOnceInner(def, { projectId, args, seq: runSeq++ })
+    // 诊断增强：最后一次驱动仍被判「空/无效」时，把模型原始回复带回（正常路径不带，省跨 IPC 大文本）
+    const weak = def.retry ? def.retry.check(out.value) : false
+    return weak
+      ? { ok: true, result: out.value, lastRaw: out.lastRaw }
+      : { ok: true, result: out.value }
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e).slice(0, 300) }
   }
@@ -68,6 +73,11 @@ export async function runSubtask<T>(
 
 /** 低层驱动一次（outline 这类循环任务用它**一个接一个跑**；正常情况请走 runSubtask） */
 export async function runOnce<T>(def: SubtaskDef<T>, ctx: SubtaskCtx): Promise<T> {
+  return (await runOnceInner(def, ctx)).value
+}
+
+/** 同 runOnce，但把最后一次模型原始回复一并带回（诊断「空=模型没给 vs 解析失败」用；acts/outline 循环场景按需取） */
+export async function runOnceInner<T>(def: SubtaskDef<T>, ctx: SubtaskCtx): Promise<{ value: T; lastRaw: string }> {
   const parts = await def.buildParts(ctx)
   if (!parts || !parts.length) throw new Error('任务材料为空')
   const sid = `${def.sidPrefix ?? def.id}-${Date.now().toString(36)}-${ctx.seq.toString(36)}-${ctx.projectId}`
@@ -80,7 +90,7 @@ export async function runOnce<T>(def: SubtaskDef<T>, ctx: SubtaskCtx): Promise<T
     result = def.parse(text, ctx)
   }
   if (def.postprocess) result = def.postprocess(result, ctx)
-  return result
+  return { value: result, lastRaw: text }
 }
 
 // ---------- 能力注册表（模块 J / E3）：检查器登记后可枚举，供设置页开关 ----------

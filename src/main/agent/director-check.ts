@@ -100,7 +100,7 @@ registerCapability(directorCheckDef as never)
 export async function runDirectorCheck(
   projectId: string,
   chapterRel: string
-): Promise<{ ok: true; result: DirectorCheckResult } | { ok: false; error: string }> {
+): Promise<{ ok: true; result: DirectorCheckResult; lastRaw?: string } | { ok: false; error: string }> {
   const rel = chapterRel.replace(/^正文\//, '')
   const ch: ChapterEntry | undefined = listChapters(projectId).find((x) => x.file === rel)
   if (!ch) return { ok: false, error: '找不到该章节。' }
@@ -113,7 +113,7 @@ export async function runDirectorCheck(
   try {
     const out = await runSubtask(directorCheckDef as never, projectId, { chapterRel, boardRel: directorRel(ch), cast })
     if (!out.ok) return { ok: false, error: out.error }
-    return { ok: true, result: out.result as DirectorCheckResult }
+    return { ok: true, result: out.result as DirectorCheckResult, ...(out.lastRaw ? { lastRaw: out.lastRaw } : {}) }
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e).slice(0, 300) }
   }

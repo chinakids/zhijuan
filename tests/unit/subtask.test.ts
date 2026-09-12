@@ -132,6 +132,36 @@ describe('runSubtask（子任务骨架）', () => {
     const r = await runSubtask(d, 'p1')
     if (r.ok) expect(r.result.items).toEqual(['a!'])
   })
+
+  it('重试后仍空 → 附原始回包（诊断「模型空 vs 解析失败」）', async () => {
+    const d: SubtaskDef<{ items: string[] }> = {
+      ...goodDef,
+      retry: { check: (r) => !r.items.length, prompt: '请只输出 JSON' },
+      parse: (text) => ({ items: extractJson<{ items: string[] }>(text)?.items ?? [] })
+    }
+    driveMock
+      .mockResolvedValueOnce('我看不懂这章，但还是要说几句……')
+      .mockResolvedValueOnce('第二次还是散文，没有 JSON')
+    const r = await runSubtask(d, 'p1')
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.result.items).toEqual([])
+      expect(r.lastRaw).toContain('第二次还是散文')
+    }
+    expect(driveMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('重试后有效 → 正常路径不带原始回包（省跨 IPC 大文本）', async () => {
+    const d: SubtaskDef<{ items: string[] }> = {
+      ...goodDef,
+      retry: { check: (r) => !r.items.length, prompt: '请只输出 JSON' },
+      parse: (text) => ({ items: extractJson<{ items: string[] }>(text)?.items ?? [] })
+    }
+    driveMock.mockResolvedValueOnce('{"items":["a"]}')
+    const r = await runSubtask(d, 'p1')
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.lastRaw).toBeUndefined()
+  })
 })
 
 describe('能力注册表', () => {

@@ -4,7 +4,7 @@
 // 与 runAudit 同构：独立 session、无提问、离线出结果；写入走主进程 writeDoc（设定改动仍走提案制，章卡属于写作副产物，直写）。
 import { readDoc, listChapters, listDocs, writeDoc } from '../store'
 import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard } from '../../shared/outline'
-import { registerCapability, runOnce, subtaskBlocked, stripFm, type SubtaskDef } from './subtask'
+import { registerCapability, runOnceInner, subtaskBlocked, stripFm, type SubtaskDef } from './subtask'
 import type { ChapterEntry, OutlineCard } from '../../shared/types'
 
 /** 章卡对应的落盘文件：大纲/<章节名>.md */
@@ -58,7 +58,7 @@ function readCardFromDoc(projectId: string, rel: string): OutlineCard | null {
 }
 
 export type OutlineRebuildResult =
-  | { ok: true; cards: OutlineCard[]; written: string[] }
+  | { ok: true; cards: OutlineCard[]; written: string[]; /** 诊断：解析成空卡的章的模型原始回复（文件相对路径→原文） */ emptyRaw?: Record<string, string> }
   | { ok: false; error: string }
 
 /** 单章章卡任务：一轮驱动 + 解析（供循环复用） */
@@ -95,14 +95,20 @@ export async function runOutlineRebuild(
   if (blocked) return { ok: false, error: blocked }
   const cards: OutlineCard[] = []
   const written: string[] = []
+  const emptyRaw: Record<string, string> = {}
   try {
     for (const c of chapters) {
       opts?.onProgress?.(`正在回建「${c.name}」…`)
-      const parsed = await runOnce(cardDef, {
+      const cardOut = await runOnceInner(cardDef, {
         projectId,
         args: { chapterRel: '正文/' + c.file },
         seq: outSeq++
       })
+      const parsed = cardOut.value
+      const rel = outlineRel(c)
+      // 诊断：模型跑偏（非 JSON / 空 JSON）→ 章卡全空，留原始回复供区分「模型空 vs 解析失败」
+      const blank = !parsed.oneLine.trim() && !parsed.beats.length && !parsed.hooks.length
+      if (blank) emptyRaw[rel] = cardOut.lastRaw
       const card: OutlineCard = {
         file: '正文/' + c.file,
         no: c.fm?.['章号'],
@@ -111,7 +117,6 @@ export async function runOutlineRebuild(
         ...parsed,
         wordCount: c.wordCount
       }
-      const rel = outlineRel(c)
       writeDoc(projectId, rel, outlineCardDoc(card, '正文/' + c.file.replace(/^正文\//, '')))
       cards.push(card)
       written.push(rel)
@@ -127,7 +132,7 @@ export async function runOutlineRebuild(
     }
     cards.sort((a, b) => (a.no ?? 1e9) - (b.no ?? 1e9))
     writeDoc(projectId, '大纲/索引.md', outlineIndexDoc(cards))
-    return { ok: true, cards, written }
+    return { ok: true, cards, written, ...(Object.keys(emptyRaw).length ? { emptyRaw } : {}) }
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e).slice(0, 300) }
   }

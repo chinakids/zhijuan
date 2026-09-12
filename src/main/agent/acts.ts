@@ -5,7 +5,7 @@
 // 草稿不进正文：正文仍是作者的地盘，改正文始终走 zj_edit_doc → EditCard 的采纳口径，「采纳为正文」也已接上（doc:adoptActs）。
 // 请求小而准：每段材料只有 本段指令＋全章红线＋前段末文（或板子上下文）＋**首段另带上一章结尾**，不叠 buildWritingContext。
 import { readDoc, listChapters, writeDoc } from '../store'
-import { registerCapability, runOnce, subtaskBlocked, type SubtaskDef } from './subtask'
+import { registerCapability, runOnceInner, subtaskBlocked, type SubtaskDef } from './subtask'
 import { directorRel } from './director'
 import { parseDirectorSheet } from '../../shared/boardParse'
 import { extractFrontMatter, serializeFrontMatter } from '../../shared/fmatter'
@@ -19,7 +19,7 @@ export function actsRel(c: ChapterEntry): string {
 }
 
 export type ActsResult =
-  | { ok: true; written: string; acts: number; words: number; failed?: number[] }
+  | { ok: true; written: string; acts: number; words: number; failed?: number[]; /** 诊断：失败段的模型原始回复（段号→原文） */ failedRaw?: Record<number, string> }
   | { ok: false; error: string }
 
 export interface ActArg {
@@ -129,8 +129,8 @@ export async function runActs(
       }
     }
 
-    /** 单段生成：拼指令→驱动→清洗；达到 MIN_ACT 才算写成，否则返回 null（runOnce 内部已重试一次） */
-    const genSeg = async (index: number, prevTail: string): Promise<string | null> => {
+    /** 单段生成：拼指令→驱动→清洗；达到 MIN_ACT 才算写成，否则返回 null 并附原始回复（诊断失败原因用） */
+    const genSeg = async (index: number, prevTail: string): Promise<{ t: string | null; raw: string }> => {
       const arg: ActArg = {
         index,
         total: arcs.length,
@@ -141,19 +141,20 @@ export async function runActs(
         prevTail
       }
       onPrompt?.(index, actPrompt(arg))
-      const seg = await runOnce<string>(actDef, {
+      const out = await runOnceInner<string>(actDef, {
         projectId,
         args: arg as unknown as Record<string, unknown>,
         seq: actsSeq++
       })
-      let t = (seg ?? '').trim()
+      let t = (out.value ?? '').trim()
       // 模型偶尔还是会带标题行或围栏，清掉再拼
       t = t.replace(/^```(?:markdown)?\s*$/gm, '').replace(/^```\s*$/gm, '').replace(/^#+\s+.*$/gm, '').trim()
-      return t.length >= MIN_ACT ? t : null
+      return { t: t.length >= MIN_ACT ? t : null, raw: out.lastRaw }
     }
 
     let finalSegs: ActSeg[] = []
     const failed: number[] = []
+    const failedRaw: Record<number, string> = {}
 
     if (isRepair) {
       // ── 补写缺段/重写指定段：只动目标段，已写成的段原样保留（每段生成约一轮完整请求，重跑全量太浪费） ──
@@ -190,9 +191,12 @@ export async function runActs(
             }
           }
         }
-        const t = await genSeg(idx, pt)
-        if (t) segMap.set(idx, t)
-        else stillFailed.push(idx)
+        const seg = await genSeg(idx, pt)
+        if (seg.t) segMap.set(idx, seg.t)
+        else {
+          stillFailed.push(idx)
+          failedRaw[idx] = seg.raw
+        }
       }
       finalSegs = [...segMap.entries()]
         .filter(([idx]) => idx >= 1 && idx <= arcs.length)
@@ -203,12 +207,13 @@ export async function runActs(
       // ── 全量分幕：按板子弧数逐段起草 ──
       let prevTail = prevChTail
       for (let i = 0; i < arcs.length; i++) {
-        const t = await genSeg(i + 1, prevTail)
-        if (t) {
-          finalSegs.push({ index: i + 1, text: t })
-          prevTail = t.slice(-TAIL)
+        const seg = await genSeg(i + 1, prevTail)
+        if (seg.t) {
+          finalSegs.push({ index: i + 1, text: seg.t })
+          prevTail = seg.t.slice(-TAIL)
         } else {
           failed.push(i + 1)
+          failedRaw[i + 1] = seg.raw
         }
       }
     }
@@ -224,7 +229,7 @@ export async function runActs(
     // 字数口径只计段文本本身（段标记「第 N 段」不是正文，不计入）
     const words = finalSegs.reduce((a, s) => a + countWords(s.text), 0)
     return failed.length
-      ? { ok: true, written, acts: finalSegs.length, words, failed }
+      ? { ok: true, written, acts: finalSegs.length, words, failed, failedRaw }
       : { ok: true, written, acts: finalSegs.length, words }
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e).slice(0, 300) }

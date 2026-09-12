@@ -35,7 +35,9 @@ writeFileSync(
     "    console.log('[概要] ' + (r.result?.summary ?? '').slice(0, 200))",
     // 有真实核对条目才算过：至少识别出段落或红线，且 summary 有实质内容
     '    const scored = arcs + reds + axes + (r.result?.hooks ?? []).length',
-    "    process.exit(r.result?.summary && scored > 0 ? 0 : 3)",
+    "    const pass = r.result?.summary && scored > 0",
+    "    if (!pass) console.log('[DIAG] 结果为空——最后一次模型原始回复（前 3000 字，判定「模型空输出 vs 解析失败」用）:\\n' + (r.lastRaw ? r.lastRaw.slice(0, 3000) : '<无 lastRaw：透传未生效>'))",
+    '    process.exit(pass ? 0 : 3)',
     '  } else process.exit(1)',
     '} catch (e) {',
     "  console.log('[ERR ' + ((Date.now() - t) / 1000).toFixed(1) + 's] ' + String(e?.message || e).slice(0, 400))",

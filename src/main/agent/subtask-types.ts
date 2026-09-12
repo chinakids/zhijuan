@@ -6,7 +6,9 @@ export interface SubtaskCtx {
   seq: number
 }
 
-export type SubtaskOutcome<T> = { ok: true; result: T } | { ok: false; error: string }
+export type SubtaskOutcome<T> =
+  | { ok: true; result: T; /** 诊断：最后一次驱动仍被判定「空/无效」时，附上模型原始回复（正常路径不带，UI 可忽略） */ lastRaw?: string }
+  | { ok: false; error: string }
 
 export interface SubtaskRetry<T> {
   /** 当 check 命中（结果似乎无效）时，用强化提示再跑一次 */

@@ -246,7 +246,7 @@ registerCapability(auditDef as never)
 export async function runAudit(
   projectId: string,
   kind: AuditKind
-): Promise<{ ok: true; result: AuditResult; savedReport?: string } | { ok: false; error: string }> {
+): Promise<{ ok: true; result: AuditResult; savedReport?: string; lastRaw?: string } | { ok: false; error: string }> {
   // 人物在场核查 / 切片时序核查 / 档案腐坏核查：本地规则层（零模型、秒级），不走写作引擎，也不落盘（高频重跑，噪音大；与本章小环同策略）
   if (kind === 'presence') return runPresence(projectId)
   if (kind === 'order') return runChapterOrder(projectId)
@@ -266,7 +266,9 @@ export async function runAudit(
   } catch {
     /* 盘写失败不阻断 */
   }
-  return savedReport ? { ok: true, result: r.result, savedReport } : { ok: true, result: r.result }
+  return savedReport
+    ? { ok: true, result: r.result, savedReport, ...(r.lastRaw ? { lastRaw: r.lastRaw } : {}) }
+    : { ok: true, result: r.result, ...(r.lastRaw ? { lastRaw: r.lastRaw } : {}) }
 }
 
 // ===== 多视角审视（agent-first P2）：三种立场的读者各通读一遍，交叉找问题 =====
@@ -500,6 +502,6 @@ export async function runChapterCheck(
   projectId: string,
   chapterRel: string,
   kind: ChapterCheckKind
-): Promise<{ ok: true; result: ChapterCheckResult } | { ok: false; error: string }> {
+): Promise<{ ok: true; result: ChapterCheckResult; lastRaw?: string } | { ok: false; error: string }> {
   return runSubtask(chapterCheckDef, projectId, { chapterRel, kind })
 }
