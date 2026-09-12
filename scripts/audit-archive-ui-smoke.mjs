@@ -96,7 +96,7 @@ try {
   await evalUntil(page, `document.body.innerText.includes('审读存档')`, (v) => v === true, 15000, '大纲区出现审读存档区')
   console.log('OK 大纲区出现「审读存档」')
   console.log('点击审读条目:', await page.eval(clickByText('一致性巡查')))
-  await evalUntil(page, `document.body.innerText.includes('演示存档')`, (v) => v === true, 10000, '编辑器渲染出报告内容')
+  await evalUntil(page, `document.body.innerText.includes('设定需要再看一眼')`, (v) => v === true, 10000, '编辑器渲染出报告内容')
   console.log('OK 编辑器渲染出审读报告内容')
 
   console.log('\nPASS: 审读存档（自动落盘 + 大纲区回看）链路 OK')

@@ -9,6 +9,7 @@ import { sanitizeFile } from '../../../shared/paths'
 import { extractFrontMatter, setFrontMatterField } from '../../../shared/fmatter'
 import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceCheck, chapterMissingFromRaw } from '../../../shared/presence'
 import { findAnchorLine, normalizeAnchor } from '../../../shared/anchor'
+import { auditDocMarkdown } from '../../../shared/auditDoc'
 import type { RecentEntry } from '../../../shared/projects'
 import { toast } from '../store/toasts'
 
@@ -950,8 +951,18 @@ const mock = {
     // 人物在场核查 / 切片时序核查 / 档案腐坏核查：主进程同语义——本地规则结果，不落盘（高频重跑噪音大）
     if (kind === 'presence' || kind === 'order' || kind === 'unused') return res
     const rel = '大纲/审读_' + name + '.md'
-    const md = '# 审读报告 · ' + name + '\n\n> 织卷写作引擎 · 演示存档\n\n## 一句话结论\n\n' + res.result.summary + '\n\n## 条目（' + res.result.items.length + '）\n'
-    docs.set(projectId + '/' + rel, md)
+    // 与真机 auditToMarkdown 同源模板（shared/auditDoc.ts）——dev 报告可被 parseAuditMarkdown 解析出条目
+    const md = auditDocMarkdown(res.result, name)
+    // 与真机 writeDoc 同口径：版本化 rel 且内容有变 → 旧版入史（「与上次对比」在 dev 模式两版可跑；2026-09-12 三期对齐）
+    const key = projectId + '/' + rel
+    const prevMd = docs.get(key)
+    if (prevMd !== undefined && prevMd !== md) {
+      const arr = histories.get(key) ?? []
+      arr.unshift({ name: snapNameDev(Date.now() + arr.length) + '.md', content: prevMd, mtimeMs: Date.now() })
+      if (arr.length > HISTORY_LIMIT_DEV) arr.length = HISTORY_LIMIT_DEV
+      histories.set(key, arr)
+    }
+    docs.set(key, md)
     fsEmit(projectId, rel)
     return { ...res, savedReport: rel }
   },

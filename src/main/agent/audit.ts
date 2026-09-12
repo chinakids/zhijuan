@@ -6,6 +6,7 @@ import { presenceCheck, unusedAliasCheck, parseAliases, listedFrom, unlistedInBo
 import { extractFrontMatter } from '../../shared/fmatter'
 import { chapterOrderCheck } from '../../shared/chapterorder'
 import { registerCapability, runSubtask, type SubtaskDef } from './subtask'
+import { auditDocMarkdown } from '../../shared/auditDoc'
 import type {
   ChapterEntry,
   AuditItem,
@@ -150,54 +151,13 @@ export function runChapterOrder(
   }
 }
 
-const TYPE_CN: Record<string, string> = {
-  'setting-conflict': '设定冲突',
-  timeline: '时间线',
-  foreshadow: '伏笔',
-  'character-drift': '人物漂移',
-  structure: '结构',
-  pacing: '节奏',
-  character: '人物',
-  prose: '行文',
-  setting: '设定',
-  misc: '其他'
-}
-const SEV_CN: Record<AuditItem['severity'], string> = { high: '高', medium: '中', low: '低' }
-
-/** 审计结果 → 可入 git 的 markdown 存档（纯函数，可单测） */
+/** 审计结果 → 可入 git 的 markdown 存档（纯函数，可单测；模板单源在 shared/auditDoc.ts，devShim 同用） */
 export function auditToMarkdown(
   result: AuditResult,
   kind: AuditKind,
   opts: { now?: string } = {}
 ): string {
-  const now = opts.now ?? new Date().toLocaleString('zh-CN', { hour12: false })
-  const lines: string[] = []
-  lines.push(`# 审读报告 · ${AUDIT_NAMES[kind]}`)
-  lines.push('')
-  lines.push(`> 织卷写作引擎 · ${now} · 每次重跑覆盖本文件，上一版历史自动留存于项目内 .zhijuan/history/（大纲/审读_<类名>/）`)
-  lines.push('')
-  lines.push('## 一句话结论')
-  lines.push('')
-  lines.push(result.summary.trim() ? result.summary.trim() : '（无总结）')
-  lines.push('')
-  lines.push(`## 条目（${result.items.length}）`)
-  lines.push('')
-  if (!result.items.length) {
-    lines.push('这一遍没有发现问题。')
-  } else {
-    result.items.forEach((it, i) => {
-      const viewer = it.viewer ? ` · ${it.viewer}` : ''
-      lines.push(`### ${i + 1} · [${SEV_CN[it.severity]}] ${TYPE_CN[it.type] ?? it.type}${viewer}`, '')
-      lines.push(`- 位置：${it.where}`)
-      lines.push(`- 现象：${it.what}`)
-      lines.push(`- 建议：${it.suggest}`)
-      if (it.target) lines.push(`- 关联档案：${it.target}`)
-      lines.push('')
-    })
-  }
-  lines.push('---', '')
-  lines.push('*本报告由织卷全卷检查自动生成；条目可在「Agent 面板 → 全卷检查」逐条转提案。*', '')
-  return lines.join('\n')
+  return auditDocMarkdown(result, AUDIT_NAMES[kind], opts)
 }
 
 /** 正文去掉 front matter（约定头） */
