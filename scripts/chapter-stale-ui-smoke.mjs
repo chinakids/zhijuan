@@ -131,8 +131,8 @@ try {
   // 关抽屉，去大纲页
   await page.eval(clickBtn('收起', true))
 
-  // ⑥ 大纲页：左栏章卡列表必须消失（数据层 listChapters/listDocs 对删除的响应；
-  //    注意右侧「章卡索引」预览是 大纲/索引.md 的内容，删除章不更新它——断言只看左栏 aside）
+  // ⑥ 大纲页：左栏章卡列表必须消失（数据层 listChapters/listDocs 对删除的响应）；
+  //    右侧「章卡索引」预览 = 大纲/索引.md，删除后必须重建（2026-09-12 创作层：剔除已删章条目+空态）
   await page.eval(`location.hash = '#/project/demo-aseya/outline'`)
   await evalUntil(page, `location.hash.includes('/outline')`, (v) => v === true, 10000, 'hash切换到大纲页')
   await sleep(1500)
@@ -143,6 +143,8 @@ try {
   ok('大纲左栏已到章卡列表（含第2章）', asideTxt.includes('第2章 · 灯塔'))
   ok('大纲左栏无「第1章 · 雾港」章卡', !asideTxt.includes('第1章'))
   ok('大纲左栏无雾港残留', !asideTxt.includes('雾港'))
+  await evalUntil(page, `document.body.innerText.includes('还没有章卡')`, (v) => v === true, 10000, '索引重建为空态')
+  ok('索引已重建：不再含已删章与旧计数', (await page.eval(`!document.body.innerText.includes('共 1 章已回建章卡') && !document.body.innerText.includes('第1章 · 雾港')`)) === true)
   await shot(page, 'zj-outline-after-del.png')
 
   // ⑦ 回正文页，打开抽屉清除：入口消失、抽屉空态

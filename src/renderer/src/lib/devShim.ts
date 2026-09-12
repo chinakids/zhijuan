@@ -1,7 +1,8 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
-import type { AgentEvent, AppSettings, ChapterEntry, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult } from '../../../shared/types'
+import type { AgentEvent, AppSettings, ChapterEntry, OutlineCard, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
 import { countWords } from '../../../shared/count'
+import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard } from '../../../shared/outline'
 import { extractFrontMatter, setFrontMatterField } from '../../../shared/fmatter'
 import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceCheck, chapterMissingFromRaw } from '../../../shared/presence'
 import { findAnchorLine, normalizeAnchor } from '../../../shared/anchor'
@@ -322,6 +323,21 @@ function docsOf(prefix: string): { file: string; name: string; mtime: number }[]
     })
 }
 
+/** 与真机 store 的索引重建同口径：以现存章卡文件为权威重建 大纲/索引.md（章卡生成/解析共用 shared/outline 纯函数） */
+function devRefreshOutlineIndex(id: string): void {
+  const cards: OutlineCard[] = []
+  for (const key of [...docs.keys()]) {
+    if (!key.startsWith(id + '/大纲/')) continue
+    const rel = key.slice(id.length + 1) // '大纲/<章>.md'
+    if (!isOutlineCardRel(rel)) continue
+    const c = parseOutlineCard(docs.get(key) ?? '', rel)
+    if (c) cards.push(c)
+  }
+  cards.sort((a, b) => (a.no ?? 1e9) - (b.no ?? 1e9))
+  docs.set(id + '/大纲/索引.md', outlineIndexDoc(cards))
+  fsEmit(id, '大纲/索引.md')
+}
+
 const mock = {
   // 平台（devShim 默认当作 mac，好让自定义标题栏在无头截图也能看到）
   platform: 'darwin',
@@ -466,6 +482,8 @@ const mock = {
       if (p.chapter === rel && p.status === 'pending') p.status = 'stale'
     }
     fsEmit(_id, rel)
+    // 与真机同口径（2026-09-12）：章卡文件为权威重建 大纲/索引.md（剔除已删章条目并修正计数）
+    devRefreshOutlineIndex(_id)
     return { ok: true, cleaned }
   },
   exportChapter: async () => ({ ok: true, path: '/tmp/导出章节.md' }),
@@ -971,11 +989,11 @@ const mock = {
     const writes: string[] = []
     for (const c of cards) {
       const rel = '大纲/' + c.file.replace(/^正文\//, '')
-      docs.set(projectId + '/' + rel, '# 章卡 ' + (c.no ? `第${c.no}章 ` : '') + c.title + '\n\n> 定位：' + c.oneLine + '\n\n- 关键事件：' + c.beats.join('；') + '\n- 人物进展：' + c.charProgress + '\n- 钩子：' + c.hooks.join('；') + '\n')
+      docs.set(projectId + '/' + rel, outlineCardDoc(c, c.file))
       writes.push(rel)
       fsEmit(projectId, rel)
     }
-    docs.set(projectId + '/大纲/索引.md', '# 大纲区 · 章卡索引\n\n共 ' + cards.length + ' 章已回建章卡。\n')
+    docs.set(projectId + '/大纲/索引.md', outlineIndexDoc(cards))
     fsEmit(projectId, '大纲/索引.md')
     return { ok: true, cards, written: writes }
   },

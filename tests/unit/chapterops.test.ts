@@ -40,6 +40,7 @@ import { shell } from 'electron'
 import * as store from '../../src/main/store'
 import { setSettings } from '../../src/main/settings'
 import { createProposals, listProposals } from '../../src/main/proposals'
+import { outlineCardDoc, outlineIndexDoc } from '../../src/shared/outline'
 import type { ProposalItem } from '../../src/shared/types'
 
 const propItem = (after: string): ProposalItem => ({
@@ -193,5 +194,26 @@ describe('deleteChapter（删除：正文 + 大纲副产物 + 历史目录进废
   it('防御：路径不合法 / 章节不存在', async () => {
     expect((await store.deleteChapter(pid, '正文/../project.md')).ok).toBe(false)
     expect((await store.deleteChapter(pid, '正文/不存在.md')).ok).toBe(false)
+  })
+  it('删除成功后重建 大纲/索引.md：剔除已删章条目并修正计数（章卡为权威）', async () => {
+    // 造两张章卡 + 一份索引（用 shared/outline 纯函数生成，与真机回建同口径）
+    const c1 = { file: '正文/第01章_雾港.md', no: 1, title: '雾港', slice: '一', oneLine: '定位1', beats: ['事件1'], charProgress: '进1', hooks: ['钩1'], wordCount: 10 }
+    const c2 = { file: '正文/第02章_灯塔.md', no: 2, title: '灯塔', slice: '二', oneLine: '定位2', beats: ['事件2'], charProgress: '进2', hooks: ['钩2'], wordCount: 10 }
+    store.writeDoc(pid, '正文/第01章_雾港.md', ['---', '章号: 1', '题名: 雾港', '切片: 一', '---', '', '# 雾港', ''].join('\n'))
+    store.writeDoc(pid, '正文/第02章_灯塔.md', ['---', '章号: 2', '题名: 灯塔', '切片: 二', '---', '', '# 灯塔', ''].join('\n'))
+    store.writeDoc(pid, '大纲/第01章_雾港.md', outlineCardDoc(c1, c1.file))
+    store.writeDoc(pid, '大纲/第02章_灯塔.md', outlineCardDoc(c2, c2.file))
+    store.writeDoc(pid, '大纲/索引.md', outlineIndexDoc([c1, c2]))
+    const r = await store.deleteChapter(pid, '正文/第01章_雾港.md')
+    expect(r.ok).toBe(true)
+    const idx = store.readDoc(pid, '大纲/索引.md') ?? ''
+    expect(idx).toContain('共 1 章已回建章卡')
+    expect(idx).not.toContain('第1章 · 雾港')
+    expect(idx).toContain('## 第2章 · 灯塔')
+    // 删光后索引给空态（不再列出已删章）
+    const r2 = await store.deleteChapter(pid, '正文/第02章_灯塔.md')
+    expect(r2.ok).toBe(true)
+    const idx2 = store.readDoc(pid, '大纲/索引.md') ?? ''
+    expect(idx2).toContain('还没有章卡')
   })
 })

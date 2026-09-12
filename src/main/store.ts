@@ -17,13 +17,14 @@ import {
 } from 'fs'
 import { extractFrontMatter, serializeFrontMatter, setFrontMatterField } from '../shared/fmatter'
 import { countWords } from '../shared/count'
+import { isOutlineCardRel, outlineIndexDoc, parseOutlineCard } from '../shared/outline'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, DOT_DIR } from '../shared/paths'
 import { sanitizeFile } from '../shared/paths'
 import { isVersionedRel, snapDirFor, writeSnapshot } from './history'
 import { migrateChapter, invalidateChapter } from './proposals'
 import { libraryRoot } from './settings'
 import { applyTemplate } from './templates'
-import type { ChapterEntry, ChapterFrontMatter, FsEvent, ProjectMeta, ProjectStats, ProjectSummary, ImportResult } from '../shared/types'
+import type { ChapterEntry, ChapterFrontMatter, FsEvent, OutlineCard, ProjectMeta, ProjectStats, ProjectSummary, ImportResult } from '../shared/types'
 
 // ---------- 设置与工作区路径已拆到 settings.ts（参见 docs/架构评审与调整-2026-09-04.md §二） ----------
 export function projectDir(id: string): string {
@@ -309,6 +310,20 @@ function siblingMatches(dirEntries: string[], base: string): string[] {
   })
 }
 
+/** 大纲索引与章卡文件对齐：以现存章卡文件为权威重建 大纲/索引.md（剔除已删章条目、修正计数、更新题名）。
+ * 删除/重命名章后调用（章卡文件已随动）；best-effort：索引是预览文档，失败不影响主操作。 */
+function refreshOutlineIndex(id: string): void {
+  const cards: OutlineCard[] = []
+  for (const d of listDocs(id, '大纲')) {
+    const rel = '大纲/' + d.file // listDocs 返回相对 relDir 的路径，调用方自己拼前缀
+    if (!isOutlineCardRel(rel)) continue
+    const card = parseOutlineCard(readFileSync(abs(id, rel), 'utf-8'), rel)
+    if (card) cards.push(card)
+  }
+  cards.sort((a, b) => (a.no ?? 1e9) - (b.no ?? 1e9))
+  writeDoc(id, '大纲/索引.md', outlineIndexDoc(cards))
+}
+
 export interface RenameChapterResult {
   ok: boolean
   newRel?: string
@@ -319,6 +334,7 @@ export interface RenameChapterResult {
  * 章节重命名（模块设计 §6.2「重命名：改题名与文件名」）：改约定头 `题名` + 文件名 slug 同步。
  * 引用面（2026-09-11 调研后拍板）：
  *  - 大纲/ 下 <章名>.md 与 <章名>_*.md（章卡/导演板/分幕）→ 同步改名（存在才动，best-effort）；
+ *  - 大纲/索引.md → 删除成功后整体重建（2026-09-12：章卡为权威，剔除已删章条目并修正计数）；重命名后索引暂不重建（章卡内容本身未随改名更新，见档案下一步候选）；
  *  - .zhijuan/history/正文/<章名>/（版本历史入口）→ 同步改名（存在才动，best-effort）；
  *  - .zhijuan/slices.json 无写入调用（listSlices 每次现扫）→ 无需处理；
  *  - .zhijuan/proposals/*.json 的 chapter 字段（展示 + stale 判定键）→ 重命名时同步迁移（best-effort，见 proposals.migrateChapter）。
@@ -371,7 +387,8 @@ export function renameChapter(id: string, rel: string, newTitle: string): Rename
 /** 删除章节：先删 大纲/ 下同名写作副产物（走系统废纸篓，可恢复），再删正文本身。
  * 引用面（2026-09-12 审计补齐，与 renameChapter 的引用面镜像）：
  *  - .zhijuan/history/正文/<章名>/ 版本历史入口 → 与正文同命运走系统废纸篓（避免「删除→重建同名章」旧快照混入新章；可恢复）；
- *  - .zhijuan/proposals 指向本章的 pending 提案 → 置 stale（该章提议不再适用；复用「已过期」展示，apply 拒绝，见 proposals.invalidateChapter）。 */
+ *  - .zhijuan/proposals 指向本章的 pending 提案 → 置 stale（该章提议不再适用；复用「已过期」展示，apply 拒绝，见 proposals.invalidateChapter）；
+ *  - 大纲/索引.md → 删除成功后整体重建（章卡为权威，剔除已删章条目并修正计数）。 */
 export async function deleteChapter(id: string, rel: string): Promise<{ ok: boolean; error?: string; cleaned?: number }> {
   const bad = !rel || !rel.startsWith('正文/') || !rel.endsWith('.md') || rel.startsWith('/') || rel.split('/').some((s) => s === '..')
   if (bad) return { ok: false, error: '路径不合法' }
@@ -395,6 +412,8 @@ export async function deleteChapter(id: string, rel: string): Promise<{ ok: bool
       }
     } catch { /* best-effort */ }
     try { invalidateChapter(libraryRoot(), id, rel) } catch { /* best-effort */ }
+    // 索引重建：章卡文件已随删除移除 → 剔行并修正计数（best-effort）
+    try { refreshOutlineIndex(id) } catch { /* best-effort */ }
   }
   return r.ok ? { ok: true, cleaned } : r
 }

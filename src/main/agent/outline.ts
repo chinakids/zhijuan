@@ -3,6 +3,7 @@
 // 落到 大纲/ 目录（每章一张 + 一本索引），让大纲区随正文进度活起来。
 // 与 runAudit 同构：独立 session、无提问、离线出结果；写入走主进程 writeDoc（设定改动仍走提案制，章卡属于写作副产物，直写）。
 import { readDoc, listChapters, listDocs, writeDoc } from '../store'
+import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard } from '../../shared/outline'
 import { registerCapability, runOnce, subtaskBlocked, stripFm, type SubtaskDef } from './subtask'
 import type { ChapterEntry, OutlineCard } from '../../shared/types'
 
@@ -49,84 +50,11 @@ function extractCard(text: string): { oneLine: string; beats: string[]; charProg
   }
 }
 
-function cardToDoc(c: OutlineCard, chapterRel: string): string {
-  const fm =
-    c.no !== undefined
-      ? `---\n章号: ${c.no}\n题名: ${c.title}\n切片: ${c.slice}\n状态: 已回建\n---\n`
-      : `---\n题名: ${c.title}\n状态: 已回建\n---\n`
-  const lines = [
-    fm,
-    '',
-    `# 章卡 ${c.no !== undefined ? `第${c.no}章 ` : ''}${c.title}`,
-    '',
-    `> 对应正文：${chapterRel}`,
-    '',
-    '## 一句话定位',
-    '',
-    c.oneLine || '（待补）',
-    '',
-    '## 关键事件',
-    ''
-  ]
-  for (const b of c.beats) lines.push(`- ${b}`)
-  if (!c.beats.length) lines.push('- （待补）')
-  lines.push('', '## 人物进展', '', c.charProgress || '（待补）', '', '## 钩子 / 要还的债', '')
-  for (const h of c.hooks) lines.push(`- ${h}`)
-  if (!c.hooks.length) lines.push('- （待补）')
-  lines.push('')
-  return lines.join('\n')
-}
-
-function indexToDoc(cards: OutlineCard[]): string {
-  const lines = [
-    '---',
-    '状态: 已回建',
-    '更新: ' + new Date().toLocaleString('sv'),
-    '---',
-    '',
-    '# 大纲区 · 章卡索引',
-    '',
-    cards.length ? `共 ${cards.length} 章已回建章卡。回建入口会把每章正文回到一张章卡；正文有变时重新回建即可覆盖。` : '还没有章卡。先写几章正文，再点「回建大纲」。',
-    ''
-  ]
-  for (const c of cards) {
-    const no = c.no !== undefined ? `第${c.no}章 · ` : ''
-    lines.push(`## ${no}${c.title || '(无名)'}`)
-    lines.push('')
-    lines.push(`> 定位：${c.oneLine || '（待补）'}`)
-    lines.push('')
-    lines.push(`- 关键事件：${c.beats.join('；') || '—'}`)
-    lines.push(`- 人物进展：${c.charProgress || '—'}`)
-    lines.push(`- 钩子：${c.hooks.join('；') || '—'}`)
-    lines.push('')
-  }
-  return lines.join('\n')
-}
-
-/** 从已落盘的章卡文件回读成 OutlineCard（只回建缺失时，索引要把旧卡也并进去） */
+/** 从已落盘的章卡文件回读成 OutlineCard（只回建缺失时，索引要把旧卡也并进去）；解析规则见 shared/outline（与索引重建同口径） */
 function readCardFromDoc(projectId: string, rel: string): OutlineCard | null {
   const raw = readDoc(projectId, rel) ?? ''
   if (!raw.trim()) return null
-  const noM = raw.match(/^章号:\s*(\d+)/m)
-  const tM = raw.match(/^题名:\s*(.+)/m)
-  const sM = raw.match(/^切片:\s*(.+)/m)
-  const oneM = raw.match(/## 一句话定位\s*\n\s*\n([^\n#]+)/)
-  const head = raw.split('## 人物进展')[0] ?? ''
-  const beatLines = [...head.matchAll(/^- (.+)/gm)].map((m) => m[1].trim()).filter((b) => !b.startsWith('（待补）'))
-  const charM = raw.match(/## 人物进展\s*\n\s*\n([^\n#]+)/)
-  const hooks = [...(raw.split('## 钩子 / 要还的债')[1]?.matchAll(/^- (.+)/gm) ?? [])].map((m) => m[1].trim()).filter((h) => !h.startsWith('（待补）'))
-  const fileM = raw.match(/^> 对应正文：(.+)$/m)
-  return {
-    file: (fileM?.[1] ?? rel.replace(/^大纲\//, '正文/')).trim(),
-    no: noM ? Number(noM[1]) : undefined,
-    title: tM?.[1]?.trim() ?? '（无名）',
-    slice: sM?.[1]?.trim() ?? '',
-    oneLine: oneM?.[1]?.trim() ?? '',
-    beats: beatLines,
-    charProgress: charM?.[1]?.trim() ?? '',
-    hooks,
-    wordCount: 0
-  }
+  return parseOutlineCard(raw, rel)
 }
 
 export type OutlineRebuildResult =
@@ -184,7 +112,7 @@ export async function runOutlineRebuild(
         wordCount: c.wordCount
       }
       const rel = outlineRel(c)
-      writeDoc(projectId, rel, cardToDoc(card, '正文/' + c.file.replace(/^正文\//, '')))
+      writeDoc(projectId, rel, outlineCardDoc(card, '正文/' + c.file.replace(/^正文\//, '')))
       cards.push(card)
       written.push(rel)
     }
@@ -198,16 +126,16 @@ export async function runOutlineRebuild(
       if (old) cards.push(old)
     }
     cards.sort((a, b) => (a.no ?? 1e9) - (b.no ?? 1e9))
-    writeDoc(projectId, '大纲/索引.md', indexToDoc(cards))
+    writeDoc(projectId, '大纲/索引.md', outlineIndexDoc(cards))
     return { ok: true, cards, written }
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e).slice(0, 300) }
   }
 }
 
-/** 大纲区已有章卡文件的相对路径清单（供 UI 判断哪些待回建） */
+/** 大纲区已有章卡文件的相对路径清单（供 UI 判断哪些待回建；排除 索引/导演板/分幕/审读 副产物） */
 export function listOutlineDocs(projectId: string): string[] {
   return listDocs(projectId, '大纲')
     .map((d) => '大纲/' + d.file)
-    .filter((f) => !f.endsWith('索引.md'))
+    .filter(isOutlineCardRel)
 }

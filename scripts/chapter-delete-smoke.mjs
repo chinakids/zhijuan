@@ -62,6 +62,10 @@ ok('删除 ok', r.ok === true)
 ok('cleaned=2（章卡+导演板）', r.cleaned === 2, 'got ' + r.cleaned)
 ok('正文已移除', !existsSync(joinClient(LIB + '/lib', id, '正文', '第01章_雾港.md')))
 ok('大纲副产物已移除', !existsSync(joinClient(LIB + '/lib', id, '大纲', '第01章_雾港.md')) && !existsSync(joinClient(LIB + '/lib', id, '大纲', '第01章_雾港_导演.md')))
+// 索引一致性（2026-09-12 创作层）：删除后以章卡文件为权威重建 大纲/索引.md（此脚本章卡非标准格式解析不出卡 → 空索引）
+const idxRel = joinClient(LIB + '/lib', id, '大纲', '索引.md')
+const idxTxt = existsSync(idxRel) ? readFileSync(idxRel, 'utf-8') : ''
+ok('删除后索引已重建且剔行', existsSync(idxRel) && !idxTxt.includes('雾港') && idxTxt.includes('还没有章卡'))
 ok('历史目录已移除（随删除进废纸篓语义）', !existsSync(histDir))
 const prop = JSON.parse(readFileSync(pd + '/x.json', 'utf-8'))
 ok('pending 提案置 stale', prop.status === 'stale', 'got ' + prop.status)
