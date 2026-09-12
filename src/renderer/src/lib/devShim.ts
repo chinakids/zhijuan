@@ -285,6 +285,7 @@ const settings: AppSettings = {
   llm: { active: 'local', providers: {} },
   theme: 'paper',
   collectionEnabled: true,
+  annotationsEnabled: false,
   agentTools: { todo: true, askUser: true }
 }
 

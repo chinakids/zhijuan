@@ -129,8 +129,8 @@ export function resolveAnnotationRows(projectId: string, refs: AnnotationRef[] |
 
 const annotationDef: SubtaskDef<{ before: string; after: string; reason: string }[]> = {
   id: 'annotation-sync',
-  title: '批注定时优化',
-  description: '扫描项目批注 csv，按批注意图产出改写，生成修改提案（提案制确认后应用）',
+  title: '批注改写引擎',
+  description: '按批注意图产出正文改写（定时/手动扫描批注时调用；配合设置页「批注定时优化」开关使用）',
   buildParts: async (ctx) => {
     const targets = (ctx.args?.targets ?? []) as AnnotationTarget[]
     if (!targets.length) throw new Error('没有待处理批注')

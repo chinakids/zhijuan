@@ -47,6 +47,7 @@ export default function Settings() {
   const [libraryRoot, setLibraryRoot] = useState('')
   const [theme, setTheme] = useState<'paper' | 'dark'>('paper')
   const [collection, setCollection] = useState(true)
+  const [annotations, setAnnotations] = useState(false)
   const [shortcutOpen, setShortcutOpen] = useState(false)
   const [tools, setTools] = useState({ todo: true, askUser: true })
   const [caps, setCaps] = useState<Record<string, boolean>>({})
@@ -88,6 +89,7 @@ export default function Settings() {
     setLibraryRoot(settings.libraryRoot)
     setTheme(settings.theme)
     setCollection(settings.collectionEnabled)
+    setAnnotations(settings.annotationsEnabled ?? false)
     setTools({ todo: settings.agentTools?.todo ?? true, askUser: settings.agentTools?.askUser ?? true })
     setCaps(settings.capabilities ?? {})
     void window.zhijuan.agentListCapabilities().then(setCapsMeta).catch(() => {})
@@ -126,6 +128,7 @@ export default function Settings() {
       libraryRoot: libraryRoot.trim(),
       theme,
       collectionEnabled: collection,
+      annotationsEnabled: annotations,
       agentTools: tools
     })
     setSaved(true)
@@ -385,6 +388,13 @@ export default function Settings() {
                     <p className="text-xs text-ink-3">开启后，采集池的任务会由本机管道后台处理（S5）。</p>
                   </div>
                   <Switch checked={collection} onCheckedChange={setCollection} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>批注定时优化</Label>
+                    <p className="text-xs text-ink-3">开启后，打开项目 10 秒后及每 30 分钟自动扫描批注并生成提案；关闭后仅在提案抽屉手动「扫描批注」。</p>
+                  </div>
+                  <Switch checked={annotations} onCheckedChange={setAnnotations} />
                 </div>
               </Card>
             </>

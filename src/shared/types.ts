@@ -89,6 +89,8 @@ export interface AppSettings {
   llm: LlmSettings
   theme: 'paper' | 'dark'
   collectionEnabled: boolean
+  /** 批注定时优化（主人 2026-09-12 定：默认关；开启=打开项目 10s 后首扫 + 每 30 分钟自动扫描批注生成提案） */
+  annotationsEnabled: boolean
   /** 常用 agent 工具开关（harness 引擎内） */
   agentTools?: { todo?: boolean; askUser?: boolean }
   /** agent 能力开关（模块 J / E3）：缺省 = 全开；值为 false 即关闭该能力 */
@@ -101,6 +103,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   llm: { active: 'local', providers: {} },
   theme: 'paper',
   collectionEnabled: true,
+  annotationsEnabled: false,
   agentTools: { todo: true, askUser: true }
 }
 

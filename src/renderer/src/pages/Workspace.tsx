@@ -8,6 +8,7 @@ import { useProposalStore } from '../store/proposals'
 import ProposalDrawer from '../features/proposals/ProposalDrawer'
 import ProjectGuide from '../features/guide/ProjectGuide'
 import { toast } from '../store/toasts'
+import { useAppStore } from '../store/app'
 
 const emptyCounts: NavCounts = { novel: 0, characters: 0, worldview: 0, outline: 0, library: 0 }
 
@@ -23,11 +24,13 @@ export default function Workspace() {
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [loadErr, setLoadErr] = useState('')
   const readyRef = useRef(false)
+  // 批注定时优化开关（主人 2026-09-12 定：默认关，走设置页「批注定时优化」；开启才挂定时器）
+  const annotationsEnabled = useAppStore((s) => s.settings?.annotationsEnabled ?? false)
 
-  // 批注定时优化（主人 2026-09-12）：打开项目 10s 后首扫 + 每 30 分钟静默扫描；
-  // 只在「生成了提案 / 发现了但没能生成」时 toast，无批注时保持安静
+  // 批注定时优化（主人 2026-09-12）：仅设置开启时——打开项目 10s 后首扫 + 每 30 分钟静默扫描；
+  // 只在「生成了提案 / 发现了但没能生成」时 toast，无批注时保持安静；关闭=完全不扫（手动按钮不受影响，见提案抽屉）
   useEffect(() => {
-    if (!id || loadState !== 'ready') return
+    if (!id || loadState !== 'ready' || !annotationsEnabled) return
     let disposed = false
     const run = async () => {
       try {
@@ -50,7 +53,7 @@ export default function Workspace() {
       window.clearTimeout(t1)
       window.clearInterval(iv)
     }
-  }, [id, loadState])
+  }, [id, loadState, annotationsEnabled])
 
   const refreshAll = useCallback(async () => {
     if (!id) return
