@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { orderProjects } from '../../src/shared/projects'
+import { nextProjectId, orderProjects } from '../../src/shared/projects'
 import type { ProjectSummary } from '../../src/shared/types'
 
 function p(id: string, name: string, description: string, updatedAt: number): ProjectSummary {
@@ -77,5 +77,26 @@ describe('orderProjects（首页过滤 + 排序）', () => {
       '的'
     )
     expect(out.map((x) => x.id)).toEqual(['b', 'a'])
+  })
+})
+
+describe('nextProjectId（新项目 id：sanitize + 重名后缀；真机 store/devShim 共用防漂移）', () => {
+  it('正常名称：清洗后原样作为 id', () => {
+    expect(nextProjectId('雾港', () => false)).toBe('雾港')
+  })
+
+  it('危险字符按 sanitizeFile 清洗', () => {
+    expect(nextProjectId('a/b:c*', () => false)).toBe('a_b_c_')
+  })
+
+  it('空白名称回落「未命名」', () => {
+    expect(nextProjectId('   ', () => false)).toBe('未命名')
+  })
+
+  it('名称已占用：追加时间戳后缀且不与基名相同', () => {
+    const used = new Set(['同名'])
+    const id = nextProjectId('同名', (i) => used.has(i))
+    expect(id).not.toBe('同名')
+    expect(id.startsWith('同名_')).toBe(true)
   })
 })

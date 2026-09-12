@@ -6,6 +6,7 @@ import { listChapterEntries } from '../../../shared/chapters'
 import { listSliceEntries } from '../../../shared/slices'
 import { resolveLibraryRoot } from '../../../shared/settingsLogic'
 import { sanitizeFile } from '../../../shared/paths'
+import { nextProjectId } from '../../../shared/projects'
 import { extractFrontMatter, setFrontMatterField } from '../../../shared/fmatter'
 import { adoptActsChapter } from '../../../shared/actsAdopt'
 import { countWords } from '../../../shared/count'
@@ -371,17 +372,23 @@ const mock = {
   workspaceRead: async (file: string) => wsDocs.get(file) ?? null,
   listProjects: async (): Promise<ProjectSummary[]> => projects.slice(),
   createProject: async (name: string, description: string, _template?: string): Promise<ProjectSummary> => {
-    const p: ProjectSummary = { id: 'demo-' + name.slice(0, 4), name, description, createdAt: now, updatedAt: now, stats: { chapters: 0, characters: 0, worldviewFiles: 0, materials: 0 } }
+    // 与真机 store.createProject 同口径：shared nextProjectId（sanitizeFile + 已占用加时间戳后缀；2026-09-12 对齐）
+    const id = nextProjectId(name, (i) => projects.some((p) => p.id === i))
+    const p: ProjectSummary = { id, name, description, createdAt: now, updatedAt: now, stats: { chapters: 0, characters: 0, worldviewFiles: 0, materials: 0 } }
     projects.unshift(p)
     return p
   },
   listTemplates: async (): Promise<ProjectTemplate[]> => [{ id: '示例', name: '示例', builtin: true }],
   importProject: async (dir: string): Promise<ImportResult> => {
-    // 与真机同口径：外部目录复制入库（mock 直接造项目）；真机语义细节由数据层冒烟覆盖
+    // 与真机 store.importProject 同口径：空白路径报错（真机先 trim 校验），id=resolve 后 basename（不做 sanitize）；
+    // 模拟「目录内无 project.md」最简情形 name=id、description=''（真机此时也是这两值）；dev 无 fs 不复制内容。
+    const trimmed = (dir ?? '').trim()
+    if (!trimmed) return { ok: false, error: '目录路径为空' }
+    const name = trimmed.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || trimmed
     const p: ProjectSummary = {
-      id: 'demo-' + (dir.split('/').pop() || dir).slice(0, 4),
-      name: dir.split('/').pop() || dir,
-      description: '已导入',
+      id: name,
+      name,
+      description: '',
       createdAt: now,
       updatedAt: now,
       stats: { chapters: 0, characters: 0, worldviewFiles: 0, materials: 0 }
@@ -629,12 +636,13 @@ const mock = {
     return listChapterEntries(sources)
   },
   listSlices: async (id: string): Promise<SliceEntry[]> => {
-    // 解析/排序口径在 shared/slices（与真机 main/slices.listSlices 同一实现，2026-09-12）
+    // 解析/排序口径在 shared/slices（与真机 main/slices.listSlices 同一实现，2026-09-12）；
+    // updatedAt 与真机 statSync mtimeMs 同语义——docsOf 的 devMtime 稳定模拟（正文=现在/导演板=一天前等）
     return listSliceEntries(
-      docsOf(id + '/正文').map(({ file }) => ({
+      docsOf(id + '/正文').map(({ file, mtime }) => ({
         file,
         text: docs.get(id + '/正文/' + file) ?? '',
-        updatedAt: 0
+        updatedAt: mtime
       }))
     )
   },
@@ -653,7 +661,7 @@ const mock = {
       workspaceDefault: '~/Documents/织卷工作区',
       legacyExists: DEV_LEGACY_EXISTS
     }),
-    defaultLibrary: '' // 真机=HOME；Settings 页只用 documents，此字段 UI 未消费（保持一致即可）
+    defaultLibrary: '' // 真机=process.env.HOME（ipc.ts）；已核实渲染层零消费（仅此定义处），renderer 无 node 环境取不到 HOME，保持 ''
   }),
 
   // dev 演示的人物索引：与主进程 readCharIndex 同口径（档案题名 + 登记别名）

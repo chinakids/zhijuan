@@ -24,6 +24,7 @@ import { isVersionedRel, snapDirFor, writeSnapshot } from './history'
 import { migrateChapter, invalidateChapter } from './proposals'
 import { libraryRoot } from './settings'
 import { applyTemplate } from './templates'
+import { nextProjectId } from '../shared/projects'
 import type { ChapterEntry, FsEvent, OutlineCard, ProjectMeta, ProjectStats, ProjectSummary, ImportResult } from '../shared/types'
 
 // ---------- 设置与工作区路径已拆到 settings.ts（参见 docs/架构评审与调整-2026-09-04.md §二） ----------
@@ -89,8 +90,7 @@ const newProjectBody = `\n## 时间线总纲\n\n（本作品的故事时间线�
 export function createProject(name: string, description: string, template?: string): ProjectSummary | null {
   const root = libraryRoot()
   ensureDir(root)
-  let id = sanitizeFile(name)
-  if (existsSync(join(root, id))) id = `${id}_${Date.now().toString(36).slice(-4)}`
+  const id = nextProjectId(name, (i) => existsSync(join(root, i)))
   const now = Date.now()
   writeProjectMeta({ id, name, description, createdAt: now, updatedAt: now })
   // project.md 正文模板

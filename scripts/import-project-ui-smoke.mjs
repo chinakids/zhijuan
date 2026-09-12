@@ -91,7 +91,8 @@ await page.eval(`(() => { const b = [...document.querySelectorAll('button')].fin
 await evalUntil(page, `document.body.innerText.includes('已导入')`, (v) => v === true, 10000, '成功 toast')
 await evalUntil(page, `location.hash`, (v) => typeof v === 'string' && v.startsWith('#/project/'), 10000, '跳转项目页')
 const hash = await page.eval(`location.hash`)
-check(`成功导入后跳转项目页（${hash}）`, /^#\/project\/demo-/.test(hash))
+// 口径：mock id=源目录 basename（与真机 store.importProject 同），输入 '/Users/me/旧稿' → 项目页 hash 应含「旧稿」
+check(`成功导入后跳转项目页（${hash}）`, hash.startsWith('#/project/') && decodeURIComponent(hash).includes('旧稿'))
 await page.close()
 
 // ③ 失败路径：zj-fail=importProject

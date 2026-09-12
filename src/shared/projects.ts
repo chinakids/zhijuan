@@ -2,10 +2,21 @@
 // 语义：搜索按名称/简介过滤；排序「最近打开优先」——打开过的按最近打开时间降序，没打开过的按最近编辑降序。
 // 「最近打开」是应用内部状态（main/recent.ts 维护，userData/zhijuan-recents.json），不落项目库、不进 AppSettings。
 import type { ProjectSummary } from './types'
+import { sanitizeFile } from './paths'
 
 export interface RecentEntry {
   id: string
   openedAt: number
+}
+
+/**
+ * 新项目 id 生成（真机 store.createProject 与 devShim 共用，防口径漂移）：
+ * sanitizeFile 清洗后，若 isUsed 报告已占用则追加时间戳后缀（真机=库内同目录存在；devShim=内存 projects 列表命中）。
+ */
+export function nextProjectId(name: string, isUsed: (id: string) => boolean): string {
+  const base = sanitizeFile(name)
+  if (!isUsed(base)) return base
+  return `${base}_${Date.now().toString(36).slice(-4)}`
 }
 
 /**
