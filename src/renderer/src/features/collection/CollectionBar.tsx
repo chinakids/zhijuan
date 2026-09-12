@@ -98,8 +98,10 @@ export default function CollectionBar() {
   }, [refresh])
 
   useEffect(() => {
-    const ev = events[events.length - 1]
-    if (ev && ev.path.startsWith('素材库/采集池')) void refresh()
+    // React 18 自动批处理会把同 tick 内连续 fs 事件并入一次渲染：管道回填 = 任务卡+素材两次连续写盘，
+    // 若只看最后一条（素材库/环境/…），任务卡广播会被「跳过」→ 列表不自动刷新（e2e 实踩 2026-09-12）。
+    // 扫描窗口内任一采集池事件即刷新（读取幂等，重复触发无副作用）。
+    if (events.some((ev) => ev.path.startsWith('素材库/采集池'))) void refresh()
   }, [events, refresh])
 
   async function openView(t: TaskInfo) {
