@@ -13,7 +13,12 @@ export interface ToastItem {
   /** 自动消失毫秒数；0 = 不自动消失（loading 默认） */
   duration: number
   createdAt: number
+  /** 退场中（已触发 dismiss，播退出动画，LEAVE_MS 后真正移除） */
+  leaving?: boolean
 }
+
+/** 退出动画时长（与 V-08 动效基线 150ms 同口径；reduced-motion 下动画被关，仍照常延迟移除） */
+export const LEAVE_MS = 150
 
 export interface ToastInput {
   kind?: ToastKind
@@ -41,6 +46,8 @@ interface LiveTimer {
 }
 const timers = new Map<number, LiveTimer>()
 const paused = new Set<number>()
+/** 退场延迟定时器：dismiss 标记 leaving → LEAVE_MS 后真正 _remove */
+const leavingTimers = new Map<number, ReturnType<typeof setTimeout>>()
 
 function stop(id: number) {
   const t = timers.get(id)
@@ -68,7 +75,15 @@ export function dismiss(id: number) {
   stop(id)
   timers.delete(id)
   paused.delete(id)
-  useToastsStore.getState()._remove(id)
+  const cur = useToastsStore.getState().toasts.find((t) => t.id === id)
+  if (!cur || cur.leaving) return
+  // 先标记退场（播退出动画），LEAVE_MS 后真正移除；重复 dismiss 幂等
+  useToastsStore.getState()._markLeaving(id)
+  const handle = setTimeout(() => {
+    leavingTimers.delete(id)
+    useToastsStore.getState()._remove(id)
+  }, LEAVE_MS)
+  leavingTimers.set(id, handle)
 }
 
 interface ToastsState {
@@ -80,6 +95,7 @@ interface ToastsState {
   pause: (id: number) => void
   resume: (id: number) => void
   clear: () => void
+  _markLeaving: (id: number) => void
   _remove: (id: number) => void
 }
 
@@ -91,8 +107,9 @@ export const useToastsStore = create<ToastsState>((set, get) => ({
     const id = seq++
     const toast: ToastItem = { id, kind, title: input.title, description: input.description, duration, createdAt: Date.now() }
     const cur = get().toasts
-    // 栈上限：挤掉最旧的一条
-    if (cur.length >= MAX_TOASTS) dismiss(cur[0].id)
+    // 栈上限：挤掉最旧的一条（leaving 中的不占位、不重复挤）
+    const active = cur.filter((t) => !t.leaving)
+    if (active.length >= MAX_TOASTS) dismiss(active[0].id)
     set((s) => ({ toasts: [...s.toasts, toast] }))
     if (duration > 0) arm(id, duration)
     return id
@@ -133,6 +150,7 @@ export const useToastsStore = create<ToastsState>((set, get) => ({
   clear: () => {
     for (const id of [...useToastsStore.getState().toasts.map((t) => t.id)]) dismiss(id)
   },
+  _markLeaving: (id) => set((s) => ({ toasts: s.toasts.map((t) => (t.id === id ? { ...t, leaving: true } : t)) })),
   _remove: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }))
 }))
 
@@ -146,8 +164,11 @@ export const toast = {
 
 /** 测试用：复位全部状态（清计时器与队列） */
 export function resetToastsForTest() {
-  useToastsStore.getState().clear()
+  // 测试复位：直接清空（不走 dismiss 的退场动画，避免 fake timers 下残留）
+  useToastsStore.setState({ toasts: [] })
   seq = 1
   paused.clear()
   timers.clear()
+  for (const h of leavingTimers.values()) clearTimeout(h)
+  leavingTimers.clear()
 }

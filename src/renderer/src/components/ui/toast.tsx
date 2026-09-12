@@ -24,7 +24,14 @@ function ToastCard({ t }: { t: ToastItem }) {
   return (
     <div
       role="status"
-      className="zj-toast pointer-events-auto flex items-start gap-2.5 rounded-lg border border-hair bg-surface px-3 py-2.5 shadow-[var(--shadow)]"
+      data-leaving={t.leaving || undefined}
+      className={cn(
+        'zj-toast pointer-events-auto flex items-start gap-2.5 rounded-lg border border-hair bg-surface px-3 py-2.5 shadow-[var(--shadow)]',
+        // V-08 动效基线（HIG Motion）：进场 150ms 淡入+8px 微滑；退场镜像；reduced-motion 由 tokens.css [class*=animate-*] 全关
+        t.leaving
+          ? 'animate-out fade-out slide-out-to-top-2 duration-150'
+          : 'animate-in fade-in slide-in-from-top-2 duration-150'
+      )}
       onMouseEnter={() => toastPause(t.id)}
       onMouseLeave={() => toastResume(t.id)}
     >

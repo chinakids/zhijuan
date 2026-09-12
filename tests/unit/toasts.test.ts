@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  LEAVE_MS,
   MAX_TOASTS,
   resetToastsForTest,
   toast,
@@ -26,10 +27,14 @@ describe('toasts 全局通知（自研轻量）', () => {
     expect(t?.duration).toBeGreaterThan(0)
   })
 
-  it('成功类默认 6s 自动消失；loading 不自动消失', () => {
+  it('成功类默认 6s 自动消失（先 leaving 后移除）；loading 不自动消失', () => {
     toast.add({ kind: 'success', title: 'done' })
     expect(useToastsStore.getState().toasts).toHaveLength(1)
     vi.advanceTimersByTime(6000)
+    // 到点 → 标记退场（播退出动画），LEAVE_MS 后真正移除
+    expect(useToastsStore.getState().toasts).toHaveLength(1)
+    expect(useToastsStore.getState().toasts[0].leaving).toBe(true)
+    vi.advanceTimersByTime(LEAVE_MS)
     expect(useToastsStore.getState().toasts).toHaveLength(0)
 
     toast.add({ kind: 'loading', title: 'running' })
@@ -37,20 +42,38 @@ describe('toasts 全局通知（自研轻量）', () => {
     expect(useToastsStore.getState().toasts).toHaveLength(1)
   })
 
-  it('栈上限：超出挤掉最旧', () => {
+  it('栈上限：超出挤掉最旧（leaving 中不占位）', () => {
     for (let i = 1; i <= MAX_TOASTS + 1; i++) toast.add({ title: 't' + i })
     const titlesNow = titles()
-    expect(useToastsStore.getState().toasts).toHaveLength(MAX_TOASTS)
-    expect(titlesNow).not.toContain('t1')
+    // t1 进入退场（仍在数组里供动画），其余 4 条可见
+    expect(useToastsStore.getState().toasts.filter((t) => !t.leaving)).toHaveLength(MAX_TOASTS)
+    expect(titlesNow).toContain('t1')
+    expect(useToastsStore.getState().toasts.find((t) => t.title === 't1')?.leaving).toBe(true)
     expect(titlesNow).toContain('t' + (MAX_TOASTS + 1))
+    vi.advanceTimersByTime(LEAVE_MS)
+    expect(titles()).not.toContain('t1')
   })
 
-  it('dismiss 手动关闭（含计时器清理）', () => {
+  it('dismiss 手动关闭：标记 leaving → LEAVE_MS 后移除（含计时器清理）', () => {
     const id = toast.add({ kind: 'warning', title: 'w' })
     toast.dismiss(id)
+    expect(useToastsStore.getState().toasts).toHaveLength(1)
+    expect(useToastsStore.getState().toasts[0].leaving).toBe(true)
+    vi.advanceTimersByTime(LEAVE_MS)
     expect(useToastsStore.getState().toasts).toHaveLength(0)
     // 已关闭的 toast 不应再被定时器移除时报错
     vi.advanceTimersByTime(10000)
+    expect(useToastsStore.getState().toasts).toHaveLength(0)
+  })
+
+  it('dismiss 幂等：重复 dismiss 不重复安排退场', () => {
+    const id = toast.add({ kind: 'info', title: 'dup' })
+    toast.dismiss(id)
+    toast.dismiss(id)
+    expect(useToastsStore.getState().toasts).toHaveLength(1)
+    vi.advanceTimersByTime(LEAVE_MS)
+    expect(useToastsStore.getState().toasts).toHaveLength(0)
+    vi.advanceTimersByTime(LEAVE_MS * 10)
     expect(useToastsStore.getState().toasts).toHaveLength(0)
   })
 
@@ -60,10 +83,13 @@ describe('toasts 全局通知（自研轻量）', () => {
     toast.update(id, { kind: 'success', title: '完成' })
     const t = useToastsStore.getState().toasts.find((x) => x.id === id)
     expect(t?.kind).toBe('success')
-    // success 默认 6s 后自动消失
+    // success 默认 6s 后自动消失（先 leaving 后移除）
     vi.advanceTimersByTime(5999)
     expect(useToastsStore.getState().toasts).toHaveLength(1)
     vi.advanceTimersByTime(1)
+    expect(useToastsStore.getState().toasts).toHaveLength(1)
+    expect(useToastsStore.getState().toasts[0].leaving).toBe(true)
+    vi.advanceTimersByTime(LEAVE_MS)
     expect(useToastsStore.getState().toasts).toHaveLength(0)
   })
 
@@ -75,13 +101,19 @@ describe('toasts 全局通知（自研轻量）', () => {
     expect(useToastsStore.getState().toasts).toHaveLength(1)
     st.resume(id)
     vi.advanceTimersByTime(6000)
+    expect(useToastsStore.getState().toasts).toHaveLength(1)
+    expect(useToastsStore.getState().toasts[0].leaving).toBe(true)
+    vi.advanceTimersByTime(LEAVE_MS)
     expect(useToastsStore.getState().toasts).toHaveLength(0)
   })
 
-  it('clear 清空全部', () => {
+  it('clear 清空全部（走退场动画后移除）', () => {
     toast.add({ title: 'a' })
     toast.add({ kind: 'error', title: 'b' })
     toast.clear()
+    expect(useToastsStore.getState().toasts).toHaveLength(2)
+    expect(useToastsStore.getState().toasts.every((t) => t.leaving)).toBe(true)
+    vi.advanceTimersByTime(LEAVE_MS)
     expect(useToastsStore.getState().toasts).toHaveLength(0)
   })
 })
