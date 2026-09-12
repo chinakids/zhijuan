@@ -7,6 +7,7 @@ import LoadingIndicator from '../../components/LoadingIndicator'
 import type { ProseApi } from '../editor/Prose'
 import type { AuditKind, EditItem, ChapterCheckKind, DirectorSheet } from '../../../../shared/types'
 import { filterAtCandidates, insertAtMention, parseAtTrigger, type AtCandidate } from '../../../../shared/mention'
+import { parseAtRefs, REF_CAP } from '../../../../shared/atRefs'
 import { expandCommand, filterCommandCandidates, insertCommand, matchFixedCommand, parseCommandTrigger, parsePatrolArgs, type ZjCommand } from '../../../../shared/commands'
 import { useAgentStore } from './store'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
@@ -478,6 +479,10 @@ export default function AgentPanel(props: AgentPanelProps) {
     return his + input.length
   }, [messages, input])
 
+  // @ 引用注入预算：解析当前输入里的引用标记，按主进程同口径（每条 ≤4000、合计 ≤12000）估算注入量
+  const atRefs = useMemo(() => parseAtRefs(input), [input])
+  const injectBudget = Math.min(atRefs.length * REF_CAP.each, REF_CAP.total)
+
   function grabQuote() {
     const api = props.editorApi()
     const sel = api?.getSelected()
@@ -635,6 +640,9 @@ export default function AgentPanel(props: AgentPanelProps) {
       <div className="pointer-events-none absolute inset-x-2.5 bottom-2 flex items-center gap-1 text-[10px] text-ink-3">
         <span>上下文 {fmtCtx(ctxChars)}</span>
         <span className="opacity-60">/ {fmtCtx(CHAR_LIMIT)}</span>
+        {atRefs.length > 0 && (
+          <span className="opacity-60">· @注入 {atRefs.length}条 ≤{fmtCtx(injectBudget)}</span>
+        )}
       </div>
       {/* 悬浮发送按钮 */}
       <div className="absolute bottom-2 right-2">

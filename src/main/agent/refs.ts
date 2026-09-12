@@ -2,15 +2,11 @@
 // 输入框 @ 功能的另一半闭环：用户消息里的 〔类型·名称｜路径〕 引用标记，发送时由主进程
 // 读取对应文档内容并注入本轮 agent 上下文（对照 Cursor @ mention = 把文件内容 attach 进对话，
 // https://cursor.com/help/customization/context，2026-09-11 调研）。
-// 纯逻辑可单测；读文件真链路在 expandAtRefs（用 store.readDoc）。
+// 引用标记解析与预算常量在 shared/atRefs.ts（main/renderer 同口径），本文件负责读文件真链路。
 import { readDoc } from '../store'
+import { parseAtRefs, REF_CAP, type AtRef } from '../../shared/atRefs'
 
-export interface AtRef {
-  type: string
-  name: string
-  /** 项目相对路径（如 人物/沈藏.md） */
-  file: string
-}
+export { parseAtRefs, REF_CAP, type AtRef }
 
 export interface InflatedRef extends AtRef {
   /** 文件读到了非空内容 */
@@ -21,28 +17,12 @@ export interface InflatedRef extends AtRef {
   truncated: boolean
 }
 
-const REF_RE = /〔([^〔〕·]+?)·([^〔〕｜]+?)｜([^〔〕]+?)〕/g
-
-/** 从文本中提取全部 @ 引用标记（输入框插入形态：〔类型·名称｜路径〕） */
-export function parseAtRefs(text: string): AtRef[] {
-  const out: AtRef[] = []
-  for (const m of text.matchAll(REF_RE)) {
-    const type = m[1].trim()
-    const name = m[2].trim()
-    const file = m[3].trim()
-    if (type && name && file) out.push({ type, name, file })
-  }
-  return out
-}
-
 /** 剥 front matter：仅正文章节（章号/题名/切片/涉及人物 是元数据）；人物/世界观/素材文件的
  *  约定头字段（如 姓名/身份）也是档案内容，与 buildWritingContext 口径一致保留原样。 */
 function stripFrontMatter(raw: string): string {
   const m = raw.match(/^---\n[\s\S]*?\n---\n/)
   return m ? raw.slice(m[0].length) : raw
 }
-
-export const REF_CAP = { each: 4000, total: 12000 }
 
 /**
  * 逐个读内容并套预算（read 以 file 为参数，便于单测注入；真机传 readDoc 包装）。
