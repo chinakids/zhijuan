@@ -11,7 +11,7 @@ import { selectAll } from 'prosemirror-commands'
 import { TextSelection } from 'prosemirror-state'
 import '@milkdown/theme-nord/style.css'
 import '../../styles/milkdown.css'
-import { ClipboardPaste, Copy, MessageSquarePlus, Scissors, TextSelect } from 'lucide-react'
+import { ClipboardPaste, Copy, MessageSquarePlus, MessageSquareText, Scissors, TextSelect } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import EditorToolbar from './EditorToolbar'
 import FindBar from './FindBar'
@@ -121,6 +121,31 @@ export default function Prose({ value, onEdit, apiRef, className }: ProseProps) 
   const dispatchQuote = () => {
     if (!bubble) return
     window.dispatchEvent(new CustomEvent('zj:quote-text', { detail: bubble.text }))
+    setBubble(null)
+  }
+  // 划词「批注」（主人 2026-09-12）：带选中原文（before）与尽力而为的行列 loc → Novel 弹层填写意图
+  const dispatchAnno = () => {
+    if (!bubble) return
+    let loc = ''
+    try {
+      edRef.current?.action((ctx: any) => {
+        const view = ctx.get(editorViewCtx)
+        const { from, to } = view.state.selection
+        if (from !== to) {
+          const lc = (pos: number) => {
+            const ts = view.state.doc.textBetween(0, pos, '\n')
+            const lines = ts.split('\n')
+            return { line: lines.length, col: lines[lines.length - 1].length + 1 }
+          }
+          const s = lc(from)
+          const e = lc(to)
+          if (s.line === e.line) loc = `L${s.line}:${s.col}-L${e.line}:${e.col}`
+        }
+      })
+    } catch {
+      /* 编辑器未就绪：loc 置空，靠 before 原文兜底 */
+    }
+    window.dispatchEvent(new CustomEvent('zj:anno-compose', { detail: { loc, before: bubble.text } }))
     setBubble(null)
   }
 
@@ -586,7 +611,11 @@ export default function Prose({ value, onEdit, apiRef, className }: ProseProps) 
           </button>
           <button onClick={dispatchQuote} title="把选中文字作为引用添加到右下对话" aria-label="添加到对话">
             <MessageSquarePlus className="h-3.5 w-3.5" />
-            添加到对话
+            对话
+          </button>
+          <button onClick={dispatchAnno} title="给选中文字添加批注（供批注优化生成修改提案）" aria-label="添加批注">
+            <MessageSquareText className="h-3.5 w-3.5" />
+            批注
           </button>
         </div>
       )}

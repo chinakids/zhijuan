@@ -8,6 +8,14 @@ export interface AnnotationRow {
   /** 位置串；空行/坏行保留占位（行号 1:1 对齐 csv 原文，与 csv.reader 不跳行口径一致） */
   loc: string
   note: string
+  /** 可选第 3 列：选中原文（编辑器划词批注写入；定位优先用它，loc 仅作外部审计兼容） */
+  before: string
+}
+
+/** CSV 字段转义（含逗号/引号/换行时按 RFC4180 双引号包裹） */
+export function escapeCsvField(s: string): string {
+  if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"'
+  return s
 }
 
 /** 单行 CSV 解析（RFC4180 简化：双引号包裹的字段可含逗号与转义引号；字符级逐格） */
@@ -39,8 +47,8 @@ export function parseAnnotationCsv(text: string): AnnotationRow[] {
   const arr = text.split(/\r?\n/)
   if (arr.length > 0 && arr[arr.length - 1] === '') arr.pop()
   return arr.map((l) => {
-    const [loc, ...rest] = parseCsvLine(l)
-    return { loc: (loc ?? '').trim(), note: rest.join(',').trim() }
+    const [loc, note, before] = parseCsvLine(l)
+    return { loc: (loc ?? '').trim(), note: (note ?? '').trim(), before: (before ?? '').trim() }
   })
 }
 

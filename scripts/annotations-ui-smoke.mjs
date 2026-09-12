@@ -96,7 +96,7 @@ await sleep(600)
 
 // ② 回项目正文页，等自动首扫（打开 10s 后）
 await page.eval(`(() => { location.hash = '#/project/demo-aseya/novel'; return 1 })()`)
-await evalUntil(page, bodyHas('第01章'), Boolean, 20000, '正文载入')
+await evalUntil(page, bodyHas('第1章'), Boolean, 20000, '正文载入')
 await evalUntil(
   page,
   `window.zhijuan.listProposals('demo-aseya').then((ps) => ps.filter((p) => p.source === 'annotation-sync').length)`,
@@ -131,6 +131,31 @@ const doc = await page.eval(`window.zhijuan.readDoc('demo-aseya', '正文/第01�
 ok('批注 csv 行已删除（剩 1 条）', typeof doc === 'string' && !doc.includes('L10:1') && doc.includes('L12:1'), JSON.stringify(doc))
 const md = await page.eval(`window.zhijuan.readDoc('demo-aseya', '正文/第01章_雾港.md')`)
 ok('正文按批注意图改写生效', typeof md === 'string' && md.includes('攥着灯的手在抖'), '')
+
+// ⑦ 划词批注：收起抽屉 → 打开第01章 → 事件弹层 → 输入保存 → csv 追加（loc 同行，before=选中原文）
+await page.eval(clickBtn('收起'))
+await sleep(600)
+await page.eval(clickBtn('第1章', false))
+await sleep(1000)
+await page.eval(`window.dispatchEvent(new CustomEvent('zj:anno-compose', { detail: { loc: 'L12:2-L12:11', before: '你当真不记得了？' } }))`)
+await evalUntil(page, bodyHas('添加批注'), Boolean, 8000, '批注弹层')
+ok('划词后弹出「添加批注」弹层', true)
+await page.eval(`(() => {
+  const ta = document.querySelector('[role=dialog] textarea, [role=dialog] textarea')
+  if (!ta) return 'NO_TA'
+  const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(ta), 'value').set
+  setter.call(ta, '这句审问感太重，改成更轻的疑问。')
+  ta.dispatchEvent(new Event('input', { bubbles: true }))
+  return 'OK'
+})()`)
+await page.eval(clickBtn('保存批注'))
+await sleep(1200)
+const csv2 = await page.eval(`window.zhijuan.readDoc('demo-aseya', '正文/第01章_雾港_批注.csv')`)
+ok(
+  '划词批注已写入 csv（第三列原文）',
+  typeof csv2 === 'string' && csv2.includes('你当真不记得了？') && csv2.includes('更轻的疑问'),
+  JSON.stringify(csv2)
+)
 
 console.log(`RESULT: pass=${pass} fail=${fail}`)
 process.exit(fail ? 1 : 0)

@@ -25,6 +25,42 @@ export default function Novel() {
   const { id = '' } = useParams()
   const [chapters, setChapters] = useState<ChapterEntry[]>([])
   const [sel, setSel] = useState<string | null>(null)
+  // 划词批注弹层（主人 2026-09-12：编辑器划词 → 填写批注意图 → 写入 *_批注.csv）
+  const [annoTarget, setAnnoTarget] = useState<{ loc: string; before: string } | null>(null)
+  const [annoNote, setAnnoNote] = useState('')
+  const [annoSaving, setAnnoSaving] = useState(false)
+  useEffect(() => {
+    const h = (e: Event) => {
+      const d = (e as CustomEvent<{ loc: string; before: string }>).detail
+      if (typeof d?.before === 'string' && d.before.trim()) {
+        setAnnoTarget({ loc: d.loc ?? '', before: d.before.trim() })
+        setAnnoNote('')
+      }
+    }
+    window.addEventListener('zj:anno-compose', h)
+    return () => window.removeEventListener('zj:anno-compose', h)
+  }, [])
+  async function saveAnno() {
+    if (!annoTarget || !sel) return
+    setAnnoSaving(true)
+    try {
+      const r = await window.zhijuan.annotationAdd(id, '正文/' + sel, {
+        loc: annoTarget.loc,
+        before: annoTarget.before,
+        note: annoNote.trim() || '修改此处'
+      })
+      if (r.ok) {
+        toast.add({ kind: 'success', title: '批注已添加', description: `已写入 ${r.csvRel}（第 ${r.row} 行）；批注优化扫描后会生成修改提案` })
+      } else {
+        toast.add({ kind: 'error', title: '批注添加失败', description: '写入批注文件失败' })
+      }
+    } catch (e) {
+      toast.add({ kind: 'error', title: '批注添加失败', description: String((e as Error).message ?? e) })
+    } finally {
+      setAnnoSaving(false)
+      setAnnoTarget(null)
+    }
+  }
   const [creating, setCreating] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
@@ -479,6 +515,35 @@ export default function Novel() {
         initialTab={checkTab}
         onClose={() => setCheckOpen(false)}
       />
+
+      {/* 划词批注弹层（主人 2026-09-12） */}
+      <Dialog open={!!annoTarget} onOpenChange={(o) => !o && setAnnoTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>添加批注</DialogTitle>
+            <DialogDescription>
+              已选中：{annoTarget?.before.slice(0, 36)}
+              {(annoTarget?.before.length ?? 0) > 36 ? '…' : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={annoNote}
+            onChange={(e) => setAnnoNote(e.target.value)}
+            rows={4}
+            autoFocus
+            placeholder="写写这块要怎么改（批注优化会按它生成修改提案）"
+            className="w-full"
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAnnoTarget(null)}>
+              取消
+            </Button>
+            <Button disabled={!annoNote.trim() || annoSaving} onClick={() => void saveAnno()}>
+              {annoSaving ? '保存中…' : '保存批注'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={creating} onOpenChange={setCreating}>
         <DialogContent className="sm:max-w-md">

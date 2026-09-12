@@ -113,6 +113,9 @@ const api = {
   // 批注定时优化：扫描项目内 *_批注.csv → 生成修改提案（结果 note 供 toast）
   scanAnnotations: (id: string) =>
     ipcRenderer.invoke('annotations:scan', id) as Promise<{ found: number; generated: number; skipped: number; note: string }>,
+  // 划词添加批注：追加到 <md 同名>_批注.csv（loc 尽力而行，before=选中原文）
+  annotationAdd: (id: string, mdRel: string, entry: { loc: string; before: string; note: string }) =>
+    ipcRenderer.invoke('annotations:add', id, mdRel, entry) as Promise<{ csvRel: string; row: number; ok: boolean }>,
 
   // 文件系统事件（项目目录被外部改动时）
   onFsEvent: (cb: (evt: FsEvent) => void) => {

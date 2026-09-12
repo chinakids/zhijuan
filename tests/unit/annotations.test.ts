@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseCsvLine, parseLoc, segmentFromText, parseAnnotationCsv } from '../../src/shared/annotations'
+import { parseCsvLine, parseLoc, segmentFromText, parseAnnotationCsv, escapeCsvField } from '../../src/shared/annotations'
 
 describe('批注工具（shared/annotations）', () => {
   it('parseCsvLine：普通两列', () => {
@@ -34,11 +34,20 @@ describe('批注工具（shared/annotations）', () => {
   it('parseAnnotationCsv：保留空行占位（行号与 csv.reader 口径一致）', () => {
     const rows = parseAnnotationCsv('L1:1-L1:3,改\n\nL2:2-L2:5,再改\n')
     expect(rows).toHaveLength(3)
-    expect(rows[1]).toEqual({ loc: '', note: '' })
+    expect(rows[1]).toEqual({ loc: '', note: '', before: '' })
     expect(rows[2].loc).toBe('L2:2-L2:5')
   })
   it('parseAnnotationCsv：记录引号字段的批注意图', () => {
     const rows = parseAnnotationCsv('L5:1-L5:4,"别用, 逗号"')
     expect(rows[0].note).toBe('别用, 逗号')
+  })
+  it('parseAnnotationCsv：第三列 before（编辑器划词写入）', () => {
+    const rows = parseAnnotationCsv('L10:1-L10:20,改这句,雨把港口淋成一片灰')
+    expect(rows[0].before).toBe('雨把港口淋成一片灰')
+  })
+  it('escapeCsvField：逗号/引号/换行转义', () => {
+    expect(escapeCsvField('普通')).toBe('普通')
+    expect(escapeCsvField('a,b')).toBe('"a,b"')
+    expect(escapeCsvField('说"话"')).toBe('"说""话"""')
   })
 })

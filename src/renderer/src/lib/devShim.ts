@@ -13,7 +13,7 @@ import { countWords } from '../../../shared/count'
 import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceCheck, chapterMissingFromRaw } from '../../../shared/presence'
 import { findAnchorLine, normalizeAnchor } from '../../../shared/anchor'
 import { auditDocMarkdown } from '../../../shared/auditDoc'
-import { parseAnnotationCsv, segmentFromText } from '../../../shared/annotations'
+import { parseAnnotationCsv, segmentFromText, escapeCsvField } from '../../../shared/annotations'
 import type { RecentEntry } from '../../../shared/projects'
 import { toast } from '../store/toasts'
 
@@ -642,13 +642,16 @@ const mock = {
     return out.slice(0, n)
   },
   listChapters: async (id: string): Promise<ChapterEntry[]> => {
-    // 解析/排序口径在 shared/chapters（与真机 store.listChapters 同一实现，2026-09-12 根治分叉）
-    const sources = docsOf(id + '/正文').map(({ file, mtime }) => ({
-      file,
-      name: file.replace(/\.md$/, ''),
-      text: docs.get(id + '/正文/' + file) ?? '',
-      mtime
-    }))
+    // 解析/排序口径在 shared/chapters（与真机 store.listChapters 同一实现，2026-09-12 根治分叉）；
+    // 与真机 listDocs 同口径只收 .md（划词批注 csv 等不进章节列表，2026-09-12 补）
+    const sources = docsOf(id + '/正文')
+      .filter((d) => d.file.endsWith('.md'))
+      .map(({ file, mtime }) => ({
+        file,
+        name: file.replace(/\.md$/, ''),
+        text: docs.get(id + '/正文/' + file) ?? '',
+        mtime
+      }))
     return listChapterEntries(sources)
   },
   listSlices: async (id: string): Promise<SliceEntry[]> => {
@@ -788,8 +791,11 @@ const mock = {
       'L12:1-L12:60': '「你真的不记得了？」沈藏点了根烟，烟雾在灯罩边绕了一圈，「这盏灯，是你自己熄的。」'
     }
     const targets = parseAnnotationCsv(csv)
-      .map((r, i) => ({ row: i + 1, loc: r.loc, note: r.note, before: segmentFromText(md, r.loc) }))
-      .filter((t): t is { row: number; loc: string; note: string; before: string } => Boolean(t.loc && t.before != null))
+      .map((r, i) => {
+        const byText = r.before && md.includes(r.before) ? r.before : segmentFromText(md, r.loc)
+        return { row: i + 1, loc: r.loc, note: r.note, before: byText }
+      })
+      .filter((t): t is { row: number; loc: string; note: string; before: string } => Boolean(t.before != null))
     if (!targets.length) return { found: 0, generated: 0, skipped: 0, note: '没有新的待处理批注' }
     const items: ProposalItem[] = []
     const metas: { annotations: { file: string; rows: number[] }[]; note?: string }[] = []
@@ -804,6 +810,18 @@ const mock = {
     if (!items.length) return { found: targets.length, generated: 0, skipped: targets.length, note: '引擎未产出可用改写（批注未动，可稍后重试）' }
     await mock.createProposals(id, 'annotation-sync', '正文/第01章_雾港.md', '', items, undefined, metas)
     return { found: targets.length, generated: items.length, skipped: 0, note: `发现 ${targets.length} 条批注，生成 ${items.length} 条修改提案` }
+  },
+
+  // 划词添加批注（dev：追加内存 csv，与真机 addAnnotation 同构）
+  annotationAdd: async (id: string, mdRel: string, entry: { loc: string; before: string; note: string }) => {
+    const mdNorm = mdRel.endsWith('.md') ? mdRel : mdRel + '.md'
+    const csvRel = mdNorm.replace(/\.md$/, '') + '_批注.csv'
+    const key = id + '/' + csvRel
+    const body = (docs.get(key) ?? '').replace(/\n$/, '')
+    const line = `${escapeCsvField(entry.loc)},${escapeCsvField(entry.note)},${escapeCsvField(entry.before)}`
+    docs.set(key, (body ? body + '\n' : '') + line + '\n')
+    fsEmit(id, csvRel)
+    return { csvRel, row: parseAnnotationCsv(docs.get(key) ?? '').length, ok: true }
   },
 
   // 采纳 agent 的正文修改（dev：改内存文档）

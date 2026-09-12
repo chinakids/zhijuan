@@ -4,12 +4,12 @@
 // 生成修改提案（source=annotation-sync，走提案制确认；同章 pending 置 stale 与 slice-sync 同口径）→
 // 提案被接受/拒绝后删除对应 csv 行（空 csv 删除文件）——与脚本 remove/cull 语义一致。
 // 「定时」= 打开项目后 30s 起跑 + 每 30 分钟 + 提案抽屉手动按钮（渲染侧触发本模块 scan）。
-import { readdirSync, readFileSync, writeFileSync, existsSync, rmSync, statSync } from 'fs'
-import { join, relative } from 'path'
+import { readdirSync, readFileSync, writeFileSync, existsSync, rmSync, statSync, mkdirSync } from 'fs'
+import { join, relative, dirname } from 'path'
 import { projectDir } from '../store'
 import { libraryRoot } from '../settings'
 import { createProposals } from '../proposals'
-import { parseAnnotationCsv, segmentFromText } from '../../shared/annotations'
+import { parseAnnotationCsv, segmentFromText, escapeCsvField } from '../../shared/annotations'
 import { registerCapability, runSubtask, extractJson, type SubtaskDef } from './subtask'
 import type { Proposal, ProposalItem, AnnotationRef } from '../../shared/types'
 
@@ -75,8 +75,9 @@ export function findAnnotationTargets(projectId: string): AnnotationTarget[] {
       const doneRows = rec && st.mtimeMs <= rec.mtimeMs ? rec.rows : []
       const rows = parseAnnotationCsv(readFileSync(full, 'utf-8'))
       rows.forEach((r, i) => {
-        if (!r.loc || doneRows.includes(i + 1)) return
-        const before = segmentFromText(mdText, r.loc)
+        if ((!r.loc && !r.before) || doneRows.includes(i + 1)) return
+        // 定位优先级：csv 第 3 列「原文」精确匹配（编辑器划词写入）> loc 行列区间
+        const before = r.before && mdText.includes(r.before) ? r.before : segmentFromText(mdText, r.loc)
         if (before == null) return
         out.push({ csvRel, mdRel, row: i + 1, loc: r.loc, note: r.note, before })
       })
@@ -125,6 +126,34 @@ export function resolveAnnotationRows(projectId: string, refs: AnnotationRef[] |
   for (const ref of refs) delete done[ref.file]
   saveDone(root, done)
   return n
+}
+
+/** 编辑器划词写入批注（追加到 <md 同名>_批注.csv；loc 尽力而为（同行），before=选中原文，定位兜底） */
+export function addAnnotation(
+  projectId: string,
+  mdRel: string,
+  entry: { loc: string; before: string; note: string }
+): { csvRel: string; row: number; ok: boolean } {
+  const root = projectDir(projectId)
+  const mdNorm = mdRel.endsWith('.md') ? mdRel : mdRel + '.md'
+  const csvRel = mdNorm.replace(/\.md$/, '') + '_批注.csv'
+  const abs = join(root, csvRel)
+  let existing = ''
+  try {
+    existing = readFileSync(abs, 'utf-8')
+  } catch {
+    /* 文件不存在 */
+  }
+  const body = existing.replace(/\n$/, '')
+  const line = `${escapeCsvField(entry.loc)},${escapeCsvField(entry.note)},${escapeCsvField(entry.before)}`
+  try {
+    mkdirSync(dirname(abs), { recursive: true })
+    writeFileSync(abs, (body ? body + '\n' : '') + line + '\n', 'utf-8')
+  } catch {
+    return { csvRel, row: 0, ok: false }
+  }
+  const rows = parseAnnotationCsv(readFileSync(abs, 'utf-8'))
+  return { csvRel, row: rows.length, ok: true }
 }
 
 const annotationDef: SubtaskDef<{ before: string; after: string; reason: string }[]> = {
