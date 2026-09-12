@@ -107,7 +107,7 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
         ) : snaps.length === 0 ? (
           <div className="flex flex-1 flex-col items-center gap-2 py-20 text-ink-3">
             <Inbox className="h-6 w-6" />
-            <p className="max-w-xs text-center text-xs">还没有历史版本。保存正文且内容有变化时，旧内容会自动留档一版（每文件最多 50 版）。</p>
+            <p className="max-w-xs text-center text-xs">还没有历史版本。内容有变化（保存正文 / 重跑审读）时，旧内容会自动留档一版（每文件最多 50 版）。</p>
           </div>
         ) : (
           <>

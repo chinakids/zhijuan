@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { BookMarked, CheckCheck, CheckCircle2, CircleDashed, Clapperboard, FileText, Hammer, ListTree, PenLine, RefreshCw, ScrollText, ShieldCheck, Wrench } from 'lucide-react'
+import { BookMarked, CheckCheck, CheckCircle2, CircleDashed, Clapperboard, FileText, Hammer, History, ListTree, PenLine, RefreshCw, ScrollText, ShieldCheck, Wrench } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import type { ChapterEntry } from '../../../shared/types'
 import { cn } from '../lib/utils'
 import { EmptyState } from '../components/EmptyState'
 import DocEditor from '../features/editor/DocEditor'
+import HistoryDrawer from '../features/editor/HistoryDrawer'
 import DirectorCheckDrawer from '../features/check/DirectorCheckDrawer'
 import { useFsEvents } from '../features/fs/useFsEvents'
 import { isBoardStale } from '../../../shared/boardAge'
@@ -28,6 +29,8 @@ export default function Outline() {
   const [adopting, setAdopting] = useState(false)
   const [confirmAdopt, setConfirmAdopt] = useState(false)
   const [checkOpen, setCheckOpen] = useState(false)
+  // 审读存档条目旁的「历史」抽屉（复用正文 HistoryDrawer，rel=审读报告路径）
+  const [historyRel, setHistoryRel] = useState<string | null>(null)
   const [msg, setMsg] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
@@ -400,18 +403,28 @@ export default function Outline() {
             <div className="mt-2 border-t border-hair pt-2">
               <div className="px-3 pb-1 text-[10px] text-ink-3">审读存档</div>
               {auditReports.map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setSel(f)}
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors',
-                    sel === f ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface'
-                  )}
-                  title="全卷检查自动存档，可点击回看（重跑会覆盖本文件）"
-                >
-                  <FileText className="h-3 w-3 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate">{f.replace('大纲/审读_', '').replace(/\.md$/, '')}</span>
-                </button>
+                <div key={f} className="flex items-center">
+                  <button
+                    onClick={() => setSel(f)}
+                    className={cn(
+                      'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors',
+                      sel === f ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface'
+                    )}
+                    title="全卷检查自动存档，可点击回看；重跑会覆盖本文件（旧版点右侧「历史」按钮可回看/恢复）"
+                  >
+                    <FileText className="h-3 w-3 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">{f.replace('大纲/审读_', '').replace(/\.md$/, '')}</span>
+                  </button>
+                  <button
+                    onClick={() => setHistoryRel(f)}
+                    className="mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-3 transition-colors hover:bg-surface hover:text-accent"
+                    title="版本历史（重跑检查时旧结论自动留档，可回看差异/恢复）"
+                    aria-label="版本历史"
+                    data-testid="audit-history"
+                  >
+                    <History className="h-3 w-3" />
+                  </button>
+                </div>
               ))}
             </div>
           )}
@@ -552,6 +565,7 @@ export default function Outline() {
         onRewriteSeg={(seg) => void rewriteSeg(seg)}
         rewriting={rewriting}
       />
+      <HistoryDrawer projectId={id} rel={historyRel ?? ''} open={historyRel !== null} onClose={() => setHistoryRel(null)} />
     </div>
   )
 }
