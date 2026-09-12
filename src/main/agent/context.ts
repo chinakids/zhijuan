@@ -9,6 +9,7 @@ import { readDoc, listChapters, listDocs } from '../store'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { worldSliceFile } from '../../shared/paths'
 import { stripHtmlComments } from '../../shared/comments'
+import { matchActPlaceholders } from '../../shared/actsSeg'
 
 export interface WritingContext {
   blocks: string[]
@@ -55,16 +56,31 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
   // 1. 当前章节正文（去 front matter；章首「本章故事要素」块随正文一起带上）
   //    预算硬控边：超长时装配**结尾**（续写/巡查最需要的是刚写到的部分；开头可用 zj_read_doc 现读），
   //    而非默认从头截断——从头截会把「刚写到哪里」裁掉（2026-09-10 上下文审计修复）。
-  let chRaw = chapterRel ? read(chapterRel) : ''
+  //    2026-09-12 缺段占位补齐闭环第一步：占位注释（<!-- 分幕草稿缺第 N 段… -->）剥掉前先识别，
+  //    提示行随正文块注入——模型要知道「正文断链」，续写/润色才不会把洞当正常衔接去缝合。
+  let chRaw = ''
+  let actGaps: number[] = []
+  if (chapterRel) {
+    try {
+      const raw = readDoc(projectId, chapterRel) ?? ''
+      actGaps = matchActPlaceholders(raw)
+      chRaw = stripHtmlComments(raw)
+    } catch {
+      chRaw = ''
+    }
+  }
   const { fm } = extractFrontMatter(chRaw)
   chRaw = stripFrontMatter(chRaw)
-  if (chRaw.trim()) {
+  if (chRaw.trim() || actGaps.length > 0) {
     const over = chRaw.length - CAP.chapter
     const body =
       over > 0
         ? `（本章正文已超 ${CAP.chapter} 字符预算：装配的是**结尾**部分，前文 ${over} 字符已省略；要看前面内容请用 zj_read_doc 读取本文件）\n…\n${chRaw.slice(-CAP.chapter)}`
         : chRaw
-    blocks.push(`【当前章节：${chapterRel}】\n${body}`)
+    const gapWarn = actGaps.length
+      ? `（⚠️ 本章正文含分幕缺段占位：第 ${actGaps.join('、')} 段未写成（正文断链）——续写/润色请正视此缺口，勿当正常衔接，可建议作者先补齐）\n`
+      : ''
+    blocks.push(`【当前章节：${chapterRel}】\n${gapWarn}${body}`)
     sources.push(chapterRel)
   }
 

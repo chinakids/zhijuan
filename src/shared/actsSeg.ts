@@ -21,6 +21,23 @@ export function actPlaceholder(n: number): string {
   return `<!-- 分幕草稿缺第 ${n} 段：此处情节未写成，待补齐 -->`
 }
 
+/** 匹配正文中的缺段占位注释（与 actPlaceholder 生成格式一致，捕获段号；仅成对闭合注释） */
+const ACT_PLACEHOLDER = /<!--\s*分幕草稿缺第\s*(\d+)\s*段[^>]*?-->/g
+
+/**
+ * 从正文全文识别缺段占位注释，返回缺段号（升序去重）。
+ * 补齐闭环第一步（2026-09-12）：占位注释被 stripHtmlComments 剥掉后模型看不到「缺第 N 段」——
+ * 上下文装配前先识别，把「正文断链」显式告知模型；作者自定义注释/未闭合注释不误伤。
+ */
+export function matchActPlaceholders(text: string): number[] {
+  const out = new Set<number>()
+  for (const m of text.matchAll(ACT_PLACEHOLDER)) {
+    const n = Number(m[1])
+    if (Number.isFinite(n) && n > 0) out.add(n)
+  }
+  return [...out].sort((a, b) => a - b)
+}
+
 /** 缺段警示行开头（草稿头部 `> ⚠️ 第 X 段未按导演板写成…`），采纳/解析共用 */
 const ACT_WARN_LINE = /^>\s*⚠️/
 

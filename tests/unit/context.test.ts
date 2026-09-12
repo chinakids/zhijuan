@@ -5,6 +5,7 @@ vi.mock('../../src/main/store', () => ({ readDoc: vi.fn(), listChapters: vi.fn()
 
 import { buildWritingContext, isTemplateShell } from '../../src/main/agent/context'
 import { findAnchorLine } from '../../src/shared/anchor'
+import { actPlaceholder } from '../../src/shared/actsSeg'
 import { readDoc, listChapters } from '../../src/main/store'
 
 const readDocMock = vi.mocked(readDoc)
@@ -111,6 +112,54 @@ describe('buildWritingContext（写作上下文装配）', () => {
     expect(chapter).not.toContain('【开头标记】') // 开头被省略（预算内 8000 字符不够首尾都在）
     expect(chapter).toContain('已省略')
     expect(chapter).toContain('zj_read_doc')
+  })
+
+  it('正文含缺段占位：注入断链提示行，占位注释本体不进上下文', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === '正文/第1章_c.md')
+        return FM_1 + '第一段正文。\n\n' + actPlaceholder(2) + '\n\n第三段正文。\n\n' + actPlaceholder(5) + '\n\n第六段正文。'
+      return null
+    })
+    listChaptersMock.mockReturnValue([] as never)
+
+    const { blocks } = await buildWritingContext('p', '正文/第1章_c.md')
+    const chapter = blocks.find((b) => b.includes('当前章节'))
+    expect(chapter).toBeTruthy()
+    // 断链提示显式注入（模型知道缺第 2、5 段）
+    expect(chapter).toContain('分幕缺段占位')
+    expect(chapter).toContain('第 2、5 段未写成')
+    expect(chapter).toContain('正文断链')
+    // 注释本体仍被剥离（模型看到的是事实+提示，不是注释原文）
+    expect(chapter).not.toContain('<!--')
+    expect(chapter).toContain('第一段正文')
+    expect(chapter).toContain('第三段正文')
+  })
+
+  it('正文只有缺段占位（无正文内容）：仍注入断链提示', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === '正文/第1章_d.md') return FM_1 + actPlaceholder(1)
+      return null
+    })
+    listChaptersMock.mockReturnValue([] as never)
+
+    const { blocks } = await buildWritingContext('p', '正文/第1章_d.md')
+    const chapter = blocks.find((b) => b.includes('当前章节'))
+    expect(chapter).toBeTruthy()
+    expect(chapter).toContain('第 1 段未写成')
+  })
+
+  it('正文无占位：零提示零回归（无断链字样）', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === '正文/第1章_e.md') return FM_1 + '正常的正文，没有占位。'
+      return null
+    })
+    listChaptersMock.mockReturnValue([] as never)
+
+    const { blocks } = await buildWritingContext('p', '正文/第1章_e.md')
+    const chapter = blocks.find((b) => b.includes('当前章节'))
+    expect(chapter).toContain('正常的正文，没有占位。')
+    expect(chapter).not.toContain('分幕缺段')
+    expect(chapter).not.toContain('正文断链')
   })
 
   it('正文未超预算：原样全量装配，无省略提示', async () => {
