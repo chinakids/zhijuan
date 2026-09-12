@@ -126,25 +126,10 @@ export default function Prose({ value, onEdit, apiRef, className }: ProseProps) 
   // 划词「批注」（主人 2026-09-12）：带选中原文（before）与尽力而为的行列 loc → Novel 弹层填写意图
   const dispatchAnno = () => {
     if (!bubble) return
-    let loc = ''
-    try {
-      edRef.current?.action((ctx: any) => {
-        const view = ctx.get(editorViewCtx)
-        const { from, to } = view.state.selection
-        if (from !== to) {
-          const lc = (pos: number) => {
-            const ts = view.state.doc.textBetween(0, pos, '\n')
-            const lines = ts.split('\n')
-            return { line: lines.length, col: lines[lines.length - 1].length + 1 }
-          }
-          const s = lc(from)
-          const e = lc(to)
-          if (s.line === e.line) loc = `L${s.line}:${s.col}-L${e.line}:${e.col}`
-        }
-      })
-    } catch {
-      /* 编辑器未就绪：loc 置空，靠 before 原文兜底 */
-    }
+    // loc 留空：编辑器只见剥了 front matter 的正文（DocEditor splitFm），这里算出的行号
+    // 是「正文内行号」而非 md 文件行号，写入 csv 会误导外部审计——定位以 before 原文兜底
+    // （findAnnotationTargets 优先级：csv 第 3 列原文 > loc 行列区间），loc 不作为依赖。
+    const loc = ''
     window.dispatchEvent(new CustomEvent('zj:anno-compose', { detail: { loc, before: bubble.text } }))
     setBubble(null)
   }

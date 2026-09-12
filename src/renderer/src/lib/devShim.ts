@@ -788,7 +788,9 @@ const mock = {
     }
     const MOCK_AFTER: Record<string, string> = {
       'L10:1-L10:34': '雨把港口淋成一片灰。阿七靠着候船厅的柱子，攥着灯的手在抖。',
-      'L12:1-L12:60': '「你真的不记得了？」沈藏点了根烟，烟雾在灯罩边绕了一圈，「这盏灯，是你自己熄的。」'
+      'L12:1-L12:60': '「你真的不记得了？」沈藏点了根烟，烟雾在灯罩边绕了一圈，「这盏灯，是你自己熄的。」',
+      // 划词批注 loc 留空（before 兜底定位，见 Prose.tsx dispatchAnno）：按原文匹配
+      '雨把港口淋成一片灰': '雨把港口淋成一片灰。阿七靠着候船厅的柱子，攥着灯的手在抖。'
     }
     const targets = parseAnnotationCsv(csv)
       .map((r, i) => {
@@ -801,7 +803,7 @@ const mock = {
     const metas: { annotations: { file: string; rows: number[] }[]; note?: string }[] = []
     const refRows: number[] = []
     for (const t of targets) {
-      const after = MOCK_AFTER[t.loc]
+      const after = MOCK_AFTER[t.loc] ?? MOCK_AFTER[t.before]
       if (!after) continue
       items.push({ target: '正文/第01章_雾港.md', anchor: t.loc, kind: 'replace-text', before: t.before, after, reason: '批注：' + t.note })
       metas.push({ annotations: [{ file: csvRel, rows: [t.row] }] })
