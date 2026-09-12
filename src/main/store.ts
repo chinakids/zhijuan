@@ -1,7 +1,7 @@
 // ===== 织卷 V2 · 文档式 fileStore（模块设计 §2.4 / §四） =====
 // 所有项目数据都是明文文件；本模块只做：扫描、骨架、读写、监听（设置见 settings.ts，工作区见 workspace.ts）。
 import { shell } from 'electron'
-import { join, relative, basename, dirname, resolve } from 'path'
+import { join, relative, basename, dirname, resolve, sep } from 'path'
 import {
   mkdirSync,
   readdirSync,
@@ -25,7 +25,7 @@ import { migrateChapter, invalidateChapter } from './proposals'
 import { libraryRoot } from './settings'
 import { applyTemplate } from './templates'
 import { nextProjectId } from '../shared/projects'
-import type { ChapterEntry, FsEvent, OutlineCard, ProjectMeta, ProjectStats, ProjectSummary, ImportResult } from '../shared/types'
+import type { ChapterEntry, FsEvent, OutlineCard, ProjectMeta, ProjectStats, ProjectSummary, ImportResult, ExportResult } from '../shared/types'
 
 // ---------- 设置与工作区路径已拆到 settings.ts（参见 docs/架构评审与调整-2026-09-04.md §二） ----------
 export function projectDir(id: string): string {
@@ -193,6 +193,36 @@ export function importProject(dir: string): ImportResult {
   const summary = summarize(id)
   if (!summary) return { ok: false, error: '导入后未生成项目元数据' }
   return { ok: true, summary, copied }
+}
+
+/**
+ * 导出项目：把项目目录完整复制到用户选择的位置（模块设计 §四 A「打开目录 / 导出 / 删除」）。
+ * - 名称沿用项目目录名（与导入的 id=basename 口径一致，导出物可直接再导入）；
+ * - 跳过 git 元数据/系统杂物（与导入同 skip 列表）；
+ * - 目标已存在同名文件夹 → 报错不覆盖（导出是可逆操作，不偷偷合并/覆盖）。
+ */
+export function exportProject(id: string, destParent: string): ExportResult {
+  const src = projectDir(id)
+  if (!existsSync(join(src, PROJ_FILE))) return { ok: false, error: `项目不存在：${id}` }
+  const parent = resolve(destParent ?? '')
+  if (!parent) return { ok: false, error: '导出位置为空' }
+  const name = basename(src)
+  const dest = join(parent, name)
+  // 防呆：目标不得是项目自身或位于项目内部（否则 cpSync 边抄边抄自身）
+  const srcRes = resolve(src)
+  if (dest === srcRes) return { ok: false, error: '导出位置不能是项目自身' }
+  if (dest.startsWith(srcRes + sep)) return { ok: false, error: '导出位置不能位于项目内部' }
+  if (existsSync(dest)) return { ok: false, error: `该位置已有同名文件夹「${name}」，请换个位置` }
+  try {
+    ensureDir(parent)
+    cpSync(src, dest, {
+      recursive: true,
+      filter: (p) => !['.git', '.DS_Store', 'node_modules'].includes(basename(p))
+    })
+    return { ok: true, dest }
+  } catch (e) {
+    return { ok: false, error: String((e as Error).message ?? e) }
+  }
 }
 
 // ---------- 文档读写（相对项目根） ----------

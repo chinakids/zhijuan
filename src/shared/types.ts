@@ -30,6 +30,13 @@ export interface ImportResult {
   copied?: boolean
 }
 
+/** 导出项目（复制项目目录到用户选择的位置）的结果 */
+export interface ExportResult {
+  ok: boolean
+  dest?: string
+  error?: string
+}
+
 /** 项目模板（新建项目时的「初始内容」选项） */
 export interface ProjectTemplate {
   id: string

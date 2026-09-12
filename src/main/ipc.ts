@@ -20,6 +20,7 @@ import {
   createProject,
   removeProject,
   importProject,
+  exportProject,
   projectDir,
   readDoc,
   writeDoc,
@@ -74,6 +75,18 @@ export function registerIpc() {
   })
   ipcMain.handle('project:reveal', (_e, id: string) => {
     shell.showItemInFolder(projectDir(id))
+  })
+  // 导出项目（模块设计 §四 A「打开目录 / 导出 / 删除」）：选目标位置 → 复制项目目录（跳过 .git/.DS_Store/node_modules，与导入同 skip 列表）
+  ipcMain.handle('project:export', async (e, id: string) => {
+    const opts = {
+      title: '选择导出位置（将创建同名项目文件夹）',
+      buttonLabel: '导出到这里',
+      properties: ['openDirectory', 'createDirectory']
+    } as Electron.OpenDialogOptions
+    const win = BrowserWindow.fromWebContents(e.sender)
+    const r = win ? await dialog.showOpenDialog(win, opts) : await dialog.showOpenDialog(opts)
+    if (r.canceled || !r.filePaths[0]) return { ok: false, cancelled: true, error: '已取消' }
+    return exportProject(id, r.filePaths[0])
   })
   ipcMain.handle('project:open', (_e, id: string) => {
     recordOpen(id)

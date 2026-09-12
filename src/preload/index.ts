@@ -5,6 +5,7 @@ import type {
   ChapterEntry,
   FsEvent,
   ImportResult,
+  ExportResult,
   ProjectSummary,
   ProjectTemplate,
   Proposal,
@@ -52,6 +53,8 @@ const api = {
   removeProject: (id: string) => ipcRenderer.invoke('project:remove', id) as Promise<{ ok: boolean; error?: string }>,
   importProject: (dir: string) => ipcRenderer.invoke('project:import', dir) as Promise<ImportResult>,
   importPicker: () => ipcRenderer.invoke('project:importPicker') as Promise<string | null>,
+  exportProject: (id: string) =>
+    ipcRenderer.invoke('project:export', id) as Promise<ExportResult & { cancelled?: boolean }>,
   revealProject: (id: string) => ipcRenderer.invoke('project:reveal', id),
   openProject: (id: string) => ipcRenderer.invoke('project:open', id) as Promise<boolean>,
   getRecentEntries: () => ipcRenderer.invoke('project:recents') as Promise<RecentEntry[]>,

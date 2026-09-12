@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FolderOpen, Plus, Trash2, MoreHorizontal, Search } from 'lucide-react'
+import { FolderOpen, FolderOutput, Plus, Trash2, MoreHorizontal, Search } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import type { ProjectSummary, ProjectTemplate } from '../../../shared/types'
 import type { RecentEntry } from '../../../shared/projects'
@@ -129,6 +129,21 @@ export default function Home() {
       void refresh()
     } catch (e) {
       toast.add({ kind: 'error', title: '删除失败', description: String((e as Error).message ?? e) })
+    }
+  }
+
+  /** 导出项目＝复制项目目录到用户选择的位置（模块设计 §四 A：打开目录 / 导出 / 删除） */
+  async function exportTo(id: string, name: string) {
+    try {
+      const r = await window.zhijuan.exportProject(id)
+      if (r.cancelled) return
+      if (r.ok && r.dest) {
+        toast.add({ kind: 'success', title: '已导出', description: `「${name}」已复制到 ${r.dest}` })
+      } else {
+        toast.add({ kind: 'error', title: '导出失败', description: r.error ?? '未知错误' })
+      }
+    } catch (e) {
+      toast.add({ kind: 'error', title: '导出失败', description: String((e as Error).message ?? e) })
     }
   }
 
@@ -279,6 +294,12 @@ export default function Home() {
                         void window.zhijuan.revealProject(p.id)
                       }}>
                         <FolderOpen className="h-4 w-4" /> 打开所在文件夹
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => {
+                        e.stopPropagation()
+                        void exportTo(p.id, p.name)
+                      }}>
+                        <FolderOutput className="h-4 w-4" /> 导出到…
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-danger focus:text-danger"
