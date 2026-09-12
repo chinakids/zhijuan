@@ -9,7 +9,7 @@ import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import { cn } from '../../lib/utils'
 import DocEditor from '../editor/DocEditor'
-import { useFsEvents } from '../fs/useFsEvents'
+import { useFsChanged, useFsEvents } from '../fs/useFsEvents'
 import { toast } from '../../store/toasts'
 
 interface DocSectionProps {
@@ -56,10 +56,7 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
     void refresh()
   }, [refresh])
 
-  useEffect(() => {
-    const ev = events[events.length - 1]
-    if (ev && ev.path.startsWith(relDir + '/')) void refresh()
-  }, [events, refresh, relDir])
+  useFsChanged(id, relDir + '/', () => void refresh())
 
   const extVersion = useMemo(() => (sel ? events.filter((e) => e.path === sel).length : 0), [events, sel])
 

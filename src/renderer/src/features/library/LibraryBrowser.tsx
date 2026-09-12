@@ -12,7 +12,7 @@ import { buildLibraryTree, type LibraryFileItem } from '../../../../shared/libra
 import { extractFrontMatter } from '../../../../shared/fmatter'
 import type { LibraryCategory, SearchHit } from '../../../../shared/types'
 import DocEditor from '../editor/DocEditor'
-import { useFsEvents } from '../fs/useFsEvents'
+import { useFsChanged, useFsEvents } from '../fs/useFsEvents'
 
 interface CardMeta {
   preview: string
@@ -128,10 +128,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
     }
   }, [id, files, selCat])
 
-  useEffect(() => {
-    const ev = events[events.length - 1]
-    if (ev && ev.path.startsWith('素材库/')) void refresh()
-  }, [events, refresh])
+  useFsChanged(id, '素材库/', () => void refresh())
 
   const extVersion = useMemo(
     () => (editorRel ? events.filter((e) => e.path === editorRel).length : 0),

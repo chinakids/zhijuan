@@ -9,7 +9,7 @@ import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import { Textarea } from '../../components/ui/textarea'
 import { cn } from '../../lib/utils'
-import { useFsEvents } from '../fs/useFsEvents'
+import { useFsChanged } from '../fs/useFsEvents'
 import { isLibraryResultPath, isTaskStale, parseTaskCard, rebuildTaskCardForRetry } from '../../../../shared/taskCard'
 
 /* ===== 织卷 S5 · 采集栏：任务卡列表 + 发起采集表单 ===== */
@@ -69,7 +69,6 @@ export default function CollectionBar() {
   // 删除确认：confirmDelete 非空时打开确认框（详情先关闭，避免嵌套 Dialog 焦点问题）
   const [confirmDelete, setConfirmDelete] = useState<TaskInfo | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const events = useFsEvents(id)
 
   const refresh = useCallback(async () => {
     if (!id) return
@@ -97,12 +96,9 @@ export default function CollectionBar() {
     void refresh()
   }, [refresh])
 
-  useEffect(() => {
-    // React 18 自动批处理会把同 tick 内连续 fs 事件并入一次渲染：管道回填 = 任务卡+素材两次连续写盘，
-    // 若只看最后一条（素材库/环境/…），任务卡广播会被「跳过」→ 列表不自动刷新（e2e 实踩 2026-09-12）。
-    // 扫描窗口内任一采集池事件即刷新（读取幂等，重复触发无副作用）。
-    if (events.some((ev) => ev.path.startsWith('素材库/采集池'))) void refresh()
-  }, [events, refresh])
+  // 管道回填 = 任务卡+素材连续写盘；useFsChanged 检查批内全部新事件（含被末条「顶掉」的采集池事件），
+  // 且不重复触发已消费事件（旧实现 .some 会在 50 窗口内重扫，非匹配事件也会连带多刷）。
+  useFsChanged(id, '素材库/采集池', () => void refresh())
 
   async function openView(t: TaskInfo) {
     setView(t)

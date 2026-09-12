@@ -17,7 +17,7 @@ import { useDocTitleStore } from '../store/docTitle'
 import type { ProseApi } from '../features/editor/Prose'
 import AgentPanel from '../features/agent/AgentPanel'
 import ChapterCheckDrawer from '../features/check/ChapterCheckDrawer'
-import { useFsEvents } from '../features/fs/useFsEvents'
+import { useFsChanged, useFsEvents } from '../features/fs/useFsEvents'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog'
 import { toast } from '../store/toasts'
 
@@ -185,10 +185,7 @@ export default function Novel() {
   }, [refresh])
 
   // 文件变化：刷新列表
-  useEffect(() => {
-    const ev = events[events.length - 1]
-    if (ev && ev.path.startsWith('正文/')) void refresh()
-  }, [events, refresh])
+  useFsChanged(id, '正文/', () => void refresh())
 
   // 注意：events.path 是项目根相对路径（如 正文/第01章_雾港.md），sel 是 listChapters 返回的相对 正文/ 裸名，
   // 匹配必须用带前缀的 chapterRel 拼出来（真机 watcher 同此口径；曾直接用 sel 匹配导致 extVersion 恒 0、外部改动不静默重载）

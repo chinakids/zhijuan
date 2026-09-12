@@ -8,7 +8,7 @@ import { EmptyState } from '../components/EmptyState'
 import DocEditor from '../features/editor/DocEditor'
 import HistoryDrawer from '../features/editor/HistoryDrawer'
 import DirectorCheckDrawer from '../features/check/DirectorCheckDrawer'
-import { useFsEvents } from '../features/fs/useFsEvents'
+import { useFsChanged, useFsEvents } from '../features/fs/useFsEvents'
 import { isBoardStale } from '../../../shared/boardAge'
 import { parseActsWarn } from '../../../shared/actsSeg'
 import { runSliceSync } from '../features/sync/sliceSync'
@@ -59,10 +59,7 @@ export default function Outline() {
     void refresh()
   }, [refresh])
 
-  useEffect(() => {
-    const ev = events[events.length - 1]
-    if (ev && ev.path.startsWith('大纲/')) void refresh()
-  }, [events, refresh])
+  useFsChanged(id, '大纲/', () => void refresh())
 
   // 切换所选文档时，把「再点一次确认」的两击状态复位
   useEffect(() => {
