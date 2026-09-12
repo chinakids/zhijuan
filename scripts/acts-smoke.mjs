@@ -2,13 +2,15 @@
 // 按 织卷smoke 项目第02章导演板的情绪弧分段，前 2 段逐段起草，拼成草稿落 大纲/ 并用 readDoc 回读实锤。
 // 用法：cd ~/Desktop/织卷 && LOCAL_LLM_KEY=local node scripts/acts-smoke.mjs
 import { build as esbuild } from 'esbuild'
-import { writeFileSync } from 'node:fs'
+import { writeFileSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_APP_PATH = root
-process.env.ZJ_USERDATA = process.env.ZJ_USERDATA || '/tmp/zj-smoke-userdata'
+// 独立干净 userData（杜绝共享默认目录残留 settings 导致 libraryRoot 指向已删目录）
+process.env.ZJ_USERDATA = '/tmp/zj-smoke-acts'
+rmSync(process.env.ZJ_USERDATA, { recursive: true, force: true })
 
 const entry = '/tmp/zj-acts-entry.mts'
 writeFileSync(

@@ -2,13 +2,15 @@
 // 对照 织卷smoke 项目第02章的导演板核对正文是否兑现。
 // 用法：cd ~/Desktop/织卷 && LOCAL_LLM_KEY=local node scripts/director-check-smoke.mjs
 import { build as esbuild } from 'esbuild'
-import { writeFileSync } from 'node:fs'
+import { writeFileSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_APP_PATH = root
-process.env.ZJ_USERDATA = process.env.ZJ_USERDATA || '/tmp/zj-smoke-userdata'
+// 独立干净 userData（杜绝共享默认目录残留 settings 导致 libraryRoot 指向已删目录）
+process.env.ZJ_USERDATA = '/tmp/zj-smoke-director-check'
+rmSync(process.env.ZJ_USERDATA, { recursive: true, force: true })
 
 const entry = '/tmp/zj-dcheck-entry.mts'
 writeFileSync(
