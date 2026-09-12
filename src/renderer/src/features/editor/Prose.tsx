@@ -580,11 +580,11 @@ export default function Prose({ value, onEdit, apiRef, className }: ProseProps) 
             transform: bubble.below ? 'translate(-50%, 4px)' : 'translate(-50%, calc(-100% - 10px))'
           }}
         >
-          <button onClick={copyBubble} title="复制选中文字">
+          <button onClick={copyBubble} title="复制选中文字" aria-label="复制选中文字">
             <Copy className="h-3.5 w-3.5" />
             复制
           </button>
-          <button onClick={dispatchQuote} title="把选中文字作为引用添加到右下对话">
+          <button onClick={dispatchQuote} title="把选中文字作为引用添加到右下对话" aria-label="添加到对话">
             <MessageSquarePlus className="h-3.5 w-3.5" />
             添加到对话
           </button>

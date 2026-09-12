@@ -113,7 +113,7 @@ export default function EditorToolbar({ edRef }: { edRef: MutableRefObject<Edito
   }
 
   const renderItem = (t: ToolItem) => (
-    <button key={t.key} title={t.name} onClick={() => runTool(t)} className="zj-tb-item shrink-0">
+    <button key={t.key} title={t.name} aria-label={t.name} onClick={() => runTool(t)} className="zj-tb-item shrink-0">
       <t.icon className="h-4 w-4" />
     </button>
   )
@@ -154,7 +154,7 @@ export default function EditorToolbar({ edRef }: { edRef: MutableRefObject<Edito
       {hiddenTools.length > 0 && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button title="更多格式" className="zj-tb-item shrink-0">
+            <button title="更多格式" aria-label="更多格式" className="zj-tb-item shrink-0">
               <Ellipsis className="h-4 w-4" />
             </button>
           </DropdownMenuTrigger>

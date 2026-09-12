@@ -1,7 +1,7 @@
 // ===== 正文版本历史 · 抽屉（M3）：版本列表 + 行级 diff 对比 + 一键恢复 =====
 // 形态：自动快照制（见 docs/正文版本历史-产品规划-2026-09-10.md）。
 // 恢复 = 读该版全文 → writeDoc（主进程写入前会自动把当前版再留一档，恢复天然可反悔）。
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { History, Inbox, RotateCcw } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import type { HistorySnapshot } from '../../../../shared/types'
@@ -9,6 +9,7 @@ import { countWords } from '../../../../shared/count'
 import { Button } from '../../components/ui/button'
 import { ScrollArea } from '../../components/ui/scroll-area'
 import { cn } from '../../lib/utils'
+import { useModalA11y } from '../../lib/useModalA11y'
 import { buildDiffView, DIFF_MAX_ROWS } from './diffView'
 
 interface Props {
@@ -35,6 +36,9 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
   const [confirming, setConfirming] = useState(false)
   const [msg, setMsg] = useState('')
   const [loading, setLoading] = useState(false)
+  // 模态无障碍：焦点圈闭 / Esc 关闭 / 滚动锁 / 关闭回焦（Apple HIG Keyboards）
+  const panelRef = useRef<HTMLDivElement>(null)
+  useModalA11y(open, panelRef, onClose)
 
   const load = useCallback(async (keepMsg = false) => {
     setLoading(true)
@@ -91,7 +95,7 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/20 animate-in fade-in">
-      <div className="flex h-full w-[600px] flex-col border-l border-hair bg-paper shadow-[var(--shadow)] animate-in fade-in slide-in-from-right-3">
+      <div ref={panelRef} tabIndex={-1} role="dialog" aria-label="版本历史" className="flex h-full w-[600px] flex-col border-l border-hair bg-paper shadow-[var(--shadow)] animate-in fade-in slide-in-from-right-3">
         <div className="flex h-12 shrink-0 items-center border-b border-hair px-4">
           <History className="mr-2 h-4 w-4 text-accent" />
           <span className="text-sm font-medium">版本历史</span>

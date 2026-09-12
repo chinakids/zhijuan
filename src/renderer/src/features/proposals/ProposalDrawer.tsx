@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Check, X, FileText, GitCompare, Inbox, ChevronDown, Trash2, RefreshCw } from 'lucide-react'
 import type { Proposal } from '../../../../shared/types'
 import { Button } from '../../components/ui/button'
 import { ScrollArea } from '../../components/ui/scroll-area'
 import { toast } from '../../store/toasts'
 import { cn } from '../../lib/utils'
+import { useModalA11y } from '../../lib/useModalA11y'
 
 interface Props {
   projectId: string
@@ -101,6 +102,9 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose }: 
   const pending = useMemo(() => list.filter((p) => p.status === 'pending'), [list])
   const done = useMemo(() => list.filter((p) => p.status === 'accepted' || p.status === 'rejected'), [list])
   const stale = useMemo(() => list.filter((p) => p.status === 'stale'), [list])
+  // 模态无障碍：焦点圈闭 / Esc 关闭 / 滚动锁 / 关闭回焦（Apple HIG Keyboards；条件渲染组件 open 恒真）
+  const panelRef = useRef<HTMLDivElement>(null)
+  useModalA11y(true, panelRef, onClose)
   async function allApply() {
     for (const p of pending) await window.zhijuan.applyProposal(projectId, p.id)
     onChanged()
@@ -118,7 +122,7 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose }: 
   }
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/20 animate-in fade-in">
-      <div role="dialog" aria-label="提案" className="flex h-full w-[460px] flex-col border-l border-hair bg-paper shadow-[var(--shadow)] animate-in fade-in slide-in-from-right-3">
+      <div ref={panelRef} tabIndex={-1} role="dialog" aria-label="提案" className="flex h-full w-[460px] flex-col border-l border-hair bg-paper shadow-[var(--shadow)] animate-in fade-in slide-in-from-right-3">
         <div className="flex h-12 shrink-0 items-center border-b border-hair px-4">
           <span className="text-sm font-medium">提案</span>
           <span className="ml-2 text-[11px] text-ink-3">切片同步与批注优化都会在这里提出修改</span>

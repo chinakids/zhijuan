@@ -151,7 +151,7 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
               <div key={i} className="rounded-lg border border-hair bg-surface-2 p-2.5">
                 <div className="flex items-center gap-2">
                   <Input className="flex-1" placeholder="姓名 *" value={r.name} onChange={(e) => patchRow(i, 'name', e.target.value)} />
-                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" title="删除该人物" onClick={() => delRow(i)}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" title="删除该人物" aria-label="删除该人物" onClick={() => delRow(i)}>
                     <Trash2 />
                   </Button>
                 </div>

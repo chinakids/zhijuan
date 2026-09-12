@@ -80,7 +80,7 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
       <aside className="flex w-60 shrink-0 flex-col border-r border-hair bg-surface-2">
         <div className="flex items-center justify-between px-3 pb-2 pt-3">
           <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">{listLabel ?? '文档'}</span>
-          <Button variant="ghost" size="icon" className="h-7 w-7" title={addHint} onClick={() => setCreating(true)}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" title={addHint} aria-label={addHint} onClick={() => setCreating(true)}>
             <Plus />
           </Button>
         </div>

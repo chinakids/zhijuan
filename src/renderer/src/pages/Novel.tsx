@@ -291,7 +291,7 @@ export default function Novel() {
       <aside className="flex w-60 shrink-0 flex-col border-r border-hair bg-surface-2">
         <div className="flex items-center justify-between px-3 pb-2 pt-3">
           <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">章节</span>
-          <Button variant="ghost" size="icon" className="h-7 w-7" title="新建章节" onClick={openCreate}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" title="新建章节" aria-label="新建章节" onClick={openCreate}>
             <Plus />
           </Button>
         </div>

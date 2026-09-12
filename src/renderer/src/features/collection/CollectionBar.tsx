@@ -304,7 +304,7 @@ export default function CollectionBar() {
                       <div className="overflow-hidden rounded-lg border border-hair">
                         <div className="flex items-center justify-between border-b border-hair bg-surface-2 px-3 py-1.5">
                           <span className="text-[11px] text-ink-3">素材预览（只读）</span>
-                          <button onClick={() => setPreview(null)} className="flex shrink-0 items-center gap-1 text-[11px] text-ink-3 transition-colors hover:text-ink" title="收起预览">
+                          <button onClick={() => setPreview(null)} className="flex shrink-0 items-center gap-1 text-[11px] text-ink-3 transition-colors hover:text-ink" title="收起预览" aria-label="收起预览">
                             <X className="h-3 w-3" /> 收起
                           </button>
                         </div>

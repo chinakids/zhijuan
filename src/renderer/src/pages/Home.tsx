@@ -269,7 +269,7 @@ export default function Home() {
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-ink-3 hover:text-ink">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-ink-3 hover:text-ink" title="更多操作" aria-label="更多操作">
                         <MoreHorizontal />
                       </Button>
                     </DropdownMenuTrigger>

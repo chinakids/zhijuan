@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, BookOpenCheck, Check, ChevronLeft, GitCompare, RefreshCw, Send, ShieldAlert, Sparkles, X } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import type { AuditItem, AuditKind, AuditResult } from '../../../../shared/types'
@@ -6,6 +6,7 @@ import { auditItemToAgentPrompt } from '../../../../shared/auditToAgent'
 import { parseAuditMarkdown } from '../../../../shared/auditDoc'
 import { diffAuditReports, type AuditDiffResult } from '../../../../shared/auditDiff'
 import { cn } from '../../lib/utils'
+import { useModalA11y } from '../../lib/useModalA11y'
 import { toast } from '../../components/ui/toast'
 
 const TYPE_TXT: Record<string, string> = {
@@ -57,6 +58,9 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
   const [diffErr, setDiffErr] = useState('')
   const [diffBusy, setDiffBusy] = useState(false)
   const [prevName, setPrevName] = useState('')
+  // 模态无障碍：焦点圈闭 / Esc 关闭 / 滚动锁 / 关闭回焦（Apple HIG Keyboards）
+  const panelRef = useRef<HTMLDivElement>(null)
+  useModalA11y(open, panelRef, onClose)
 
   const run = useCallback(async () => {
     setRunning(true)
@@ -238,7 +242,7 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-black/10 animate-in fade-in" onClick={onClose}>
-      <div
+      <div ref={panelRef} tabIndex={-1} role="dialog" aria-label="全卷检查"
         className="flex h-full w-[440px] max-w-[92vw] flex-col border-l border-hair bg-surface shadow-[var(--shadow)] animate-in fade-in slide-in-from-right-3"
         onClick={(e) => e.stopPropagation()}
       >

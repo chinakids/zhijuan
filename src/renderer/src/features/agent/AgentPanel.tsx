@@ -647,7 +647,7 @@ export default function AgentPanel(props: AgentPanelProps) {
       {/* 悬浮发送按钮 */}
       <div className="absolute bottom-2 right-2">
         {sending ? (
-          <button onClick={stop} title="停止生成" className="flex h-7 w-7 items-center justify-center rounded-full border border-hair bg-surface-2 text-ink-2 transition-colors hover:text-danger">
+          <button onClick={stop} title="停止生成" aria-label="停止生成" className="flex h-7 w-7 items-center justify-center rounded-full border border-hair bg-surface-2 text-ink-2 transition-colors hover:text-danger">
             <Square className="h-3 w-3" />
           </button>
         ) : fxBusy ? (
@@ -684,6 +684,7 @@ export default function AgentPanel(props: AgentPanelProps) {
           {props.onChapterCheck && (
             <button
               title="本章小环：短巡查 / 分层修订（沿写作线兜底）"
+              aria-label="本章小环"
               onClick={() => props.onChapterCheck?.()}
               disabled={!props.chapterRel}
               className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent disabled:opacity-40"
@@ -693,6 +694,7 @@ export default function AgentPanel(props: AgentPanelProps) {
           )}
           <button
             title="一致性巡查：按设定档案检查全卷"
+            aria-label="一致性巡查"
             onClick={() => setAudit({ open: true, tab: 'consistency' })}
             className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
           >
@@ -700,6 +702,7 @@ export default function AgentPanel(props: AgentPanelProps) {
           </button>
           <button
             title="冷读报告：以读者视角通读全卷"
+            aria-label="冷读报告"
             onClick={() => setAudit({ open: true, tab: 'review' })}
             className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
           >
@@ -707,6 +710,7 @@ export default function AgentPanel(props: AgentPanelProps) {
           </button>
           <button
             title="多视角审视：以三种立场读者各通读一遍"
+            aria-label="多视角审视"
             onClick={() => setAudit({ open: true, tab: 'perspectives' })}
             className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
           >
@@ -714,6 +718,7 @@ export default function AgentPanel(props: AgentPanelProps) {
           </button>
           <button
             title="人物在场与称谓核查：约定头「涉及人物」vs 正文本名/登记别名（本地规则·秒级·零模型）"
+            aria-label="人物在场核查"
             onClick={() => setAudit({ open: true, tab: 'presence' })}
             className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
           >
@@ -721,6 +726,7 @@ export default function AgentPanel(props: AgentPanelProps) {
           </button>
           <button
             title="切片时序核查：章号结构 + 切片顺序（本地规则·秒级·零模型）"
+            aria-label="切片时序核查"
             onClick={() => setAudit({ open: true, tab: 'order' })}
             className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
           >
@@ -728,12 +734,13 @@ export default function AgentPanel(props: AgentPanelProps) {
           </button>
           <button
             title="人物档案腐坏核查：别名声明但全卷正文从未出现（本地规则·秒级·零模型）"
+            aria-label="档案腐坏核查"
             onClick={() => setAudit({ open: true, tab: 'unused' })}
             className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
           >
             <FileWarning className="h-3.5 w-3.5" />
           </button>
-          <button title="清空对话" onClick={() => useAgentStore.getState().reset()} className="text-ink-3 hover:text-ink">
+          <button title="清空对话" aria-label="清空对话" onClick={() => useAgentStore.getState().reset()} className="text-ink-3 hover:text-ink">
             <RotateCcw className="h-3.5 w-3.5" />
           </button>
         </div>

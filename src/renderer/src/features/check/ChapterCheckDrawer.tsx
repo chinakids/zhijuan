@@ -4,6 +4,7 @@ import LoadingIndicator from '../../components/LoadingIndicator'
 import type { ChapterCheckItem, ChapterCheckKind, ChapterCheckResult, RevisionLayer } from '../../../../shared/types'
 import { cn } from '../../lib/utils'
 import { toast } from '../../components/ui/toast'
+import { useModalA11y } from '../../lib/useModalA11y'
 
 const TYPE_TXT: Record<string, string> = {
   'setting-conflict': '设定冲突', timeline: '时间线', foreshadow: '伏笔', 'character-drift': '人物漂移',
@@ -56,6 +57,9 @@ export default function ChapterCheckDrawer({ projectId, chapter, chapterTitle, o
   useEffect(() => {
     openRef.current = open
   }, [open])
+  // 模态无障碍：焦点圈闭 / Esc 关闭 / 滚动锁 / 关闭回焦（Apple HIG Keyboards）
+  const panelRef = useRef<HTMLDivElement>(null)
+  useModalA11y(open, panelRef, onClose)
 
   const run = useCallback(async () => {
     if (!chapter) return
@@ -120,7 +124,7 @@ export default function ChapterCheckDrawer({ projectId, chapter, chapterTitle, o
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-black/10 animate-in fade-in" onClick={onClose}>
-      <div className="flex h-full w-[460px] max-w-[94vw] flex-col border-l border-hair bg-surface shadow-[var(--shadow)] animate-in fade-in slide-in-from-right-3" onClick={(e) => e.stopPropagation()}>
+      <div ref={panelRef} tabIndex={-1} role="dialog" aria-label="本章小环" className="flex h-full w-[460px] max-w-[94vw] flex-col border-l border-hair bg-surface shadow-[var(--shadow)] animate-in fade-in slide-in-from-right-3" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
           <ShieldAlert className="h-4 w-4 text-accent" />
           <span className="truncate text-sm font-semibold">本章小环 · {chapterTitle || '未打开章节'}</span>
