@@ -16,15 +16,15 @@ import {
   FSWatcher
 } from 'fs'
 import { extractFrontMatter, serializeFrontMatter, setFrontMatterField } from '../shared/fmatter'
-import { countWords } from '../shared/count'
 import { isOutlineCardRel, outlineIndexDoc, parseOutlineCard } from '../shared/outline'
+import { listChapterEntries } from '../shared/chapters'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, DOT_DIR } from '../shared/paths'
 import { sanitizeFile } from '../shared/paths'
 import { isVersionedRel, snapDirFor, writeSnapshot } from './history'
 import { migrateChapter, invalidateChapter } from './proposals'
 import { libraryRoot } from './settings'
 import { applyTemplate } from './templates'
-import type { ChapterEntry, ChapterFrontMatter, FsEvent, OutlineCard, ProjectMeta, ProjectStats, ProjectSummary, ImportResult } from '../shared/types'
+import type { ChapterEntry, FsEvent, OutlineCard, ProjectMeta, ProjectStats, ProjectSummary, ImportResult } from '../shared/types'
 
 // ---------- 设置与工作区路径已拆到 settings.ts（参见 docs/架构评审与调整-2026-09-04.md §二） ----------
 export function projectDir(id: string): string {
@@ -259,35 +259,16 @@ export function listDocs(id: string, relDir: string): { file: string; name: stri
 }
 
 // ---------- 章节列表（解析约定头） ----------
-function numOf(name: string): number {
-  const m = name.match(/第(\d+)章/)
-  return m ? Number(m[1]) : Infinity
-}
 export function listChapters(id: string): ChapterEntry[] {
-  const docs = listDocs(id, '正文')
-  return docs
-    .map((d) => {
-      const text = readDoc(id, join('正文', d.file)) ?? ''
-      const { fm } = extractFrontMatter(text)
-      const c = fm as unknown as ChapterFrontMatter | null
-      // 约定头键是中文（章号/切片…）；有任一关键字段才算合法约定头
-      const ok = !!c && (c['章号'] !== undefined || c['切片'] !== undefined || c['题名'] !== undefined)
-      if (ok && c) {
-        // extractFrontMatter 一律按字符串返回；章号在此**归一成数值**一次（与类型 章号?: number 对齐），
-        // 下游按数值比较才有意义（acts 找上一章、devShim 早就是数字，真机此前一直是字符串——对照线的老坑）
-        const n = Number(c['章号'])
-        if (Number.isFinite(n)) c['章号'] = n
-      }
-      return {
-        file: d.file,
-        name: d.name,
-        fm: ok ? c : null,
-        wordCount: countWords(text),
-        mtime: d.mtime,
-        hasPendingProposal: false
-      }
-    })
-    .sort((a, b) => numOf(a.name) - numOf(b.name))
+  // 解析/排序口径在 shared/chapters（真机与 devShim 共用，2026-09-12）；这里只负责收集文件与原文
+  return listChapterEntries(
+    listDocs(id, '正文').map((d) => ({
+      file: d.file,
+      name: d.name,
+      text: readDoc(id, join('正文', d.file)) ?? '',
+      mtime: d.mtime
+    }))
+  )
 }
 
 // ---------- 章节管理（重命名 / 删除 · 联动大纲副产物与版本历史） ----------

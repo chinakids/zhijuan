@@ -1,8 +1,11 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
 import type { AgentEvent, AppSettings, ChapterEntry, OutlineCard, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
-import { countWords } from '../../../shared/count'
 import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard } from '../../../shared/outline'
+import { listChapterEntries } from '../../../shared/chapters'
+import { listSliceEntries } from '../../../shared/slices'
+import { resolveLibraryRoot } from '../../../shared/settingsLogic'
+import { sanitizeFile } from '../../../shared/paths'
 import { extractFrontMatter, setFrontMatterField } from '../../../shared/fmatter'
 import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceCheck, chapterMissingFromRaw } from '../../../shared/presence'
 import { findAnchorLine, normalizeAnchor } from '../../../shared/anchor'
@@ -29,7 +32,9 @@ const directorCancels = new Set<string>()
 const taskTouched = new Set<string>()
 // 空类别（dev 内存无目录概念：新类别只登记名字，树/列表经 libraryTree 组装时按计数 0 展示）
 const extraCats = new Set<string>()
-// 版本历史 mock：与主进程行为对齐（仅 正文/ 前缀、内容变化才快照旧内容，新→旧，上限 50）
+// 老默认位（文档/织卷项目库）模拟：true＝存在且非空（本机实况，真机 libraryRoot 默认走它；2026-09-12）
+const DEV_LEGACY_EXISTS = true
+// 版本历史 mock：与主进程行为对齐（仅版本化 rel：正文/ 与 大纲/审读_*（与真机 isVersionedRel 同口径），内容变化才快照旧内容，新→旧，上限 50）
 const histories = new Map<string, { name: string; content: string; mtimeMs: number }[]>()
 const HISTORY_LIMIT_DEV = 50
 function snapNameDev(ts: number): string {
@@ -309,18 +314,22 @@ function docsOf(prefix: string): { file: string; name: string; mtime: number }[]
     .filter((k) => k.startsWith(prefix + '/'))
     .map((k) => {
       const file = k.slice(prefix.length + 1)
-      // dev 演示：导演板一律模拟为一天前写的（比正文旧），方便看「导演板偏旧」轻提示；
-      // 「任务_演示停滞」模拟为 3 天前（未处理），方便看采集任务「停滞」提示；
-      // 该卡一旦被重发（writeDoc 触碰）就从特判名单移除 → mtime 恢复为现在（模拟真机写盘更新 mtime），
-      // 否则无头冒烟里「重发后停滞徽标消失」永远验不过（静态模拟与真机行为不一致）。
-      const key = prefix + '/' + file
-      const mtime = file.endsWith('_导演.md')
-        ? now - 86400_000
-        : file.includes('任务_演示停滞') && !taskTouched.has(key)
-          ? now - 3 * 86400_000
-          : now
-      return { file, name: file.split('/').pop()!, mtime }
+      return { file, name: file.split('/').pop()!, mtime: devMtime(prefix, file) }
     })
+}
+
+/** mtime 模拟（真机=文件系统 mtime；dev 内存无盘，用稳定模拟以便演示/冒烟断言）：
+ * 导演板一律模拟为一天前写的（比正文旧），方便看「导演板偏旧」轻提示；
+ * 「任务_演示停滞」模拟为 3 天前（未处理），方便看采集任务「停滞」提示；
+ * 该卡一旦被重发（writeDoc 触碰）就从特判名单移除 → mtime 恢复为现在（模拟真机写盘更新 mtime），
+ * 否则无头冒烟里「重发后停滞徽标消失」永远验不过（静态模拟与真机行为不一致）。 */
+function devMtime(prefix: string, file: string): number {
+  const key = prefix + '/' + file
+  return file.endsWith('_导演.md')
+    ? now - 86400_000
+    : file.includes('任务_演示停滞') && !taskTouched.has(key)
+      ? now - 3 * 86400_000
+      : now
 }
 
 /** 与真机 store 的索引重建同口径：以现存章卡文件为权威重建 大纲/索引.md（章卡生成/解析共用 shared/outline 纯函数） */
@@ -396,9 +405,11 @@ const mock = {
   writeDoc: async (_id: string, rel: string, content: string) => {
     const k = _id + '/' + rel
     const prev = docs.get(k)
-    if (rel.startsWith('正文/') && prev !== undefined && prev !== content) {
+    // 与真机 isVersionedRel 同口径：正文/ 与 大纲/审读_*（2026-09-12 对齐）
+    if ((rel.startsWith('正文/') || rel.startsWith('大纲/审读_')) && prev !== undefined && prev !== content) {
       const arr = histories.get(k) ?? []
-      arr.unshift({ name: snapNameDev(Date.now() + arr.length), content: prev, mtimeMs: Date.now() })
+      // 与真机 writeSnapshot 同口径：版本文件名 = yyyyMMdd-HHmmss-SSS.md（带扩展名；真实 listSnapshots 按 .md 过滤）
+      arr.unshift({ name: snapNameDev(Date.now() + arr.length) + '.md', content: prev, mtimeMs: Date.now() })
       if (arr.length > HISTORY_LIMIT_DEV) arr.length = HISTORY_LIMIT_DEV
       histories.set(k, arr)
     }
@@ -407,6 +418,9 @@ const mock = {
     fsEmit(_id, rel)
   },
   deleteDoc: async (_id: string, rel: string) => {
+    // 与真机 store.deleteDoc 同口径防御：只收 .md、拒绝空/绝对/带 .. 段的路径
+    const bad = !rel || !rel.endsWith('.md') || rel.startsWith('/') || rel.split('/').some((s) => s === '..')
+    if (bad) return { ok: false, error: '路径不合法' }
     const k = _id + '/' + rel
     if (!docs.delete(k)) return { ok: false, error: '文档不存在' }
     fsEmit(_id, rel)
@@ -420,7 +434,7 @@ const mock = {
     if (cur === undefined) return { ok: false, error: '章节不存在' }
     const t = (newTitle ?? '').trim()
     if (!t) return { ok: false, error: '题名不能为空' }
-    const clean = t.replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 60) || '未命名'
+    const clean = sanitizeFile(t) // 与真机 shared/paths.sanitizeFile 同口径（2026-09-12 对齐）
     const oldName = rel.split('/').pop()!
     const idx = oldName.indexOf('_')
     const prefix = idx >= 0 ? oldName.slice(0, idx + 1) : ''
@@ -492,8 +506,10 @@ const mock = {
   readHistory: async (_id: string, rel: string, name: string) =>
     (histories.get(_id + '/' + rel) ?? []).find((h) => h.name === name)?.content ?? null,
   listDocs: async (id: string, relDir: string) =>
-    // 与真机口径一致：name 去掉 .md 后缀（docsOf 保留 basename，真机 listDocs 剥扩展名）
-    docsOf(id + '/' + relDir).map((d) => ({ ...d, name: d.name.replace(/\.md$/, '') })),
+    // 与真机口径一致：name 去掉 .md 后缀（docsOf 保留 basename，真机 listDocs 剥扩展名）；按 mtime 新→旧
+    docsOf(id + '/' + relDir)
+      .map((d) => ({ ...d, name: d.name.replace(/\.md$/, '') }))
+      .sort((a, b) => b.mtime - a.mtime),
   // 素材库域：类别枚举（内存由 docs 推导；空类别靠 extraCats 登记）/ 新建类别 / 文件名+全文搜索
   listLibraryCategories: async (id: string): Promise<LibraryCategory[]> => {
     const counts = new Map<string, number>()
@@ -517,10 +533,13 @@ const mock = {
       .sort((a, b) => a.name.localeCompare(b.name, 'zh'))
   },
   createLibraryCategory: async (id: string, name: string) => {
-    const n = name.trim()
-    if (!n) return { ok: false, error: '名称不能为空' }
+    // 与真机 main/library.createLibraryCategory 同口径：trim + sanitizeFile（2026-09-12 对齐）
+    const trimmed = (name ?? '').trim()
+    if (!trimmed) return { ok: false, error: '名称不能为空' }
+    const n = sanitizeFile(trimmed)
     const key = id + '/' + n
-    if (extraCats.has(key)) return { ok: false, error: `类别「${n}」已存在` }
+    const hasDocs = [...docs.keys()].some((k) => k.startsWith(id + '/素材库/' + n + '/'))
+    if (hasDocs || extraCats.has(key)) return { ok: false, error: `类别「${n}」已存在` }
     extraCats.add(key)
     return { ok: true }
   },
@@ -537,10 +556,12 @@ const mock = {
       if (!k.startsWith(prefix)) continue
       const relFromRoot = relDir + '/' + k.slice(prefix.length)
       if (excl.some((p) => relFromRoot.startsWith(p))) continue
-      const name = k.slice(prefix.length).split('/').pop()!.replace(/\.md$/, '')
+      const fileRel = k.slice(prefix.length)
+      const name = fileRel.split('/').pop()!.replace(/\.md$/, '')
       const lower = text.toLowerCase()
       if (terms.every((t) => name.toLowerCase().includes(t))) {
-        out.push({ file: relFromRoot, name, mtime: now, field: 'name', snippet: name })
+        // mtime 与 listDocs 同口径（docsOf 的导演板/停滞卡特判；2026-09-12 对齐）
+        out.push({ file: relFromRoot, name, mtime: devMtime(id + '/' + relDir, fileRel), field: 'name', snippet: name })
       } else if (terms.every((t) => lower.includes(t))) {
         // 与真机 snippetOf 同口径：取各 term 在正文中最早出现的位置
         let idx = -1
@@ -552,7 +573,7 @@ const mock = {
         let end = text.indexOf('\n', idx)
         if (end < 0) end = text.length
         const line = text.slice(start, end).trim()
-        out.push({ file: relFromRoot, name, mtime: now, field: 'content', snippet: line.length > 80 ? line.slice(0, 80) + '…' : line })
+        out.push({ file: relFromRoot, name, mtime: devMtime(id + '/' + relDir, fileRel), field: 'content', snippet: line.length > 80 ? line.slice(0, 80) + '…' : line })
       }
     }
     return out
@@ -568,46 +589,24 @@ const mock = {
     return out.slice(0, n)
   },
   listChapters: async (id: string): Promise<ChapterEntry[]> => {
-    const out: ChapterEntry[] = []
-    for (const { file } of docsOf(id + '/正文')) {
-      const text = docs.get(id + '/正文/' + file) ?? ''
-      const m = text.match(/章号:\s*(\d+)/)
-      const t = text.match(/题名:\s*(.+)/)
-      const s = text.match(/切片:\s*(.+)/)
-      const p = text.match(/涉及人物:\s*\[(.*)\]/)
-      const cast = p ? p[1].split(',').map((x) => x.trim()).filter(Boolean) : undefined
-      out.push({
-        file,
-        name: file.replace(/\.md$/, ''),
-        fm: {
-          章号: m ? Number(m[1]) : undefined,
-          题名: t?.[1]?.trim(),
-          切片: s?.[1]?.trim(),
-          ...(cast ? { 涉及人物: cast } : {})
-        },
-        wordCount: countWords(text),
-        mtime: now,
-        hasPendingProposal: false
-      })
-    }
-    return out.sort((a, b) => (a.fm?.['章号'] ?? 1e9) - (b.fm?.['章号'] ?? 1e9))
+    // 解析/排序口径在 shared/chapters（与真机 store.listChapters 同一实现，2026-09-12 根治分叉）
+    const sources = docsOf(id + '/正文').map(({ file, mtime }) => ({
+      file,
+      name: file.replace(/\.md$/, ''),
+      text: docs.get(id + '/正文/' + file) ?? '',
+      mtime
+    }))
+    return listChapterEntries(sources)
   },
   listSlices: async (id: string): Promise<SliceEntry[]> => {
-    const out: SliceEntry[] = []
-    for (const { file } of docsOf(id + '/正文')) {
-      const text = docs.get(id + '/正文/' + file) ?? ''
-      const m = text.match(/^---\n([\s\S]*?)\n---/)
-      if (!m) continue
-      const fm = m[1]
-      const name = (fm.match(/^切片:\s*(.+)$/m) ?? [])[1]?.trim() ?? ''
-      if (!name) continue
-      const chars = ((fm.match(/^涉及人物:\s*\[(.*)\]$/m) ?? [])[1] ?? '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-      out.push({ name, chapter: file.replace(/\.md$/, ''), chars, updatedAt: 0 })
-    }
-    return out
+    // 解析/排序口径在 shared/slices（与真机 main/slices.listSlices 同一实现，2026-09-12）
+    return listSliceEntries(
+      docsOf(id + '/正文').map(({ file }) => ({
+        file,
+        text: docs.get(id + '/正文/' + file) ?? '',
+        updatedAt: 0
+      }))
+    )
   },
   onFsEvent: (cb: (e: FsEvent) => void) => {
     fsListeners.add(cb)
@@ -615,10 +614,16 @@ const mock = {
       fsListeners.delete(cb)
     }
   },
-  // 与真机 getPaths 同口径：documents=生效库根（设置非空→老默认位→工作区/项目库；dev 内存无 legacy，取设置或默认位）
+  // 与真机 getPaths 同口径（shared/settingsLogic.resolveLibraryRoot 决策链）：documents=生效库根（设置非空→老默认位→工作区/项目库）。
+  // dev 无 fs：老默认位是否「存在且非空」用常量模拟——本机实况（~/Documents/织卷项目库 非空）为 true，真机默认走 legacy（2026-09-12 对齐）
   getPaths: async () => ({
-    documents: settings.libraryRoot || '~/Documents/织卷工作区/项目库',
-    defaultLibrary: ''
+    documents: resolveLibraryRoot({
+      configured: settings.libraryRoot,
+      legacyPath: '~/Documents/织卷项目库',
+      workspaceDefault: '~/Documents/织卷工作区',
+      legacyExists: DEV_LEGACY_EXISTS
+    }),
+    defaultLibrary: '' // 真机=HOME；Settings 页只用 documents，此字段 UI 未消费（保持一致即可）
   }),
 
   // dev 演示的人物索引：与主进程 readCharIndex 同口径（档案题名 + 登记别名）

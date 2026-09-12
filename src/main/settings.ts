@@ -5,6 +5,7 @@ import { join, dirname } from 'path'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync } from 'fs'
 import { DEFAULT_SETTINGS } from '../shared/types'
 import type { AppSettings } from '../shared/types'
+import { resolveLibraryRoot } from '../shared/settingsLogic'
 
 function settingsFile(): string {
   return join(app.getPath('userData'), 'zhijuan-settings.json')
@@ -67,17 +68,20 @@ export function workspaceDir(): string {
   const w = getSettings().workspace
   return w && w.trim() ? w.trim() : join(app.getPath('documents'), '织卷工作区')
 }
-/** 库根：设置非空优先；否则老默认位（文档/织卷项目库）非空时保持原地（D-V2-8），再落 工作区/项目库 */
+/** 库根：设置非空优先；否则老默认位（文档/织卷项目库）非空时保持原地（D-V2-8），再落 工作区/项目库。
+ * 决策链在 shared/settingsLogic（真机与 devShim 共用，2026-09-12）；本函数只负责感知 fs 实况。 */
 export function libraryRoot(): string {
-  const r = getSettings().libraryRoot
-  if (r && r.trim()) return r.trim()
   const legacy = join(app.getPath('documents'), '织卷项目库')
-  if (existsSync(legacy)) {
-    try {
-      if (readdirSync(legacy).length > 0) return legacy
-    } catch {
-      /* 读不了就按空处理 */
-    }
+  let legacyExists = false
+  try {
+    legacyExists = existsSync(legacy) && readdirSync(legacy).length > 0
+  } catch {
+    /* 读不了就按空处理 */
   }
-  return join(workspaceDir(), '项目库')
+  return resolveLibraryRoot({
+    configured: getSettings().libraryRoot,
+    legacyPath: legacy,
+    workspaceDefault: workspaceDir(),
+    legacyExists
+  })
 }

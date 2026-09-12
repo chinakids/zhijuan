@@ -2,9 +2,10 @@
 // 用法：node scripts/libpath-ui-smoke.mjs
 // 前置：node scripts/serve-renderer.mjs；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：
-// ① 设置页默认显示「当前：~/Documents/织卷工作区/项目库」（devShim getPaths 与真机同口径）
+// ① 设置页默认显示「当前：~/Documents/织卷项目库」（devShim getPaths 与真机 libraryRoot 决策链同口径——
+//    本机老默认位 文档/织卷项目库 存在且非空，真机默认走 legacy 分支；2026-09-12 第 19 轮修正）
 // ② 填库根 /tmp/zj-lib-test → 保存 → 「当前：/tmp/zj-lib-test」（保存后刷新生效值）
-// ③ 清空库根 → 保存 → 「当前：~/Documents/织卷工作区/项目库」（留空回默认位）
+// ③ 清空库根 → 保存 → 「当前：~/Documents/织卷项目库」（留空回老默认位）
 const CDP = 'http://127.0.0.1:9224'
 const BASE = 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -83,7 +84,7 @@ const curHas = (target) => `(() => { const els = [...document.querySelectorAll('
 
 await step('① 默认生效库根展示', async () => {
   await evalUntil(page, bodyHas('项目库'), Boolean, 20000, '项目库卡出现')
-  await evalUntil(page, curHas('~/Documents/织卷工作区/项目库'), Boolean, 20000, '默认当前库根')
+  await evalUntil(page, curHas('~/Documents/织卷项目库'), Boolean, 20000, '默认当前库根')
 })
 
 await step('② 改库根并保存 → 当前值刷新', async () => {
@@ -111,7 +112,7 @@ await step('③ 清空库根并保存 → 回默认位', async () => {
     return input ? input.value : 'NO_INPUT'
   })()`)
   await clickText(page, '保存设置')
-  await evalUntil(page, curHas('~/Documents/织卷工作区/项目库'), Boolean, 20000, '清空后当前库根')
+  await evalUntil(page, curHas('~/Documents/织卷项目库'), Boolean, 20000, '清空后当前库根')
 })
 
 page.close()
