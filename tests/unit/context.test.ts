@@ -357,6 +357,27 @@ describe('buildWritingContext（写作上下文装配）', () => {
     expect(blocks.join('\n')).not.toContain('本切片的世界状态（规则、事件、环境）')
   })
 
+  it('新名不存在且旧无前缀名=模板空壳（只含标题+说明行）→ 说明行不得注入、继续回退总纲（2026-09-13 审计修复）', async () => {
+    const shell = '# 切片：第一幕\n\n> 本切片的世界状态（规则、事件、环境）。正文保存时的切片同步会把本切片的新状态写入这里；长期不变设定请放《总纲》。\n'
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      const table: Record<string, string> = {
+        '正文/第1章_a.md': FM_1 + '第一章正文',
+        '世界观/第一幕.md': shell,
+        '世界观/总纲.md': '总纲：雾港常年有雾'
+      }
+      return table[rel] ?? null
+    })
+    listChaptersMock.mockReturnValue([] as never)
+
+    const { blocks, sources } = await buildWritingContext('p', '正文/第1章_a.md')
+    const all = blocks.join('\n')
+    expect(all).not.toContain('本切片的世界状态（规则、事件、环境）')
+    expect(all).not.toContain('【当前切片设定：第一幕】')
+    expect(blocks.find((b) => b.includes('世界观总纲'))).toContain('雾港常年有雾')
+    expect(sources).toContain('世界观/总纲.md')
+    expect(sources).not.toContain('世界观/第一幕.md')
+  })
+
   it('HTML 注释（元信息）装配时统一剥离：正文/人物档/世界切片的注释不进上下文，事实保留', async () => {
     readDocMock.mockImplementation((_id: string, rel: string) => {
       const table: Record<string, string> = {

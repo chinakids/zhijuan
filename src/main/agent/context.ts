@@ -126,13 +126,15 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
   const slice = String(fm?.['切片'] ?? '')
   const readWorldState = (name: string): { text: string; rel: string } => {
     // 新名优先；新名若是「模板空壳」（只有 ensureWorldSliceFile 写的标题+说明行，无事实）则回看旧无前缀名，
-    // 两者皆空壳/不存在 → 返回空文本，让调用方继续走回退链（模板空壳不挡回退，2026-09-10 修复）。
+    // 旧名也是空壳/不存在 → 返回空文本，让调用方继续走回退链（模板空壳不挡回退，2026-09-10 修复；
+    // 2026-09-13 第三轮审计：旧名分支此前漏判空壳——旧名残留模板（只含说明行）会被当设定注入并挡回退链）。
     const rel = worldSliceFile(name)
     let text = read(rel) ?? ''
     let actual = rel
     if (isTemplateShell(text)) {
       text = read(`世界观/${name}.md`) ?? ''
       actual = `世界观/${name}.md`
+      if (isTemplateShell(text)) text = ''
     }
     return { text, rel: actual }
   }
