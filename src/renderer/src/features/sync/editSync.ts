@@ -1,7 +1,9 @@
-// ===== 正文写入后切片同步 · 统一收口 =====
-// 正文为源、设定为流：全部正文写入入口（保存正文[Novel]/分幕采纳[Outline]/EditCard 采纳[AgentPanel]/
-// 批注提案接受[ProposalDrawer]/历史版本恢复[HistoryDrawer]）都走本函数触发 runSliceSync——
+// ===== 正文写入后切片同步 · 统一收口（自动/批量写入入口） =====
+// 正文为源、设定为流：正文写入后须触发切片同步。本文件是「非显式写入」入口的收口——
+// EditCard 采纳[AgentPanel]/批注提案接受[ProposalDrawer]/历史版本恢复[HistoryDrawer]，
 // 共享 60s 同文件节流（gate 在 shared/editSyncGate，纯逻辑可测），失败不节流。
+// 注意：保存正文[Novel]/分幕采纳[Outline]是用户显式动作，直调 runSliceSync 每次必同步，
+// 不过节流门（口径与三态语义见 docs/正文写入与切片同步-口径.md）。
 // 非正文（人物/世界观/大纲审读）返回 'skipped'，绝不误触发。
 import { runSliceSync, type SliceSyncResult } from './sliceSync'
 import { EditSyncGate, isChapterTarget } from '../../../../shared/editSyncGate'
