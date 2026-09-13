@@ -2,7 +2,7 @@
 // 形态：正文页底部「批注 N」→ 右侧抽屉逐条列出 行号/意图/原文预览，点击条目跳到对应高亮
 // （复用 Prose.jumpToAnnotation(row)，row=csv 行号精确定位）；drawer 保持打开可连续浏览。
 // 不可定位（before 为空）条目标记「正文中未命中」并禁用点击。
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { StickyNote } from 'lucide-react'
 import { ScrollArea } from '../../components/ui/scroll-area'
 import { Button } from '../../components/ui/button'
@@ -16,6 +16,8 @@ interface Props {
   onClose: () => void
   /** 跳到某行批注对应高亮（row = csv 行号） */
   jump: (row: number) => void
+  /** 条目 hover 联动：高亮编辑器左缘对应侧标（row=csv 行号；null=清除） */
+  onHoverRow?: (row: number | null) => void
 }
 
 /** 「L10:1-L10:34」→ 徽标「L10」；无 loc 用 #行号 */
@@ -25,10 +27,14 @@ function rowBadge(a: AnnotationRow, i: number): string {
   return `#${a.row ?? i + 1}`
 }
 
-export default function AnnoDrawer({ annotations, open, onClose, jump }: Props) {
+export default function AnnoDrawer({ annotations, open, onClose, jump, onHoverRow }: Props) {
   // 模态无障碍：焦点圈闭 / Esc 关闭 / 滚动锁 / 关闭回焦（Apple HIG Keyboards）
   const panelRef = useRef<HTMLDivElement>(null)
   useModalA11y(open, panelRef, onClose)
+  // 抽屉关闭时清掉侧标联动高亮（防残留 active 态）
+  useEffect(() => {
+    if (!open) onHoverRow?.(null)
+  }, [open, onHoverRow])
 
   if (!open) return null
 
@@ -62,6 +68,8 @@ export default function AnnoDrawer({ annotations, open, onClose, jump }: Props) 
                 data-jumpable={jumpable ? '1' : '0'}
                 disabled={!jumpable}
                 onClick={() => jumpable && a.row !== undefined && jump(a.row)}
+                onMouseEnter={() => onHoverRow?.(a.row ?? null)}
+                onMouseLeave={() => onHoverRow?.(null)}
                 className={cn(
                   'zj-anno-item block w-full border-b border-hair px-4 py-3 text-left transition-colors',
                   jumpable ? 'hover:bg-surface-2' : 'cursor-default opacity-55'

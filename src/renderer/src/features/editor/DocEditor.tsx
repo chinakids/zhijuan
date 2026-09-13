@@ -205,6 +205,7 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
         open={annoOpen}
         onClose={() => setAnnoOpen(false)}
         jump={(row) => apiRef.current?.jumpToAnnotation(0, row)}
+        onHoverRow={(row) => apiRef.current?.setAnnoActive(row)}
       />
     </div>
   )

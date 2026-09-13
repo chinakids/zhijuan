@@ -36,6 +36,8 @@ export interface ProseApi {
   /** 跳到第 idx 条（默认 0=第一条）可定位的批注（选中并滚动到它）；找不到不动作。
    * row 提供时按 csv 行号精确跳（导航列表用；该行未命中则不动）。 */
   jumpToAnnotation(idx?: number, row?: number): void
+  /** 批注抽屉条目 hover 联动：高亮对应侧标（row=csv 行号；传 null 清除） */
+  setAnnoActive(row: number | null): void
   destroy(): void
 }
 
@@ -64,6 +66,14 @@ interface WinWithEditors {
 
 type EditorLike = { action: (fn: (ctx: any) => void) => void }
 export { type EditorLike }
+
+/** 批注侧标：同一段落的多条批注合并为一个（rows=csv 行号升序；top=相对 .zj-md 根的 y 坐标） */
+interface GutterMark {
+  rows: number[]
+  note: string
+  count: number
+  top: number
+}
 
 const win = (typeof window !== 'undefined' ? window : {}) as WinWithEditors
 
@@ -123,6 +133,7 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
   // 编辑器未建时 no-op：建好后 decorations 函数读到的是最新 ref，无需补刷。
   useEffect(() => {
     annoRef.current = annotations ?? []
+    scheduleGutterRef.current?.()
     edRef.current?.action((ctx: any) => {
       try {
         const view = ctx.get(editorViewCtx)
@@ -221,6 +232,102 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
     setAnnoPop((cur) => (cur && cur.row === row ? null : { row, x: r.left + r.width / 2, y: below ? r.bottom : r.top, below }))
   }
   const annoPopRow = annoPop ? (annoRef.current.find((a) => a.row === annoPop.row) ?? null) : null
+
+  /* —— 批注侧标（2026-09-13 体验层：候选1② 收口）——
+   * 形态：正文左缘（.ProseMirror 的 1.4rem padding 区内）画琥珀圆点，标出被批注段落；
+   * 同一段落多条批注合并为一个侧标（title 显示条数）；点击=跳转该段第一条批注（与抽屉/气泡同口径）。
+   * 不占正文宽（主人拍板正文满宽）：absolute 悬浮在 .zj-md 根（relative）内，
+   * top=PM coordsAtPos 视口坐标 − 根 rect top；内容编辑/批注变化/host 滚动/尺寸变化时 rAF 节流重算；
+   * 与抽屉 hover 联动（setAnnoActive）。不用 fixed：页面路由动画的 transform 祖先会劫持 fixed 的 containing block。 */
+  const [gutter, setGutter] = useState<GutterMark[]>([])
+  const [gutterActive, setGutterActive] = useState<number | null>(null)
+  const gutterPendingRef = useRef(false)
+  const computeGutter = () => {
+    const root = hostRef.current?.parentElement
+    let view: any = null
+    try {
+      edRef.current?.action((ctx: any) => {
+        view = ctx.get(editorViewCtx)
+      })
+    } catch {
+      return
+    }
+    if (!root || !view) return
+    const list = annoRef.current
+    if (!list.length) {
+      setGutter([])
+      return
+    }
+    const rootRect = root.getBoundingClientRect()
+    // 同段合并：以 PM 块级父节点为分组（resolve(hit.from).parent），段内多条只画一个侧标
+    const groups = new Map<object, { rows: number[]; note: string; count: number; top: number }>()
+    for (const a of list) {
+      if (!a.before) continue
+      const hit = findInDoc(view.state.doc, a.before)[0]
+      if (!hit) continue
+      let top = 0
+      try {
+        top = view.coordsAtPos(hit.from).top - rootRect.top
+      } catch {
+        continue
+      }
+      const parent = view.state.doc.resolve(hit.from).parent
+      const g = groups.get(parent)
+      if (g) {
+        g.rows.push(a.row ?? 0)
+        g.count++
+      } else {
+        groups.set(parent, { rows: [a.row ?? 0], note: a.note || '批注', count: 1, top })
+      }
+    }
+    const marks = [...groups.values()]
+      .map((g) => ({ rows: g.rows.sort((x, y) => x - y), note: g.note, count: g.count, top: g.top }))
+      .sort((x, y) => x.top - y.top)
+    setGutter(marks)
+  }
+  const scheduleGutter = () => {
+    if (gutterPendingRef.current) return
+    gutterPendingRef.current = true
+    requestAnimationFrame(() => {
+      gutterPendingRef.current = false
+      computeGutter()
+    })
+  }
+  const scheduleGutterRef = useRef(scheduleGutter)
+  scheduleGutterRef.current = scheduleGutter
+  // host 滚动 / 根尺寸（窗口缩放、agent 面板拖拽）→ 重算侧标位置
+  useEffect(() => {
+    const host = hostRef.current
+    const root = host?.parentElement
+    if (!host || !root) return
+    const onScroll = () => scheduleGutterRef.current?.()
+    host.addEventListener('scroll', onScroll)
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => scheduleGutterRef.current?.()) : null
+    ro?.observe(root)
+    return () => {
+      host.removeEventListener('scroll', onScroll)
+      ro?.disconnect()
+    }
+  }, [])
+  const gotoGutterRow = (row: number) => {
+    try {
+      edRef.current?.action((ctx: any) => {
+        const view = ctx.get(editorViewCtx)
+        const a = annoRef.current.find((x) => x.row === row)
+        if (!a || !a.before) return
+        const hits = findInDoc(view.state.doc, a.before)
+        if (!hits.length) return
+        const f = hits[0]
+        const tr = view.state.tr
+        tr.setSelection(TextSelection.create(view.state.doc, f.from, f.to))
+        tr.scrollIntoView()
+        view.dispatch(tr)
+        view.focus()
+      })
+    } catch {
+      /* 编辑器未就绪时忽略 */
+    }
+  }
 
   /* —— 正文右键菜单（Apple HIG Context menus：上下文相关/≤3 组/隐藏不可用/无快捷键文字）—— */
   const [menuSel, setMenuSel] = useState<string | null>(null)
@@ -514,6 +621,8 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
           onEditRef.current?.(md)
           // 查找条打开且有关键词时：正文被编辑 → 重算匹配并刷新高亮（不跳转，不打扰光标）
           if (findOpenRef.current && findQueryRef.current.trim()) recalcRef.current?.(findQueryRef.current, false)
+          // 正文被编辑 → 侧标位置重算（锚定文本行）
+          scheduleGutterRef.current?.()
         })
       })
       .use(commonmark)
@@ -559,6 +668,8 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
             view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, doc))
           }),
         focus: () => e.action((ctx) => ctx.get(editorViewCtx).focus()),
+        setAnnoActive: (row) =>
+          setGutterActive(typeof row === 'number' && Number.isFinite(row) && row >= 1 ? row : null),
         jumpToAnnotation: (idx = 0, row?: number) =>
           e.action((ctx) => {
             const view = ctx.get(editorViewCtx)
@@ -597,6 +708,8 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
       }
       if (apiRef) apiRef.current = api
       testRegister(api)
+      // 编辑器就绪：初次计算批注侧标位置
+      scheduleGutterRef.current?.()
       if (win.__ZJ_TEST) {
         // 无头冒烟接口：真实驱动查找条（open/next/prev/close/goTo + 状态读取）。单编辑器实例窗口下挂载（当前文档页仅一个 Prose）。
         win.__ZJ_FIND = {
@@ -652,7 +765,7 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
 
   return (
     <>
-      <div className={cn('zj-md flex h-full min-h-0 flex-col overflow-hidden', className)}>
+      <div className={cn('zj-md relative flex h-full min-h-0 flex-col overflow-hidden', className)}>
         <EditorToolbar edRef={edRef} />
         <FindBar
           open={findOpen}
@@ -703,6 +816,22 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
             )}
           </ContextMenuContent>
         </ContextMenu>
+        {gutter.length > 0 && (
+          <div className="zj-anno-gutter" aria-hidden="true">
+            {gutter.map((g) => (
+              <button
+                key={`g${g.rows[0]}`}
+                type="button"
+                className={cn('zj-anno-mark', g.rows.includes(gutterActive ?? -1) && 'zj-anno-mark-active')}
+                style={{ top: g.top }}
+                title={g.count > 1 ? `同段共 ${g.count} 条批注：${g.note}` : g.note}
+                aria-label={`定位第 ${g.rows[0]} 行批注`}
+                data-rows={g.rows.join(',')}
+                onClick={() => gotoGutterRow(g.rows[0])}
+              />
+            ))}
+          </div>
+        )}
       </div>
       {bubble && (
         <div
