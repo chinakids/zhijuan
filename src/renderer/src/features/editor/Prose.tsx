@@ -146,6 +146,16 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
 
   /* —— 划词浮层：选中文本 → 送进对话引用（全局事件 zj:quote-text）—— */
   const [bubble, setBubble] = useState<{ text: string; x: number; y: number; below: boolean } | null>(null)
+  const bubbleRef = useRef(bubble)
+  bubbleRef.current = bubble
+  /** 焦点回编辑器（浮层/气泡动作或 Esc 关闭后；HIG：焦点不丢、人知道在哪） */
+  const focusEditor = () => {
+    try {
+      edRef.current?.action((ctx: any) => ctx.get(editorViewCtx).focus())
+    } catch {
+      /* 编辑器未就绪时忽略 */
+    }
+  }
   useEffect(() => {
     const onSel = () => {
       const host = hostRef.current
@@ -186,6 +196,7 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
     if (!bubble) return
     window.dispatchEvent(new CustomEvent('zj:quote-text', { detail: bubble.text }))
     setBubble(null)
+    focusEditor()
   }
   // 划词「批注」（主人 2026-09-12）：带选中原文（before）与尽力而为的行列 loc → Novel 弹层填写意图
   const dispatchAnno = () => {
@@ -201,6 +212,8 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
   /* —— 批注气泡（2026-09-13 体验层：点击高亮弹出意图卡片，替代纯 title 提示；含加入对话/删除该批注）——
    * 位置锚定高亮首行矩形，上方/下方自适应；点击别处/Esc/滚动即关（HIG Popovers：小量信息、箭头指向触发元素、点外关闭）。 */
   const [annoPop, setAnnoPop] = useState<{ row: number; x: number; y: number; below: boolean } | null>(null)
+  const annoPopRef = useRef(annoPop)
+  annoPopRef.current = annoPop
   useEffect(() => {
     if (!annoPop) return
     const onDown = (e: MouseEvent) => {
@@ -213,13 +226,31 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
     }
     const onScroll = () => setAnnoPop(null)
     document.addEventListener('mousedown', onDown, true)
-    window.addEventListener('keydown', onKey) // 非捕获：查找条 Esc（捕获+stop）优先
+    window.addEventListener('keydown', onKey) // 非捕获：查找条 Esc（捕获+stop）优先；焦点在气泡内时由全局分支处理
     window.addEventListener('scroll', onScroll, true)
     return () => {
       document.removeEventListener('mousedown', onDown, true)
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('scroll', onScroll, true)
     }
+  }, [annoPop])
+  // Tab 圈闭：焦点进入气泡后 Tab/⇧Shift-Tab 在两按钮间循环，不逃逸到页面后续元素（HIG Popovers 键盘交互；Esc/点外/动作关闭）
+  useEffect(() => {
+    if (!annoPop) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return
+      const el = document.activeElement as HTMLElement | null
+      if (!el || !el.closest('.zj-anno-pop')) return
+      const pop = document.querySelector('.zj-anno-pop')
+      const btns = [...(pop?.querySelectorAll('button') ?? [])] as HTMLElement[]
+      if (!btns.length) return
+      e.preventDefault()
+      const i = btns.indexOf(el)
+      const next = e.shiftKey ? (i <= 0 ? btns.length - 1 : i - 1) : (i >= btns.length - 1 ? 0 : i + 1)
+      ;(btns[next] as HTMLElement).focus()
+    }
+    document.addEventListener('keydown', onKey, true)
+    return () => document.removeEventListener('keydown', onKey, true)
   }, [annoPop])
   const onHostClickAnno = (e: ReactMouseEvent) => {
     const el = (e.target as Element | null)?.closest?.('.zj-anno')
@@ -426,6 +457,7 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
     if (!bubble) return
     void doCopy(bubble.text)
     setBubble(null)
+    focusEditor()
   }
 
   /* —— 文中查找（Apple HIG Keyboards：⌘F / ⌘G / ⇧⌘G / Esc）——
@@ -578,6 +610,25 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
         // 否则会先抢关查找条并 stopPropagation、抽屉永远关不掉（HIG：Esc 关闭当前聚焦层）。
         const inDialog = !!(document.activeElement && document.activeElement.closest('[role="dialog"]'))
         if (inDialog) return
+        // 焦点在编辑器浮层（划词浮层/批注气泡）内：Esc 关当前浮层并把焦点还给编辑器
+        // （HIG：Esc 关闭当前聚焦层 + 焦点不能丢；此分支先于查找条——浮层是更临时的交互层）。
+        const fEl = document.activeElement as HTMLElement | null
+        if (fEl?.closest?.('.zj-sel-bubble, .zj-anno-pop')) {
+          e.preventDefault()
+          e.stopPropagation()
+          if (fEl.closest('.zj-anno-pop')) setAnnoPop(null)
+          else setBubble(null)
+          focusEditor()
+          return
+        }
+        // 浮层开着但焦点在编辑器内（键盘选择后）：Esc 取消当前选区工具（无查找会话时），关注点不动
+        if ((bubbleRef.current || annoPopRef.current) && !findOpenRef.current && fEl?.closest?.('.ProseMirror')) {
+          e.preventDefault()
+          e.stopPropagation()
+          if (annoPopRef.current) setAnnoPop(null)
+          else setBubble(null)
+          return
+        }
         if (findOpenRef.current) {
           e.preventDefault()
           e.stopPropagation() // 先关查找条，不连锁关闭其他浮层
@@ -839,6 +890,8 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
       </div>
       {bubble && (
         <div
+          role="toolbar"
+          aria-label="选中文字操作"
           className="zj-sel-bubble flex items-center gap-1"
           style={{
             left: bubble.x,
@@ -880,6 +933,7 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
               onClick={() => {
                 if (annoPopRow.before) window.dispatchEvent(new CustomEvent('zj:quote-text', { detail: annoPopRow.before }))
                 setAnnoPop(null)
+                focusEditor()
               }}
               title="把批注原文作为引用添加到右下对话"
               aria-label="加入对话"
@@ -891,6 +945,7 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
               onClick={() => {
                 window.dispatchEvent(new CustomEvent('zj:anno-remove', { detail: { row: annoPop.row } }))
                 setAnnoPop(null)
+                focusEditor()
               }}
               className="zj-anno-pop-remove"
               title="删除这条批注（从 .csv 移除，空文件删除）"
