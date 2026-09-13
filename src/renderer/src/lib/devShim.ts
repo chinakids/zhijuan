@@ -41,6 +41,8 @@ function fsEmit(projectId: string, rel: string) {
 const docs = new Map<string, string>()
 // 导演任务取消标记（与真机 director.ts 的 directorCancels 同口径：token → cancelled）
 const directorCancels = new Set<string>()
+// 生成中停止标记（与真机 engine.ts 的 active Map + abortRequest 同口径：caller 停止后事件不再转发）
+const cancelledAgentRids = new Set<string>()
 // 被重发（writeDoc 触碰）过的演示停滞卡 key：docsOf 对它的「3天前」mtime 特判失效，恢复真机行为（mtime=写盘时刻）
 const taskTouched = new Set<string>()
 // 空类别（dev 内存无目录概念：新类别只登记名字，树/列表经 libraryTree 组装时按计数 0 展示）
@@ -958,7 +960,12 @@ const mock = {
   },
   agentSend: async (input: { requestId: string; prompt: string }) => {
     const rid = input.requestId
-    const emit = (e: AgentEvent) => mock.agentListeners.forEach((h) => h(e))
+    const emit = (e: AgentEvent) => {
+      // 停止后不再转发后续事件（与真机 runChat 的 `if (run.aborted) return` 拦截同口径；
+      // 取消事件本身由 agentCancel 直接发，不走此门）
+      if (cancelledAgentRids.has(rid)) return
+      mock.agentListeners.forEach((h) => h(e))
+    }
     await demoDelay()
     // 思考过程演示
     emit({ requestId: rid, type: 'think', text: '先看一下当前章节里需要改的位置，再决定怎么改…' })
@@ -1062,7 +1069,7 @@ const mock = {
         await demoDelay()
       }
       emit({ requestId: rid, type: 'delta', text: demo.slice(i, i + 8) })
-      await new Promise((r) => setTimeout(r, 10))
+      await demoDelay() // 演示流速度随 ?zj-agent-delay=<ms> 可调（默认 60ms；停止冒烟用 200ms 拉长窗口）
     }
     if (interleave) {
       emit({ requestId: rid, type: 'done' })
@@ -1073,7 +1080,13 @@ const mock = {
     // 与真机 agent:send handler 同口径：返回 { ok: true }（2026-09-13 口径审计）
     return { ok: true }
   },
-  agentCancel: async () => true,
+  agentCancel: async (requestId: string) => {
+    // 停止模拟（与真机 agent:cancel → abortRequest 同口径）：标记后本请求后续事件不再转发，
+    // 并补发 aborted 收尾（真机在模型跑完后发——展示性取消；devShim 立即发以便冒烟/交互即时反馈）
+    cancelledAgentRids.add(String(requestId))
+    mock.agentListeners.forEach((h) => h({ requestId: String(requestId), type: 'aborted' }))
+    return true
+  },
   agentDirectorCancel: async (token: string) => {
     directorCancels.add(token)
     return true
