@@ -400,3 +400,21 @@ export interface DirectorCheckResult {
   /** 钩子核对：paid 已还 / open 仍悬着 / new 新埋 */
   hooks: DirectorCheckItem[]
 }
+
+/** 系统菜单自定义动作 id（docs/系统菜单-设计口径.md 首期 10 个自定义通道；主进程 menu.ts + 渲染层 App.tsx 分发共用） */
+export type MenuActionId =
+  | 'settings'
+  | 'newProject'
+  | 'newChapter'
+  | 'save'
+  | 'findOpen'
+  | 'findUseSel'
+  | 'findNext'
+  | 'findPrev'
+  | 'shortcutHelp'
+  | 'openWorkspaceDocs'
+
+/** 菜单自定义动作事件载荷（preload onMenuAction 回调参数） */
+export interface MenuActionEvent {
+  id: MenuActionId
+}

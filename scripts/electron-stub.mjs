@@ -8,8 +8,21 @@ export const app = {
     if (name === 'documents') return path.join(os.homedir(), 'Documents')
     if (name === 'userData') return process.env.ZJ_USERDATA || '/tmp/zj-smoke-userdata'
     return '/tmp/zj'
-  }
+  },
+  getVersion: () => '0.0.0-stub',
+  setAboutPanelOptions: (opts) => { app._aboutPanel = opts },
+  showAboutPanel: () => { app._about = (app._about || 0) + 1 }
 }
 export const ipcMain = { handle: () => {} }
-export const BrowserWindow = { getAllWindows: () => [] }
-export const shell = { openExternal: () => {}, showItemInFolder: () => {}, trashItem: async (p) => { const fsp = await import('node:fs/promises'); await fsp.rm(p, { recursive: true, force: true }) } }
+export const BrowserWindow = { getAllWindows: () => [], getFocusedWindow: () => null }
+export const shell = { openExternal: () => {}, showItemInFolder: (p) => { shell._shown = p }, trashItem: async (p) => { const fsp = await import('node:fs/promises'); await fsp.rm(p, { recursive: true, force: true }) } }
+export const Menu = {
+  _appMenu: null,
+  setApplicationMenu: (m) => { Menu._appMenu = m },
+  getApplicationMenu: () => Menu._appMenu,
+  buildFromTemplate: (t) => ({ template: t })
+}
+export const dialog = {
+  _about: 0,
+  showAboutPanel: () => { dialog._about++ }
+}

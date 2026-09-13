@@ -25,7 +25,8 @@ import type {
   HistorySnapshot,
   LibraryCategory,
   SearchHit,
-  RecentLibraryDoc
+  RecentLibraryDoc,
+  MenuActionEvent
 } from '../shared/types'
 import type { RecentEntry } from '../shared/projects'
 
@@ -139,6 +140,15 @@ const api = {
     ipcRenderer.on('fs:event', listener)
     return () => {
       ipcRenderer.removeListener('fs:event', listener)
+    }
+  },
+
+  // 系统菜单自定义动作（主进程 menu.ts -> menu:action；渲染层 App.tsx 单点分发）
+  onMenuAction: (cb: (evt: MenuActionEvent) => void) => {
+    const listener = (_e: unknown, evt: MenuActionEvent) => cb(evt)
+    ipcRenderer.on('menu:action', listener)
+    return () => {
+      ipcRenderer.removeListener('menu:action', listener)
     }
   },
 

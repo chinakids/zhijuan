@@ -3,6 +3,7 @@ import { join } from 'path'
 import { registerIpc } from './ipc'
 import { shutdownAgent } from './agent/ipc'
 import { getSettings } from './settings'
+import { registerMenuActions } from './menu'
 
 const isDev = !!process.env['ELECTRON_RENDERER_URL']
 
@@ -64,6 +65,8 @@ app.whenReady().then(async () => {
     return
   }
   registerIpc()
+  // 系统菜单（docs/系统菜单-设计口径.md）：mac 菜单栏，主进程侧模板+动作分发（renderer 分发=下一刀）
+  registerMenuActions()
   createWindow()
 
   app.on('activate', () => {
