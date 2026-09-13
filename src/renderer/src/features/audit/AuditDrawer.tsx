@@ -52,6 +52,8 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
   const [running, setRunning] = useState(false)
   const [err, setErr] = useState('')
   const [made, setMade] = useState<Set<number>>(new Set())
+  // 对比视图「转提案」已建状态（key=分组字母+序号，如 'a0'/'s1'；候选 1③ 2026-09-13）
+  const [madeDiff, setMadeDiff] = useState<Set<string>>(new Set())
   // 「与上次对比」三期（2026-09-12）：语义三态（新增/已解决/依旧），与行级 diff 互补
   const [diffView, setDiffView] = useState(false)
   const [diff, setDiff] = useState<AuditDiffResult | null>(null)
@@ -101,18 +103,26 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
     setDiffView(false)
     setDiff(null)
     setDiffErr('')
+    setMadeDiff(new Set())
   }, [tab])
 
-  const makeProposal = async (idx: number, it: AuditItem) => {
-    if (!it.target) return
+  /** 建提案公共体：有 target 才建，命中返回 true（清单/对比两视图共用同一规则） */
+  const createProposalFor = async (it: AuditItem): Promise<boolean> => {
+    if (!it.target) return false
     try {
       await window.zhijuan.createProposals(projectId, 'agent-chat', '', '', [
         { target: it.target, anchor: '', kind: 'append', before: '', after: it.suggest + '\n\n> 依据：' + it.what, reason: '巡查建议 · ' + (TYPE_TXT[it.type] ?? it.type) }
       ])
-      setMade((s) => new Set(s).add(idx))
+      return true
     } catch {
-      /* 忽略单个失败 */
+      return false
     }
+  }
+  const makeProposal = async (idx: number, it: AuditItem) => {
+    if (await createProposalFor(it)) setMade((s) => new Set(s).add(idx))
+  }
+  const makeDiffProposal = async (key: string, it: AuditItem) => {
+    if (await createProposalFor(it)) setMadeDiff((s) => new Set(s).add(key))
   }
 
   if (!open) return null
@@ -168,8 +178,23 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
             <Send className="h-3 w-3" /> 让 agent 改
           </button>
         )}
+        {it.target &&
+          (madeDiff.has(String(keyIdx)) ? (
+            <span className="flex items-center gap-1 text-[11px] text-success"><Check className="h-3 w-3" /> 已建提案</span>
+          ) : (
+            <button
+              onClick={() => void makeDiffProposal(String(keyIdx), it)}
+              title={'创建修改提案到 ' + it.target + '（可在提案抽屉决定是否采纳）'}
+              className="flex items-center gap-1 whitespace-nowrap rounded-md border border-hair px-2 py-0.5 text-[11px] text-ink-2 hover:border-accent hover:text-accent"
+            >
+              <AlertTriangle className="h-3 w-3" /> 转提案
+            </button>
+          ))}
       </div>
       <p className="mt-2 text-[11px] text-ink-3">{it.where}</p>
+      {it.refFile && (
+        <p className="mt-1 text-[11px] text-ink-3">关联档案：<span className="text-accent">{it.refFile}</span></p>
+      )}
       <p className="mt-1 text-xs text-ink">{it.what}</p>
       <p className="mt-1 text-[11px] text-ink-2">建议：{it.suggest}</p>
     </div>

@@ -134,6 +134,22 @@ try {
   ok('措辞漂移提示（同一位置一增一消）', text.includes('同一位置「一增一消」'))
   ok('对比头部显示上一版时间与条数（共 4 条）', /上一版 \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} · 共 4 条/.test(text))
 
+  // ③-b 候选 1③（2026-09-13）：diff 条目处置入口与清单视图同规则（有 target 即可转提案）
+  const propCountBefore = await page.eval(`window.zhijuan.listProposals().then((l) => l.length)`)
+  const diffTransCount = await page.eval(`[...document.querySelectorAll('button')].filter((x) => (x.textContent || '').includes('转提案')).length`)
+  ok('对比视图有 target 的条目带「转提案」入口（依旧组 2 条）', diffTransCount === 2, 'count=' + diffTransCount)
+  const clickedTrans = await page.eval(`(() => {
+    const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').includes('转提案'))
+    if (b) b.click()
+    return !!b
+  })()`)
+  ok('点击第一条「转提案」', clickedTrans === true)
+  await evalUntil(page, `document.body.innerText.includes('已建提案')`, (v) => v === true, 10000, '转提案后显示已建提案')
+  const propCountAfter = await page.eval(`window.zhijuan.listProposals().then((l) => l.length)`)
+  ok('提案库新增 1 条', propCountAfter === propCountBefore + 1, 'before=' + propCountBefore + ' after=' + propCountAfter)
+  const propTarget = await page.eval(`window.zhijuan.listProposals().then((l) => { const p = l[l.length - 1]; return (p && p.items && p.items[0] && p.items[0].target) || '' })`)
+  ok('提案 target 等于条目关联档案（人物/顾岸.md）', propTarget === '人物/顾岸.md', 'target=' + propTarget)
+
   // ④ 返回列表复原
   await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').includes('返回列表')); if (b) b.click(); return !!b })()`)
   await evalUntil(page, `document.body.innerText.includes('沈确的称呼') && !document.body.innerText.includes('新增（这次发现）')`, (v) => v === true, 10000, '返回列表视图')
