@@ -66,6 +66,11 @@ describe('项目全流程（临时目录真实落盘）', () => {
     }
     expect(existsSync(join(dir, '人物/总览.md'))).toBe(true)
     expect(existsSync(join(dir, '世界观/总纲.md'))).toBe(true)
+    // 项目根 .gitignore：工具派生数据默认忽略（版本快照/迁移备份），作品本体明文可入 git
+    const gi = readFileSync(join(dir, '.gitignore'), 'utf-8')
+    expect(gi).toContain('.zhijuan/history/')
+    expect(gi).toContain('.zhijuan/migrate-backup-*/')
+    expect(existsSync(join(dir, '.gitignore'))).toBe(true)
     const meta = readFileSync(join(dir, 'project.md'), 'utf-8')
     expect(meta).toContain('name: 雾港')
     expect(meta).toContain('时间线总纲')
