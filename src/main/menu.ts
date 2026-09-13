@@ -1,6 +1,7 @@
 // ===== 织卷 V2 · 系统菜单（macOS 菜单栏）=====
 // 设计口径：docs/系统菜单-设计口径.md（2026-09-12 体验层轮定稿；落地归属=平台层 B 外壳）。
-// 本轮＝第一刀（主进程侧）：模板 + 动作分发 + preload 事件桥；渲染层单点分发与禁用态上报＝下一刀。
+// 进度：第一刀（主进程侧，0fdad90）＝模板 + 动作分发 + preload 事件桥；
+//       第二刀（f08c96b）＝渲染层 MenuBridge 单点分发（features/menu/menuBus.tsx）+ 启用态禁用（本文件 applyMenuState）。
 // 约定（口径 §5）：不新增任何快捷键，只承载 docs/快捷键.md 已有组合 + macOS 系统标准。
 import { shell, Menu, app, BrowserWindow, ipcMain } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
