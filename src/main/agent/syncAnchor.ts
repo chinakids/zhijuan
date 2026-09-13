@@ -38,6 +38,36 @@ export function normalizeSyncItems(items: ProposalItem[], sliceName: string): Pr
   })
 }
 
+// ---------- 产出解析健康面（候选 2f：解析「静默空」加固，2026-09-14）----------
+// 背景：engine.extractItems 对「非空但解析失败」的模型回复返回 []，runSync 曾按「无变化」上报——
+// 模型跑偏成散文/对象/围栏外文本时，设定流断链而无人知（09-04 结构化输出课 (a)(b) 只加固了
+// subtask 提取，runSync 链路未套）。这里把模型原回复（轻修复后）分成三类：
+// 合法空（≈[]）/ 解析得出数组 / 非法（非空且解析不出数组）；调用方（runSync）据此决定带提醒重试。
+export type SyncRawKind = 'empty' | 'array' | 'illegal'
+
+function parseJsonArray(s: string): unknown[] | null {
+  try {
+    const v = JSON.parse(s)
+    return Array.isArray(v) ? v : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 判定 runSync 模型回复的类型（与 extractItems 同一套轻修复口径：剥围栏→整段解析→截取括号段）。
+ * 注意「解析得出数组但条目全部无效」也归 array（条目健康由调用方用 items.length 判定，二者要区分开）。
+ */
+export function classifySyncRaw(text: string): SyncRawKind {
+  const clean = text.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+  if (/^\[\s*\]$/.test(clean)) return 'empty'
+  if (parseJsonArray(clean) !== null) return 'array'
+  const a = clean.indexOf('[')
+  const b = clean.lastIndexOf(']')
+  if (a >= 0 && b > a && parseJsonArray(clean.slice(a, b + 1)) !== null) return 'array'
+  return 'illegal'
+}
+
 /** 确保世界切片文件存在（模块设计 §8：每个切片一个 切片_<切片名>.md）；返回相对项目根的路径；切片名为空返回 null */
 export function ensureWorldSliceFile(root: string, sliceName: string): string | null {
   if (!sliceName) return null

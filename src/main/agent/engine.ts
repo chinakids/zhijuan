@@ -7,7 +7,7 @@ import { projectDir, listDocs } from '../store'
 import { buildWritingContext, buildProjectContext } from './context'
 import { expandAtRefs } from './refs'
 import { trimHistoryMessage } from '../../shared/historyTrim'
-import { normalizeSyncItems, ensureWorldSliceFile, guardPersonTargets } from './syncAnchor'
+import { normalizeSyncItems, ensureWorldSliceFile, guardPersonTargets, classifySyncRaw } from './syncAnchor'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { readFileSync } from 'fs'
 import { join } from 'path'
@@ -298,10 +298,23 @@ export async function runSync(
   }
   parts.push(`当前需要同步的章节：${chapterRel}。请按上面的要求输出设定补丁 JSON。`)
   try {
-    const text = await driveSession(newSid(projectId), parts.join('\n\n'), { maxMs: 10 * 60 * 1000 })
-    const items = normalizeSyncItems(extractItems(text), sliceName)
+    let text = await driveSession(newSid(projectId), parts.join('\n\n'), { maxMs: 10 * 60 * 1000 })
+    let items = extractItems(text)
+    // 产出解析健康（候选 2f）：「非空但解析失败 / 解析出数组但条目全无效」不能按「无变化」默过——
+    // 那是模型跑偏的信号（散文/对象/围栏外文本），设定流断链要显性报错，不带提醒静默重来。
+    if (items.length === 0 && classifySyncRaw(text) !== 'empty') {
+      text = await driveSession(newSid(projectId) + '-r', parts.join('\n\n') + SYNC_RETRY_NOTE, { maxMs: 10 * 60 * 1000 })
+      items = extractItems(text)
+      if (items.length === 0 && classifySyncRaw(text) !== 'empty') {
+        return {
+          ok: false,
+          error: `模型回复未能解析为设定 JSON 数组（已重试一次仍失败）——原文节选：${excerptSyncRaw(text)}`
+        }
+      }
+    }
+    const normalized = normalizeSyncItems(items, sliceName)
     // 防线（候选 2e）：人物 target 必须落现有档案；纠错/丢弃记入 issues 供 UI 提示
-    const g = guardPersonTargets(items, { knownFiles, chapterCast: castAll })
+    const g = guardPersonTargets(normalized, { knownFiles, chapterCast: castAll })
     const res: { ok: true; items: ProposalItem[]; guard?: { issues: import('../../shared/types').SyncIssue[] } } = {
       ok: true,
       items: g.items
@@ -311,6 +324,16 @@ export async function runSync(
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e).slice(0, 300) }
   }
+}
+
+/** 同步重试提醒（候选 2f）：附加在原始材料包之后，强令只输出 JSON 数组 */
+const SYNC_RETRY_NOTE =
+  '\n\n你上次的回答没有被解析成 JSON 数组（不符合要求 6：只输出 JSON 数组本身，不加任何前后缀文字）。这次只输出一个 JSON 数组：先写左中括号 [，不要解释、不要注释。'
+
+/** 错误文案带原文节选（压空白，留前 60 字符） */
+function excerptSyncRaw(s: string): string {
+  const t = s.replace(/\s+/g, ' ').trim()
+  return t.length > 60 ? t.slice(0, 60) + '…' : t || '（空回复）'
 }
 
 /** 从模型回复里稳健提取补丁 JSON 数组 */

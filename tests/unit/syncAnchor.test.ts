@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdtempSync, rmSync, existsSync, readFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { normalizeSyncItems, ensureWorldSliceFile, guardPersonTargets, editDistance } from '../../src/main/agent/syncAnchor'
+import { normalizeSyncItems, ensureWorldSliceFile, guardPersonTargets, editDistance, classifySyncRaw } from '../../src/main/agent/syncAnchor'
 import { worldSliceFile } from '../../src/shared/paths'
 
 const tmp = mkdtempSync(join(tmpdir(), 'zj-synca-'))
@@ -180,5 +180,49 @@ describe('guardPersonTargets（候选 2e：target 存在性防线）', () => {
     expect(editDistance('林晓', '林晚')).toBe(1)
     expect(editDistance('晓', '林晓')).toBe(1)
     expect(editDistance('', '林')).toBe(1)
+  })
+})
+
+describe('classifySyncRaw（runSync 产出解析健康分类）', () => {
+  it('`[]` 与带空格 `[ ]` → legal 空（模型确认无变化）', () => {
+    expect(classifySyncRaw('[]')).toBe('empty')
+    expect(classifySyncRaw('[ ]')).toBe('empty')
+  })
+
+  it('围栏包着的 `[]`（```json 围栏）→ legal 空', () => {
+    expect(classifySyncRaw('```json\n[]\n```')).toBe('empty')
+  })
+
+  it('散文/说明文字（非 JSON）→ illegal（触发带提醒重试）', () => {
+    expect(classifySyncRaw('本章没有任何变化。')).toBe('illegal')
+    expect(classifySyncRaw('没有需要同步的设定，作者写得很好！')).toBe('illegal')
+  })
+
+  it('JSON 对象（非数组）→ illegal', () => {
+    expect(classifySyncRaw('{"target":"人物/林晓.md","after":"x"}')).toBe('illegal')
+  })
+
+  it('空回复/纯空白 → illegal（空转不是协议合法空）', () => {
+    expect(classifySyncRaw('')).toBe('illegal')
+    expect(classifySyncRaw('   ')).toBe('illegal')
+  })
+
+  it('围栏内的 JSON 数组 → array', () => {
+    const t = '```json\n[{"target":"人物/林晓.md","after":"- 等船"}]\n```'
+    expect(classifySyncRaw(t)).toBe('array')
+  })
+
+  it('混合文本中嵌入数组段 → array（与 extractItems 同口径截取）', () => {
+    const t = '以下是结果：\n[{"target":"人物/林晓.md","after":"- 等船"}]\n希望有帮助。'
+    expect(classifySyncRaw(t)).toBe('array')
+  })
+
+  it('解析得出数组但条目字段无效（[{foo:1}]）→ array（条目健康由调用方用 items.length 再判）', () => {
+    expect(classifySyncRaw('[{"foo":1}]')).toBe('array')
+  })
+
+  it('`null` / 裸值 → illegal', () => {
+    expect(classifySyncRaw('null')).toBe('illegal')
+    expect(classifySyncRaw('123')).toBe('illegal')
   })
 })

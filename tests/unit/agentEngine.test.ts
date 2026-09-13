@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// engine（runChat）依赖打桩：runtime/context/refs/store/syncAnchor 全 mock，事件序列纯逻辑可测
+// engine（runChat/runSync）依赖打桩：runtime/context/refs/store/syncAnchor 全 mock，事件序列纯逻辑可测
+// 注意：syncAnchor 用 importOriginal 部分打桩——classifySyncRaw 走真实实现（本轮候选 2f 的核心纯函数），
+// 只有 normalize/ensure/guard 被替换；guardPersonTargets 可注入行为（runSync 测试用）。
 const mocks = vi.hoisted(() => ({
-  driveSession: vi.fn()
+  driveSession: vi.fn(),
+  guardPersonTargets: vi.fn()
 }))
 vi.mock('../../src/main/agent/runtime', () => ({
   driveSession: (...a: unknown[]) => mocks.driveSession(...a),
@@ -15,13 +18,14 @@ vi.mock('../../src/main/agent/context', () => ({
   isTemplateShell: () => false
 }))
 vi.mock('../../src/main/agent/refs', () => ({ expandAtRefs: async () => ({ block: null }) }))
-vi.mock('../../src/main/agent/syncAnchor', () => ({
+vi.mock('../../src/main/agent/syncAnchor', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/main/agent/syncAnchor')>()),
   normalizeSyncItems: (x: unknown) => x,
   ensureWorldSliceFile: () => {},
-  guardPersonTargets: (x: unknown, _: unknown) => ({ items: x, issues: [] })
+  guardPersonTargets: (...a: unknown[]) => mocks.guardPersonTargets(...a)
 }))
 
-import { runChat, abortRequest } from '../../src/main/agent/engine'
+import { runChat, abortRequest, runSync } from '../../src/main/agent/engine'
 
 const chunk = (text: string) => ({
   method: 'session.event',
@@ -40,6 +44,7 @@ const INPUT = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.guardPersonTargets.mockImplementation((x: unknown) => ({ items: x, issues: [] }))
 })
 
 describe('runChat 事件序列（流式稳定性）', () => {
@@ -89,5 +94,71 @@ describe('runChat 事件序列（流式稳定性）', () => {
     const events: any[] = []
     await runChat(INPUT as any, (e) => events.push(e))
     expect(events.map((e) => e.type)).toEqual(['delta', 'aborted'])
+  })
+})
+
+describe('runSync 产出解析健康（候选 2f：静默空加固）', () => {
+  const validItem = { target: '人物/林晓.md', anchor: '切片：x', kind: 'upsert-section', before: '', after: '- 等船', reason: 'r' }
+
+  it('合法空 `[]` → ok + 零条目，只驱动一次（不触发重试）', async () => {
+    mocks.driveSession.mockImplementation(async () => '[]')
+    const r = await runSync('p', '正文/第01章.md')
+    expect(r.ok).toBe(true)
+    expect((r as any).items).toHaveLength(0)
+    expect(mocks.driveSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('散文首答 → 带提醒重试一次，第二次 `[]` → ok 且重试提示已附到第二次提示', async () => {
+    const calls: string[] = []
+    mocks.driveSession.mockImplementation(async (_sid: string, p: string) => {
+      calls.push(p)
+      return calls.length === 1 ? '本章没有任何变化。' : '[]'
+    })
+    const r = await runSync('p', '正文/第01章.md')
+    expect(r.ok).toBe(true)
+    expect(mocks.driveSession).toHaveBeenCalledTimes(2)
+    expect(calls[1]).toContain('你上次的回答没有被解析')
+    expect(calls[1]).toContain('先写左中括号')
+  })
+
+  it('散文两连 → ok:false，错误带「已重试一次」与原文节选', async () => {
+    mocks.driveSession.mockImplementation(async () => '没有变化，作者写得真棒。')
+    const r = await runSync('p', '正文/第01章.md')
+    expect(r.ok).toBe(false)
+    expect((r as any).error).toContain('已重试一次仍失败')
+    expect((r as any).error).toContain('原文节选')
+    expect((r as any).error).toContain('没有变化')
+    expect(mocks.driveSession).toHaveBeenCalledTimes(2)
+  })
+
+  it('解析出数组但条目全无效（[{foo}]）→ 重试一次；二次有效条目 → ok', async () => {
+    const calls: string[] = []
+    mocks.driveSession.mockImplementation(async (_sid: string, p: string) => {
+      calls.push(p)
+      return calls.length === 1 ? '[{"foo":1}]' : JSON.stringify([validItem])
+    })
+    const r = await runSync('p', '正文/第01章.md')
+    expect(r.ok).toBe(true)
+    expect((r as any).items).toHaveLength(1)
+    expect((r as any).items[0].target).toBe('人物/林晓.md')
+    expect(mocks.driveSession).toHaveBeenCalledTimes(2)
+  })
+
+  it('一次成功（有效条目）→ 不触发重试', async () => {
+    mocks.driveSession.mockImplementation(async () => JSON.stringify([validItem]))
+    const r = await runSync('p', '正文/第01章.md')
+    expect(r.ok).toBe(true)
+    expect((r as any).items).toHaveLength(1)
+    expect(mocks.driveSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('产物被 guard 全拦（items 归零）不触发重试——守卫处置不是模型跑偏', async () => {
+    mocks.driveSession.mockImplementation(async () => JSON.stringify([validItem]))
+    mocks.guardPersonTargets.mockImplementation(() => ({ items: [], issues: [{ target: '人物/林晓.md', action: 'dropped', reason: '未建档' }] }))
+    const r = await runSync('p', '正文/第01章.md')
+    expect(r.ok).toBe(true)
+    expect((r as any).items).toHaveLength(0)
+    expect((r as any).guard.issues).toHaveLength(1)
+    expect(mocks.driveSession).toHaveBeenCalledTimes(1)
   })
 })
