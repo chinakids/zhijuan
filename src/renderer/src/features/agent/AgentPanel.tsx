@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Rea
 import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, Users, UserCheck, ListOrdered, FileWarning, CircleX } from 'lucide-react'
+import { Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, Users, UserCheck, ListOrdered, FileWarning, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import type { ProseApi } from '../editor/Prose'
 import type { AuditKind, EditItem, ChapterCheckKind, DirectorSheet } from '../../../../shared/types'
@@ -93,6 +94,16 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs 
     </div>
   )
 }
+
+/** 输入区快捷指令（主人 2026-09-12：输入框上功能条丰富化）——点击插入 `/命令`，可编辑后再发送；
+ * 与 / 命令槽位同链路（expandCommand / matchFixedCommand），不双写逻辑。 */
+const QUICK_CMDS: { id: string; name: string; desc: string; icon: LucideIcon }[] = [
+  { id: 'continue', name: '续写', desc: '接续当前章正文，以修改卡提交', icon: PenLine },
+  { id: 'polish', name: '润色', desc: '打磨当前章语感，逐处播改卡', icon: Sparkles },
+  { id: 'extend', name: '延伸', desc: '给 3 个可发展的走向，不写正文', icon: Expand },
+  { id: 'patrol', name: '巡查', desc: '本章小环·短巡查（参数：本章|修订|全卷）', icon: SearchCheck },
+  { id: 'director', name: '导演', desc: '给当前章出导演板并写入大纲', icon: Clapperboard }
+]
 
 function toolLabel(tool: string): string {
   const map: Record<string, string> = {
@@ -711,6 +722,23 @@ export default function AgentPanel(props: AgentPanelProps) {
     void send(prompt.trim(), quote)
   }
 
+  // 快捷指令点击：插入 `/命令 `（可编辑/加参数后发送；与 / 命令槽位同链路）
+  const insertCmd = (name: string) => {
+    const base = `/${name} `
+    const v = input
+    const next = v.trim() ? v.trimEnd() + '\n' + base : base
+    setInput(next)
+    requestAnimationFrame(() => {
+      taRef.current?.focus()
+      const n = taRef.current?.value.length ?? next.length
+      try {
+        taRef.current?.setSelectionRange(n, n)
+      } catch {
+        /* 忽略 */
+      }
+    })
+  }
+
   const sendBlock: ReactNode = (
     <div className="relative">
       <textarea
@@ -974,8 +1002,24 @@ export default function AgentPanel(props: AgentPanelProps) {
               <button onClick={() => useAgentStore.getState().setQuote(null)} className="text-ink-3 hover:text-ink">×</button>
             </div>
           )}
-          <div className="flex gap-1.5">
-            <Button variant="outline" size="sm" className="h-8 shrink-0 px-2" title="把编辑器里选中的段落作为引用" onClick={grabQuote}>
+          <div className="flex items-center gap-2">
+            {/* 快捷指令 chips（点击插入 /命令；窄窗口横向滚动不换行） */}
+            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5" role="toolbar" aria-label="快捷指令">
+              {QUICK_CMDS.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => insertCmd(c.name)}
+                  title={`${c.name}：${c.desc}`}
+                  aria-label={`${c.name}：${c.desc}`}
+                  className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-hair bg-surface px-1.5 py-1 text-[11px] text-ink-2 transition-colors hover:bg-well hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+                >
+                  <c.icon className="h-3 w-3" />
+                  <span>{c.name}</span>
+                </button>
+              ))}
+            </div>
+            <Button variant="default" size="sm" className="h-8 shrink-0 px-2" title="把编辑器里选中的段落作为引用" onClick={grabQuote}>
               <Paperclip />
               <span className="ml-1">引用选中</span>
             </Button>
