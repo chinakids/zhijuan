@@ -3,6 +3,7 @@
 // 供 UI 渲染成可逐条转提案的检查报告。和 runSync 同构：独立的 session、无提问、离线出结果。
 import { readDoc, listChapters, listDocs, writeDoc } from '../store'
 import { presenceCheck, unusedAliasCheck, parseAliases, listedFrom, unlistedInBody, chapterMissingFromRaw } from '../../shared/presence'
+import { actGapsCheck } from '../../shared/actGaps'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { chapterOrderCheck } from '../../shared/chapterorder'
 import { registerCapability, runSubtask, type SubtaskDef } from './subtask'
@@ -32,7 +33,8 @@ const AUDIT_NAMES: Record<AuditKind, string> = {
   perspectives: '多视角审视',
   presence: '人物在场核查',
   order: '切片时序核查',
-  unused: '人物档案腐坏核查'
+  unused: '人物档案腐坏核查',
+  actgaps: '正文缺段核查'
 }
 
 /** 审计结果存档的相对路径：大纲/审读_<名>.md */
@@ -151,6 +153,19 @@ export function runChapterOrder(
   }
 }
 
+// ===== 正文缺段核查（本地规则层，零模型、秒级） =====
+// 机械层第五块：扫描全卷正文的「分幕草稿缺第 N 段」占位注释（actsSeg 断链标记），
+// 提示哪些章节还留着没补齐的缺段。与 presence/order/unused 同策略：不落盘、高频可重跑。
+export function runActGaps(
+  projectId: string
+): { ok: true; result: AuditResult } | { ok: false; error: string } {
+  try {
+    return { ok: true, result: actGapsCheck({ chapters: readVolumeChapters(projectId) }) }
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message ?? e) }
+  }
+}
+
 /** 审计结果 → 可入 git 的 markdown 存档（纯函数，可单测；模板单源在 shared/auditDoc.ts，devShim 同用） */
 export function auditToMarkdown(
   result: AuditResult,
@@ -251,6 +266,7 @@ export async function runAudit(
   if (kind === 'presence') return runPresence(projectId)
   if (kind === 'order') return runChapterOrder(projectId)
   if (kind === 'unused') return runUnusedAliases(projectId)
+  if (kind === 'actgaps') return runActGaps(projectId)
   // 多视角审视是独立能力，参数不同（无 kind），单独路由
   const r =
     kind === 'perspectives'

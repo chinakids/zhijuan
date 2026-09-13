@@ -12,6 +12,7 @@ import { extractFrontMatter, setFrontMatterField } from '../../../shared/fmatter
 import { adoptActsChapter } from '../../../shared/actsAdopt'
 import { countWords } from '../../../shared/count'
 import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceCheck, chapterMissingFromRaw } from '../../../shared/presence'
+import { actGapsCheck } from '../../../shared/actGaps'
 import { findAnchorLine, normalizeAnchor } from '../../../shared/anchor'
 import { auditDocMarkdown } from '../../../shared/auditDoc'
 import { parseAnnotationCsv, segmentFromText, escapeCsvField } from '../../../shared/annotations'
@@ -1103,7 +1104,7 @@ const mock = {
   },
   agentAudit: async (projectId: string, kind: string) => {
     // 与主进程同语义：审计成功后把结论落盘 大纲/审读_<名>.md（供无头 UI 冒烟断言「已存档」与大纲区「审读存档」）
-    const name = kind === 'consistency' ? '一致性巡查' : kind === 'perspectives' ? '多视角审视' : kind === 'presence' ? '人物在场核查' : kind === 'order' ? '切片时序核查' : kind === 'unused' ? '人物档案腐坏核查' : '冷读报告'
+    const name = kind === 'consistency' ? '一致性巡查' : kind === 'perspectives' ? '多视角审视' : kind === 'presence' ? '人物在场核查' : kind === 'order' ? '切片时序核查' : kind === 'unused' ? '人物档案腐坏核查' : kind === 'actgaps' ? '正文缺段核查' : '冷读报告'
     const res =
       kind === 'presence'
         ? (() => {
@@ -1149,6 +1150,14 @@ const mock = {
               .map(({ file }) => ({ file: '正文/' + file, raw: docs.get(projectId + '/正文/' + file) ?? '' }))
               .filter((c) => c.raw.trim())
             return { ok: true as const, result: unusedAliasCheck({ aliasMap, chapters }) }
+          })()
+        : kind === 'actgaps'
+        ? (() => {
+            // 与主进程同语义：复用共享纯函数 + devShim 内存文档真实计算（演示项目正文无占位注释 → 零命中空态；命中路径由单测/数据层冒烟覆盖）
+            const chapters = docsOf(projectId + '/正文')
+              .map(({ file }) => ({ file: '正文/' + file, raw: docs.get(projectId + '/正文/' + file) ?? '' }))
+              .filter((c) => c.raw.trim())
+            return { ok: true as const, result: actGapsCheck({ chapters }) }
           })()
         : kind === 'consistency'
         ? {

@@ -14,7 +14,7 @@ const TYPE_TXT: Record<string, string> = {
   structure: '结构', pacing: '节奏', character: '人物', prose: '行文', setting: '设定', misc: '其他'
 }
 const K_TITLE: Partial<Record<AuditKind, string>> = {
-  consistency: '一致性巡查', review: '冷读报告', perspectives: '多视角审视', presence: '人物在场核查', order: '切片时序核查', unused: '人物档案腐坏核查'
+  consistency: '一致性巡查', review: '冷读报告', perspectives: '多视角审视', presence: '人物在场核查', order: '切片时序核查', unused: '人物档案腐坏核查', actgaps: '正文缺段核查'
 }
 const VIEWER_TXT: Record<string, string> = {
   '角色粉': '角色粉视角', '设定党': '设定党视角', '节奏读者': '节奏读者视角'
