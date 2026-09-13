@@ -5,11 +5,19 @@ import { create } from 'zustand'
  * 自动消失（可暂停于 hover），栈上限 MAX，加载类不自动消失。 */
 export type ToastKind = 'success' | 'info' | 'warning' | 'error' | 'loading'
 
+/** toast 内嵌操作按钮（参照 sonner toast.action 的成熟模式：错误类 toast 挂就地重试/跳转动作） */
+export interface ToastAction {
+  label: string
+  onClick: () => void
+}
+
 export interface ToastItem {
   id: number
   kind: ToastKind
   title: string
   description?: string
+  /** 内嵌操作按钮（可选；弹层存活期间一直可点，不随自动消失时序处理） */
+  action?: ToastAction | null
   /** 自动消失毫秒数；0 = 不自动消失（loading 默认） */
   duration: number
   createdAt: number
@@ -24,6 +32,8 @@ export interface ToastInput {
   kind?: ToastKind
   title: string
   description?: string
+  /** 内嵌操作按钮（可选） */
+  action?: ToastAction | null
   duration?: number
 }
 
@@ -89,7 +99,7 @@ export function dismiss(id: number) {
 interface ToastsState {
   toasts: ToastItem[]
   add: (input: ToastInput) => number
-  update: (id: number, patch: Partial<Pick<ToastItem, 'kind' | 'title' | 'description' | 'duration'>>) => void
+  update: (id: number, patch: Partial<Pick<ToastItem, 'kind' | 'title' | 'description' | 'action' | 'duration'>>) => void
   dismiss: (id: number) => void
   /** hover 暂停（其余时间继续计） */
   pause: (id: number) => void
@@ -105,7 +115,7 @@ export const useToastsStore = create<ToastsState>((set, get) => ({
     const kind = input.kind ?? 'info'
     const duration = input.duration ?? DEFAULT_DURATION[kind]
     const id = seq++
-    const toast: ToastItem = { id, kind, title: input.title, description: input.description, duration, createdAt: Date.now() }
+    const toast: ToastItem = { id, kind, title: input.title, description: input.description, action: input.action ?? null, duration, createdAt: Date.now() }
     const cur = get().toasts
     // 栈上限：挤掉最旧的一条（leaving 中的不占位、不重复挤）
     const active = cur.filter((t) => !t.leaving)

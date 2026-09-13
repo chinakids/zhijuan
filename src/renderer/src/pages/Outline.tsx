@@ -11,7 +11,7 @@ import DirectorCheckDrawer from '../features/check/DirectorCheckDrawer'
 import { useFsChanged, useFsEvents } from '../features/fs/useFsEvents'
 import { isBoardStale } from '../../../shared/boardAge'
 import { parseActsWarn } from '../../../shared/actsSeg'
-import { runSliceSync } from '../features/sync/sliceSync'
+import { runSliceSync, type SliceSyncResult } from '../features/sync/sliceSync'
 import { toast } from '../components/ui/toast'
 
 /** 大纲区：agent 把已有正文回建成章卡，画布随进度活起来。 */
@@ -281,7 +281,9 @@ export default function Outline() {
         )
         // 采纳=整章正文被替换（正文为源、设定为流）：与「保存正文」同口径，完成后触发切片同步出新提案
         const tid = toast.add({ kind: 'success', title: '已采纳为正文', description: `「${selChapter.name}」正文已替换（${r.words} 字），切片同步中…`, duration: 0 })
-        void runSliceSync(id, '正文/' + selChapter.file).then((s) => {
+        // 结果呈现统一入口（首跑与「重试同步」共用）：成功→提示/toast 更新；失败→toast 挂 action 按钮可就地重试
+        let retrySync: (() => void) | null = null
+        const applySyncOutcome = (s: SliceSyncResult) => {
           const guardNote =
             s.issues && s.issues.length > 0
               ? `（拦截 ${s.issues.length} 条：${s.issues[0].reason.slice(0, 24)}…）`
@@ -295,10 +297,21 @@ export default function Outline() {
               toast.update(tid, { kind: 'success', title: '切片同步完成', description: '正文替换完成，无设定变化' })
             }
           } else {
-            setMsg(`✗ 正文已替换，但切片同步失败：${s.error ?? '未知原因'}（可稍后在正文页再保存一次触发）`)
-            toast.update(tid, { kind: 'error', title: '切片同步失败', description: s.error ?? '未知原因' })
+            setMsg(`✗ 正文已替换，但切片同步失败：${s.error ?? '未知原因'}`)
+            toast.update(tid, {
+              kind: 'error',
+              title: '切片同步失败',
+              description: s.error ?? '未知原因',
+              action: { label: '重试同步', onClick: () => retrySync?.() }
+            })
           }
-        })
+        }
+        retrySync = () => {
+          setMsg('切片同步重试中…')
+          toast.update(tid, { kind: 'loading', title: '切片同步重试中…', description: undefined, action: null })
+          void runSliceSync(id, '正文/' + selChapter.file).then(applySyncOutcome)
+        }
+        void runSliceSync(id, '正文/' + selChapter.file).then(applySyncOutcome)
       } else {
         setMsg('✗ ' + r.error)
         toast.add({ kind: 'error', title: '采纳为正文失败', description: r.error })

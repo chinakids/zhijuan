@@ -93,6 +93,34 @@ describe('toasts 全局通知（自研轻量）', () => {
     expect(useToastsStore.getState().toasts).toHaveLength(0)
   })
 
+  it('action 内嵌操作按钮：add 携带、update 可替换/清除（null），onClick 可执行', () => {
+    let clicked = 0
+    const id = toast.add({
+      kind: 'error',
+      title: '切片同步失败',
+      description: '模型跑偏',
+      action: {
+        label: '重试同步',
+        onClick: () => {
+          clicked++
+        }
+      }
+    })
+    let t = useToastsStore.getState().toasts.find((x) => x.id === id)
+    expect(t?.action?.label).toBe('重试同步')
+    t?.action?.onClick()
+    expect(clicked).toBe(1)
+    // update 换 action
+    toast.update(id, { action: { label: '再试', onClick: () => void 0 } })
+    t = useToastsStore.getState().toasts.find((x) => x.id === id)
+    expect(t?.action?.label).toBe('再试')
+    // update 清除 action（重试中先摘按钮）
+    toast.update(id, { kind: 'loading', title: '重试中', action: null })
+    t = useToastsStore.getState().toasts.find((x) => x.id === id)
+    expect(t?.action).toBeNull()
+    expect(t?.kind).toBe('loading')
+  })
+
   it('pause/resume：悬停暂停倒计时，离开继续', () => {
     const id = toast.add({ kind: 'success', title: 'hover me' })
     const st = useToastsStore.getState()

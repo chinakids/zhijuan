@@ -43,6 +43,17 @@ function ToastCard({ t }: { t: ToastItem }) {
       <div className="min-w-0 flex-1">
         <div className="text-xs font-medium leading-5 text-ink">{t.title}</div>
         {t.description && <div className="mt-0.5 break-all text-[11px] leading-4 text-ink-2">{t.description}</div>}
+        {t.action && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              t.action?.onClick()
+            }}
+            className="mt-1.5 shrink-0 rounded-md border border-hair px-1.5 py-0.5 text-[11px] text-accent transition-colors hover:bg-accent-soft"
+          >
+            {t.action.label}
+          </button>
+        )}
       </div>
       <button
         onClick={() => toast.dismiss(t.id)}

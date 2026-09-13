@@ -76,6 +76,8 @@ export default function Novel() {
   const events = useFsEvents(id)
   const apiRef = useRef<ProseApi | null>(null)
   const [syncMsg, setSyncMsg] = useState('')
+  // 切片同步失败后的就地重试（03:45 观察②→06:45 候选 2）：失败浮条不随 6s 自动清，留「重试同步」按钮
+  const [syncRetry, setSyncRetry] = useState<{ rel: string } | null>(null)
   const [checkOpen, setCheckOpen] = useState(false)
   // 本章小环 tab（短巡查/分层修订）：AgentPanel 命令行 /巡查 [修订] 可切换后打开
   const [checkTab, setCheckTab] = useState<ChapterCheckKind>('chapter')
@@ -155,10 +157,33 @@ export default function Novel() {
     return () => window.removeEventListener('zj:menu-newChapter', h)
   }, [])
 
-  const handleChapterSaved = useCallback(
+  // 切片同步核心（保存正文/失败重试共用同链路：runSliceSync 直调，成功后提案台 bump）
+  const doSync = useCallback(
     async (rel: string) => {
       if (!id) return
       setSyncMsg('切片同步中…')
+      setSyncRetry(null)
+      const r = await runSliceSync(id, rel)
+      if (r.ok) {
+        const guardNote =
+          r.issues && r.issues.length > 0
+            ? `（拦截 ${r.issues.length} 条：${r.issues[0].reason.slice(0, 24)}…）`
+            : ''
+        setSyncMsg(r.items > 0 ? `✓ 已生成 ${r.items} 条切片提案${guardNote}` : `✓ 无设定变化${guardNote}`)
+        useProposalStore.getState().bump()
+        window.setTimeout(() => setSyncMsg(''), 6000)
+      } else {
+        // 失败可感知：浮条留存（不随 6s 清），并提供就地重试按钮
+        setSyncMsg('✗ 切片同步失败: ' + r.error)
+        setSyncRetry({ rel })
+      }
+    },
+    [id]
+  )
+
+  const handleChapterSaved = useCallback(
+    (rel: string) => {
+      if (!id) return
       // 前置快检（零模型；与同步并行）：正文出现档案人物本名/登记别名但约定头未列（unlisted）、
       // 约定头列了但正文（达到最小字数阈值后）未出现本名/别名（missing）→ 汇总为一张提示卡
       void Promise.all([
@@ -171,20 +196,9 @@ export default function Novel() {
           setCastCard({ rel, unlisted, missing })
         }
       })
-      const r = await runSliceSync(id, rel)
-      if (r.ok) {
-        const guardNote =
-          r.issues && r.issues.length > 0
-            ? `（拦截 ${r.issues.length} 条：${r.issues[0].reason.slice(0, 24)}…）`
-            : ''
-        setSyncMsg(r.items > 0 ? `✓ 已生成 ${r.items} 条切片提案${guardNote}` : `✓ 无设定变化${guardNote}`)
-        useProposalStore.getState().bump()
-      } else {
-        setSyncMsg('✗ 切片同步失败: ' + r.error)
-      }
-      window.setTimeout(() => setSyncMsg(''), 6000)
+      void doSync(rel)
     },
-    [id]
+    [id, doSync]
   )
 
   const refresh = useCallback(async () => {
@@ -249,6 +263,8 @@ export default function Novel() {
   // 切换章节：收起「清单不一致」提示卡（忽略记录保留，本会话内不重复打扰该章）
   useEffect(() => {
     setCastCard(null)
+    setSyncMsg('')
+    setSyncRetry(null)
   }, [sel])
 
   // 「补入涉及人物」：把命中人物写进本章约定头（只改那一行，其他约定头原样；正文不动）
@@ -534,12 +550,22 @@ export default function Novel() {
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-ink-3">选择左侧一个章节开始（编辑器已就绪）</div>
         )}
-        {/* 切片同步结果：浮动提示，不占版面 */}
+        {/* 切片同步结果：浮动提示，不占版面（失败带就地重试按钮，可点击） */}
         {syncMsg && (
-          <div className="pointer-events-none absolute right-24 top-11 z-10 rounded-full border border-hair bg-surface px-3 py-1 text-[11px] shadow-md">
+          <div
+            className={`${syncRetry ? 'pointer-events-auto' : 'pointer-events-none'} absolute right-24 top-11 z-10 flex items-center gap-2 rounded-full border border-hair bg-surface px-3 py-1 text-[11px] shadow-md`}
+          >
             <span className={syncMsg.startsWith('✓') ? 'text-success' : syncMsg.startsWith('✗') ? 'text-danger' : 'text-accent'}>
               {syncMsg}
             </span>
+            {syncRetry && (
+              <button
+                onClick={() => void doSync(syncRetry.rel)}
+                className="shrink-0 rounded-full border border-hair px-1.5 py-0.5 text-[10px] text-accent transition-colors hover:bg-accent-soft"
+              >
+                重试同步
+              </button>
+            )}
           </div>
         )}
         {/* 保存前置提示：本章「涉及人物」清单与正文不一致（本地规则·零模型）——出场未列入 / 列入未出场 */}
