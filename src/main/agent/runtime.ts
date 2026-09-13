@@ -34,9 +34,10 @@ export interface DriveEvent {
   params: Record<string, any>
 }
 
-/** 运行时根目录：默认 <appPath>/dsh-runtime（env 可覆盖，便于无头测试指向临时副本） */
+/** 运行时根目录：dev=<appPath>/dsh-runtime；打包后=dsh-runtime 在 extraResources（resourcesPath），asar 内不可 spawn */
 function runtimeDir(): string {
   if (process.env.ZHJUAN_DSH_RUNTIME) return process.env.ZHJUAN_DSH_RUNTIME
+  if (app.isPackaged) return resolve(process.resourcesPath, 'dsh-runtime')
   return resolve(app.getAppPath(), 'dsh-runtime')
 }
 
@@ -147,7 +148,10 @@ export async function ensureHarness(): Promise<string | undefined> {
     ...process.env,
     DSH_HOME: dshHome(),
     [cfg.apiKeyEnv]: String(apiKey),
-    ZJ_USER_ANSWER_DIR: answerDir()
+    ZJ_USER_ANSWER_DIR: answerDir(),
+    // 打包机无系统 node：兜底 Electron 自身当 node（官方 ELECTRON_RUN_AS_NODE 纯 Node 模式，
+    // 与旧「Electron 当 node 吞输出」问题不同，2026-09-12 发布冲刺实测项）
+    ...(launch.command === process.execPath ? { ELECTRON_RUN_AS_NODE: '1' } : {})
   }
   try {
     harness = new Sdk({ launch, provider: cfg.route, model: cfg.model, maxTokens: 8192 })

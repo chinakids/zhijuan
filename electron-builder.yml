@@ -1,0 +1,37 @@
+# 织卷 electron-builder 配置（2026-09-12 主人要求双端打包）
+# mac：dmg（本机直打，无签名 identity=null）；win：nsis + portable（本机需 wine 或 GitHub Actions）
+appId: com.zhijuan.desktop
+productName: 织卷
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+  - "!**/*.map"
+asar: true
+extraResources:
+  - from: dsh-runtime
+    to: dsh-runtime
+    filter:
+      - '**/*'
+      - '!testwork/**'
+      - '!*.log'
+mac:
+  target:
+    - target: dmg
+  icon: build/icon.icns
+  category: public.app-category.productivity
+  identity: null
+  artifactName: zhijuan-${version}-mac-${arch}.${ext}
+win:
+  target:
+    - nsis
+    - portable
+  icon: build/icon.ico
+  artifactName: zhijuan-${version}-win-${arch}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  shortcutName: 织卷
