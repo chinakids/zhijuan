@@ -45,6 +45,8 @@ const api = {
 
   // 平台路径（主进程解析后的生效库根等；设置页「当前」展示用）
   getPaths: () => ipcRenderer.invoke('app:getPaths') as Promise<{ documents: string; defaultLibrary: string }>,
+  // 首页「更改库根路径」：系统目录选择器 → 写入设置 → 返回新生效库根（模块设计 §四 A「库根路径（可改）」）
+  pickLibrary: () => ipcRenderer.invoke('settings:pickLibrary') as Promise<string | null>,
 
   // 项目
   listProjects: () => ipcRenderer.invoke('project:list') as Promise<ProjectSummary[]>,

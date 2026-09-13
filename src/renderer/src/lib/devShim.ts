@@ -686,6 +686,11 @@ const mock = {
     }),
     defaultLibrary: '' // 真机=process.env.HOME（ipc.ts）；已核实渲染层零消费（仅此定义处），renderer 无 node 环境取不到 HOME，保持 ''
   }),
+  // 真机=系统目录选择器（settings:pickLibrary）；dev 模拟「选了新库」——写入 settings.libraryRoot 并返回，getPaths 决策链随动
+  pickLibrary: async (): Promise<string | null> => {
+    settings.libraryRoot = '/tmp/织卷-dev-项目库'
+    return settings.libraryRoot
+  },
 
   // dev 演示的人物索引：与主进程 readCharIndex 同口径（档案题名 + 登记别名）
   _charIndexOf: (id: string) => {

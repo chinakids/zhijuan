@@ -55,6 +55,17 @@ export function registerIpc() {
     }
     return next
   })
+  // 首页「更改库根路径」（模块设计 §四 A「库根路径（可改）」）：选目录 → 写入设置 → 返回新生效库根
+  ipcMain.handle('settings:pickLibrary', async () => {
+    const r = await dialog.showOpenDialog({
+      title: '选择项目库位置（作品将保存在该目录）',
+      buttonLabel: '更改到此位置',
+      properties: ['openDirectory']
+    })
+    if (r.canceled || !r.filePaths[0]) return null
+    setSettings({ libraryRoot: r.filePaths[0] })
+    return libraryRoot()
+  })
 
   // 项目
   ipcMain.handle('project:list', () => listProjects())

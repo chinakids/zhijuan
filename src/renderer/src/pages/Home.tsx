@@ -58,6 +58,7 @@ export default function Home() {
   const [folder, setFolder] = useState('')
   const [templates, setTemplates] = useState<ProjectTemplate[]>([])
   const [template, setTemplate] = useState('')
+  const [libPath, setLibPath] = useState<string | null>(null)
 
   useEffect(() => {
     void window.zhijuan.listTemplates().then(setTemplates)
@@ -65,9 +66,14 @@ export default function Home() {
 
   const refresh = useCallback(async () => {
     try {
-      const [list, recs] = await Promise.all([window.zhijuan.listProjects(), window.zhijuan.getRecentEntries()])
+      const [list, recs, paths] = await Promise.all([
+        window.zhijuan.listProjects(),
+        window.zhijuan.getRecentEntries(),
+        window.zhijuan.getPaths().catch(() => null)
+      ])
       setProjects(list)
       setRecents(recs)
+      setLibPath(paths ? paths.documents : null)
       setLoadErr('')
     } catch (e) {
       setLoadErr(String((e as Error).message ?? e))
@@ -144,6 +150,19 @@ export default function Home() {
       }
     } catch (e) {
       toast.add({ kind: 'error', title: '导出失败', description: String((e as Error).message ?? e) })
+    }
+  }
+
+  /** 更改库根路径（模块设计 §四 A「库根路径（可改）」）：系统目录选择器 → 写入设置 → 刷新列表 */
+  async function changeLibRoot() {
+    try {
+      const dir = await window.zhijuan.pickLibrary()
+      if (!dir) return
+      setLibPath(dir)
+      void refresh()
+      toast.add({ kind: 'success', title: '已更改项目库', description: `项目库已切换为 ${dir}` })
+    } catch (e) {
+      toast.add({ kind: 'error', title: '更改项目库失败', description: String((e as Error).message ?? e) })
     }
   }
 
@@ -318,6 +337,23 @@ export default function Home() {
           })}
         </div>
       </main>
+
+      {/* 底栏：当前项目库（模块设计 §四 A「底栏：当前库根」+「库根路径（可改）」；窄窗口不换行） */}
+      <footer className="flex items-center gap-2 border-t border-hair bg-surface px-6 py-1.5">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[11px] text-ink-3" title={libPath ? `项目库：${libPath}` : undefined} data-testid="home-libroot">
+            当前项目库：{libPath ?? (loading ? '读取中…' : '—')}
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 shrink-0 whitespace-nowrap px-2 text-xs text-ink-2"
+          onClick={() => void changeLibRoot()}
+        >
+          更改库根路径…
+        </Button>
+      </footer>
 
       {/* 新建项目 */}
       <Dialog open={creating} onOpenChange={setCreating}>
