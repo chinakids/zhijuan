@@ -6,6 +6,8 @@ import { ScrollArea } from '../../components/ui/scroll-area'
 import { toast } from '../../store/toasts'
 import { cn } from '../../lib/utils'
 import { useModalA11y } from '../../lib/useModalA11y'
+import { syncAfterChapterEdit } from '../sync/editSync'
+import { isChapterTarget } from '../../../../shared/editSyncGate'
 
 interface Props {
   projectId: string
@@ -21,6 +23,25 @@ const STATUS: Record<string, { text: string; cls: string }> = {
   stale: { text: '已过期', cls: 'bg-surface-2 text-ink-3' }
 }
 
+/** 正文类提案（annotation-sync 批注改写）接受后：与「保存/分幕采纳/EditCard 采纳」同口径触发切片同步（收口+节流），结果 toast */
+function toastAfterChapterApply(projectId: string, target: string) {
+  void syncAfterChapterEdit(projectId, target).then((s) => {
+    if (s === 'throttled' || s === 'skipped') return
+    const guardNote = s.issues && s.issues.length > 0 ? `（拦截 ${s.issues.length} 条）` : ''
+    toast.add({
+      kind: s.ok ? 'success' : 'warning',
+      title: '切片同步',
+      description: s.ok
+        ? s.items > 0
+          ? `正文已改写，切片同步到 ${s.items} 条提案待确认${guardNote}`
+          : `正文已改写，切片同步无设定变化${guardNote}`
+        : s.error ?? '切片同步失败'
+    })
+  }).catch(() => {
+    toast.add({ kind: 'warning', title: '切片同步', description: '同步失败（可稍后手动保存触发）' })
+  })
+}
+
 function ItemCard({ p, projectId, onChanged }: { p: Proposal; projectId: string; onChanged: () => void }) {
   const it = p.items[0]
   const [showDiff, setShowDiff] = useState(false)
@@ -32,6 +53,11 @@ function ItemCard({ p, projectId, onChanged }: { p: Proposal; projectId: string;
     try {
       const r = await window.zhijuan.applyProposal(projectId, p.id)
       if (!r.ok || r.errors?.length) setErr((r.errors?.join('；') || '写入失败') + '（可重试或改原地后再接受）')
+      else {
+        // 正文为源、设定为流：正文类提案（批注改写）接受后触发切片同步（跳过则刷新列表）
+        const t = p.items[0]?.target ?? ''
+        if (isChapterTarget(t) && t) toastAfterChapterApply(projectId, t)
+      }
     } catch (e) {
       setErr(String((e as Error).message || e))
     } finally {
@@ -106,8 +132,16 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose }: 
   const panelRef = useRef<HTMLDivElement>(null)
   useModalA11y(true, panelRef, onClose)
   async function allApply() {
-    for (const p of pending) await window.zhijuan.applyProposal(projectId, p.id)
+    const targets = new Set<string>()
+    for (const p of pending) {
+      const r = await window.zhijuan.applyProposal(projectId, p.id)
+      if (r.ok) {
+        const t = p.items[0]?.target ?? ''
+        if (isChapterTarget(t) && t) targets.add(t)
+      }
+    }
     onChanged()
+    for (const t of targets) toastAfterChapterApply(projectId, t)
   }
   async function doScan() {
     try {

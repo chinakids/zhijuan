@@ -1094,7 +1094,12 @@ const mock = {
     fsEmit(projectId, rel)
     return { ...res, savedReport: rel }
   },
-  agentSync: async () => ({ ok: true, items: [] } as { ok: boolean; items: ProposalItem[] }),
+  agentSync: async (id: string, rel: string) => {
+    // 无头冒烟断言用：记录每次切片同步调用（仅 devShim 测试面，真机走 agentSync IPC）
+    const w = window as unknown as { __ZJ_SYNCS?: string[] }
+    ;(w.__ZJ_SYNCS ??= []).push(id + '|' + rel)
+    return { ok: true, items: [] } as { ok: boolean; items: ProposalItem[] }
+  },
   agentStatus: async () => ({ online: true, provider: '本机 vLLM', model: 'deepseek-v4-flash-vision-exp-uncensored' }),
   agentListCapabilities: async () => [
     { id: 'audit', title: '全卷检查', description: '（演示）一致性巡查 / 冷读报告：跨全卷对照设定找问题' },

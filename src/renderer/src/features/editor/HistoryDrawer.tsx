@@ -11,6 +11,7 @@ import { ScrollArea } from '../../components/ui/scroll-area'
 import { cn } from '../../lib/utils'
 import { useModalA11y } from '../../lib/useModalA11y'
 import { buildDiffView, DIFF_MAX_ROWS } from './diffView'
+import { syncAfterChapterEdit } from '../sync/editSync'
 
 interface Props {
   projectId: string
@@ -82,6 +83,19 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
       await window.zhijuan.writeDoc(projectId, rel, oldText)
       setMsg('✓ 已恢复；恢复前的正文已自动留档，可在列表继续找回。')
       await load(true)
+      // 正文为源、设定为流：恢复=正文回退，须与现有切片设定重新比对（非正文 rel 由收口自动跳过，如大纲审读）
+      void syncAfterChapterEdit(projectId, rel).then((s) => {
+        if (s === 'throttled' || s === 'skipped') return
+        const guardNote =
+          s.issues && s.issues.length > 0 ? `（拦截 ${s.issues.length} 条：${s.issues[0].reason.slice(0, 20)}…）` : ''
+        setMsg(
+          s.ok
+            ? s.items > 0
+              ? `✓ 已恢复；切片同步出 ${s.items} 条提案待确认${guardNote}`
+              : `✓ 已恢复；切片同步无设定变化${guardNote}`
+            : `✓ 已恢复；切片同步失败：${s.error ?? '未知错误'}（可稍后保存触发）`
+        )
+      })
     } catch (e) {
       setMsg('恢复失败：' + String((e as Error).message ?? e))
     } finally {

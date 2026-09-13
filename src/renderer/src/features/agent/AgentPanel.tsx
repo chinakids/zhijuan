@@ -25,7 +25,7 @@ import AtMentionMenu from './AtMentionMenu'
 import CommandMenu from './CommandMenu'
 import { cn } from '../../lib/utils'
 import { Button } from '../../components/ui/button'
-import { runSliceSync } from '../sync/sliceSync'
+import { syncAfterChapterEdit } from '../sync/editSync'
 
 interface AgentPanelProps {
   projectId: string
@@ -106,29 +106,19 @@ function toolLabel(tool: string): string {
 
 /* ---------- 正文修改卡（edit，IDE 式前后对比） ---------- */
 // 正文为源、设定为流：EditCard 采纳（doc:applyEdit）写入正文后，与「保存正文」「分幕采纳」同口径触发切片同步；
-// 60s 窗口内同一文件已同步过则跳过（一次对话里连续多条 edit 采纳不重复烧引擎），失败不节流（用户可再采纳/保存重试）
-let lastEditSync: { file: string; at: number } | null = null
-function syncAfterEdit(projectId: string, file: string, setMsg: (m: string | null) => void) {
-  const now = Date.now()
-  if (lastEditSync && lastEditSync.file === file && now - lastEditSync.at < 60_000) {
+// 节流（60s 同文件）与「批注提案接受/历史版本恢复」统一收口 features/sync/editSync：一次对话内连续改写不重复烧引擎，失败不节流
+async function syncAfterEdit(projectId: string, file: string, setMsg: (m: string | null) => void) {
+  const s = await syncAfterChapterEdit(projectId, file)
+  if (s === 'throttled') {
     setMsg('✓ 已采纳；本分钟内已同步过切片，不重复')
     return
   }
-  lastEditSync = { file, at: now }
-  setMsg('切片同步中…')
-  void runSliceSync(projectId, file)
-    .then((s) => {
-      if (!s.ok) lastEditSync = null // 失败不节流：用户再采纳/保存可重试
-      const guardNote =
-        s.issues && s.issues.length > 0
-          ? `（拦截 ${s.issues.length} 条：${s.issues[0].reason.slice(0, 24)}…）`
-          : ''
-      setMsg(s.ok ? (s.items > 0 ? `✓ 切片同步：${s.items} 条提案待确认${guardNote}` : `✓ 切片同步：无设定变化${guardNote}`) : `✗ 切片同步失败：${s.error ?? '未知错误'}`)
-    })
-    .catch((e) => {
-      lastEditSync = null
-      setMsg(`✗ 切片同步失败：${String((e as Error).message || e)}`)
-    })
+  if (s === 'skipped') return // 非正文（设定类工具写入），不触发正文同步
+  const guardNote =
+    s.issues && s.issues.length > 0
+      ? `（拦截 ${s.issues.length} 条：${s.issues[0].reason.slice(0, 24)}…）`
+      : ''
+  setMsg(s.ok ? (s.items > 0 ? `✓ 切片同步：${s.items} 条提案待确认${guardNote}` : `✓ 切片同步：无设定变化${guardNote}`) : `✗ 切片同步失败：${s.error ?? '未知错误'}`)
 }
 function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
   id: string
