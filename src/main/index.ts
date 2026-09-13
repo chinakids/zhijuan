@@ -48,7 +48,21 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // 打包验收（ZHJUAN_SMOKE=1）：不进 GUI，直测主进程核心链路（引擎怠启动+设置）后退出
+  // 用于无头环境验证发布包（2026-09-12 发布冲刺）
+  if (process.env['ZHJUAN_SMOKE']) {
+    try {
+      const { ensureHarness } = await import('./agent/runtime')
+      const err = await ensureHarness()
+      const s = getSettings()
+      console.log('ZHJUAN_SMOKE ' + JSON.stringify({ engineOnline: !err, engineErr: err ?? null, workspace: s.workspace, libraryRoot: s.libraryRoot, packaged: app.isPackaged }))
+    } catch (e) {
+      console.log('ZHJUAN_SMOKE ' + JSON.stringify({ error: String((e as Error).message ?? e) }))
+    }
+    app.exit(0)
+    return
+  }
   registerIpc()
   createWindow()
 
