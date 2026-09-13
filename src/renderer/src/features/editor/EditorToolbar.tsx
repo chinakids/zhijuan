@@ -14,6 +14,7 @@ import { setBlockType, toggleMark } from 'prosemirror-commands'
 import { wrapInList } from 'prosemirror-schema-list'
 import { undo, redo, undoDepth, redoDepth } from 'prosemirror-history'
 import { computeHideCount, MORE_W, type ToolGroup, type ToolItem } from './toolbarLayout'
+import { EMPTY_ACTIVE, type ActiveState } from './toolbarActive'
 
 /** 撤销/重做可用态（HIG Menus/Toolbars：不可用项置灰示态、不响应交互，但不隐藏） */
 type HistState = { canUndo: boolean; canRedo: boolean }
@@ -22,17 +23,23 @@ type HistState = { canUndo: boolean; canRedo: boolean }
  *  - 符号优先、无边框、哑光低调；与「暖纸面+精密中性铬」设计语言共存；
  *  - 窄窗放不下时，低频动作自动收进「⋯」More 菜单（HIG：主区只留最重要项、More 收纳次要项），
  *    容器宽度 ResizeObserver 实测；离屏测量层全量渲染（隐藏项也能量到宽）。
+ *  - 格式工具（标题/加粗/列表…）是 toggle 按钮（HIG Buttons：macOS 方形符号按钮可配置为 toggle 行为；
+ *    系统保留专门视觉传达 toggled 状态）——光标位于该格式内时按钮呈激活态（aria-pressed + accent-soft 底，
+ *    与全站选中态口径一致；Pages/TextEdit 先例）。激活态由 Prose 侧 selection 级快照（toolbarActive.ts）驱动。
  * 纯逻辑在 toolbarLayout.ts（computeHideCount），vitest 单测覆盖。 */
 
 type EditorLike = { action: (fn: (ctx: any) => void) => void }
 
 export default function EditorToolbar({
   edRef,
-  histTick = 0
+  histTick = 0,
+  active = null
 }: {
   edRef: MutableRefObject<EditorLike | null>
   /** Prose 在 markdownUpdated 时递增；工具栏据此重读撤销/重做可用态 */
   histTick?: number
+  /** 当前光标处格式激活快照（Prose 侧 selection 级更新；null=编辑器未就绪，视为全灭） */
+  active?: ActiveState | null
 }) {
   const groupsRef = useRef<ToolGroup[] | null>(null)
   const hidePriorityRef = useRef<number[] | null>(null)
@@ -42,27 +49,28 @@ export default function EditorToolbar({
       name: string,
       icon: ComponentType<{ className?: string }>,
       fn: (v: any, s: any) => void,
-      disabled?: (h: HistState) => boolean
-    ): ToolItem => ({ key, name, icon, run: fn, disabled })
+      disabled?: (h: HistState) => boolean,
+      active?: (a: ActiveState) => boolean
+    ): ToolItem => ({ key, name, icon, run: fn, disabled, active })
     groupsRef.current = [
       {
         key: 'g-block',
         items: [
-          item('h1', '一级标题', Heading1, (v, s) => setBlockType(s.nodes.heading, { level: 1 })(v.state, v.dispatch)),
-          item('h2', '二级标题', Heading2, (v, s) => setBlockType(s.nodes.heading, { level: 2 })(v.state, v.dispatch)),
-          item('h3', '三级标题', Heading3, (v, s) => setBlockType(s.nodes.heading, { level: 3 })(v.state, v.dispatch)),
-          item('para', '正文段落', Pilcrow, (v, s) => setBlockType(s.nodes.paragraph)(v.state, v.dispatch))
+          item('h1', '一级标题', Heading1, (v, s) => setBlockType(s.nodes.heading, { level: 1 })(v.state, v.dispatch), undefined, (a) => a.block === 'heading1'),
+          item('h2', '二级标题', Heading2, (v, s) => setBlockType(s.nodes.heading, { level: 2 })(v.state, v.dispatch), undefined, (a) => a.block === 'heading2'),
+          item('h3', '三级标题', Heading3, (v, s) => setBlockType(s.nodes.heading, { level: 3 })(v.state, v.dispatch), undefined, (a) => a.block === 'heading3'),
+          item('para', '正文段落', Pilcrow, (v, s) => setBlockType(s.nodes.paragraph)(v.state, v.dispatch), undefined, (a) => a.block === 'paragraph')
         ]
       },
       {
         key: 'g-inline',
         items: [
-          item('bold', '加粗', Bold, (v, s) => toggleMark(s.marks.strong)(v.state, v.dispatch)),
-          item('italic', '斜体', Italic, (v, s) => toggleMark(s.marks.em)(v.state, v.dispatch)),
-          item('code', '行内代码', Code, (v, s) => toggleMark(s.marks.code)(v.state, v.dispatch)),
-          item('quote', '引用块', Quote, (v, s) => setBlockType(s.nodes.blockquote)(v.state, v.dispatch)),
-          item('ul', '无序列表', List, (v, s) => wrapInList(s.nodes.bullet_list)(v.state, v.dispatch)),
-          item('ol', '有序列表', ListOrdered, (v, s) => wrapInList(s.nodes.ordered_list)(v.state, v.dispatch))
+          item('bold', '加粗', Bold, (v, s) => toggleMark(s.marks.strong)(v.state, v.dispatch), undefined, (a) => a.marks.strong),
+          item('italic', '斜体', Italic, (v, s) => toggleMark(s.marks.em)(v.state, v.dispatch), undefined, (a) => a.marks.em),
+          item('code', '行内代码', Code, (v, s) => toggleMark(s.marks.code)(v.state, v.dispatch), undefined, (a) => a.marks.code),
+          item('quote', '引用块', Quote, (v, s) => setBlockType(s.nodes.blockquote)(v.state, v.dispatch), undefined, (a) => a.block === 'blockquote'),
+          item('ul', '无序列表', List, (v, s) => wrapInList(s.nodes.bullet_list)(v.state, v.dispatch), undefined, (a) => a.block === 'bullet_list'),
+          item('ol', '有序列表', ListOrdered, (v, s) => wrapInList(s.nodes.ordered_list)(v.state, v.dispatch), undefined, (a) => a.block === 'ordered_list')
         ]
       },
       {
@@ -127,6 +135,7 @@ export default function EditorToolbar({
 
   const hiddenSet = new Set(HIDE_PRIORITY.slice(0, hiddenCount))
   const groupVisible = (gi: number): boolean => groups[gi].items.some((it) => !hiddenSet.has(flat.indexOf(it)))
+  const actState = active ?? EMPTY_ACTIVE
 
   const runTool = (t: ToolItem) => {
     if (t.disabled?.(hist)) return
@@ -145,14 +154,16 @@ export default function EditorToolbar({
 
   const renderItem = (t: ToolItem) => {
     const dis = t.disabled?.(hist) ?? false
+    const act = t.active ? t.active(actState) : false
     return (
       <button
         key={t.key}
         title={t.name}
         aria-label={t.name}
         disabled={dis}
+        aria-pressed={t.active ? act : undefined}
         onClick={() => runTool(t)}
-        className={`zj-tb-item shrink-0${dis ? ' zj-tb-off' : ''}`}
+        className={`zj-tb-item shrink-0${dis ? ' zj-tb-off' : ''}${t.active && act ? ' zj-tb-on' : ''}`}
       >
         <t.icon className="h-4 w-4" />
       </button>
@@ -205,15 +216,17 @@ export default function EditorToolbar({
               const needSep = prev
                 ? groups.findIndex((g) => g.items.includes(t)) !== groups.findIndex((g) => g.items.includes(prev))
                 : false
+              const dis = t.disabled?.(hist) ?? false
+              const act = t.active ? t.active(actState) : false
               return (
                 <div key={t.key}>
                   {needSep && <DropdownMenuSeparator />}
                   <DropdownMenuItem
-                    disabled={t.disabled?.(hist) ?? false}
+                    disabled={dis}
                     onSelect={() => runTool(t)}
-                    className="text-xs text-ink-2"
+                    className={`text-xs ${act && !dis ? 'text-accent' : 'text-ink-2'}`}
                   >
-                    <t.icon className="mr-2 h-3.5 w-3.5 text-ink-3" />
+                    <t.icon className={`mr-2 h-3.5 w-3.5 ${act && !dis ? 'text-accent' : 'text-ink-3'}`} />
                     <span>{t.name}</span>
                   </DropdownMenuItem>
                 </div>

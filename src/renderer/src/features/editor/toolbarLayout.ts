@@ -1,4 +1,5 @@
 /** 编辑器工具栏布局纯逻辑（无 React 依赖，供组件与单测共用）。 */
+import type { ActiveState } from './toolbarActive'
 
 export interface ToolItem {
   key: string
@@ -8,6 +9,8 @@ export interface ToolItem {
   run: (v: any, s: any) => void
   /** 可用态谓词（HIG：不可用项置灰示态；布局纯逻辑只透传该字段，不感知语义） */
   disabled?: (state: { canUndo: boolean; canRedo: boolean }) => boolean
+  /** 激活态谓词（HIG Buttons/Toolbars：符号按钮须表达 toggled 状态；定义即视为 toggle 按钮——render 时按结果加 aria-pressed 与激活视觉；布局纯逻辑只透传） */
+  active?: (s: ActiveState) => boolean
 }
 /** 一个工具组：组内按钮相邻，组与组之间渲染分隔线（组全隐则 sep 也隐） */
 export interface ToolGroup { key: string; items: ToolItem[] }

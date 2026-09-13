@@ -211,6 +211,20 @@
   color: var(--ink-3);
 }
 
+/* 工具栏激活态（HIG Buttons：macOS 方形符号按钮可配置为 toggle 行为，系统保留专门视觉传达 toggled 状态；
+ * Toolbars：系统为符号控件定义 hover 与 selection 态；Pages/TextEdit 先例=光标在本格式内时按钮呈激活态。
+ * 视觉与全站选中态口径一致：accent-soft 底 + accent 图标（tree/list 选中同款）。
+ * 必须写在下方 .dark 规则块之后 + 补 .dark 变体：.dark 的 .zj-tb-item 是 0,3,1 特异性、同义后写者胜，
+ * 若本规则在前会被 dark 的 color 覆盖（冒烟实抓：dark 激活态色被 ink-2 吃掉）；.dark 变体 0,4,1 稳胜。 */
+.zj-md-toolbar .zj-tb-item.zj-tb-on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.dark .zj-md-toolbar .zj-tb-item.zj-tb-on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 /* ===== 正文查找条（Apple HIG Keyboards：⌘F/⌘G/⇧⌘G；形态参照 macOS Find bar，贴工具栏下沿） ===== */
 .zj-findbar {
   display: flex;

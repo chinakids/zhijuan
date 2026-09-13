@@ -17,6 +17,7 @@ import { cn } from '../../lib/utils'
 import EditorToolbar from './EditorToolbar'
 import FindBar from './FindBar'
 import { findInDoc, type FindPos } from './finder'
+import { EMPTY_ACTIVE, activeEq, readToolbarActive, type ActiveState } from './toolbarActive'
 import type { AnnotationRow } from '../../../../shared/annotations'
 import {
   ContextMenu,
@@ -98,6 +99,18 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
   const edRef = useRef<any>(null) // Milkdown Editor 实例（工具栏用）
   /** 文档变更信号：markdownUpdated 时递增，EditorToolbar 据此重读撤销/重做可用态（HIG：不可用置灰示态） */
   const [histTick, setHistTick] = useState(0)
+  /** 光标处格式激活快照（selection 级：加粗/标题/列表等 toggle 工具的 toggled 态；
+   * 由 selPlugin（PM Plugin view.update，每次 dispatch 都会走）读取并与上次比较，变化才 setState——
+   * 打字/光标移动不改变格式时零重渲染（23:55 轮「避免每次光标移动都重渲染」的刻意设计延续）。 */
+  const [active, setActive] = useState<ActiveState | null>(null)
+  const activeRef = useRef<ActiveState | null>(null)
+  const onSelRef = useRef<(view: any) => void>(() => {})
+  onSelRef.current = (view: any) => {
+    const next = readToolbarActive(view.state)
+    if (activeRef.current && activeEq(next, activeRef.current)) return
+    activeRef.current = next
+    setActive(next === EMPTY_ACTIVE ? null : next)
+  }
 
   /* —— 批注显示（F-20260912-04 后半）：被批注片段高亮（PM inline Decoration，class=zj-anno，title=批注意图）。
    * 用 ProseMirror 装饰而非 CSS Custom Highlight：能承载 hover 提示（title）与点击跳转，且与查找高亮
@@ -141,10 +154,26 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
         const view = ctx.get(editorViewCtx)
         view.dispatch(view.state.tr.setMeta('zj-anno-refresh', true))
       } catch {
-        /* 视图未就绪时忽略 */
+        /* 编辑器未就绪时忽略 */
       }
     })
   }, [annotations])
+
+  /** 选区级激活态跟踪：PM Plugin view.update 在每次 dispatch（含光标移动/选区的选择事务）后回调；
+   * 与 annoPlugin 的 decorations 不同，本插件无状态、只为把「当前格式快照」差量同步给 React（onSelRef）。
+   * 为什么不用 DOM selectionchange：PM 内部 dispatch 的事务（含键盘移动它自己生成的 selection 事务）
+   * 不必然映射为 DOM selectionchange 事件，且处理顺序不可控——plugin 层是 PM 的官方语义。 */
+  const selPlugin = useMemo(
+    () =>
+      new Plugin({
+        view: () => ({
+          update: (view: any) => {
+            onSelRef.current(view)
+          }
+        })
+      }),
+    []
+  )
 
   /* —— 划词浮层：选中文本 → 送进对话引用（全局事件 zj:quote-text）—— */
   const [bubble, setBubble] = useState<{ text: string; x: number; y: number; below: boolean } | null>(null)
@@ -672,7 +701,7 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
       .config((ctx) => {
         ctx.set(rootCtx, hostRef.current!)
         ctx.set(defaultValueCtx, initialRef.current)
-        ctx.set(prosePluginsCtx, [annoPlugin])
+        ctx.set(prosePluginsCtx, [annoPlugin, selPlugin])
         ctx.get(listenerCtx).markdownUpdated((_, md) => {
           if (!liveRef.current) return
           onEditRef.current?.(md)
@@ -825,7 +854,7 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
   return (
     <>
       <div className={cn('zj-md relative flex h-full min-h-0 flex-col overflow-hidden', className)}>
-        <EditorToolbar edRef={edRef} histTick={histTick} />
+        <EditorToolbar edRef={edRef} histTick={histTick} active={active} />
         <FindBar
           open={findOpen}
           query={findQuery}

@@ -12,5 +12,5 @@
     "types": ["node"],
     "outDir": "out/types-node"
   },
-  "include": ["electron.vite.config.ts", "src/main/**/*", "src/preload/**/*", "src/shared/**/*", "src/plugins/**/*", "tests/**/*", "vitest.config.ts", "src/renderer/src/store/toasts.ts", "src/renderer/src/features/check/trouble.ts", "src/renderer/src/features/editor/diffView.ts", "src/renderer/src/features/editor/toolbarLayout.ts", "src/renderer/src/features/editor/finder.ts"]
+  "include": ["electron.vite.config.ts", "src/main/**/*", "src/preload/**/*", "src/shared/**/*", "src/plugins/**/*", "tests/**/*", "vitest.config.ts", "src/renderer/src/store/toasts.ts", "src/renderer/src/features/check/trouble.ts", "src/renderer/src/features/editor/diffView.ts", "src/renderer/src/features/editor/toolbarLayout.ts", "src/renderer/src/features/editor/toolbarActive.ts", "src/renderer/src/features/editor/finder.ts"]
 }
