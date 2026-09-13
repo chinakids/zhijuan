@@ -574,6 +574,10 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // 焦点在抽屉/弹层（role=dialog）内时不拦截：Esc 让当前层处理（useModalA11y 关抽屉），
+        // 否则会先抢关查找条并 stopPropagation、抽屉永远关不掉（HIG：Esc 关闭当前聚焦层）。
+        const inDialog = !!(document.activeElement && document.activeElement.closest('[role="dialog"]'))
+        if (inDialog) return
         if (findOpenRef.current) {
           e.preventDefault()
           e.stopPropagation() // 先关查找条，不连锁关闭其他浮层

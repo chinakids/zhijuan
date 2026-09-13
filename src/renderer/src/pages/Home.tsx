@@ -278,7 +278,23 @@ export default function Home() {
           {visible.map((p) => {
             const [c1, c2] = coverOf(p.id)
             return (
-              <Card key={p.id} className="group cursor-pointer overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:border-hair-strong hover:shadow-[var(--shadow)]" onClick={() => openProject(p.id)}>
+              <Card
+                key={p.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`打开项目 ${p.name}`}
+                className="group cursor-pointer overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:border-hair-strong hover:shadow-[var(--shadow)]"
+                onClick={() => openProject(p.id)}
+                onKeyDown={(e) => {
+                  // 键盘等价（HIG Focus and selection「Keyboard equivalence」）：仅卡片自身聚焦时触发，
+                  // 卡内子控件（如「更多操作」按钮）按键不得冒泡引发打开项目
+                  if (e.target !== e.currentTarget) return
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    openProject(p.id)
+                  }
+                }}
+              >
                 {/* 纯文本封面（横版适中；无封面图不模拟材质，用文字排版撑质感；主人 2026-09-12 反馈 v4） */}
                 <div className="relative aspect-[16/9] overflow-hidden">
                   <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)` }} />

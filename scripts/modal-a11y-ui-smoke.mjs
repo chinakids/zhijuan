@@ -46,7 +46,7 @@ ok(!!cc, `Agent 头部「本章小环」按钮 aria-label 存在`)
 
 // 2b. Novel 页默认不挂载编辑器 → 先选中章节（devShim 预设首章），等待编辑器挂载后再查工具栏
 if (cc && cc.disabled) {
-  await ev(`(() => { const el = [...document.querySelectorAll('li,button')].find((b) => (b.textContent||'').includes('第01章')); if (el) el.click(); return !!el })()`)
+  await ev(`(() => { const el = [...document.querySelectorAll('li,button')].find((b) => (b.textContent||'').includes('第1章')); if (el) el.click(); return !!el })()`)
   await sleep(600)
 }
 let tb = null
