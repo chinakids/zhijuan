@@ -6,6 +6,7 @@ import { presenceCheck, unusedAliasCheck, parseAliases, listedFrom, unlistedInBo
 import { actGapsCheck } from '../../shared/actGaps'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { chapterOrderCheck } from '../../shared/chapterorder'
+import { sliceSectionOrderCheck } from '../../shared/sliceorder'
 import { registerCapability, runSubtask, type SubtaskDef } from './subtask'
 import { auditDocMarkdown } from '../../shared/auditDoc'
 import type {
@@ -34,7 +35,8 @@ const AUDIT_NAMES: Record<AuditKind, string> = {
   presence: '人物在场核查',
   order: '切片时序核查',
   unused: '人物档案腐坏核查',
-  actgaps: '正文缺段核查'
+  actgaps: '正文缺段核查',
+  sliceord: '档案切片核查'
 }
 
 /** 审计结果存档的相对路径：大纲/审读_<名>.md */
@@ -166,6 +168,29 @@ export function runActGaps(
   }
 }
 
+// ===== 档案切片核查（本地规则层，零模型、秒级） =====
+// 机械层第六块：人物档「## 切片：<名>」小节顺序 vs 切片对应章序（同步按「命中替换／未命中文末追加」
+// 落盘，追加顺序≠故事顺序——先写后章再补前章会倒挂）。与 presence/order/unused/actgaps 同策略。
+export function runSliceOrder(
+  projectId: string
+): { ok: true; result: AuditResult } | { ok: false; error: string } {
+  try {
+    const characters: { file: string; raw: string }[] = []
+    for (const d of listDocs(projectId, '人物')) {
+      // 与 readCharIndex 同过滤：总览/索引不是人物档案；子目录取末段不影响「读全文」范围
+      const base = d.file.split('/').pop() ?? d.file
+      const name = base.replace(/\.md$/i, '').trim()
+      if (name && !['总览', '索引'].includes(name)) {
+        const raw = readDoc(projectId, '人物/' + d.file) ?? ''
+        if (raw.trim()) characters.push({ file: '人物/' + d.file, raw })
+      }
+    }
+    return { ok: true, result: sliceSectionOrderCheck({ characters, chapters: readVolumeChapters(projectId) }) }
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message ?? e) }
+  }
+}
+
 /** 审计结果 → 可入 git 的 markdown 存档（纯函数，可单测；模板单源在 shared/auditDoc.ts，devShim 同用） */
 export function auditToMarkdown(
   result: AuditResult,
@@ -267,6 +292,7 @@ export async function runAudit(
   if (kind === 'order') return runChapterOrder(projectId)
   if (kind === 'unused') return runUnusedAliases(projectId)
   if (kind === 'actgaps') return runActGaps(projectId)
+  if (kind === 'sliceord') return runSliceOrder(projectId)
   // 多视角审视是独立能力，参数不同（无 kind），单独路由
   const r =
     kind === 'perspectives'
