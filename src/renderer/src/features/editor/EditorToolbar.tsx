@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState, type MutableRefObject, type ComponentType } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type ComponentType } from 'react'
 import {
   Bold, Code, Ellipsis, Heading1, Heading2, Heading3, Italic, List, ListOrdered, Pilcrow, Quote, Undo2, Redo2
 } from 'lucide-react'
@@ -12,8 +12,11 @@ import {
 } from '../../components/ui/dropdown-menu'
 import { setBlockType, toggleMark } from 'prosemirror-commands'
 import { wrapInList } from 'prosemirror-schema-list'
-import { undo, redo } from 'prosemirror-history'
-import { computeHideCount, MORE_W, type ToolGroup } from './toolbarLayout'
+import { undo, redo, undoDepth, redoDepth } from 'prosemirror-history'
+import { computeHideCount, MORE_W, type ToolGroup, type ToolItem } from './toolbarLayout'
+
+/** 撤销/重做可用态（HIG Menus/Toolbars：不可用项置灰示态、不响应交互，但不隐藏） */
+type HistState = { canUndo: boolean; canRedo: boolean }
 
 /** 编辑器工具栏（Apple HIG Toolbars 对齐）：
  *  - 符号优先、无边框、哑光低调；与「暖纸面+精密中性铬」设计语言共存；
@@ -22,15 +25,25 @@ import { computeHideCount, MORE_W, type ToolGroup } from './toolbarLayout'
  * 纯逻辑在 toolbarLayout.ts（computeHideCount），vitest 单测覆盖。 */
 
 type EditorLike = { action: (fn: (ctx: any) => void) => void }
-type ToolItem = { key: string; name: string; icon: ComponentType<{ className?: string }>; run: (v: any, s: any) => void }
 
-export default function EditorToolbar({ edRef }: { edRef: MutableRefObject<EditorLike | null> }) {
+export default function EditorToolbar({
+  edRef,
+  histTick = 0
+}: {
+  edRef: MutableRefObject<EditorLike | null>
+  /** Prose 在 markdownUpdated 时递增；工具栏据此重读撤销/重做可用态 */
+  histTick?: number
+}) {
   const groupsRef = useRef<ToolGroup[] | null>(null)
   const hidePriorityRef = useRef<number[] | null>(null)
   if (!groupsRef.current) {
-    const item = (key: string, name: string, icon: ComponentType<{ className?: string }>, fn: (v: any, s: any) => void): ToolItem => ({
-      key, name, icon, run: fn
-    })
+    const item = (
+      key: string,
+      name: string,
+      icon: ComponentType<{ className?: string }>,
+      fn: (v: any, s: any) => void,
+      disabled?: (h: HistState) => boolean
+    ): ToolItem => ({ key, name, icon, run: fn, disabled })
     groupsRef.current = [
       {
         key: 'g-block',
@@ -55,8 +68,8 @@ export default function EditorToolbar({ edRef }: { edRef: MutableRefObject<Edito
       {
         key: 'g-history',
         items: [
-          item('undo', '撤销', Undo2, (v) => undo(v.state, v.dispatch)),
-          item('redo', '重做', Redo2, (v) => redo(v.state, v.dispatch))
+          item('undo', '撤销', Undo2, (v) => undo(v.state, v.dispatch), (h) => !h.canUndo),
+          item('redo', '重做', Redo2, (v) => redo(v.state, v.dispatch), (h) => !h.canRedo)
         ]
       }
     ]
@@ -69,6 +82,23 @@ export default function EditorToolbar({ edRef }: { edRef: MutableRefObject<Edito
   const groups = groupsRef.current!
   const HIDE_PRIORITY = hidePriorityRef.current!
   const flat = groups.flatMap((g) => g.items)
+
+  /** 撤销/重做可用态：edRef 就绪后读 ProseMirror history 插件深度；histTick 变化（文档变更）时重读 */
+  const hist = useMemo<HistState>(() => {
+    const e = edRef.current
+    if (!e) return { canUndo: false, canRedo: false }
+    let st: any = null
+    try {
+      e.action((ctx: any) => {
+        st = ctx.get(editorViewCtx).state
+      })
+    } catch {
+      return { canUndo: false, canRedo: false }
+    }
+    if (!st) return { canUndo: false, canRedo: false }
+    return { canUndo: undoDepth(st) > 0, canRedo: redoDepth(st) > 0 }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edRef, histTick])
 
   const barRef = useRef<HTMLDivElement>(null)
   const measureRefs = useRef<Record<string, HTMLElement | null>>({})
@@ -99,6 +129,7 @@ export default function EditorToolbar({ edRef }: { edRef: MutableRefObject<Edito
   const groupVisible = (gi: number): boolean => groups[gi].items.some((it) => !hiddenSet.has(flat.indexOf(it)))
 
   const runTool = (t: ToolItem) => {
+    if (t.disabled?.(hist)) return
     const e = edRef.current
     if (!e) return
     try {
@@ -112,11 +143,21 @@ export default function EditorToolbar({ edRef }: { edRef: MutableRefObject<Edito
     }
   }
 
-  const renderItem = (t: ToolItem) => (
-    <button key={t.key} title={t.name} aria-label={t.name} onClick={() => runTool(t)} className="zj-tb-item shrink-0">
-      <t.icon className="h-4 w-4" />
-    </button>
-  )
+  const renderItem = (t: ToolItem) => {
+    const dis = t.disabled?.(hist) ?? false
+    return (
+      <button
+        key={t.key}
+        title={t.name}
+        aria-label={t.name}
+        disabled={dis}
+        onClick={() => runTool(t)}
+        className={`zj-tb-item shrink-0${dis ? ' zj-tb-off' : ''}`}
+      >
+        <t.icon className="h-4 w-4" />
+      </button>
+    )
+  }
 
   const hiddenTools = flat.filter((it) => hiddenSet.has(flat.indexOf(it)))
 
@@ -167,7 +208,11 @@ export default function EditorToolbar({ edRef }: { edRef: MutableRefObject<Edito
               return (
                 <div key={t.key}>
                   {needSep && <DropdownMenuSeparator />}
-                  <DropdownMenuItem onSelect={() => runTool(t)} className="text-xs text-ink-2">
+                  <DropdownMenuItem
+                    disabled={t.disabled?.(hist) ?? false}
+                    onSelect={() => runTool(t)}
+                    className="text-xs text-ink-2"
+                  >
                     <t.icon className="mr-2 h-3.5 w-3.5 text-ink-3" />
                     <span>{t.name}</span>
                   </DropdownMenuItem>

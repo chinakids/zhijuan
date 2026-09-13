@@ -96,6 +96,8 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
   onEditRef.current = onEdit
   const liveRef = useRef(true)
   const edRef = useRef<any>(null) // Milkdown Editor 实例（工具栏用）
+  /** 文档变更信号：markdownUpdated 时递增，EditorToolbar 据此重读撤销/重做可用态（HIG：不可用置灰示态） */
+  const [histTick, setHistTick] = useState(0)
 
   /* —— 批注显示（F-20260912-04 后半）：被批注片段高亮（PM inline Decoration，class=zj-anno，title=批注意图）。
    * 用 ProseMirror 装饰而非 CSS Custom Highlight：能承载 hover 提示（title）与点击跳转，且与查找高亮
@@ -674,6 +676,8 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
         ctx.get(listenerCtx).markdownUpdated((_, md) => {
           if (!liveRef.current) return
           onEditRef.current?.(md)
+          // 工具栏撤销/重做可用态随之重读（文档变更才影响 history 深度）
+          setHistTick((t) => t + 1)
           // 查找条打开且有关键词时：正文被编辑 → 重算匹配并刷新高亮（不跳转，不打扰光标）
           if (findOpenRef.current && findQueryRef.current.trim()) recalcRef.current?.(findQueryRef.current, false)
           // 正文被编辑 → 侧标位置重算（锚定文本行）
@@ -821,7 +825,7 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
   return (
     <>
       <div className={cn('zj-md relative flex h-full min-h-0 flex-col overflow-hidden', className)}>
-        <EditorToolbar edRef={edRef} />
+        <EditorToolbar edRef={edRef} histTick={histTick} />
         <FindBar
           open={findOpen}
           query={findQuery}

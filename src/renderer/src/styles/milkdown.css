@@ -196,6 +196,21 @@
 .dark .zj-md-toolbar .zj-tb-item { color: var(--ink-2); }
 .dark .zj-md-toolbar .zj-tb-item:hover { background: var(--well); color: var(--ink); }
 
+/* 工具栏不可用态（Apple HIG Menus/Toolbars：不可用项置灰示态、不响应交互，但不隐藏；
+ * HIG Menus「An unavailable menu item often appears dimmed and doesn't respond to interactions」）。
+ * 置灰 = ink-3 + 降透明；hover 不再变色（不可点）；disabled 原生按钮不进 Tab 序（标准行为）。 */
+.zj-md-toolbar .zj-tb-item:disabled,
+.zj-md-toolbar .zj-tb-item.zj-tb-off {
+  color: var(--ink-3);
+  opacity: 0.6;
+  cursor: default;
+}
+.zj-md-toolbar .zj-tb-item:disabled:hover,
+.zj-md-toolbar .zj-tb-item.zj-tb-off:hover {
+  background: transparent;
+  color: var(--ink-3);
+}
+
 /* ===== 正文查找条（Apple HIG Keyboards：⌘F/⌘G/⇧⌘G；形态参照 macOS Find bar，贴工具栏下沿） ===== */
 .zj-findbar {
   display: flex;

@@ -103,10 +103,11 @@ console.log('NARROW:', JSON.stringify(v1))
 ok('窄窗出现 More 按钮', v1.more === true)
 ok('窄窗可见按钮减少', v1.items.length < 12, String(v1.items.length))
 
-// 中窄（900）——先恢复宽窗再逐步收窄：应先出现部分可见+More（recompute 需完成后才满足）
+// 中窄（980；原 900 口径因平台层 d95ddb3 Agent 面板宽拖拽后失效——编辑器列不足，900 时只剩「正文段落」）——
+// 先恢复宽窗再逐步收窄：应先出现部分可见+More（recompute 需完成后才满足）
 await page.cmd('Emulation.clearDeviceMetricsOverride')
 await sleep(300)
-await page.cmd('Emulation.setDeviceMetricsOverride', { width: 900, height: 800, deviceScaleFactor: 1, mobile: false })
+await page.cmd('Emulation.setDeviceMetricsOverride', { width: 980, height: 800, deviceScaleFactor: 1, mobile: false })
 const v1b = await evalUntil(page, TB_STATE, (x) => x && x.ready && x.more === true && x.items.includes('一级标题'), 15000, '中窄窗 部分保留 + More')
 console.log('MID:', JSON.stringify(v1b))
 ok('中窄窗 More 出现', v1b.more === true)

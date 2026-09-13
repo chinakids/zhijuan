@@ -6,6 +6,8 @@ export interface ToolItem {
   /** 任意 React 组件类型（布局纯逻辑不感知具体类型） */
   icon: any
   run: (v: any, s: any) => void
+  /** 可用态谓词（HIG：不可用项置灰示态；布局纯逻辑只透传该字段，不感知语义） */
+  disabled?: (state: { canUndo: boolean; canRedo: boolean }) => boolean
 }
 /** 一个工具组：组内按钮相邻，组与组之间渲染分隔线（组全隐则 sep 也隐） */
 export interface ToolGroup { key: string; items: ToolItem[] }
