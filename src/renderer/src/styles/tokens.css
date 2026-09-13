@@ -155,13 +155,17 @@ select:not(:disabled),
 summary {
   cursor: pointer;
 }
+/* 交互基线（2026-09-13 17:15 体验层轮）：曲线统一为 Tailwind v4 默认 standard
+ * cubic-bezier(0.4,0,0.2,1)（原 ease，导致「写了 transition-colors 的组件」与
+ * 「裸按钮依赖全局块」同类 hover 两种曲线；HIG Motion：简洁精准+一致）。
+ * 时长 150ms = Tailwind --default-transition-duration，全站双通道同口径。 */
 @media (prefers-reduced-motion: no-preference) {
   :where(button, a, [role='button'], select):not(:disabled) {
     transition:
-      background-color 150ms ease,
-      border-color 150ms ease,
-      color 150ms ease,
-      box-shadow 150ms ease;
+      background-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+      border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+      color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+      box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
 
@@ -173,6 +177,26 @@ summary {
   [class*='animate-in'],
   [class*='animate-out'] {
     animation: none !important;
+  }
+}
+
+/* 项目卡 hover 上浮（首页项目卡，主人 2026-09-12 版式 v4「hover 轻上浮」）。
+ * 全局 :where 交互块是 unlayered，会覆盖 @layer utilities 内全部 Tailwind transition-* 类
+ * （CDP 实测：transition-all 的位移过渡被全局块顶掉 → 上浮此前实为瞬时跳变）；
+ * Tailwind v4 位移走原生 translate 属性（非 transform），故此处过渡 translate。
+ * reduce 下整体关闭并抑制位移（HIG Motion：Make motion optional / Let people cancel motion）。 */
+.zj-card-lift {
+  transition:
+    translate 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .zj-card-lift {
+    transition: none;
+  }
+  .zj-card-lift:hover {
+    translate: none;
   }
 }
 

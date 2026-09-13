@@ -283,7 +283,7 @@ export default function Home() {
                 role="button"
                 tabIndex={0}
                 aria-label={`打开项目 ${p.name}`}
-                className="group cursor-pointer overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:border-hair-strong hover:shadow-[var(--shadow)]"
+                className="group zj-card-lift cursor-pointer overflow-hidden hover:-translate-y-1 hover:border-hair-strong hover:shadow-[var(--shadow)]"
                 onClick={() => openProject(p.id)}
                 onKeyDown={(e) => {
                   // 键盘等价（HIG Focus and selection「Keyboard equivalence」）：仅卡片自身聚焦时触发，
