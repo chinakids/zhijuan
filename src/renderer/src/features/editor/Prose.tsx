@@ -33,8 +33,9 @@ export interface ProseApi {
   applyMarkdown(md: string, replaceSel: boolean): void
   setContent(md: string): void
   focus(): void
-  /** 跳到第 idx 条（默认 0=第一条）可定位的批注（选中并滚动到它）；找不到不动作 */
-  jumpToAnnotation(idx?: number): void
+  /** 跳到第 idx 条（默认 0=第一条）可定位的批注（选中并滚动到它）；找不到不动作。
+   * row 提供时按 csv 行号精确跳（导航列表用；该行未命中则不动）。 */
+  jumpToAnnotation(idx?: number, row?: number): void
   destroy(): void
 }
 
@@ -558,9 +559,23 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
             view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, doc))
           }),
         focus: () => e.action((ctx) => ctx.get(editorViewCtx).focus()),
-        jumpToAnnotation: (idx = 0) =>
+        jumpToAnnotation: (idx = 0, row?: number) =>
           e.action((ctx) => {
             const view = ctx.get(editorViewCtx)
+            // row 优先：按 csv 行号精确定位（批注导航列表用；无 before 或 findInDoc 未命中则不动）
+            if (row !== undefined) {
+              const a = annoRef.current.find((x) => x.row === row)
+              if (!a || !a.before) return
+              const hits = findInDoc(view.state.doc, a.before)
+              if (!hits.length) return
+              const f = hits[0]
+              const tr = view.state.tr
+              tr.setSelection(TextSelection.create(view.state.doc, f.from, f.to))
+              tr.scrollIntoView()
+              view.dispatch(tr)
+              view.focus()
+              return
+            }
             let seen = -1
             for (const a of annoRef.current) {
               if (!a.before) continue

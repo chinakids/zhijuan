@@ -90,7 +90,7 @@ const annos = await page.eval(
 ok('高亮片段×2 且 title=批注意图', annos.length === 2 && annos.every((a) => a.title.length > 0), JSON.stringify(annos).slice(0, 200))
 ok('高亮文本与批注行一致（雨句/沈藏台词）', annos.some((a) => a.text.includes('雨把港口淋成一片灰')) && annos.some((a) => a.text.includes('沈藏')), '')
 
-// ③ 底部「批注 2」徽标与跳转
+// ③ 底部「批注 2」徽标 → 打开批注导航抽屉（2026-09-13 候选1③：跳转入口收敛到抽屉列表）
 await page.eval(`(() => { window.__ZJ_SEL0 = ''; return 1 })()`)
 const badge = await evalUntil(page, `(() => {
   const b = [...document.querySelectorAll('button')].find((x) => (x.innerText || '').trim().startsWith('批注 2'))
@@ -98,9 +98,15 @@ const badge = await evalUntil(page, `(() => {
 })()`, (v) => v !== '', 8000, '批注徽标')
 ok('底部「批注 2」徽标', badge === '批注 2', String(badge))
 await page.eval(clickBtn('批注 2', true))
-await sleep(500)
-const selTxt = await page.eval(`(window.getSelection() || {}).toString ? window.getSelection().toString() : ''`)
-ok('点击徽标后跳到第一条批注（选中该片段）', selTxt.includes('雨把港口淋成一片灰'), 'sel=' + selTxt.slice(0, 40))
+await evalUntil(page, `!!document.querySelector('.zj-anno-drawer')`, Boolean, 8000, '批注导航抽屉打开')
+const drawerShown = await page.eval(`(() => {
+  const d = document.querySelector('.zj-anno-drawer')
+  if (!d) return { open: false }
+  return { open: d.getAttribute('role') === 'dialog', items: d.querySelectorAll('.zj-anno-item').length }
+})()`)
+ok('点击徽标后展开批注导航抽屉（含两条列表项）', drawerShown.open === true && drawerShown.items === 2, JSON.stringify(drawerShown))
+await page.eval(clickBtn('收起', true))
+await evalUntil(page, `!document.querySelector('.zj-anno-drawer')`, Boolean, 5000, '抽屉收起')
 
 // ④ 查找高亮共存（⌘F 查找「雨」→ 批注高亮仍在）
 await page.eval(`(() => { if (window.__ZJ_FIND) window.__ZJ_FIND.open('雨'); return 1 })()`)
@@ -146,3 +152,4 @@ ok('新增后计数徽标 → 批注 3', badge2 === '批注 3', String(badge2))
 
 console.log(`\nRESULT: ${pass} pass / ${fail} fail`)
 if (fail > 0) process.exit(1)
+process.exit(0)

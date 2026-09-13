@@ -3,6 +3,7 @@ import { cn } from '../../lib/utils'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import Prose, { type ProseApi } from './Prose'
 import HistoryDrawer from './HistoryDrawer'
+import AnnoDrawer from './AnnoDrawer'
 import { withBody } from '../../../../shared/fmatter'
 import type { AnnotationRow } from '../../../../shared/annotations'
 
@@ -37,6 +38,12 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
   const [retryTick, setRetryTick] = useState(0) // 读取失败后「重试」：+1 触发加载 effect 重跑
   const [epoch, setEpoch] = useState(0) // 换文件时强制重建编辑器，避免脏状态串文件
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [annoOpen, setAnnoOpen] = useState(false)
+  // 批注被删空时自动收起抽屉（防空列表残留）
+  const annoCount = annotations?.length ?? 0
+  useEffect(() => {
+    if (annoCount === 0) setAnnoOpen(false)
+  }, [annoCount])
 
   // 加载文件；rel 变化就重来
   useEffect(() => {
@@ -181,9 +188,9 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
         <button onClick={() => setHistoryOpen(true)} className="shrink-0 whitespace-nowrap text-xs text-ink-2 underline-offset-2 hover:underline" title="正文自动留档的版本历史（查看差异 / 恢复）">历史</button>
         {(annotations?.length ?? 0) > 0 && (
           <button
-            onClick={() => apiRef.current?.jumpToAnnotation(0)}
+            onClick={() => setAnnoOpen(true)}
             className="shrink-0 whitespace-nowrap text-xs text-warn underline-offset-2 hover:underline"
-            title={`正文有 ${annotations!.length} 条批注，点击跳到第一条（点击高亮可查看意图或删除）`}
+            title={`正文有 ${annotations!.length} 条批注，点击展开列表定位到对应高亮`}
           >
             批注 {annotations!.length}
           </button>
@@ -193,6 +200,12 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
         <button onClick={() => void doSave()} disabled={!dirty || busy} className="text-xs text-ink-2 underline-offset-2 hover:underline disabled:opacity-40">保存 ⌘S</button>
       </div>
       <HistoryDrawer projectId={projectId} rel={rel} open={historyOpen} onClose={() => setHistoryOpen(false)} />
+      <AnnoDrawer
+        annotations={annotations ?? []}
+        open={annoOpen}
+        onClose={() => setAnnoOpen(false)}
+        jump={(row) => apiRef.current?.jumpToAnnotation(0, row)}
+      />
     </div>
   )
 }
