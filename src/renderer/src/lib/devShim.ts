@@ -404,7 +404,13 @@ const mock = {
     projects.unshift(p)
     return p
   },
-  listTemplates: async (): Promise<ProjectTemplate[]> => [{ id: '示例', name: '示例', builtin: true }],
+  listTemplates: async (): Promise<ProjectTemplate[]> => [
+    { id: '示例', name: '示例', builtin: true },
+    // 非内建模板演示项：真机＝扫描 工作区/模板/项目模板/ 用户目录（templates.ts listTemplates：builtin 排前 + zh 排序）。
+    // 目的＝让首页新建项目「初始内容」下拉可驱动「非内建模板显示名」分支（Home.tsx SelectItem 对非 builtin 直接显示 t.name）。
+    // 模板应用语义（把模板文件复制进新项目）由真机 applyTemplate 负责；dev 无 fs，不模拟复制（合理简化差异，见平台层档案）。
+    { id: '悬疑短篇', name: '悬疑短篇', builtin: false }
+  ],
   importProject: async (dir: string): Promise<ImportResult> => {
     // 与真机 store.importProject 同口径：空白路径报错（真机先 trim 校验），id=resolve 后 basename（不做 sanitize）；
     // 模拟「目录内无 project.md」最简情形 name=id、description=''（真机此时也是这两值）；dev 无 fs 不复制内容。

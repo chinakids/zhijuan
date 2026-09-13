@@ -9,6 +9,7 @@
 //  ⑤ listHistory.size = UTF-8 字节数（真机 statSync size，HistoryDrawer 显示「字节」）— 修复前为字符数（偏小）
 //  ⑥ agentStatus 含 message 字段（真机恒有）
 //  ⑦ agentListCapabilities = 9 项且含 acts / annotation-sync（真机 listCapabilities 全量）— 修复前 7 项
+//  ⑩ listTemplates 含非内建模板演示项（真机＝扫描用户模板目录；dev 第二项驱动「多模板选择」UI 分支）
 //  ⑧ 全程零 JS 异常
 const CDP = 'http://127.0.0.1:9224'
 const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8899'
@@ -168,10 +169,64 @@ try {
   if (capUi.hasActs && capUi.hasAnno && !capUi.hasEmpty) ok('⑨ 设置页「检查能力」渲染 9 项（含 分幕生成 / 批注改写引擎）')
   else bad('⑨ 设置页「检查能力」渲染 9 项', JSON.stringify(capUi))
 
-  // ⑧ 零 JS 异常
-  const errs = await page.eval(`window.__zjErr`)
+  // ⑩ listTemplates 非内建模板演示：API 形状（真机 builtin 排前 + 用户目录扫描）+ UI「多模板选择」可驱动
+  const tmpl = await page.eval(`window.zhijuan.listTemplates()`)
+  if (Array.isArray(tmpl) && tmpl.length >= 2 && tmpl.some((t) => t.builtin === false) && tmpl[0]?.builtin === true) {
+    ok('⑩ listTemplates 含非内建演示模板（' + tmpl.map((t) => t.name).join(' / ') + '，builtin 排前）')
+  } else {
+    bad('⑩ listTemplates 含非内建演示模板', JSON.stringify(tmpl))
+  }
+  // UI：回首页 → 打开新建项目对话框 → 下拉出现「悬疑短篇」→ 选中（非内建直接显示名）→ 创建进入项目页
+  await page.eval(`location.hash = '#/'`)
+  await evalUntil(page, `!!document.querySelector('button')`, (v) => v === true, 15000, '首页就绪')
+  await page.eval(
+    `[...document.querySelectorAll('button')].find((b) => (b.textContent || '').includes('新建项目'))?.click()`
+  )
+  await evalUntil(page, `document.body.innerText.includes('初始内容（可选）')`, (v) => v === true, 15000, '新建对话框')
+  await page.eval(`document.querySelector('button[role="combobox"]')?.click()`)
+  await sleep(500)
+  const opts = await page.eval(`[...document.querySelectorAll('[role="option"]')].map((o) => o.textContent)`)
+  if (opts.some((t) => t.includes('悬疑短篇'))) ok('⑩ 新建对话框「初始内容」下拉含非内建模板「悬疑短篇」')
+  else bad('⑩ 下拉含非内建模板', `opts=${JSON.stringify(opts)}`)
+  await page.eval(
+    `[...document.querySelectorAll('[role="option"]')].find((o) => o.textContent.includes('悬疑短篇'))?.click()`
+  )
+  await sleep(400)
+  const selText = await page.eval(`document.querySelector('button[role="combobox"]')?.textContent || ''`)
+  if (selText.includes('悬疑短篇') && !selText.includes('示例（')) {
+    ok('⑩ 选中后触发器显示非内建模板名（无「示例（」前缀）')
+  } else {
+    bad('⑩ 触发器显示非内建模板名', `got=${selText}`)
+  }
+  await page.eval(`document.querySelector('input[placeholder*="山那边"]')?.focus()`)
+  await page.eval(
+    `new Promise((res) => { const el = document.querySelector('input[placeholder*="山那边"]'); el.focus(); const setVal = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set; setVal.call(el, '模板审计'); el.dispatchEvent(new Event('input', { bubbles: true })); setTimeout(() => res(!!el.value), 100) })`
+  )
+  await evalUntil(
+    page,
+    `(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').includes('创建并进入')); return b && !b.disabled })()`,
+    (v) => v === true,
+    8000,
+    '创建按钮可用'
+  )
+  await page.eval(
+    `[...document.querySelectorAll('button')].find((b) => (b.textContent || '').includes('创建并进入'))?.click()`
+  )
+  const navHash = await evalUntil(
+    page,
+    `location.hash`,
+    (v) => typeof v === 'string' && v.startsWith('#/project/'),
+    15000,
+    '创建后进入项目页'
+  )
+  if (navHash.includes('/project/')) ok('⑩ 选非内建模板创建成功并进入项目页（' + navHash.slice(0, 40) + '…）')
+  else bad('⑩ 创建后进入项目页', `hash=${JSON.stringify(navHash)}`)
+
+  // ⑧ 零 JS 异常（过滤已知浏览器 benign 噪音：ResizeObserver loop 出自 Radix/浮层动画，非应用异常）
+  const errsRaw = await page.eval(`window.__zjErr`)
+  const errs = errsRaw.filter((s) => !String(s).includes('ResizeObserver loop completed with undelivered notifications'))
   if (errs.length > 0) bad('⑧ 零 JS 异常', JSON.stringify(errs))
-  else ok('⑧ 全程零 JS 异常')
+  else ok('⑧ 全程零 JS 异常（' + errsRaw.length + ' 条原始，含 ResizeObserver 噪音 ' + (errsRaw.length - errs.length) + ' 条已滤）')
 } catch (e) {
   bad('主流程', String(e && e.stack ? e.stack : e))
 }
