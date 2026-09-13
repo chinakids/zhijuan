@@ -11,12 +11,21 @@ export default function Library() {
   // ?doc=<相对项目根路径>：⌘K 面板素材搜索结果跳转直达（消费后清参；与 novel?ch= 同策略，刷新不残留）
   const [sp, setSp] = useSearchParams()
   const openDoc = sp.get('doc')
+  // ?collect=1：侧栏「发起采集」快捷入口——跳转后自动打开采集表单（tick 递增传给 CollectionBar，消费后清参）
+  const [collectReq, setCollectReq] = useState(0)
+  const collect = sp.get('collect')
   useEffect(() => {
     if (openDoc) setSp({}, { replace: true })
   }, [openDoc, setSp])
+  useEffect(() => {
+    if (collect) {
+      setCollectReq((n) => n + 1)
+      setSp({}, { replace: true })
+    }
+  }, [collect, setSp])
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <CollectionBar />
+      <CollectionBar requestOpen={collectReq} />
       <div className="flex shrink-0 items-center gap-2 border-b border-hair px-4 py-1.5">
         <span className="min-w-0 flex-1 truncate text-[11px] whitespace-nowrap text-ink-3">正式类别下的素材可让写作引擎按语境归类，并判断是否能升格进设定档案。</span>
         <button

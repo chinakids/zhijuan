@@ -7,7 +7,8 @@ import {
   ListTree,
   History,
   Settings as SettingsIcon,
-  ArrowLeft
+  ArrowLeft,
+  CloudDownload
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -82,6 +83,19 @@ export default function SectionNav({ projectId, projectName, counts }: Props) {
 
       {/* 底部 */}
       <div className="space-y-0.5 border-t border-hair p-3">
+        {/* 模块设计 §五 B：底部「采集入口快捷方式、设置入口」——一键直达素材库页并自动打开采集表单 */}
+        <NavLink
+          to={`/project/${projectId}/library?collect=1`}
+          className={({ isActive }) =>
+            cn(
+              'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
+              isActive ? 'bg-accent-soft font-medium text-accent' : 'text-ink-2 hover:bg-well hover:text-ink'
+            )
+          }
+        >
+          <CloudDownload className="h-4 w-4" />
+          发起采集
+        </NavLink>
         <NavLink
           to="settings"
           className={({ isActive }) =>

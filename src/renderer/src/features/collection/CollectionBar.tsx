@@ -53,7 +53,7 @@ function staleDays(mtimeMs: number, nowMs: number): number {
 /** 需求文本归一（查重用）：去首尾空白与内部空白，避免「校园 图书馆」与「校园图书馆」被判不同 */
 const normDemand = (s: string): string => s.trim().replace(/\s+/g, '')
 
-export default function CollectionBar() {
+export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: number }) {
   const { id = '' } = useParams()
   const [tasks, setTasks] = useState<TaskInfo[]>([])
   const [open, setOpen] = useState(false)
@@ -95,6 +95,12 @@ export default function CollectionBar() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  // 侧栏「发起采集」快捷入口：外部请求打开表单（tick 递增防同值被 React 忽略）；
+  // Library 页消费 ?collect=1 后清参，这里只负责弹起，不重复弹。
+  useEffect(() => {
+    if (requestOpen > 0) setOpen(true)
+  }, [requestOpen])
 
   // 管道回填 = 任务卡+素材连续写盘；useFsChanged 检查批内全部新事件（含被末条「顶掉」的采集池事件），
   // 且不重复触发已消费事件（旧实现 .some 会在 50 窗口内重扫，非匹配事件也会连带多刷）。
