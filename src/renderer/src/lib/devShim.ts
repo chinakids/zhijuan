@@ -982,6 +982,21 @@ const mock = {
     }
     const demo =
       '（dev 模式模拟回复）\n\n刚把当前章节和人物相关设定读了一遍。结合现在的进度，建议先从灯入手：让主角在雨夜里再靠近一次那盏旧灯，把「灯语约定」的伏笔再点一下，然后留一个悬念给下一幕。\n\n要不要我直接按这个思路把这一段写出来？'
+    // 流式压力演示：prompt 含「流式压力」时高频发射大量 think/delta 增量（3ms 间隔），
+    // 验证渲染层帧级节流（streamBuffer）合并后内容完整无丢失（真实 reasoning 高频流模拟）
+    if (/流式压力/.test(input.prompt)) {
+      for (let i = 0; i < 60; i++) {
+        emit({ requestId: rid, type: 'think', text: `思考片段${String(i).padStart(2, '0')}；` })
+        await new Promise((r) => setTimeout(r, 3))
+      }
+      for (let i = 0; i < demo.length; i += 8) {
+        emit({ requestId: rid, type: 'delta', text: demo.slice(i, i + 8) })
+        await new Promise((r) => setTimeout(r, 3))
+      }
+      emit({ requestId: rid, type: 'final', text: demo })
+      emit({ requestId: rid, type: 'done' })
+      return
+    }
     // 交错流演示：prompt 提到「交错」时在 delta 中途插一次工具调用（模拟真模型「文本→工具→文本」循环），
     // 且收尾不发 final（模拟流被截断/停止场景）——用于验证 delta 拼接不因尾部工具卡错位（前文丢失/摘要混入）
     const interleave = /交错/.test(input.prompt)

@@ -11,6 +11,8 @@ interface Props {
   batch: string
   questions: AskQuestion[]
   onAnswered: () => void
+  /** 已有已提交记录（store.answered）：重挂后恢复「已提交」态，防止重复提交 */
+  answered?: boolean
 }
 
 /** 单选（默认）选项项的选中态 */
@@ -31,10 +33,10 @@ function pickOne(list: string[], v: string): string[] {
   return list.includes(v) ? [] : [v]
 }
 
-export default function AskCard({ id, batch, questions, onAnswered }: Props) {
+export default function AskCard({ id, batch, questions, onAnswered, answered }: Props) {
   const [sel, setSel] = useState<Sel[]>(() => initSel(questions))
   const [submitting, setSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
+  const [submitted, setSubmitted] = useState(answered ?? false)
   const [err, setErr] = useState('')
   const ready = sel.some((s) => s.options.length > 0 || s.custom.trim())
 

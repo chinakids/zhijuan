@@ -16,6 +16,7 @@ import {
   clampAgentWidth
 } from '../../../../shared/uiPrefs'
 import { expandCommand, filterCommandCandidates, insertCommand, matchFixedCommand, parseCommandTrigger, parsePatrolArgs, type ZjCommand } from '../../../../shared/commands'
+import { createStreamBuffer } from '../../../../shared/streamBuffer'
 import { useAgentStore } from './store'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
 import TodoCard from './TodoCard'
@@ -251,6 +252,14 @@ function useSender(props: AgentPanelProps) {
         const metaStack: string[] = []
         const activeMeta = (): string => metaStack[metaStack.length - 1] ?? ''
         const asstId = useAgentStore.getState().messages.at(-1)?.id ?? ''
+        // 流式增量帧级节流：高频 delta/think 只在下一帧合并 flush 一次，避免每个增量一次全量 setState
+        // （长 reasoning 思考/长正文下的渲染风暴）；flushNow 在流收尾/停止/覆盖前清残余，尾段不丢
+        const thinkBuf = createStreamBuffer((t) => {
+          if (asstId) useAgentStore.getState().appendThinking(asstId, t)
+        })
+        const deltaBuf = createStreamBuffer((t) => {
+          patch((lastAsst()?.content ?? '') + t, false)
+        })
         const r = await harnessSend(
           {
             requestId: rid,
@@ -262,12 +271,13 @@ function useSender(props: AgentPanelProps) {
             history
           },
           (e) => {
-            if (e.type === 'delta') patch((lastAsst()?.content ?? '') + e.text, false)
-            else if (e.type === 'final') patch(e.text ?? '')
-            else if (e.type === 'error') fail('请求失败：' + (e.message ?? ''))
-            else if (e.type === 'think') {
-              if (asstId) useAgentStore.getState().appendThinking(asstId, e.text ?? '')
-            } else if (e.type === 'meta') {
+            if (e.type === 'delta') deltaBuf.push(e.text ?? '')
+            else if (e.type === 'final') {
+              deltaBuf.flushNow() // final 全量覆盖前先冲刷残余，防止尾段重复/错序
+              patch(e.text ?? '')
+            } else if (e.type === 'error') fail('请求失败：' + (e.message ?? ''))
+            else if (e.type === 'think') thinkBuf.push(e.text ?? '')
+            else if (e.type === 'meta') {
               const id = rid + '-m' + metaSeq++
               metaStack.push(id)
               useAgentStore.getState().upsertTool({ id, kind: 'meta', tool: e.tool ?? '', toolArgs: e.args, done: false, startedAt: performance.now() })
@@ -291,6 +301,9 @@ function useSender(props: AgentPanelProps) {
                 .upsertTool({ id: rid + '-a-' + (e.batch ?? ''), kind: 'ask', questions: e.questions ?? [], batch: e.batch ?? '' })
           }
         )
+        // 收尾：冲刷残余增量（done/aborted 已到，事件不再来；须在「已停止」附加前，顺序才正确）
+        thinkBuf.flushNow()
+        deltaBuf.flushNow()
         if (r === 'aborted') patch((lastAsst()?.content ?? '') + '\n\n（已停止）')
       } catch (e) {
         fail('请求失败：' + String((e as Error).message || e))
@@ -893,6 +906,7 @@ export default function AgentPanel(props: AgentPanelProps) {
                       id={m.id}
                       batch={m.batch}
                       questions={m.questions}
+                      answered={m.answered}
                       onAnswered={() => useAgentStore.getState().markAsked(m.id)}
                     />
                   </div>
