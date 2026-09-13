@@ -377,7 +377,14 @@ const mock = {
   // 工作区（dev 模式：内存文档；真机走磁盘）
   workspaceStatus: async () => {
     const dir = settings.workspace || '~/Documents/织卷工作区'
-    return { dir, inited: wsDocs.size > 0, docs: [...wsDocs.keys()].map((file) => ({ file, name: file.replace(/\.md$/, '') })) }
+    // 与真机 listWorkspaceDocs 同口径：docs 按名称 zh 排序（2026-09-13 口径审计）
+    return {
+      dir,
+      inited: wsDocs.size > 0,
+      docs: [...wsDocs.keys()]
+        .map((file) => ({ file, name: file.replace(/\\.md$/, '') }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'zh'))
+    }
   },
   workspaceInit: async () => {
     const created: string[] = []
@@ -419,15 +426,17 @@ const mock = {
   removeProject: async (id: string) => {
     const i = projects.findIndex((p) => p.id === id)
     if (i >= 0) projects.splice(i, 1)
+    // 与真机 store.removeProject 同口径：返回 { ok }（2026-09-13 口径审计）
+    return { ok: true }
   },
   revealProject: async () => {},
   openProject: async (id: string) => {
-    // 与真机 project:open（recordOpen + watchProject）同语义：记录最近打开
+    // 与真机 project:open（recordOpen + watchProject）同语义：记录最近打开；返回 true（preload 类型 boolean）
     const i = recents.findIndex((r) => r.id === id)
     if (i >= 0) recents.splice(i, 1)
     recents.unshift({ id, openedAt: Date.now() })
     if (recents.length > 12) recents.length = 12
-    return projects.find((p) => p.id === id) ?? null
+    return true
   },
   getRecentEntries: async (): Promise<RecentEntry[]> => recents.slice().sort((a, b) => b.openedAt - a.openedAt),
   readDoc: async (_id: string, rel: string) => docs.get(_id + '/' + rel) ?? null,
@@ -445,6 +454,8 @@ const mock = {
     if (rel.includes('任务_演示停滞') && prev !== undefined && prev !== content) taskTouched.add(k)
     docs.set(k, content)
     fsEmit(_id, rel)
+    // 与真机 doc:write handler 同口径：返回 true（2026-09-13 口径审计）
+    return true
   },
   deleteDoc: async (_id: string, rel: string) => {
     // 与真机 store.deleteDoc 同口径防御：只收 .md、拒绝空/绝对/带 .. 段的路径
@@ -596,7 +607,12 @@ const mock = {
   },
   exportChapter: async () => ({ ok: true, path: '/tmp/导出章节.md' }),
   listHistory: async (_id: string, rel: string) =>
-    (histories.get(_id + '/' + rel) ?? []).map((h) => ({ name: h.name, mtimeMs: h.mtimeMs, size: h.content.length })),
+    (histories.get(_id + '/' + rel) ?? []).map((h) => ({
+      name: h.name,
+      mtimeMs: h.mtimeMs,
+      // 与真机 listSnapshots 同口径：size = UTF-8 字节数（statSync size；HistoryDrawer 显示「字节」），不是字符数（2026-09-13 口径审计）
+      size: new TextEncoder().encode(h.content).length
+    })),
   readHistory: async (_id: string, rel: string, name: string) =>
     (histories.get(_id + '/' + rel) ?? []).find((h) => h.name === name)?.content ?? null,
   listDocs: async (id: string, relDir: string) =>
@@ -1033,7 +1049,7 @@ const mock = {
       }
       emit({ requestId: rid, type: 'final', text: demo })
       emit({ requestId: rid, type: 'done' })
-      return
+      return { ok: true }
     }
     // 交错流演示：prompt 提到「交错」时在 delta 中途插一次工具调用（模拟真模型「文本→工具→文本」循环），
     // 且收尾不发 final（模拟流被截断/停止场景）——用于验证 delta 拼接不因尾部工具卡错位（前文丢失/摘要混入）
@@ -1054,6 +1070,8 @@ const mock = {
       emit({ requestId: rid, type: 'final', text: demo })
       emit({ requestId: rid, type: 'done' })
     }
+    // 与真机 agent:send handler 同口径：返回 { ok: true }（2026-09-13 口径审计）
+    return { ok: true }
   },
   agentCancel: async () => true,
   agentDirectorCancel: async (token: string) => {
@@ -1171,7 +1189,7 @@ const mock = {
     ;(w.__ZJ_SYNCS ??= []).push(id + '|' + rel)
     return { ok: true, items: [] } as { ok: boolean; items: ProposalItem[] }
   },
-  agentStatus: async () => ({ online: true, provider: '本机 vLLM', model: 'deepseek-v4-flash-vision-exp-uncensored' }),
+  agentStatus: async () => ({ online: true, provider: '本机 vLLM', model: 'deepseek-v4-flash-vision-exp-uncensored', message: '' }),
   agentListCapabilities: async () => [
     { id: 'audit', title: '全卷检查', description: '（演示）一致性巡查 / 冷读报告：跨全卷对照设定找问题' },
     { id: 'perspectives', title: '多视角审视', description: '（演示）以角色粉 / 设定党 / 节奏读者三种立场各通读一遍，交叉找问题' },
@@ -1179,7 +1197,10 @@ const mock = {
     { id: 'outline', title: '大纲回建', description: '（演示）把既有正文回建成章卡' },
     { id: 'director', title: '章节导演', description: '（演示）动笔前先出一张本章导演板' },
     { id: 'director-check', title: '导演兑现检查', description: '（演示）动笔后对照导演板核对本章承诺兑没兑现' },
-    { id: 'triage', title: '素材升格', description: '（演示）素材按语境归类并判可否入档' }
+    { id: 'triage', title: '素材升格', description: '（演示）素材按语境归类并判可否入档' },
+    // 与真机 listCapabilities 全量 9 项同口径（2026-09-13 口径审计补两条：acts / annotation-sync）
+    { id: 'acts', title: '分幕生成', description: '按导演板情绪弧分段逐段起草整章正文，拼成定稿草稿落 大纲/<章>_分幕.md' },
+    { id: 'annotation-sync', title: '批注改写引擎', description: '按批注意图产出正文改写（定时/手动扫描批注时调用；配合设置页「批注定时优化」开关使用）' }
   ],
   agentSetCapability: async () => true,
 
