@@ -608,7 +608,15 @@ export default function Novel() {
 
       {/* 划词批注弹层（主人 2026-09-12） */}
       <Dialog open={!!annoTarget} onOpenChange={(o) => !o && setAnnoTarget(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent
+          className="sm:max-w-md"
+          onCloseAutoFocus={(e) => {
+            // 划词「批注」入口在编辑器浮层（无 DialogTrigger）：Radix 关闭时找不到 trigger 会
+            // preventDefault 原生焦点恢复，焦点落 body——显式还给编辑器（HIG：对话关闭后焦点回触发上下文）。
+            e.preventDefault()
+            apiRef.current?.focus()
+          }}
+        >
           <DialogHeader>
             <DialogTitle>添加批注</DialogTitle>
             <DialogDescription>

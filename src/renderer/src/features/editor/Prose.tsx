@@ -966,7 +966,8 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
       {annoPop && annoPopRow && (
         <div
           className="zj-anno-pop"
-          role="tooltip"
+          role="group"
+          aria-label="批注"
           style={{
             left: annoPop.x,
             top: annoPop.below ? annoPop.y + 10 : annoPop.y,
