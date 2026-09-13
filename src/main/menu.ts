@@ -2,19 +2,54 @@
 // 设计口径：docs/系统菜单-设计口径.md（2026-09-12 体验层轮定稿；落地归属=平台层 B 外壳）。
 // 本轮＝第一刀（主进程侧）：模板 + 动作分发 + preload 事件桥；渲染层单点分发与禁用态上报＝下一刀。
 // 约定（口径 §5）：不新增任何快捷键，只承载 docs/快捷键.md 已有组合 + macOS 系统标准。
-import { shell, Menu, app, BrowserWindow } from 'electron'
+import { shell, Menu, app, BrowserWindow, ipcMain } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
-import type { MenuActionId } from '../shared/types'
+import type { MenuActionId, MenuStateReport } from '../shared/types'
 import { workspaceDir } from './settings'
 
 export interface MenuHandlers {
-  /** 自定义动作：send 到渲染层（preload onMenuAction 消费；App.tsx 单点分发＝下一刀） */
+  /** 自定义动作：send 到渲染层（preload onMenuAction 消费；App.tsx 单点分发） */
   onMenuAction: (id: MenuActionId) => void
   /** 关于织卷…：主进程侧动作（setAboutPanelOptions + showAboutPanel） */
   onAbout: () => void
   /** 打开说明文档目录：主进程侧动作（shell 显示 Finder，口径 §四动作地图） */
   onOpenWorkspaceDocs: () => void
+}
+
+/** 自定义菜单项的原生 id（口径 §7 禁用态：主进程 getMenuItemById 定点更新 enabled；仅自定义通道需要） */
+export const MENU_ITEM_ID: Record<MenuActionId, string> = {
+  settings: 'zj-menu-settings',
+  newProject: 'zj-menu-newProject',
+  newChapter: 'zj-menu-newChapter',
+  save: 'zj-menu-save',
+  findOpen: 'zj-menu-findOpen',
+  findUseSel: 'zj-menu-findUseSel',
+  findNext: 'zj-menu-findNext',
+  findPrev: 'zj-menu-findPrev',
+  shortcutHelp: 'zj-menu-shortcutHelp',
+  openWorkspaceDocs: 'zj-menu-openWorkspaceDocs'
+}
+
+/**
+ * 菜单项启用逻辑（纯函数，冒烟逐项断言）= 口径 §二「启用条件」列。
+ * newProject 仅项目库首页；newChapter 仅项目内；保存/查找组仅文档编辑器挂载；其余常可用。
+ */
+export function menuEnabledFor(state: MenuStateReport, id: MenuActionId): boolean {
+  switch (id) {
+    case 'newProject':
+      return state.route === 'home'
+    case 'newChapter':
+      return state.route === 'project'
+    case 'save':
+    case 'findOpen':
+    case 'findUseSel':
+    case 'findNext':
+    case 'findPrev':
+      return state.editor
+    default:
+      return true
+  }
 }
 
 /**
@@ -28,7 +63,7 @@ export function buildMenuTemplate(h: MenuHandlers): MenuItemConstructorOptions[]
       label: '织卷',
       submenu: [
         { label: '关于织卷…', click: h.onAbout },
-        { label: '设置…', accelerator: 'CmdOrCtrl+,', click: () => h.onMenuAction('settings') },
+        { label: '设置…', id: MENU_ITEM_ID.settings, accelerator: 'CmdOrCtrl+,', click: () => h.onMenuAction('settings') },
         { type: 'separator' },
         { role: 'services', label: '服务' },
         { role: 'hide', label: '隐藏织卷', accelerator: 'Cmd+H' },
@@ -41,10 +76,10 @@ export function buildMenuTemplate(h: MenuHandlers): MenuItemConstructorOptions[]
     {
       label: '文件',
       submenu: [
-        { label: '新建项目…', click: () => h.onMenuAction('newProject') },
-        { label: '新建章节…', click: () => h.onMenuAction('newChapter') },
+        { label: '新建项目…', id: MENU_ITEM_ID.newProject, click: () => h.onMenuAction('newProject') },
+        { label: '新建章节…', id: MENU_ITEM_ID.newChapter, click: () => h.onMenuAction('newChapter') },
         { type: 'separator' },
-        { label: '保存', accelerator: 'CmdOrCtrl+S', click: () => h.onMenuAction('save') },
+        { label: '保存', id: MENU_ITEM_ID.save, accelerator: 'CmdOrCtrl+S', click: () => h.onMenuAction('save') },
         { role: 'close', label: '关闭窗口', accelerator: 'Cmd+W' }
       ]
     },
@@ -62,10 +97,10 @@ export function buildMenuTemplate(h: MenuHandlers): MenuItemConstructorOptions[]
         {
           label: '查找',
           submenu: [
-            { label: '查找…', accelerator: 'CmdOrCtrl+F', click: () => h.onMenuAction('findOpen') },
-            { label: '用选区设置查找词', accelerator: 'CmdOrCtrl+E', click: () => h.onMenuAction('findUseSel') },
-            { label: '查找下一处', accelerator: 'CmdOrCtrl+G', click: () => h.onMenuAction('findNext') },
-            { label: '查找上一处', accelerator: 'Shift+Cmd+G', click: () => h.onMenuAction('findPrev') }
+            { label: '查找…', id: MENU_ITEM_ID.findOpen, accelerator: 'CmdOrCtrl+F', click: () => h.onMenuAction('findOpen') },
+            { label: '用选区设置查找词', id: MENU_ITEM_ID.findUseSel, accelerator: 'CmdOrCtrl+E', click: () => h.onMenuAction('findUseSel') },
+            { label: '查找下一处', id: MENU_ITEM_ID.findNext, accelerator: 'CmdOrCtrl+G', click: () => h.onMenuAction('findNext') },
+            { label: '查找上一处', id: MENU_ITEM_ID.findPrev, accelerator: 'Shift+Cmd+G', click: () => h.onMenuAction('findPrev') }
           ]
         }
       ]
@@ -91,17 +126,31 @@ export function buildMenuTemplate(h: MenuHandlers): MenuItemConstructorOptions[]
     {
       label: '帮助',
       submenu: [
-        { label: '键盘快捷键速查', click: () => h.onMenuAction('shortcutHelp') },
-        { label: '打开说明文档目录', click: h.onOpenWorkspaceDocs }
+        { label: '键盘快捷键速查', id: MENU_ITEM_ID.shortcutHelp, click: () => h.onMenuAction('shortcutHelp') },
+        { label: '打开说明文档目录', id: MENU_ITEM_ID.openWorkspaceDocs, click: h.onOpenWorkspaceDocs }
       ]
     }
   ]
 }
 
 /**
+ * 渲染层上报菜单启用态（preload reportMenuState → ipcMain 'menu:state'）：
+ * 按口径 §二「启用条件」更新对应自定义项 enabled（灰显不隐藏；role 项不动）。
+ * Menu.getMenuItemById 未实现（stub）或菜单未建时静默跳过。
+ */
+export function applyMenuState(state: MenuStateReport): void {
+  const menu = Menu.getApplicationMenu()
+  if (!menu || typeof menu.getMenuItemById !== 'function') return
+  for (const id of Object.keys(MENU_ITEM_ID) as MenuActionId[]) {
+    const item = menu.getMenuItemById(MENU_ITEM_ID[id])
+    if (item) item.enabled = menuEnabledFor(state, id)
+  }
+}
+
+/**
  * 注册应用菜单（app ready 后调用一次）。
  * 自定义动作分发：menu:action 发到当前聚焦窗口（无聚焦取第一个）；about / 打开说明文档目录主进程侧处理。
- * 禁用态（新建项目仅 Home / 保存仅编辑器等）＝渲染层上报 IPC，下一刀落地。
+ * 同时挂 ipcMain 'menu:state'（渲染层上报启用态 → applyMenuState）。
  */
 export function registerMenuActions(): void {
   const handlers: MenuHandlers = {
@@ -118,4 +167,5 @@ export function registerMenuActions(): void {
     }
   }
   Menu.setApplicationMenu(Menu.buildFromTemplate(buildMenuTemplate(handlers)))
+  ipcMain.on('menu:state', (_e, state: MenuStateReport) => applyMenuState(state))
 }

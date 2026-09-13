@@ -86,6 +86,13 @@ export default function Home() {
     void refresh()
   }, [refresh])
 
+  // 系统菜单 文件→新建项目…（MenuBridge 单点分发 → 本页监听；仅 Home 挂载时生效，菜单灰显保证有效期）
+  useEffect(() => {
+    const h = () => setCreating(true)
+    window.addEventListener('zj:menu-newProject', h)
+    return () => window.removeEventListener('zj:menu-newProject', h)
+  }, [])
+
   async function create() {
     if (!name.trim()) return
     try {

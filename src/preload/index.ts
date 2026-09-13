@@ -26,7 +26,8 @@ import type {
   LibraryCategory,
   SearchHit,
   RecentLibraryDoc,
-  MenuActionEvent
+  MenuActionEvent,
+  MenuStateReport
 } from '../shared/types'
 import type { RecentEntry } from '../shared/projects'
 
@@ -150,6 +151,10 @@ const api = {
     return () => {
       ipcRenderer.removeListener('menu:action', listener)
     }
+  },
+  // 系统菜单启用态上报（渲染层 MenuBridge/DocEditor → 主进程 applyMenuState；fire-and-forget）
+  reportMenuState: (state: MenuStateReport) => {
+    ipcRenderer.send('menu:state', state)
   },
 
   // agent（harness 引擎；流式事件按 requestId 认领）

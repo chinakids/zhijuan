@@ -146,6 +146,15 @@ export default function Novel() {
     if (newChapterReq > 0) openCreate()
   }, [newChapterReq, openCreate])
 
+  // 系统菜单 文件→新建章节…（MenuBridge 单点分发 → 本页监听；openCreate 用 ref 取最新闭包）
+  const openCreateRef = useRef(openCreate)
+  openCreateRef.current = openCreate
+  useEffect(() => {
+    const h = () => openCreateRef.current()
+    window.addEventListener('zj:menu-newChapter', h)
+    return () => window.removeEventListener('zj:menu-newChapter', h)
+  }, [])
+
   const handleChapterSaved = useCallback(
     async (rel: string) => {
       if (!id) return

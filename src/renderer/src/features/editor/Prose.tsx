@@ -19,6 +19,7 @@ import FindBar from './FindBar'
 import { findInDoc, type FindPos } from './finder'
 import { EMPTY_ACTIVE, activeEq, readToolbarActive, type ActiveState } from './toolbarActive'
 import type { AnnotationRow } from '../../../../shared/annotations'
+import { MENU_EV_FIND, isMenuJustHandled } from '../menu/menuBus'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -676,12 +677,15 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
       if (!(e.metaKey || e.ctrlKey)) return
       const k = e.key.toLowerCase()
       if (k === 'f') {
+        if (isMenuJustHandled('findOpen')) return
         e.preventDefault()
         findActionsRef.current.open()
       } else if (k === 'e') {
+        if (isMenuJustHandled('findUseSel')) return
         e.preventDefault()
         findActionsRef.current.useSel()
       } else if (k === 'g') {
+        if (isMenuJustHandled(e.shiftKey ? 'findPrev' : 'findNext')) return
         e.preventDefault()
         // 查找条开（⌘F 场景）或已有词/高亮（⌘E 场景）时都允许步进——对齐 HIG ⌘E→⌘G 工作流
         if (findOpenRef.current || findRef.current.matches.length > 0) findActionsRef.current.step(e.shiftKey ? -1 : 1)
@@ -691,6 +695,19 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
     return () => {
       window.removeEventListener('keydown', onKey, true)
     }
+  }, [])
+
+  // 系统菜单 编辑→查找 组：菜单动作 → 本文查找（菜单 accelerator 与 keydown 可能双达，防双触发同上）
+  useEffect(() => {
+    const h = (ev: Event) => {
+      const kind = (ev as CustomEvent).detail
+      if (kind === 'findOpen') findActionsRef.current.open()
+      else if (kind === 'findUseSel') findActionsRef.current.useSel()
+      else if (kind === 'findNext') findActionsRef.current.step(1)
+      else if (kind === 'findPrev') findActionsRef.current.step(-1)
+    }
+    window.addEventListener(MENU_EV_FIND, h)
+    return () => window.removeEventListener(MENU_EV_FIND, h)
   }, [])
 
   useEffect(() => {

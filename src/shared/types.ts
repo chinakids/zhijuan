@@ -418,3 +418,13 @@ export type MenuActionId =
 export interface MenuActionEvent {
   id: MenuActionId
 }
+
+/** 菜单启用态路由分类（渲染层 routeKindOfHash 判定后上报；主进程 applyMenuState 使用） */
+export type MenuRouteKind = 'home' | 'project' | 'other'
+
+/** 渲染层→主进程 菜单启用态上报（fire-and-forget send；主进程按口径 §二「启用条件」更新原生菜单项 enabled） */
+export interface MenuStateReport {
+  route: MenuRouteKind
+  /** 文档编辑器（DocEditor）是否挂载——保存/查找组使能依据（正文与分幕草稿同构，挂载即可用） */
+  editor: boolean
+}

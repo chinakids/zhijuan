@@ -1,5 +1,5 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
-import type { AgentEvent, AppSettings, ChapterEntry, OutlineCard, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult } from '../../../shared/types'
+import type { AgentEvent, AppSettings, ChapterEntry, OutlineCard, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult, MenuActionEvent, MenuActionId, MenuStateReport } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
 import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterSliceInDoc } from '../../../shared/outline'
 import { listChapterEntries } from '../../../shared/chapters'
@@ -38,6 +38,11 @@ function fsEmit(projectId: string, rel: string) {
   const evt: FsEvent = { projectId, kind: 'change', path: rel }
   for (const h of fsListeners) h(evt)
 }
+
+// 系统菜单动作订阅（与真机 preload onMenuAction 同语义：MenuBridge 挂上后由 __ZJ_MENU_EMIT 驱动）
+const menuListeners = new Set<(evt: MenuActionEvent) => void>()
+// 最近一次菜单启用态上报（无头断言用；真机由主进程消费）
+let lastMenuState: MenuStateReport | null = null
 
 const docs = new Map<string, string>()
 // 导演任务取消标记（与真机 director.ts 的 directorCancels 同口径：token → cancelled）
@@ -737,6 +742,15 @@ const mock = {
     return () => {
       fsListeners.delete(cb)
     }
+  },
+  onMenuAction: (cb: (evt: MenuActionEvent) => void) => {
+    menuListeners.add(cb)
+    return () => {
+      menuListeners.delete(cb)
+    }
+  },
+  reportMenuState: (state: MenuStateReport) => {
+    lastMenuState = state
   },
   // 与真机 getPaths 同口径（shared/settingsLogic.resolveLibraryRoot 决策链）：documents=生效库根（设置非空→老默认位→工作区/项目库）。
   // dev 无 fs：老默认位是否「存在且非空」用常量模拟——本机实况（~/Documents/织卷项目库 非空）为 true，真机默认走 legacy（2026-09-12 对齐）
@@ -1540,4 +1554,10 @@ export function ensureDevShim() {
   window.zhijuan = buildEmptyProbe(buildFailProbe(mock as unknown as typeof window.zhijuan))
   // 无头冒烟用：暴露全局 Toast API（与 __ZJ_EDITORS 同级的测试面，仅 devShim 存在）
   ;(window as unknown as { __ZJ_TOAST: typeof toast }).__ZJ_TOAST = toast
+  // 无头冒烟用：模拟主进程菜单动作（真机走 ipcMain send('menu:action') → preload onMenuAction）
+  const emitMenu = (id: MenuActionId) => {
+    for (const h of menuListeners) h({ id })
+  }
+  ;(window as unknown as { __ZJ_MENU_EMIT: (id: MenuActionId) => void }).__ZJ_MENU_EMIT = emitMenu
+  ;(window as unknown as { __ZJ_MENU_STATE: () => MenuStateReport | null }).__ZJ_MENU_STATE = () => lastMenuState
 }

@@ -13,14 +13,34 @@ export const app = {
   setAboutPanelOptions: (opts) => { app._aboutPanel = opts },
   showAboutPanel: () => { app._about = (app._about || 0) + 1 }
 }
-export const ipcMain = { handle: () => {} }
+export const ipcMain = {
+  handle: () => {},
+  on: (channel, fn) => {
+    if (!ipcMain._listeners) ipcMain._listeners = {}
+    ipcMain._listeners[channel] = [...(ipcMain._listeners[channel] ?? []), fn]
+  },
+  _listeners: null,
+  emit: (channel, ...args) => {
+    for (const fn of ipcMain._listeners?.[channel] ?? []) fn({}, ...args)
+  }
+}
 export const BrowserWindow = { getAllWindows: () => [], getFocusedWindow: () => null }
 export const shell = { openExternal: () => {}, showItemInFolder: (p) => { shell._shown = p }, trashItem: async (p) => { const fsp = await import('node:fs/promises'); await fsp.rm(p, { recursive: true, force: true }) } }
 export const Menu = {
   _appMenu: null,
   setApplicationMenu: (m) => { Menu._appMenu = m },
   getApplicationMenu: () => Menu._appMenu,
-  buildFromTemplate: (t) => ({ template: t })
+  buildFromTemplate: (t) => {
+    const byId = new Map()
+    const walk = (items) => {
+      for (const it of items) {
+        if (typeof it.id === 'string') byId.set(it.id, it)
+        if (Array.isArray(it.submenu)) walk(it.submenu)
+      }
+    }
+    walk(t)
+    return { template: t, getMenuItemById: (id) => byId.get(id) ?? null }
+  }
 }
 export const dialog = {
   _about: 0,

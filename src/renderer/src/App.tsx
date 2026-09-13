@@ -14,6 +14,7 @@ import Timeline from './pages/Timeline'
 import Library from './pages/Library'
 import Settings from './pages/Settings'
 import CommandPalette from './features/command/CommandPalette'
+import MenuBridge from './features/menu/menuBus'
 import { Toaster } from './components/ui/toast'
 
 function Boot() {
@@ -42,6 +43,8 @@ export default function App() {
     <TooltipProvider>
       <Boot />
       <QuoteBridge />
+      {/* 系统菜单桥（mac 菜单栏 → 单点分发 + 启用态上报 + 全局快捷键速查），无 router 依赖 */}
+      <MenuBridge />
       {/* 窗口骨架：自定义标题栏（mac）在上，内容区占满剩余空间 */}
       <div className="flex h-screen flex-col overflow-hidden">
         <WindowChrome />
@@ -49,6 +52,8 @@ export default function App() {
           <HashRouter>
             <Routes>
               <Route path="/" element={<Home />} />
+              {/* 全局设置页（系统菜单 织卷→设置… 指向 #/settings；项目内 SectionNav 仍走 /project/:id/settings） */}
+              <Route path="/settings" element={<Settings />} />
               <Route path="/project/:id" element={<Workspace />}>
                 <Route index element={<Navigate to="novel" replace />} />
                 <Route path="novel" element={<Novel />} />

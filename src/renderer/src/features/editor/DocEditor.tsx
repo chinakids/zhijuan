@@ -6,6 +6,8 @@ import HistoryDrawer from './HistoryDrawer'
 import AnnoDrawer from './AnnoDrawer'
 import { withBody } from '../../../../shared/fmatter'
 import type { AnnotationRow } from '../../../../shared/annotations'
+import { registerDocEditor, unregisterDocEditor } from '../menu/menuState'
+import { MENU_EV_SAVE, isMenuJustHandled } from '../menu/menuBus'
 
 type DocStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'external' | 'error'
 
@@ -92,10 +94,29 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
     }
   }, [projectId, rel, withFm, onSave])
 
+  // 编辑器挂载状态上报主进程菜单（save/find 组启用依据；正文与分幕草稿同构）
+  useEffect(() => {
+    registerDocEditor()
+    return () => unregisterDocEditor()
+  }, [])
+
+  // 菜单「保存」→ 直接保存（菜单 accelerator 与 keydown 可能双达，防双触发见 isMenuJustHandled）
+  const doSaveRef = useRef(doSave)
+  doSaveRef.current = doSave
+  useEffect(() => {
+    const h = () => {
+      if (apiRef.current) void doSaveRef.current()
+    }
+    window.addEventListener(MENU_EV_SAVE, h)
+    return () => window.removeEventListener(MENU_EV_SAVE, h)
+  }, [])
+
   // Cmd/Ctrl+S
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        // 菜单 accelerator 刚处理过（时间窗内）→ 跳过，避免双保存（口径 §五-1）
+        if (isMenuJustHandled('save')) return
         e.preventDefault()
         if (apiRef.current) void doSave()
       }

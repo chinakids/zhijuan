@@ -173,5 +173,47 @@ ok('「打开说明文档目录」click -> shell.showItemInFolder(工作区/文�
 findClick(tpl3, '键盘快捷键速查')()
 ok('「键盘快捷键速查」click -> menu:action{id:shortcutHelp}', deepEq(sends[2], ['menu:action', { id: 'shortcutHelp' }]), JSON.stringify(sends[2]))
 
+// ---------- 4) 第二刀：自定义项 id + 启用逻辑 + applyMenuState + IPC 接线 ----------
+// 4.1 每个自定义动作在模板中有唯一 id（主进程 getMenuItemById 定点更新的前提）
+const templateIds = new Set()
+const collectIds = (items) => {
+  for (const m of items) {
+    if (typeof m.id === 'string') templateIds.add(m.id)
+    if (Array.isArray(m.submenu)) collectIds(m.submenu)
+  }
+}
+collectIds(menu.buildMenuTemplate(h))
+ok('自定义项 id 齐全且唯一（MENU_ITEM_ID 全量）', JSON.stringify([...templateIds].sort()) === JSON.stringify(Object.values(menu.MENU_ITEM_ID).sort()), JSON.stringify([...templateIds]))
+
+// 4.2 menuEnabledFor 启用逻辑 vs 口径 §二「启用条件」
+const ENABLE_MATRIX = [
+  [{ route: 'home', editor: false }, { newProject: true, newChapter: false, save: false, findOpen: false, settings: true }],
+  [{ route: 'project', editor: false }, { newProject: false, newChapter: true, save: false, findOpen: false, settings: true }],
+  [{ route: 'project', editor: true }, { newProject: false, newChapter: true, save: true, findOpen: true, findUseSel: true, findNext: true, findPrev: true, settings: true }],
+  [{ route: 'other', editor: true }, { newProject: false, newChapter: false, save: true, shortcutHelp: true }]
+]
+let matrixOk = true
+const matrixErr = []
+for (const [state, exp] of ENABLE_MATRIX) {
+  for (const [id, want] of Object.entries(exp)) {
+    const got = menu.menuEnabledFor(state, id)
+    if (got !== want) { matrixOk = false; matrixErr.push(`${JSON.stringify(state)} ${id}=${got} want=${want}`) }
+  }
+}
+ok('menuEnabledFor 启用矩阵=口径表（4 场景全项）', matrixOk, matrixErr.join('; '))
+
+// 4.3 applyMenuState：按上报态更新模板项 enabled（stub getMenuItemById 从构建模板取；appMenu 已是 155 行注册的）
+menu.applyMenuState({ route: 'home', editor: false })
+const itNewProj = appMenu.getMenuItemById(menu.MENU_ITEM_ID.newProject)
+const itSave = appMenu.getMenuItemById(menu.MENU_ITEM_ID.save)
+ok('applyMenuState(home,no-editor)：新建项目 enabled=true、保存 enabled=false', itNewProj.enabled === true && itSave.enabled === false, `newProject=${itNewProj.enabled} save=${itSave.enabled}`)
+menu.applyMenuState({ route: 'project', editor: true })
+ok('applyMenuState(project,editor)：新建项目 enabled=false、保存 enabled=true', appMenu.getMenuItemById(menu.MENU_ITEM_ID.newProject).enabled === false && appMenu.getMenuItemById(menu.MENU_ITEM_ID.save).enabled === true)
+
+// 4.4 registerMenuActions 已挂 ipcMain 'menu:state' → applyMenuState（stub 记录监听并支持 emit）
+ok('ipcMain 已注册 menu:state 监听（恰一次）', Array.isArray(menu.ipcMain._listeners?.['menu:state']) && menu.ipcMain._listeners['menu:state'].length === 1)
+menu.ipcMain.emit('menu:state', { route: 'home', editor: false })
+ok('ipcMain emit menu:state -> applyMenuState 生效（保存灰显）', appMenu.getMenuItemById(menu.MENU_ITEM_ID.save).enabled === false)
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)
