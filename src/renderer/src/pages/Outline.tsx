@@ -282,12 +282,16 @@ export default function Outline() {
         // 采纳=整章正文被替换（正文为源、设定为流）：与「保存正文」同口径，完成后触发切片同步出新提案
         const tid = toast.add({ kind: 'success', title: '已采纳为正文', description: `「${selChapter.name}」正文已替换（${r.words} 字），切片同步中…`, duration: 0 })
         void runSliceSync(id, '正文/' + selChapter.file).then((s) => {
+          const guardNote =
+            s.issues && s.issues.length > 0
+              ? `（拦截 ${s.issues.length} 条：${s.issues[0].reason.slice(0, 24)}…）`
+              : ''
           if (s.ok) {
             if (s.items > 0) {
-              setMsg(`✓ 已替换正文并生成 ${s.items} 条切片提案（待确认）`)
+              setMsg(`✓ 已替换正文并生成 ${s.items} 条切片提案${guardNote}（待确认）`)
               toast.update(tid, { kind: 'info', title: '切片提案待确认', description: `正文替换完成，生成 ${s.items} 条切片提案` })
             } else {
-              setMsg('✓ 已替换正文；切片同步：无设定变化')
+              setMsg(`✓ 已替换正文；切片同步：无设定变化${guardNote}`)
               toast.update(tid, { kind: 'success', title: '切片同步完成', description: '正文替换完成，无设定变化' })
             }
           } else {

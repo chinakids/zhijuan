@@ -119,7 +119,11 @@ function syncAfterEdit(projectId: string, file: string, setMsg: (m: string | nul
   void runSliceSync(projectId, file)
     .then((s) => {
       if (!s.ok) lastEditSync = null // 失败不节流：用户再采纳/保存可重试
-      setMsg(s.ok ? (s.items > 0 ? `✓ 切片同步：${s.items} 条提案待确认` : '✓ 切片同步：无设定变化') : `✗ 切片同步失败：${s.error ?? '未知错误'}`)
+      const guardNote =
+        s.issues && s.issues.length > 0
+          ? `（拦截 ${s.issues.length} 条：${s.issues[0].reason.slice(0, 24)}…）`
+          : ''
+      setMsg(s.ok ? (s.items > 0 ? `✓ 切片同步：${s.items} 条提案待确认${guardNote}` : `✓ 切片同步：无设定变化${guardNote}`) : `✗ 切片同步失败：${s.error ?? '未知错误'}`)
     })
     .catch((e) => {
       lastEditSync = null

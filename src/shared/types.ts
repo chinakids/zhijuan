@@ -226,6 +226,15 @@ export interface ProposalItem {
   after: string
   reason: string
 }
+
+/** 切片同步产物守卫（候选 2e：target 存在性防线）的单条处置记录 */
+export interface SyncIssue {
+  /** 模型产出的原 target（含修正前形态） */
+  target: string
+  /** corrected=已自动纠正为近名档案；dropped=已丢弃（该条不进提案） */
+  action: 'corrected' | 'dropped'
+  reason: string
+}
 /** 批注同步来源引用（proposal.meta.annotations）：接受/拒绝后按行删除对应 csv 条目 */
 export interface AnnotationRef {
   /** 批注 csv 相对路径（如 正文/第01章_雾港_批注.csv） */

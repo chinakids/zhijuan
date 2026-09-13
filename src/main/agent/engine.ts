@@ -3,11 +3,11 @@
 // 会话模型：每一轮用全新 session id（避免 SDK 高层续轮坑），可见历史由渲染层带进 prompt，
 // 上下文完全可控；工具读文件由写作引擎完成。
 import { driveSession, type DriveEvent } from './runtime'
-import { projectDir } from '../store'
+import { projectDir, listDocs } from '../store'
 import { buildWritingContext, buildProjectContext } from './context'
 import { expandAtRefs } from './refs'
 import { trimHistoryMessage } from '../../shared/historyTrim'
-import { normalizeSyncItems, ensureWorldSliceFile } from './syncAnchor'
+import { normalizeSyncItems, ensureWorldSliceFile, guardPersonTargets } from './syncAnchor'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { readFileSync } from 'fs'
 import { join } from 'path'
@@ -231,7 +231,7 @@ function extractEditPayload(text: string): { file: string; edits: import('../../
 }
 
 // ---------- 切片同步（走 harness，模型可用工具读设定）----------
-function syncSystem(): string {
+function syncSystem(known: { files: string[]; cast: string[]; noFile: string[] }): string {
   return (
     '你是织卷的「时间切片同步器」。根据章节正文，把这一章对应时间切片的人物状态、世界观变化、环境状态，写成一份设定补丁。\n' +
     '要求：\n' +
@@ -242,6 +242,8 @@ function syncSystem(): string {
     '   - 人物状态：target=人物/<姓名>.md（只许用 人物/ 下真实存在的文件）；anchor 一律为「切片：<本片切片名>」——人物档案里该小节已存在则整节替换，不存在则作为新小节追加；**禁止把「基础档案」「基础设定」「成长轨迹」「定位」等长期小节当 anchor**（那是作者手动维护的只读区，你的产物写进去会覆盖别人的设定）。\n' +
     '   - 世界/环境变化：target=世界观/切片_<本片切片名>.md（系统会在同步前自动确保该文件存在，直接使用）；anchor 同上为「切片：<本片切片名>」。**不要写 世界观/总纲.md**（总纲是长期不变项）。\n' +
     '   - 本切片切片名以【当前打开章节】约定头里的「切片」字段为准。\n' +
+    `   - 本项目现有人物档案清单（person target 只能从这里面挑，按档案文件名里的本名写）：${known.files.join('、') || '（暂无）'}\n` +
+    `   - 本章涉及人物：${known.cast.join('、') || '（无）'}${known.noFile.length ? `；其中「${known.noFile.join('、')}」尚未建档（不得作为 target 写入，请留给作者建档）` : ''}\n` +
     '5. after 是该小节完整的新内容（仅该小节），不含标题行。\n' +
     '6. 只输出 JSON 数组本身：不加注释、不加 markdown 围栏、不加任何前后缀文字。\n' +
     '7. 不要用 ask_user_question 或任何提问工具：本任务离线执行，直接按文件决定即可。'
@@ -251,18 +253,32 @@ function syncSystem(): string {
 export async function runSync(
   projectId: string,
   chapterRel: string
-): Promise<{ ok: true; items: ProposalItem[] } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; items: ProposalItem[]; guard?: { issues: import('../../shared/types').SyncIssue[] } }
+  | { ok: false; error: string }
+> {
   // 先读约定头拿切片名：世界状态一律进 世界观/切片_<切片名>.md（不存在则创建模板），anchor 也按它归一
   let sliceName = ''
+  let castAll: string[] = []
   try {
     const ch = readFileSync(join(projectDir(projectId), chapterRel), 'utf-8')
-    sliceName = String(extractFrontMatter(ch).fm?.['切片'] ?? '')
+    const fm = extractFrontMatter(ch).fm ?? {}
+    sliceName = String(fm['切片'] ?? '')
+    castAll = Array.isArray(fm['涉及人物']) ? (fm['涉及人物'] as string[]) : []
   } catch {
     // 章节读不到就不做切片文件；不影响同步本身
   }
+  // 现有 人物/ 档案清单（guard 防线 + 提示词清单；listDocs 剥 .md 与真机口径一致）
+  let knownFiles: string[] = []
+  try {
+    knownFiles = listDocs(projectId, '人物').map((d) => d.name)
+  } catch {
+    // listDocs 对不存在目录返回 []（不抛）；真抛说明项目目录异常——knownFiles 为空时 guard 会把
+    // 人物 target 全拦下并记 issues（安全方向：宁可提示也不越权新建档案，不会错写盘）
+  }
   if (sliceName) ensureWorldSliceFile(projectDir(projectId), sliceName)
   const parts: string[] = []
-  parts.push(syncSystem())
+  parts.push(syncSystem({ files: knownFiles, cast: castAll, noFile: castAll.filter((c) => !knownFiles.includes(c)) }))
   parts.push(envBlock(projectId, chapterRel))
   try {
     const ctx = await buildWritingContext(projectId, chapterRel)
@@ -276,7 +292,14 @@ export async function runSync(
   try {
     const text = await driveSession(newSid(projectId), parts.join('\n\n'), { maxMs: 10 * 60 * 1000 })
     const items = normalizeSyncItems(extractItems(text), sliceName)
-    return { ok: true, items }
+    // 防线（候选 2e）：人物 target 必须落现有档案；纠错/丢弃记入 issues 供 UI 提示
+    const g = guardPersonTargets(items, { knownFiles, chapterCast: castAll })
+    const res: { ok: true; items: ProposalItem[]; guard?: { issues: import('../../shared/types').SyncIssue[] } } = {
+      ok: true,
+      items: g.items
+    }
+    if (g.issues.length) res.guard = { issues: g.issues }
+    return res
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e).slice(0, 300) }
   }

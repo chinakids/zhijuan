@@ -161,7 +161,11 @@ export default function Novel() {
       })
       const r = await runSliceSync(id, rel)
       if (r.ok) {
-        setSyncMsg(r.items > 0 ? `✓ 已生成 ${r.items} 条切片提案` : '✓ 无设定变化')
+        const guardNote =
+          r.issues && r.issues.length > 0
+            ? `（拦截 ${r.issues.length} 条：${r.issues[0].reason.slice(0, 24)}…）`
+            : ''
+        setSyncMsg(r.items > 0 ? `✓ 已生成 ${r.items} 条切片提案${guardNote}` : `✓ 无设定变化${guardNote}`)
         useProposalStore.getState().bump()
       } else {
         setSyncMsg('✗ 切片同步失败: ' + r.error)
