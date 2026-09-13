@@ -982,12 +982,25 @@ const mock = {
     }
     const demo =
       '（dev 模式模拟回复）\n\n刚把当前章节和人物相关设定读了一遍。结合现在的进度，建议先从灯入手：让主角在雨夜里再靠近一次那盏旧灯，把「灯语约定」的伏笔再点一下，然后留一个悬念给下一幕。\n\n要不要我直接按这个思路把这一段写出来？'
+    // 交错流演示：prompt 提到「交错」时在 delta 中途插一次工具调用（模拟真模型「文本→工具→文本」循环），
+    // 且收尾不发 final（模拟流被截断/停止场景）——用于验证 delta 拼接不因尾部工具卡错位（前文丢失/摘要混入）
+    const interleave = /交错/.test(input.prompt)
     for (let i = 0; i < demo.length; i += 8) {
+      if (interleave && i === 96) {
+        emit({ requestId: rid, type: 'meta', tool: 'zj_search', args: '灯语' })
+        await demoDelay()
+        emit({ requestId: rid, type: 'meta-done', tool: 'zj_search', message: '找到 3 处灯语（正文/第01章）' })
+        await demoDelay()
+      }
       emit({ requestId: rid, type: 'delta', text: demo.slice(i, i + 8) })
       await new Promise((r) => setTimeout(r, 10))
     }
-    emit({ requestId: rid, type: 'final', text: demo })
-    emit({ requestId: rid, type: 'done' })
+    if (interleave) {
+      emit({ requestId: rid, type: 'done' })
+    } else {
+      emit({ requestId: rid, type: 'final', text: demo })
+      emit({ requestId: rid, type: 'done' })
+    }
   },
   agentCancel: async () => true,
   agentDirectorCancel: async (token: string) => {

@@ -221,11 +221,14 @@ function useSender(props: AgentPanelProps) {
       useAgentStore.getState().append({ role: 'assistant', content: '' })
       setStreaming(true)
       const rid = newRid()
-      const patch = (t: string, trunc = true) => {
+      // 定位 assistant 气泡：tool 消息（meta/todo/ask/edit 卡）append 在其后，
+      // at(-1) 会把 delta/final 打进工具卡 content（回复错位/丢失）——delta 拼接与「已停止」附加同样必须用它
+      const lastAsst = () => {
         const msgs = useAgentStore.getState().messages
-        // 必须定位 assistant 气泡：tool 消息（meta/todo/ask/edit 卡）append 在其后，
-        // at(-1) 会把 delta/final 打进工具卡 content（回复错位/丢失）
-        const last = [...msgs].reverse().find((m) => m.role === 'assistant') ?? msgs[msgs.length - 1]
+        return [...msgs].reverse().find((m) => m.role === 'assistant') ?? msgs[msgs.length - 1]
+      }
+      const patch = (t: string, trunc = true) => {
+        const last = lastAsst()
         if (!last) return
         const v = trunc && t.length > CHAR_LIMIT ? t.slice(0, CHAR_LIMIT) + '…（截断）' : t
         useAgentStore.getState().patch(last.id, v)
@@ -259,7 +262,7 @@ function useSender(props: AgentPanelProps) {
             history
           },
           (e) => {
-            if (e.type === 'delta') patch((useAgentStore.getState().messages.at(-1)?.content ?? '') + e.text, false)
+            if (e.type === 'delta') patch((lastAsst()?.content ?? '') + e.text, false)
             else if (e.type === 'final') patch(e.text ?? '')
             else if (e.type === 'error') fail('请求失败：' + (e.message ?? ''))
             else if (e.type === 'think') {
@@ -288,7 +291,7 @@ function useSender(props: AgentPanelProps) {
                 .upsertTool({ id: rid + '-a-' + (e.batch ?? ''), kind: 'ask', questions: e.questions ?? [], batch: e.batch ?? '' })
           }
         )
-        if (r === 'aborted') patch((useAgentStore.getState().messages.at(-1)?.content ?? '') + '\n\n（已停止）')
+        if (r === 'aborted') patch((lastAsst()?.content ?? '') + '\n\n（已停止）')
       } catch (e) {
         fail('请求失败：' + String((e as Error).message || e))
       } finally {

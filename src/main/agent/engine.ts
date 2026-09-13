@@ -65,7 +65,9 @@ export interface ChatInput {
 }
 
 export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void): Promise<void> {
-  const run = active.get(input.requestId) ?? { aborted: false }
+  // 登记本请求——abortRequest 依赖 active 里的条目置位；此前从无 set，点「停止」永远不会生效（2026-09-13 修）
+  const run = { aborted: false }
+  active.set(input.requestId, run)
   const parts: string[] = []
   parts.push('你是「织卷」创作工作台的创作 agent，协助作者（用户）写作。')
   parts.push(envBlock(input.projectId, input.chapterRel))
@@ -123,8 +125,14 @@ export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void
         }
       }
     )
-    emit({ requestId: input.requestId, type: 'final', text })
-    emit({ requestId: input.requestId, type: 'done' })
+    if (run.aborted) {
+      // 用户已点停止：成功路径不再发 final/done（避免「停止后仍显示整篇完整回复」与「已停止」标记冲突），
+      // 渲染层保留已展示的部分增量 + 「（已停止）」
+      emit({ requestId: input.requestId, type: 'aborted' })
+    } else {
+      emit({ requestId: input.requestId, type: 'final', text })
+      emit({ requestId: input.requestId, type: 'done' })
+    }
   } catch (e: any) {
     if (run.aborted) {
       emit({ requestId: input.requestId, type: 'aborted' })
