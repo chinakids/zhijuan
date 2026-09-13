@@ -70,6 +70,11 @@ const api = {
   // 章节管理（§6.2）：重命名 / 删除（联动大纲副产物）/ 导出单章 md
   renameChapter: (id: string, rel: string, newTitle: string) =>
     ipcRenderer.invoke('chapter:rename', id, rel, newTitle) as Promise<{ ok: boolean; newRel?: string; error?: string }>,
+  // 章节「切片」名修改：改正文约定头 + 大纲副产物 fm 同步 + 旧切片提案置 stale（引用面收口见 store.editChapterSlice）
+  editChapterSlice: (id: string, rel: string, newSlice: string) =>
+    ipcRenderer.invoke('chapter:editSlice', id, rel, newSlice) as Promise<
+      { ok: boolean; oldSlice?: string; newSlice?: string; synced?: number; staled?: number; error?: string }
+    >,
   deleteChapter: (id: string, rel: string) =>
     ipcRenderer.invoke('chapter:delete', id, rel) as Promise<{ ok: boolean; error?: string; cleaned?: number }>,
   exportChapter: (id: string, rel: string) =>

@@ -159,6 +159,31 @@ export function discardProposal(root: string, projectId: string, id: string): bo
   return true
 }
 
+/**
+ * 章节「切片」改名后，把该章 slice-sync 的 pending 提案一律置 stale（返回条数）。
+ * 为什么只按 source 收口：slice-sync 提案的 items 锚点/世界 target 都携带切片名
+ * （人物小节「切片：<旧名>」、世界文件 切片_<旧名>.md）——切片名改后 apply 将命中不到
+ * 锚点而按「文末追加 H2」落盘，堆积近重复小节（syncAnchor 白名单要防的形态）；注解/其他
+ * 来源提案与切片名无关（target=正文/…），保留 pending。撤销方向不可逆，只做增量不迁移。
+ */
+export function staleSliceSyncByChapter(root: string, projectId: string, chapter: string): number {
+  const d = dir(root, projectId)
+  if (!existsSync(d)) return 0
+  let n = 0
+  for (const f of readdirSync(d)) {
+    if (!f.endsWith('.json')) continue
+    try {
+      const p = JSON.parse(readFileSync(join(d, f), 'utf-8')) as Proposal
+      if (p.chapter === chapter && p.source === 'slice-sync' && p.status === 'pending') {
+        p.status = 'stale'
+        writeFileSync(join(d, f), JSON.stringify(p, null, 2), 'utf-8')
+        n++
+      }
+    } catch { /* 坏档跳过 */ }
+  }
+  return n
+}
+
 /** 按锚点把 item.after 写进文档；upsert-section 做「同节替换 / 无节追加」。
  *  锚点匹配＝归一化后精确相等（shared/anchor.ts，与 devShim 同口径）：不做 includes——
  *  「切片：第一幕_夜」不得误命中「切片：第一幕_夜雨」并整节替换（2026-09-11 锚点精确化）。 */

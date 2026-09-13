@@ -1,7 +1,7 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
 import type { AgentEvent, AppSettings, ChapterEntry, OutlineCard, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
-import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc } from '../../../shared/outline'
+import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterSliceInDoc } from '../../../shared/outline'
 import { listChapterEntries } from '../../../shared/chapters'
 import { listSliceEntries } from '../../../shared/slices'
 import { resolveLibraryRoot } from '../../../shared/settingsLogic'
@@ -528,6 +528,44 @@ const mock = {
     fsEmit(_id, rel)
     fsEmit(_id, newRel)
     return { ok: true, newRel }
+  },
+  // 章节「切片」改名（真机 store.editChapterSlice 同语义：正文约定头 + 大纲副产物 fm 切片字段 + slice-sync pending 置 stale；旧名世界文件/人物小节保留为历史）
+  editChapterSlice: async (_id: string, rel: string, newSlice: string) => {
+    if (!rel?.startsWith('正文/') || !rel.endsWith('.md') || rel.split('/').some((s) => s === '..')) return { ok: false, error: '路径不合法' }
+    const k = _id + '/' + rel
+    const cur = docs.get(k)
+    if (cur === undefined) return { ok: false, error: '章节不存在' }
+    const s = (newSlice ?? '').trim()
+    if (!s) return { ok: false, error: '切片名不能为空' }
+    const oldSlice = String(extractFrontMatter(cur).fm?.['切片'] ?? '')
+    if (oldSlice === s) return { ok: true, oldSlice, newSlice: s, synced: 0, staled: 0 }
+    docs.set(k, setFrontMatterField(cur, '切片', s))
+    fsEmit(_id, rel)
+    let synced = 0
+    const base = rel.split('/').pop()!.replace(/\\.md$/, '')
+    for (const key of [...docs.keys()]) {
+      if (!key.startsWith(_id + '/大纲/')) continue
+      const nm = key.slice((_id + '/大纲/').length).replace(/\\.md$/, '')
+      if (nm === base || nm.startsWith(base + '_')) {
+        const rawDoc = docs.get(key)
+        if (rawDoc !== undefined) {
+          const nextDoc = syncChapterSliceInDoc(rawDoc, s)
+          if (nextDoc !== rawDoc) {
+            docs.set(key, nextDoc)
+            synced++
+            fsEmit(_id, '大纲/' + nm + '.md')
+          }
+        }
+      }
+    }
+    let staled = 0
+    for (const p of mock.proposals) {
+      if (p.chapter === rel && p.source === 'slice-sync' && p.status === 'pending') {
+        p.status = 'stale'
+        staled++
+      }
+    }
+    return { ok: true, oldSlice, newSlice: s, synced, staled }
   },
   deleteChapter: async (_id: string, rel: string) => {
     const k = _id + '/' + rel

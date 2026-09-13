@@ -83,6 +83,9 @@ export default function Novel() {
   const [menu, setMenu] = useState<{ c: ChapterEntry; x: number; y: number } | null>(null)
   const [renaming, setRenaming] = useState<ChapterEntry | null>(null)
   const [renameVal, setRenameVal] = useState('')
+  // 章节「切片」名修改（约定头字段编辑收口）：正文约定头 + 大纲副产物 fm 同步 + 旧切片提案置 stale
+  const [sliceEditing, setSliceEditing] = useState<ChapterEntry | null>(null)
+  const [sliceVal, setSliceVal] = useState('')
   const [deleting, setDeleting] = useState<ChapterEntry | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
   // 菜单收起：点击菜单外任意处 / Esc；菜单项操作后各自关闭
@@ -336,6 +339,23 @@ export default function Novel() {
     setRenaming(null)
     toast.add({ kind: 'success', title: '已重命名', description: r.newRel })
   }
+  async function doEditSlice() {
+    if (!id || !sliceEditing) return
+    const r = await window.zhijuan.editChapterSlice(id, '正文/' + sliceEditing.file, sliceVal)
+    if (!r.ok) {
+      toast.add({ kind: 'error', title: '修改切片名失败', description: r.error })
+      return
+    }
+    setSliceEditing(null)
+    await refresh()
+    // 编辑切片名会把该章 slice-sync 的 pending 提案置 stale（锚点携带旧切片名），刷新顶栏计数与抽屉
+    void useProposalStore.getState().refresh(id)
+    toast.add({
+      kind: 'success',
+      title: '已更新切片名',
+      description: `${r.newSlice}${r.synced ? `（已同步 ${r.synced} 篇大纲副产物）` : ''}${r.staled ? `；${r.staled} 条旧切片提案已过期` : ''}`
+    })
+  }
   async function doDelete() {
     if (!id || !deleting) return
     const r = await window.zhijuan.deleteChapter(id, '正文/' + deleting.file)
@@ -463,6 +483,16 @@ export default function Novel() {
             }}
           >
             重命名
+          </button>
+          <button
+            className="block w-full shrink-0 whitespace-nowrap px-3 py-1.5 text-left text-xs text-ink hover:bg-surface-2"
+            onClick={() => {
+              setSliceEditing(menu.c)
+              setSliceVal(String(menu.c.fm?.['切片'] ?? ''))
+              setMenu(null)
+            }}
+          >
+            修改切片名
           </button>
           <button
             className="block w-full shrink-0 whitespace-nowrap px-3 py-1.5 text-left text-xs text-ink hover:bg-surface-2"
@@ -666,6 +696,34 @@ export default function Novel() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setRenaming(null)}>取消</Button>
             <Button onClick={() => void doRename()} disabled={!renameVal.trim()}>重命名</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 章节切片名修改（约定头字段编辑收口）：正文约定头 + 大纲副产物 fm 同步；旧切片提案置 stale；旧设定文件保留为历史 */}
+      <Dialog open={!!sliceEditing} onOpenChange={(o) => !o && setSliceEditing(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>修改切片名</DialogTitle>
+            <DialogDescription>
+              一章 = 一个时间切片。只改本章约定头的切片名；旧切片名下已落档的世界切片文件与人物状态小节保留为历史，新切片名的设定由下次保存正文时重新同步。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label>时间切片名 *</Label>
+            <Input
+              autoFocus
+              value={sliceVal}
+              placeholder="如：第二幕_台风夜"
+              onChange={(e) => setSliceVal(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && sliceVal.trim()) void doEditSlice()
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSliceEditing(null)}>取消</Button>
+            <Button onClick={() => void doEditSlice()} disabled={!sliceVal.trim()}>保存</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

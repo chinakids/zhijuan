@@ -28,6 +28,7 @@ import {
   listDocs,
   listChapters,
   renameChapter,
+  editChapterSlice,
   deleteChapter,
   watchProject
 } from './store'
@@ -158,6 +159,7 @@ export function registerIpc() {
 
   // 章节管理（§6.2）：重命名（改约定头题名＋文件名，联动大纲副产物/版本历史）、删除（正文+大纲副产物进废纸篓）、导出单章 md
   ipcMain.handle('chapter:rename', (_e, id: string, rel: string, newTitle: string) => renameChapter(id, rel, newTitle))
+  ipcMain.handle('chapter:editSlice', (_e, id: string, rel: string, newSlice: string) => editChapterSlice(id, rel, newSlice))
   ipcMain.handle('chapter:delete', (_e, id: string, rel: string) => deleteChapter(id, rel))
   ipcMain.handle('chapter:export', async (e, id: string, rel: string) => {
     const cur = readDoc(id, rel)

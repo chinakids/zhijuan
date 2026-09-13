@@ -209,6 +209,65 @@ describe('renameChapter（重命名：约定头题名 + 文件名 + 引用面）
   })
 })
 
+describe('editChapterSlice（切片名修改：正文约定头 + 大纲副产物 fm + 旧切片提案过期收口）', () => {
+  it('改切片名：正文与大纲副产物 fm「切片」同步新值，正文其他内容不动', () => {
+    const rel = seedChapter()
+    const r = store.editChapterSlice(pid, rel, '第一幕_雾港夜')
+    expect(r.ok).toBe(true)
+    expect(r.oldSlice).toBe('第一幕')
+    expect(r.newSlice).toBe('第一幕_雾港夜')
+    expect(r.synced).toBe(2)
+    const ch = store.readDoc(pid, rel) ?? ''
+    expect(ch).toContain('切片: 第一幕_雾港夜')
+    expect(ch).toContain('# 雾港')
+    expect(ch).toContain('正文内容。')
+    // 章卡/导演板 fm 随同，正文行（题名/H1/对应正文行）不动
+    const card = store.readDoc(pid, '大纲/第01章_雾港.md') ?? ''
+    expect(card).toContain('切片: 第一幕_雾港夜')
+    expect(card).toContain('> 对应正文：正文/第01章_雾港.md')
+    expect(card).toContain('手工补充：保留旧题名也无妨')
+    const dir = store.readDoc(pid, '大纲/第01章_雾港_导演.md') ?? ''
+    expect(dir).toContain('切片: 第一幕_雾港夜')
+  })
+
+  it('引用面：slice-sync pending 置 stale，annotation-sync 保留 pending（按 source 收口）', () => {
+    const rel = seedChapter()
+    createProposals(holder.projects(), pid, 'slice-sync', rel, '第一幕', [propItem('旧状态')])
+    // annotation-sync 直接写盘（不走 createProposals——它会把同章旧 pending 先置 stale，干扰本用例「同章双 pending」设定）
+    const pd = join(holder.projects(), pid, '.zhijuan', 'proposals')
+    mkdirSync(pd, { recursive: true })
+    writeFileSync(
+      join(pd, 'anno.json'),
+      JSON.stringify({
+        id: 'anno-1', source: 'annotation-sync', chapter: rel, slice: '第一幕', status: 'pending', createdAt: Date.now(),
+        items: [{ target: '正文/第01章_雾港.md', anchor: 'L10:1-L10:34', kind: 'replace-text', before: '旧文段', after: '新文段', reason: '批注' }]
+      })
+    )
+    const r = store.editChapterSlice(pid, rel, '第一幕_夜')
+    expect(r.staled).toBe(1)
+    const all = listProposals(holder.projects(), pid)
+    expect(all.find((x) => x.source === 'slice-sync')!.status).toBe('stale')
+    expect(all.find((x) => x.source === 'annotation-sync')!.status).toBe('pending')
+    // 跨章隔离由 proposals.test.ts 的 pure 单测覆盖（staleSliceSyncByChapter 只按目标章收口）
+  })
+
+  it('幂等：切片名未变 → ok 且不写盘（无新快照、副产物不动）', () => {
+    const rel = seedChapter()
+    const before = store.readDoc(pid, rel)
+    const r = store.editChapterSlice(pid, rel, '第一幕')
+    expect(r.ok).toBe(true)
+    expect(store.readDoc(pid, rel)).toBe(before)
+  })
+
+  it('防御：空名 / 路径不合法 / 章节不存在 / 无约定头', () => {
+    expect(store.editChapterSlice(pid, '正文/第01章_雾港.md', '  ').ok).toBe(false)
+    expect(store.editChapterSlice(pid, '正文/../project.md', '新名').ok).toBe(false)
+    expect(store.editChapterSlice(pid, '正文/不存在.md', '新名').ok).toBe(false)
+    store.writeDoc(pid, '正文/无约定头.md', '# 只有正文')
+    expect(store.editChapterSlice(pid, '正文/无约定头.md', '新名').ok).toBe(false)
+  })
+})
+
 describe('deleteChapter（删除：正文 + 大纲副产物 + 历史目录进废纸篓）', () => {
   it('正文与同名大纲副产物全部 trashItem，历史目录一并移走（可恢复），cleaned 计数正确', async () => {
     const rel = seedChapter()

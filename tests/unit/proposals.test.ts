@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { applyAnchor, applyProposal, createProposals, invalidateChapter, listProposals, migrateChapter, rejectProposal, discardProposal } from '../../src/main/proposals'
+import { applyAnchor, applyProposal, createProposals, invalidateChapter, listProposals, migrateChapter, rejectProposal, discardProposal, staleSliceSyncByChapter } from '../../src/main/proposals'
 import type { ProposalItem } from '../../src/shared/types'
 
 let root: string
@@ -275,5 +275,34 @@ describe('discardProposal（清除过期提案）', () => {
     expect(rejectProposal(root, 'p', b.id)).toBe(true)
     expect(discardProposal(root, 'p', b.id)).toBe(false)
     expect(discardProposal(root, 'p', 'nope')).toBe(false)
+  })
+})
+
+describe('staleSliceSyncByChapter（切片名修改时过期旧切片提案）', () => {
+  const writeP = (name: string, p: Record<string, unknown>) => {
+    const d = join(root, 'p', '.zhijuan', 'proposals')
+    mkdirSync(d, { recursive: true })
+    writeFileSync(
+      join(d, name),
+      JSON.stringify({ id: name.replace(/\.json$/, ''), source: 'slice-sync', chapter: '正文/第01章_雾港.md', slice: '第一幕', status: 'pending', createdAt: 1, items: [item({})], ...p })
+    )
+  }
+  it('仅该章 slice-sync 的 pending 置 stale；annotation-sync/其他章/非 pending 保留', () => {
+    writeP('a.json', {})
+    writeP('b.json', { source: 'annotation-sync', items: [item({ target: '正文/第01章_雾港.md' })] })
+    writeP('c.json', { chapter: '正文/第02章_听潮.md' })
+    writeP('d.json', { status: 'rejected' })
+    expect(staleSliceSyncByChapter(root, 'p', '正文/第01章_雾港.md')).toBe(1)
+    const byId = Object.fromEntries(listProposals(root, 'p').map((x) => [x.id, x]))
+    expect(byId.a.status).toBe('stale')
+    expect(byId.b.status).toBe('pending')
+    expect(byId.c.status).toBe('pending')
+    expect(byId.d.status).toBe('rejected')
+  })
+  it('无匹配 → 0；无 proposals 目录 → 0', () => {
+    writeP('a.json', {})
+    expect(staleSliceSyncByChapter(root, 'p', '正文/第99章_不存在.md')).toBe(0)
+    rmSync(join(root, 'p', '.zhijuan', 'proposals'), { recursive: true, force: true })
+    expect(staleSliceSyncByChapter(root, 'p', '正文/第01章_雾港.md')).toBe(0)
   })
 })

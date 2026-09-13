@@ -97,6 +97,17 @@ export function syncChapterNameInDoc(raw: string, oldTitle: string, newTitle: st
   return out
 }
 
+/**
+ * 章节「切片」改名后同步写作副产物（章卡/导演板/分幕）fm 里的 `切片` 字段：
+ * 仅改约定头值，正文/小节文字不动（切片名不出现在副产物 H1/正文行，与 syncChapterNameInDoc 的
+ * 「题名」三点同步不同）；无约定头/值相同幂等返回原文。切片名修改的引用面收口见 store.editChapterSlice。
+ */
+export function syncChapterSliceInDoc(raw: string, newSlice: string): string {
+  if (!newSlice) return raw
+  const next = setFrontMatterField(raw, '切片', newSlice)
+  return next === raw ? raw : next
+}
+
 /** 章卡列表 → 大纲/索引.md 文档（计数 + 逐章块；章卡文件为权威，索引是预览文档） */
 export function outlineIndexDoc(cards: OutlineCard[]): string {
   const lines = [

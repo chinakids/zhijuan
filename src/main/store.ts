@@ -16,12 +16,12 @@ import {
   FSWatcher
 } from 'fs'
 import { extractFrontMatter, serializeFrontMatter, setFrontMatterField } from '../shared/fmatter'
-import { isOutlineCardRel, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc } from '../shared/outline'
+import { isOutlineCardRel, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterSliceInDoc } from '../shared/outline'
 import { listChapterEntries } from '../shared/chapters'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, DOT_DIR } from '../shared/paths'
 import { sanitizeFile } from '../shared/paths'
 import { isVersionedRel, snapDirFor, writeSnapshot } from './history'
-import { migrateChapter, invalidateChapter } from './proposals'
+import { migrateChapter, invalidateChapter, staleSliceSyncByChapter } from './proposals'
 import { libraryRoot } from './settings'
 import { applyTemplate } from './templates'
 import { nextProjectId } from '../shared/projects'
@@ -425,6 +425,63 @@ export function renameChapter(id: string, rel: string, newTitle: string): Rename
   try { syncOutlineSiblingsContent(id, newBase.replace(/\.md$/, ''), oldTitle, t, newRel) } catch { /* best-effort */ }
   try { refreshOutlineIndex(id) } catch { /* best-effort */ }
   return { ok: true, newRel }
+}
+
+export interface EditChapterSliceResult {
+  ok: boolean
+  oldSlice?: string
+  newSlice?: string
+  /** 大纲副产物（章卡/导演板/分幕）fm「切片」字段同步条数 */
+  synced?: number
+  /** 该章 slice-sync pending 提案置 stale 条数 */
+  staled?: number
+  error?: string
+}
+
+/**
+ * 章节「切片」改名（约定头唯一半结构化约定的字段编辑收口：题名有重命名入口、涉及人物有
+ * 补入/移出 quick-fix，唯切片名建章后无入口——此前只能外部盲改 YAML）：改正文约定头 `切片` 值。
+ * 引用面（2026-09-13 审计静态排查后收口）：
+ *  - 大纲/ 下同名写作副产物（章卡/导演板/分幕）fm `切片` 字段 → best-effort 同步新值
+ *    （syncChapterSliceInDoc：切片名不出现在副产物 H1/正文行；索引文档不展示切片 → 不重建）；
+ *  - .zhijuan/proposals 该章 slice-sync pending → 置 stale（其 items 锚点/世界文件 target 携带旧
+ *    切片名，改名后 apply 锚点命中不到会按「文末追加 H2」落盘，堆积近重复小节——syncAnchor
+ *    白名单要防的形态）；annotation-sync 等与切片名无关的提案保留 pending（staleSliceSyncByChapter 按 source 收口）；
+ *  - 世界观/切片_<旧名>.md 与人物档旧切片小节 → 保留为历史（时间切片语义＝历史快照，不自动迁移/搬家）。
+ * 不触发切片同步：新切片名的设定流按「正文为源」由下一次保存正文触发（runSliceSync）。
+ */
+export function editChapterSlice(id: string, rel: string, newSlice: string): EditChapterSliceResult {
+  const bad = !rel || !rel.startsWith('正文/') || !rel.endsWith('.md') || rel.startsWith('/') || rel.split('/').some((s) => s === '..')
+  if (bad) return { ok: false, error: '路径不合法' }
+  const s = (newSlice ?? '').trim()
+  if (!s) return { ok: false, error: '切片名不能为空' }
+  const oldAbs = abs(id, rel)
+  if (!existsSync(oldAbs)) return { ok: false, error: '章节不存在' }
+  const raw = readFileSync(oldAbs, 'utf-8')
+  const { fm } = extractFrontMatter(raw)
+  if (!fm) return { ok: false, error: '该文件没有约定头，不是织卷章节' }
+  const oldSlice = String(fm['切片'] ?? '')
+  if (oldSlice === s) return { ok: true, oldSlice, newSlice: s }
+  writeDoc(id, rel, setFrontMatterField(raw, '切片', s))
+  let synced = 0
+  const dir = join(projectDir(id), '大纲')
+  if (existsSync(dir)) {
+    const base = basename(rel).replace(/\.md$/, '')
+    for (const e of siblingMatches(readdirSync(dir), base)) {
+      try {
+        const f = join(dir, e)
+        const cur = readFileSync(f, 'utf-8')
+        const next = syncChapterSliceInDoc(cur, s)
+        if (next !== cur) {
+          writeDoc(id, '大纲/' + e, next)
+          synced++
+        }
+      } catch { /* best-effort */ }
+    }
+  }
+  let staled = 0
+  try { staled = staleSliceSyncByChapter(libraryRoot(), id, rel) } catch { /* best-effort */ }
+  return { ok: true, oldSlice, newSlice: s, synced, staled }
 }
 
 /** 删除章节：先删 大纲/ 下同名写作副产物（走系统废纸篓，可恢复），再删正文本身。

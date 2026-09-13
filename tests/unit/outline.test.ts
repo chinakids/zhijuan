@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc } from '../../src/shared/outline'
+import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterSliceInDoc } from '../../src/shared/outline'
 import type { OutlineCard } from '../../src/shared/types'
 
 const card = (n: number, title: string): OutlineCard => ({
@@ -117,6 +117,30 @@ describe('shared/outline · 重命名章时同步副产物内容', () => {
     const doc = '# 章卡 第1章 雾港\n\n> 对应正文：正文/第01章_雾港.md\n'
     expect(syncChapterNameInDoc(doc, '雾港', '', '正文/第01章_雾港.md')).toBe(doc)
     expect(syncChapterNameInDoc(doc, '雾港', '雾港', '正文/第01章_雾港.md')).toBe(doc)
+  })
+})
+
+describe('shared/outline · 切片名修改时同步副产物 fm「切片」字段', () => {
+  it('有约定头：仅改「切片」值，H1/对应正文行/小节内容全部不动', () => {
+    const doc = [
+      '---', '章号: 1', '题名: 雾港', '切片: 第一幕', '状态: 已回建', '---', '',
+      '# 章卡 第1章 雾港', '', '> 对应正文：正文/第01章_雾港.md', '',
+      '## 一句话定位', '', '定位1', ''
+    ].join('\n')
+    const next = syncChapterSliceInDoc(doc, '第一幕_雾港夜')
+    expect(next).toContain('切片: 第一幕_雾港夜')
+    expect(next).not.toContain('切片: 第一幕\n')
+    expect(next).toContain('# 章卡 第1章 雾港')
+    expect(next).toContain('> 对应正文：正文/第01章_雾港.md')
+    expect(next).toContain('定位1')
+  })
+
+  it('防御：新切片名为空原样返回；无约定头原样返回；值相同内容不变', () => {
+    const doc = '# 只有正文\n'
+    expect(syncChapterSliceInDoc(doc, '')).toBe(doc)
+    expect(syncChapterSliceInDoc(doc, '第一幕')).toBe(doc)
+    const fm = '---\n切片: 第一幕\n---\n\n# 章卡\n'
+    expect(syncChapterSliceInDoc(fm, '第一幕')).toBe(fm)
   })
 })
 
