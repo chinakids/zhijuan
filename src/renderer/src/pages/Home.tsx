@@ -290,7 +290,7 @@ export default function Home() {
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 px-6 text-center">
                     <h2 className="line-clamp-2 font-serif text-xl font-semibold leading-snug text-white drop-shadow-sm">{p.name}</h2>
                     <span className="h-px w-8 bg-white/35" />
-                    <p className="truncate text-[11px] text-white/60">{p.stats.chapters} 章 · 人物 {p.stats.characters}</p>
+                    <p className="truncate text-[11px] text-white/60" data-testid="zj-card-stats">{p.stats.chapters} 章 · 人物 {p.stats.characters} · 素材 {p.stats.materials}</p>
                   </div>
                 </div>
                 {/* 信息区 */}

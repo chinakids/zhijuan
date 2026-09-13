@@ -7,7 +7,7 @@
 //         ④ 决策链随动：getPaths().documents 已等于新库；
 //         ⑤ 全程零 JS 异常。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let failures = 0
 const ok = (label) => console.log('OK', label)
