@@ -4,6 +4,7 @@
 // 菜单禁用态保证动作只会在对应页面被点出）；门户类动作（设置…/快捷键速查）本层直接处理。
 import { useEffect } from 'react'
 import type { MenuActionId } from '../../../../shared/types'
+import { shouldSkipKeydown, type MenuActionStamp } from '../../../../shared/menuDedup'
 import { useUiStore } from '../../store/ui'
 import ShortcutHelp from '../command/ShortcutHelp'
 import { reportMenuState } from './menuState'
@@ -17,11 +18,12 @@ export const MENU_EV_FIND = 'zj:menu-find'
 /**
  * 双触发防护（口径 §五-1：菜单 accelerator 与 renderer keydown 是否同达未达官方明文）：
  * 记录最近一次菜单动作；渲染层 keydown 处理器发现「同 id 且 <750ms」说明已由菜单体系处理，跳过。
+ * 窗口断判为纯函数 shared/menuDedup.ts（shouldSkipKeydown，含单测）；本模块只维护状态。
  * 菜单原生拦截时此窗口永不命中（零副作用）；未拦截（历史平台差异）时兜底去重。
  */
-let lastMenuAction: { id: MenuActionId; at: number } | null = null
+let lastMenuAction: MenuActionStamp | null = null
 export function isMenuJustHandled(id: MenuActionId): boolean {
-  return !!lastMenuAction && lastMenuAction.id === id && Date.now() - lastMenuAction.at < 750
+  return shouldSkipKeydown(lastMenuAction, id, Date.now())
 }
 
 function emitMenuEvent(name: string, id: MenuActionId): void {

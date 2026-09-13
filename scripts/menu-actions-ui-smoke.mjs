@@ -130,6 +130,32 @@ const ok = (name, cond, extra = '') => {
     await evalUntil(page, `(async () => { const d = await window.zhijuan.readDoc('demo-aseya', '正文/第01章_雾港.md'); return (d ?? '').includes('菜单冒烟追加句') })()`, (v) => v === true, 10000, '菜单保存写盘')
     ok('P6 菜单 save → 正文写盘（readDoc 实锤）', true)
 
+    // —— P6.5 菜单 save + keydown ⌘S 双触发兜底：窗口内只写盘一次 ——
+    // 包装 writeDoc 计数（devShim 对象方法可覆盖；真机部分归候选 3 ⑤）
+    await page.eval(`(() => {
+      const w = window.zhijuan.writeDoc
+      window.__ZJ_WRITE_COUNT = 0
+      window.zhijuan.writeDoc = async (...a) => { window.__ZJ_WRITE_COUNT = (window.__ZJ_WRITE_COUNT || 0) + 1; return w.apply(window.zhijuan, a) }
+      return true })()`)
+    await page.eval(`(() => { const e = window.__ZJ_EDITORS[0]; e.setContent(e.getMarkdown() + '\\n\\n去重冒烟句。'); return true })()`)
+    await sleep(300)
+    await page.eval(menuEmit('save'))
+    await sleep(120) // 菜单动作落地且仍在 750ms 去重窗口内
+    // 真实 keydown ⌘S（窗口内到达 → 应被 isMenuJustHandled 跳过）
+    await page.eval(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true, cancelable: true }))`)
+    await sleep(1200)
+    const wc1 = await page.eval(`window.__ZJ_WRITE_COUNT`)
+    const dedupSaved = await page.eval(`(async () => { const d = await window.zhijuan.readDoc('demo-aseya', '正文/第01章_雾港.md'); return (d ?? '').includes('去重冒烟句') })()`)
+    ok('P6.5 菜单 save 后窗口内 keydown ⌘S 不双保存（writeDoc 恰 1 次）', wc1 === 1, 'writeDoc=' + wc1)
+    ok('P6.5 正文确已写盘（去重未吞动作本身）', dedupSaved === true)
+    // 正向对照：无菜单前置时 keydown ⌘S 仍可保存（去重不吞正常按键）
+    await page.eval(`(() => { const e = window.__ZJ_EDITORS[0]; e.setContent(e.getMarkdown() + '\\n\\n键直存句。'); return true })()`)
+    await sleep(300)
+    await page.eval(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true, cancelable: true }))`)
+    await sleep(1200)
+    const wc2 = await page.eval(`window.__ZJ_WRITE_COUNT`)
+    ok('P6.5a 无菜单前置时 keydown ⌘S 仍保存（writeDoc 增加恰 1 次）', wc2 === wc1 + 1, 'wc=' + wc1 + '→' + wc2)
+
     // —— P7 菜单 findOpen/findNext/findUseSel → 查找条 ——
     await page.eval(menuEmit('findOpen'))
     await evalUntil(page, `document.querySelector('.zj-find-input') !== null`, (v) => v === true, 8000, '查找条')
