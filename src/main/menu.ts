@@ -57,8 +57,21 @@ export function menuEnabledFor(state: MenuStateReport, id: MenuActionId): boolea
  * 构建菜单模板（纯函数，可被 esbuild 冒烟逐项断言）。
  * 结构＝织卷/文件/编辑/显示/窗口/帮助（首期不含格式：口径 §二「格式菜单：首期明确不做」）。
  * role 项显式写 label + accelerator（macOS 上 role 项仅这两者生效，口径 §三-2）。
+ * platform 参数（默认 process.platform）：win/linux 走 winTemplate——role 项不写 accelerator、
+ * 交给 Electron 平台默认（menu-item-roles.ts：close=CommandOrControl+W、redo win=Control+Y、
+ * togglefullscreen win=F11、quit win 无）；自定义项 accelerator 一律 CmdOrCtrl 化
+ * （accelerator.md：win 上 Command 键无效果）。口径见 docs/系统菜单-设计口径.md §win。
  */
-export function buildMenuTemplate(h: MenuHandlers): MenuItemConstructorOptions[] {
+export function buildMenuTemplate(
+  h: MenuHandlers,
+  platform: NodeJS.Platform = process.platform
+): MenuItemConstructorOptions[] {
+  if (platform !== 'darwin') return winTemplate(h)
+  return macTemplate(h)
+}
+
+/** macOS 应用菜单（保持第一刀落地面逐字不动；win 走 winTemplate） */
+function macTemplate(h: MenuHandlers): MenuItemConstructorOptions[] {
   return [
     {
       label: '织卷',
@@ -129,6 +142,81 @@ export function buildMenuTemplate(h: MenuHandlers): MenuItemConstructorOptions[]
       submenu: [
         { label: '键盘快捷键速查', id: MENU_ITEM_ID.shortcutHelp, click: () => h.onMenuAction('shortcutHelp') },
         { label: '打开说明文档目录', id: MENU_ITEM_ID.openWorkspaceDocs, click: h.onOpenWorkspaceDocs }
+      ]
+    }
+  ]
+}
+
+/**
+ * Windows/Linux 菜单模板（最小可用口径，docs/系统菜单-设计口径.md §win）：
+ * 无 mac 应用菜单（「织卷」顶级不存在）；设置→文件菜单、关于→帮助菜单（平台惯例）；
+ * role 项一律不写 accelerator——Electron 按平台给默认值（menu-item-roles.ts），
+ * 显式写会覆盖默认（如 quit 显式 'Cmd+Q' 在 win 上 Command 键无效果=无快捷键）；
+ * mac-only role（services/hide/hideOthers/unhide/front/zoom）不出现。
+ */
+function winTemplate(h: MenuHandlers): MenuItemConstructorOptions[] {
+  return [
+    {
+      label: '文件',
+      submenu: [
+        { label: '新建项目…', id: MENU_ITEM_ID.newProject, click: () => h.onMenuAction('newProject') },
+        { label: '新建章节…', id: MENU_ITEM_ID.newChapter, click: () => h.onMenuAction('newChapter') },
+        { type: 'separator' },
+        { label: '保存', id: MENU_ITEM_ID.save, accelerator: 'CmdOrCtrl+S', click: () => h.onMenuAction('save') },
+        { type: 'separator' },
+        { label: '设置…', id: MENU_ITEM_ID.settings, accelerator: 'CmdOrCtrl+,', click: () => h.onMenuAction('settings') },
+        { type: 'separator' },
+        // 不写 accelerator：官方 win 默认=无快捷键（quit 的默认加速键仅 mac 存在），win 走 Alt+F4/菜单点击
+        { role: 'quit', label: '退出织卷' }
+      ]
+    },
+    {
+      label: '编辑',
+      submenu: [
+        { role: 'undo', label: '撤销' }, // 平台默认 CommandOrControl+Z
+        { role: 'redo', label: '重做' }, // 平台默认 win32=Control+Y
+        { type: 'separator' },
+        { role: 'cut', label: '剪切' }, // 默认 CommandOrControl+X
+        { role: 'copy', label: '复制' }, // 默认 CommandOrControl+C
+        { role: 'paste', label: '粘贴' }, // 默认 CommandOrControl+V
+        { role: 'selectAll', label: '全选' }, // 默认 CommandOrControl+A
+        { type: 'separator' },
+        {
+          label: '查找',
+          submenu: [
+            { label: '查找…', id: MENU_ITEM_ID.findOpen, accelerator: 'CmdOrCtrl+F', click: () => h.onMenuAction('findOpen') },
+            { label: '用选区设置查找词', id: MENU_ITEM_ID.findUseSel, accelerator: 'CmdOrCtrl+E', click: () => h.onMenuAction('findUseSel') },
+            { label: '查找下一处', id: MENU_ITEM_ID.findNext, accelerator: 'CmdOrCtrl+G', click: () => h.onMenuAction('findNext') },
+            { label: '查找上一处', id: MENU_ITEM_ID.findPrev, accelerator: 'Shift+CmdOrCtrl+G', click: () => h.onMenuAction('findPrev') }
+          ]
+        }
+      ]
+    },
+    {
+      label: '显示',
+      submenu: [
+        { role: 'resetZoom', label: '实际大小' }, // 默认 CommandOrControl+0
+        { role: 'zoomIn', label: '放大' }, // 默认 CommandOrControl+Plus
+        { role: 'zoomOut', label: '缩小' }, // 默认 CommandOrControl+-
+        { type: 'separator' },
+        { role: 'togglefullscreen', label: '切换全屏' } // 平台默认 win32=F11
+      ]
+    },
+    {
+      label: '窗口',
+      submenu: [
+        { role: 'minimize', label: '最小化' }, // 默认 CommandOrControl+M
+        { type: 'separator' },
+        { role: 'close', label: '关闭窗口' } // 默认 CommandOrControl+W
+      ]
+    },
+    {
+      label: '帮助',
+      submenu: [
+        { label: '键盘快捷键速查', id: MENU_ITEM_ID.shortcutHelp, click: () => h.onMenuAction('shortcutHelp') },
+        { label: '打开说明文档目录', id: MENU_ITEM_ID.openWorkspaceDocs, click: h.onOpenWorkspaceDocs },
+        { type: 'separator' },
+        { label: '关于织卷…', click: h.onAbout } // win 惯例 Help>About（Electron role about 在 win 是 message box）
       ]
     }
   ]

@@ -215,5 +215,70 @@ ok('ipcMain 已注册 menu:state 监听（恰一次）', Array.isArray(menu.ipcM
 menu.ipcMain.emit('menu:state', { route: 'home', editor: false })
 ok('ipcMain emit menu:state -> applyMenuState 生效（保存灰显）', appMenu.getMenuItemById(menu.MENU_ITEM_ID.save).enabled === false)
 
+// ---------- 5) Windows/Linux 模板（minimal 口径：docs/系统菜单-设计口径.md §win，2026-09-14 平台层轮） ----------
+// 依据（Electron v31.7.7 源码 menu-item-roles.ts）：role 默认 accelerator 按平台取值（close=CmdOrCtrl+W、
+// redo win=Control+Y、togglefullscreen win=F11、quit win 无）；显式写会覆盖默认，故 win 分支 role 项不写；
+// mac-only role（services/hide/hideOthers/unhide/front/zoom）在 win 无效不出现。
+const winTpl = menu.buildMenuTemplate(h, 'win32')
+const MAC_ONLY_ROLES = ['services', 'hide', 'hideOthers', 'unhide', 'front', 'zoom']
+const rolesIn = (items, out = []) => {
+  for (const m of items) {
+    if (m.role) out.push(m.role)
+    if (Array.isArray(m.submenu)) rolesIn(m.submenu, out)
+  }
+  return out
+}
+const allWinRoles = rolesIn(winTpl)
+ok('win 顶级菜单=文件/编辑/显示/窗口/帮助（无 mac「织卷」应用菜单）', deepEq(winTpl.map((m) => m.label), ['文件', '编辑', '显示', '窗口', '帮助']), JSON.stringify(winTpl.map((m) => m.label)))
+ok('win 模板无 mac-only role', MAC_ONLY_ROLES.every((r) => !allWinRoles.includes(r)), JSON.stringify(allWinRoles))
+// role 项不写显式 accelerator（平台默认保留——本次调研的核心：role 默认是按平台的，显式 Cmd 会破坏 win）
+const roleItemsNoAcc = (items) => {
+  const bad = []
+  const walk2 = (items) => {
+    for (const m of items) {
+      if (m.role && m.accelerator) bad.push(`${m.label}:${m.accelerator}`)
+      if (Array.isArray(m.submenu)) walk2(m.submenu)
+    }
+  }
+  walk2(items)
+  return bad
+}
+ok('win 模板 role 项零显式 accelerator（交给平台默认）', roleItemsNoAcc(winTpl).length === 0, JSON.stringify(roleItemsNoAcc(winTpl)))
+// 自定义项：id 全量保留 + accelerator CmdOrCtrl 化（accelerator.md：win 上 Command 键无效果）
+const winIds = []
+const winAcc = {}
+const walkIds = (items) => {
+  for (const m of items) {
+    if (typeof m.id === 'string') { winIds.push(m.id); if (m.accelerator) winAcc[m.id] = m.accelerator }
+    if (Array.isArray(m.submenu)) walkIds(m.submenu)
+  }
+}
+walkIds(winTpl)
+ok('win 自定义项 id 全量=MENU_ITEM_ID（禁用态可继续工作）', JSON.stringify([...winIds].sort()) === JSON.stringify(Object.values(menu.MENU_ITEM_ID).sort()), JSON.stringify(winIds))
+const EXP_WIN_ACC = {
+  [menu.MENU_ITEM_ID.settings]: 'CmdOrCtrl+,',
+  [menu.MENU_ITEM_ID.save]: 'CmdOrCtrl+S',
+  [menu.MENU_ITEM_ID.findOpen]: 'CmdOrCtrl+F',
+  [menu.MENU_ITEM_ID.findUseSel]: 'CmdOrCtrl+E',
+  [menu.MENU_ITEM_ID.findNext]: 'CmdOrCtrl+G',
+  [menu.MENU_ITEM_ID.findPrev]: 'Shift+CmdOrCtrl+G'
+}
+ok('win 自定义 accelerator 全部 CmdOrCtrl 化=最小口径表', JSON.stringify(Object.keys(winAcc).sort()) === JSON.stringify(Object.keys(EXP_WIN_ACC).sort()) && Object.keys(EXP_WIN_ACC).every((k) => winAcc[k] === EXP_WIN_ACC[k]), JSON.stringify(winAcc))
+const findWinItem = (items, label) => {
+  for (const m of items) {
+    if (m.label === label) return m
+    if (Array.isArray(m.submenu)) { const r = findWinItem(m.submenu, label); if (r) return r }
+  }
+  return null
+}
+const fileMenu = winTpl.find((m) => m.label === '文件')
+const helpMenu = winTpl.find((m) => m.label === '帮助')
+ok('win 「设置…/退出织卷」在文件菜单、「关于织卷…」在帮助菜单（平台惯例）', !!findWinItem(fileMenu.submenu, '设置…') && !!findWinItem(fileMenu.submenu, '退出织卷') && !!findWinItem(helpMenu.submenu, '关于织卷…'))
+// win 模板自定义 click 分发仍走 handlers（与 mac 同通道）
+const gotIdsWin = []
+const hw = { onMenuAction: (id) => gotIdsWin.push(id), onAbout: () => gotIdsWin.push('__about__'), onOpenWorkspaceDocs: () => gotIdsWin.push('__docs__') }
+walk(menu.buildMenuTemplate(hw, 'win32'))
+ok('win 模板自定义 click 分发 id 集合一致（集合相等；模板顺序与 mac 不同故排序比较）', deepEq([...gotIdsWin].sort(), [...expectIds].sort()), JSON.stringify(gotIdsWin))
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

@@ -4,7 +4,7 @@ import { app } from 'electron'
 import { createRequire } from 'module'
 import { execFileSync } from 'child_process'
 import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'fs'
-import { resolve, dirname, join } from 'path'
+import { resolve, dirname, join, win32 } from 'path'
 import { homedir } from 'os'
 import { pathToFileURL } from 'url'
 import { getSettings } from '../settings'
@@ -110,10 +110,40 @@ function toolsOverrideArgs(): string[] {
   return ['--patch', patch]
 }
 
+/**
+ * Windows 上系统 node 的候选绝对路径（纯路径拼接，无 fs 无 electron——单测锁定拼接与优先级）。
+ * 顺序=优先级：nvm（%APPDATA%\nvm\versions\node\<v>\node.exe，versions 由调用方按优先级传入）→
+ * Program Files 两位。mac/linux 不走这里（unix 探测见 nodeBin）。
+ */
+export function winNodeBinCandidateList(env: NodeJS.ProcessEnv, home: string, versions: string[]): string[] {
+  // 恒用 win32.join：这是「win 平台路径」的纯拼接，与 relpath.ts posixRel 同思路——
+  // 任何平台跑都产出反斜杠（单测可锁定），不随宿主 platform 变。
+  const nvmRoot = win32.join(env.APPDATA || home, 'nvm', 'versions', 'node')
+  return [
+    ...versions.map((v) => win32.join(nvmRoot, v, 'node.exe')),
+    'C:\\Program Files\\nodejs\\node.exe',
+    'C:\\Program Files (x86)\\nodejs\\node.exe'
+  ]
+}
+
 /** 引擎子进程的宿主可执行：优先用上真正的 node——别用 Electron 当 node，它在此环境会吞子进程输出、
- * 让 SDK 握手干等到超时（2026-09 实测）。探测顺序：PATH 的 node（dev 下即 nvm）→ 常见位置 → nvm
- * 最新版本 → electron 兜底。 */
+ * 让 SDK 握手干等到超时（2026-09 实测）。探测顺序（unix）：PATH 的 node（dev 下即 nvm）→ 常见位置 → nvm
+ * 最新版本 → electron 兜底；win：where node → nvm + Program Files（winNodeBinCandidateList）→ electron 兜底。 */
 function nodeBin(): string {
+  if (process.platform === 'win32') {
+    try {
+      execFileSync('where', ['node'], { stdio: 'ignore' })
+      return 'node' // spawn 会沿 PATH 找到
+    } catch {}
+    let versions: string[] = []
+    try {
+      versions = readdirSync(join(process.env.APPDATA || homedir(), 'nvm', 'versions', 'node')).sort()
+    } catch {}
+    for (const c of winNodeBinCandidateList(process.env, homedir(), versions)) {
+      if (existsSync(c)) return c
+    }
+    return process.execPath
+  }
   try {
     execFileSync('which', ['node'], { stdio: 'ignore' })
     return 'node' // spawn 会沿 PATH 找到（含 dev 的 nvm）

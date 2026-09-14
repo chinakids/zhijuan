@@ -32,12 +32,13 @@
 
 | # | 面 | 差异 | 建议（win 启用时） |
 |---|---|---|---|
-| W-1 | 菜单 accelerator | `menu.ts` 硬编码 `Cmd+Q/W/M/H`、`Shift+Cmd+Z/G`、`Ctrl+Cmd+F`——官方（accelerator.md 31-33）「On Linux and Windows, the Command key does not have any effect so use CommandOrControl」→ 这些键在 win 不触发 | 逐项改 `CmdOrCtrl`（mac 行为零变化）：`Cmd+Q→CmdOrCtrl+Q`、`Cmd+W→CmdOrCtrl+W`、`Cmd+M→CmdOrCtrl+M`、`Shift+Cmd+Z/G→Shift+CmdOrCtrl+…`；`Cmd+H`（hide 系 mac-only role）无 win 等价，保留 |
-| W-2 | 菜单结构 | `services/hide/hideOthers/unhide/front/zoom` 为 **macOS-only role**（menu-item.md 97-119）；顶栏「织卷」应用菜单在 win 显示为普通窗口菜单 | win 启用时应 buildMenuTemplate 按平台分支（win 用 fileMenu/editMenu/viewMenu/windowMenu 体系重构模板） |
-| W-3 | 引擎宿主探测 | `runtime.ts nodeBin()`：`which`（win 无）/`/usr/local`、`/opt/homebrew`、`~/.nvm`（unix 路径）→ win 必然全部失败回落 `process.execPath`+`ELECTRON_RUN_AS_NODE=1`（功能可用但不复用系统 node） | win 分支：`where node` 探测 + `%APPDATA%\nvm` / `C:\Program Files\nodejs\node.exe` 常见位；ELECTRON_RUN_AS_NODE 兜底保留 |
+| W-1 | 菜单 accelerator | `menu.ts` 硬编码 `Cmd+Q/W/M/H`、`Shift+Cmd+Z/G`、`Ctrl+Cmd+F`——官方（accelerator.md 31-33）「On Linux and Windows, the Command key does not have any effect so use CommandOrControl」→ 这些键在 win 不触发 | **已解决（2026-09-14 16:30 平台层轮）**：buildMenuTemplate 平台分派，win 走 winTemplate——role 项不写 accelerator（Electron 按平台给默认：close=CmdOrCtrl+W、redo win=Ctrl+Y、togglefullscreen win=F11、quit win 无），自定义项 CmdOrCtrl 化；口径 docs/系统菜单-设计口径.md §win |
+| W-2 | 菜单结构 | `services/hide/hideOthers/unhide/front/zoom` 为 **macOS-only role**（menu-item.md 97-119）；顶栏「织卷」应用菜单在 win 显示为普通窗口菜单 | **已解决（同轮）**：winTemplate 不含 mac-only role、无「织卷」顶级；设置→文件菜单、关于→帮助菜单（平台惯例） |
+| W-3 | 引擎宿主探测 | `runtime.ts nodeBin()`：`which`（win 无）/`/usr/local`、`/opt/homebrew`、`~/.nvm`（unix 路径）→ win 必然全部失败回落 `process.execPath`+`ELECTRON_RUN_AS_NODE=1`（功能可用但不复用系统 node） | **已解决（同轮）**：win32 分支=`where node` → nvm（%APPDATA%\nvm\versions\node\<v>\node.exe，winNodeBinCandidateList 纯函数+单测 4 例）→ Program Files 两位 → Electron 兜底；mac 探测零变化 |
 | W-4 | 字体 | `tokens.css --font-sans` 无 Microsoft YaHei 显式候选（`-apple-system`/`sans-serif` 兜底会落微软雅黑，可接受）；`--font-serif` 已有 `SimSun`（注释明示 win 用 SimSun） | 观察；win 真机过目后再定（体验层域） |
 | W-5 | dot 目录 | `.zhijuan` 在 win 无隐藏属性（win 不认 dot 前缀），资源管理器可见 | 观察；win 启用时可加 hidden 属性（不阻塞） |
 | W-6 | 数据显示 | 路径类 UI 展示（库根/导出路径）可能显示 `C:\...` 反斜杠——用户可读性 | win 启用时 UI 层 `displayPath` 统一正斜杠（登记，不涉及 mac） |
+| W-7 | win 菜单真机验收 | winTemplate 已落地（2026-09-14 16:30）但 win 未打包——真机展开/快捷键实测只能在 win 包上做 | win 包立项时按 docs/系统菜单-设计口径.md §win 验收（结构/role 默认快捷键/CmdOrCtrl 自定义项） |
 
 ## 四、边界声明
 
