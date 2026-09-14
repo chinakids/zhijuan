@@ -2,7 +2,7 @@
 // 把 dsh 写作引擎的会话能力翻译成渲染层事件；提供聊天与切片同步两条任务；支持展示性取消。
 // 会话模型：每一轮用全新 session id（避免 SDK 高层续轮坑），可见历史由渲染层带进 prompt，
 // 上下文完全可控；工具读文件由写作引擎完成。
-import { driveSession, type DriveEvent } from './runtime'
+import { driveSession, cancelTurn, type DriveEvent } from './runtime'
 import { projectDir, listDocs } from '../store'
 import { buildWritingContext, buildProjectContext } from './context'
 import { expandAtRefs } from './refs'
@@ -31,11 +31,15 @@ export type AgentOutEvent =
   | { requestId: string; type: 'todo'; items: import('../../shared/types').TodoItem[] } // 模型更新任务清单
   | { requestId: string; type: 'ask'; questions: import('../../shared/types').AskQuestion[]; batch: string } // 模型在问用户
 
-// ---------- 展示性取消 ----------
-const active: Map<string, { aborted: boolean }> = new Map()
+// ---------- 展示性取消 → 真中断（2026-09-14） ----------
+// 停止请求 = 置位（渲染层立即不再转发事件） + 立即请引擎中止本轮（省 token 省时）；
+// SDK 无公开中断口时 cancelTurn 静默返回 false，自动降级为原「模型跑完才收尾」行为。
+const active: Map<string, { aborted: boolean; sid?: string }> = new Map()
 export function abortRequest(requestId: string) {
   const r = active.get(requestId)
-  if (r) r.aborted = true
+  if (!r) return
+  r.aborted = true
+  if (r.sid) void cancelTurn(r.sid).catch(() => {})
 }
 
 let runSeq = 0
@@ -65,8 +69,9 @@ export interface ChatInput {
 }
 
 export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void): Promise<void> {
-  // 登记本请求——abortRequest 依赖 active 里的条目置位；此前从无 set，点「停止」永远不会生效（2026-09-13 修）
-  const run = { aborted: false }
+  // 登记本请求——abortRequest 依赖 active 里的条目置位；sid 提前创建供真中断使用（2026-09-14）
+  const sid = newSid(input.projectId)
+  const run = { aborted: false, sid }
   active.set(input.requestId, run)
   const parts: string[] = []
   parts.push('你是「织卷」创作工作台的创作 agent，协助作者（用户）写作。')
@@ -112,13 +117,13 @@ export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void
     // 引用展开失败不阻断创作（与上下文装配同级兜底）
   }
   parts.push(input.prompt)
-  const sid = newSid(input.projectId)
   try {
     const text = await driveSession(
       sid,
       parts.join('\n\n'),
       {
         maxMs: 8 * 60 * 1000,
+        isAborted: () => run.aborted,
         onEvent: (n) => {
           if (run.aborted) return
           translate(n, input.requestId, emit)

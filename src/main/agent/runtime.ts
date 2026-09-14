@@ -15,8 +15,10 @@ import { activeProvider, buildLlmOverrideYml } from '../../shared/providers'
 export interface EnginePort {
   /** 确保引擎在跑；失败返回原因串，成功 undefined */
   ensureHarness(): Promise<string | undefined>
-  /** 低阶驱动一轮（发提示并泵取事件直到回合结束） */
-  driveSession(sid: string, text: string, opts?: { onEvent?: (n: DriveEvent) => void; maxMs?: number }): Promise<string>
+  /** 低阶驱动一轮（发提示并泵取事件直到回合结束；isAborted＝外部取消信号，为 true 立即收尾） */
+  driveSession(sid: string, text: string, opts?: { onEvent?: (n: DriveEvent) => void; maxMs?: number; isAborted?: () => boolean }): Promise<string>
+  /** 真中断：请求引擎立即取消指定会话的活动轮次（SDK 无公开中断口，走 session/cancel 补丁；未就绪时静默返回 false） */
+  cancelTurn(sessionId: string): Promise<boolean>
   /** 关闭引擎（应用退出时） */
   closeHarness(): Promise<void>
   /** 拿到（或创建）一个会话句柄 */
@@ -175,12 +177,12 @@ async function sessionHandle(key: string) {
   return harness.session(key)
 }
 
-/** 低阶驱动一轮：发 prompt 并用订阅泵取事件，直到本轮 turn 结束（含历史回放也会被正确跳过）。 */
-
+/** 低阶驱动一轮：发 prompt 并用订阅泵取事件，直到本轮 turn 结束（含历史回放也会被正确跳过）。
+ * isAborted：外部取消信号（如用户点停止）——每次事件后检查，为 true 立即收尾（不等待侧引擎收尾事件）。 */
 export async function driveSession(
   sid: string,
   text: string,
-  opts?: { onEvent?: (n: DriveEvent) => void; maxMs?: number }
+  opts?: { onEvent?: (n: DriveEvent) => void; maxMs?: number; isAborted?: () => boolean }
 ): Promise<string> {
   const err = await ensureHarness()
   if (err) throw new Error(err)
@@ -194,6 +196,7 @@ export async function driveSession(
     for await (const n of sub) {
       if (Date.now() > deadline) throw new Error('写作引擎驱动超时')
       opts?.onEvent?.(n)
+      if (opts?.isAborted?.()) break // 外部已取消：尽快收尾（awaiting-prompt 阶段引擎可能已清队列、不再发事件）
       if (n.method !== 'session.event') {
         if (n.method === 'session.status' && n.params?.sessionId === sid && n.params?.status === 'idle' && stage === 'done') break
         continue
@@ -220,6 +223,23 @@ export async function driveSession(
 export const chatSessionId = (projectId: string) => `zj-chat-${projectId}`
 export const syncSessionId = (projectId: string) => `zj-sync-${projectId}`
 
+/** 真中断（2026-09-14）：请写作引擎立即取消指定会话的活动轮次，不再等模型跑完。
+ * 实现：harness.client.request('session/cancel') —— 低阶口公开；server 侧需要 vendored 补丁
+ * （dsh-runtime/scripts/patch-server-cancel.mjs，install.sh 自动重放）。SDK 无公开中断口
+ * （HarnessClient 注释明言无 wire-level cancel），未开机时静默降级（返回 false，调用方按展示性取消兜底）。 */
+export async function cancelTurn(sessionId: string): Promise<boolean> {
+  const err = await ensureHarness()
+  if (err) return false
+  const client = (harness as any)?.client
+  if (!client?.request) return false
+  try {
+    const res = (await client.request('session/cancel', { sessionId })) as any
+    return !!res?.cancelled
+  } catch {
+    return false
+  }
+}
+
 /** 关闭写作引擎（应用退出时） */
 export async function closeHarness() {
   if (!harness) return
@@ -234,6 +254,7 @@ export { sessionHandle, runtimeDir, dshHome }
 export const engine: EnginePort = {
   ensureHarness,
   driveSession,
+  cancelTurn,
   closeHarness,
   sessionHandle,
   isRuntimeCreated,

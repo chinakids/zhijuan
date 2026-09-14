@@ -40,4 +40,8 @@ done
 # 5) 重建织卷写作域插件（esbuild 打成 mjs 按包名放进 node_modules）
 cd .. && node scripts/build-plugins.mjs
 
+# 6) 织卷自维护补丁：dsh SDK 公开协议无中断口（HarnessClient 注释明言无 wire-level cancel），
+#    给 vendored jsonrpc-server 加 session/cancel 转发（幂等；重装依赖后自动恢复，勿删）
+cd dsh-runtime && node scripts/patch-server-cancel.mjs && cd ..
+
 echo 'dsh-runtime 就绪'

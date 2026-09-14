@@ -132,8 +132,8 @@ try {
   })()`)
   ok('bridge 注入成功', inject === 'injected', String(inject))
 
-  // 发消息（真模型；prompt 要求简短）
-  await typeText(page, '只用一句话介绍这一章主角')
+  // 发消息（真模型；prompt 要求较长输出，保证「生成中」窗口足够大以验证停止按钮与真中断）
+  await typeText(page, '用大约300字详细介绍一下这一章主角的成长轨迹、性格与当前处境，分三个自然段')
   await pressEnter(page)
 
   // 等首个正文 delta 进 assistant 气泡（流开始；真模型启动+推理/工具前置，最长 240s）
@@ -144,11 +144,23 @@ try {
     240000,
     '首个正文 delta 到达'
   )
-  await sleep(800) // 让流跑一段
+  await sleep(150) // 让流跑一小段（不睡太久：vLLM 快，防止整轮已流完）
   const before = await page.eval(asstText)
   console.log('STREAM RUNNING, len=' + before.length)
+  // 截图：生成中（停止按钮可见）
+  const shot = async (name) => {
+    try {
+      const s = await page.cmd('Page.captureScreenshot', { format: 'png' })
+      const fs = await import('node:fs')
+      fs.mkdirSync(process.env.HOME + '/Pictures/zhijuan', { recursive: true })
+      fs.writeFileSync(process.env.HOME + '/Pictures/zhijuan/' + name + '.png', Buffer.from(s.data, 'base64'))
+      console.log('SHOT saved ' + name + '.png')
+    } catch (e) { console.log('SHOT fail ' + name + ': ' + e.message) }
+  }
+  await shot('cancel-turn-generating-' + new Date().toTimeString().slice(0, 5).replace(':', ''))
 
-  // 点停止（真机 cancel → abortRequest → 事件转发拦截；模型跑完后发 aborted）
+  // 点停止（2026-09-14 起为真中断：cancel → abortRequest → cancelTurn(session/cancel RPC) → 引擎立即中止；不再等模型跑完）
+  const tStop = Date.now()
   const clicked = await page.eval(`(() => {
     const b = document.querySelector('button[aria-label="停止生成"]')
     if (!b) return false
@@ -157,7 +169,7 @@ try {
   })()`)
   ok('停止按钮存在且已点击', clicked === true)
 
-  // 等「（已停止）」出现且停止按钮恢复（最长 300s：真机 aborted 在模型跑完后发）
+  // 等「（已停止）」出现且停止按钮恢复（真中断后应明显快于模型自然跑完）
   await evalUntil(
     page,
     `(() => document.body.innerText.includes('（已停止）') && !document.querySelector('button[aria-label="停止生成"]'))()`,
@@ -165,7 +177,9 @@ try {
     300000,
     '已停止标记 + 流结束'
   )
-  console.log('OK 已停止标记出现')
+  const stopMs = Date.now() - tStop
+  console.log('OK 已停止标记出现（点停止到收尾 ' + stopMs + 'ms）')
+  await shot('cancel-turn-stopped-' + new Date().toTimeString().slice(0, 5).replace(':', ''))
 
   const asst = await page.eval(asstText)
   ok('出现「（已停止）」标记', asst.includes('（已停止）'))
