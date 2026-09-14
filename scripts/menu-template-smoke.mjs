@@ -7,7 +7,7 @@
 //   内联 stub，观察/改写 BrowserWindow 等必须从 bundle 对象上做（registerMenuActions 用的就是它）。
 import { build as esbuild } from 'esbuild'
 import { resolve, join } from 'node:path'
-import { rmSync } from 'node:fs'
+import { rmSync, readFileSync } from 'node:fs'
 
 const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_USERDATA = '/tmp/zj-smoke-menu'
@@ -279,6 +279,53 @@ const gotIdsWin = []
 const hw = { onMenuAction: (id) => gotIdsWin.push(id), onAbout: () => gotIdsWin.push('__about__'), onOpenWorkspaceDocs: () => gotIdsWin.push('__docs__') }
 walk(menu.buildMenuTemplate(hw, 'win32'))
 ok('win 模板自定义 click 分发 id 集合一致（集合相等；模板顺序与 mac 不同故排序比较）', deepEq([...gotIdsWin].sort(), [...expectIds].sort()), JSON.stringify(gotIdsWin))
+
+// ---------- 6) 与 docs/快捷键.md（用户层权威）逐项一致性（2026-09-14 平台层快捷键体检轮） ----------
+// 双向：A) mac 模板每个显式 accelerator 必须是文档已有组合（菜单⊆文档——菜单漏档=可发现性缺失）；
+//      B) 文档表格里每个键盘组合必须已接线（⊆ 菜单显式 accelerator ∪ 应用内处理 allowlist——文档声称但
+//         无实现=空头承诺）。allowlist 可用 ZJ_SMOKE_ALLOW 覆盖（负向验证用，见下）。
+// 归一：Electron accelerator 语法 → docs 的 mac 符号串；文档侧先归一 U+2212 减号。
+// 按 '+' 拆 token 再逐 token 映射（分隔符不保留；Plus 是键名→'+'）。注意 alternation 顺序 CmdOrCtrl 在 Cmd 前。
+const accToDoc = (acc) =>
+  acc
+    .split('+')
+    .map((t) => {
+      if (t === 'Plus') return '+'
+      return t.replace(/CmdOrCtrl|Cmd|Shift|Alt|Ctrl/g, (m) => ({ CmdOrCtrl: '⌘', Cmd: '⌘', Shift: '⇧', Alt: '⌥', Ctrl: '⌃' })[m])
+    })
+    .join('')
+
+// 应用内处理（无菜单项，另行接线/编辑器默认）：⌘K 命令面板（CommandPalette 应用级 keydown）、
+// ⌘B/⌘I（Milkdown strong/em 默认键）、⌘Y（Milkdown history Mod-y）、Esc（各浮层 keydown 体系）
+const DOC_APP_INTERNAL = ['⌘K', '⌘B', '⌘I', '⌘Y', 'Esc']
+const ALLOW = process.env.ZJ_SMOKE_ALLOW ? process.env.ZJ_SMOKE_ALLOW.split(',') : DOC_APP_INTERNAL
+
+const docsMd = readFileSync(join(root, 'docs/快捷键.md'), 'utf8').replace(/\u2212/g, '-')
+
+// A) 菜单 → 文档
+const macAccSet = new Set()
+const collectAcc = (items) => {
+  for (const m of items) {
+    if (m.accelerator) macAccSet.add(accToDoc(m.accelerator))
+    if (Array.isArray(m.submenu)) collectAcc(m.submenu)
+  }
+}
+collectAcc(menu.buildMenuTemplate(h, 'darwin'))
+const menuNotDoc = [...macAccSet].filter((s) => !docsMd.includes(s))
+ok('mac 菜单全部显式 accelerator 均在 docs/快捷键.md 有记录（菜单⊆文档）', menuNotDoc.length === 0, JSON.stringify(menuNotDoc))
+
+// B) 文档表格 → 菜单∪应用内处理：只解析表格行第一格快捷键列（备注/说明文字不含契约）
+const docCombos = new Set()
+for (const line of docsMd.split('\n')) {
+  if (!line.startsWith('|')) continue
+  const cell = line.split('|')[1] ?? ''
+  for (const tok of cell.matchAll(/[⌘⇧⌥⌃][A-Za-z0-9+,\-\[\]]*/g)) {
+    const t = tok[0].replace(/\u2212/g, '-')
+    if (t.length > 1) docCombos.add(t)
+  }
+}
+const docUnwired = [...docCombos].filter((s) => !macAccSet.has(s) && !ALLOW.includes(s))
+ok('docs/快捷键.md 表格每个键盘组合均已接线（⊆ 菜单 ∪ 应用内处理 allowlist）', docUnwired.length === 0, `未接线组合: ${JSON.stringify(docUnwired)}（allowlist=${JSON.stringify(ALLOW)}）`)
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`)
 process.exit(fail === 0 ? 0 : 1)

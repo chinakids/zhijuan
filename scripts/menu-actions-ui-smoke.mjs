@@ -213,6 +213,17 @@ const ok = (name, cond, extra = '') => {
     await page.eval(menuEmit('shortcutHelp'))
     await evalUntil(page, pageHas('完整清单见仓库 docs/快捷键.md'), (v) => v === true, 8000, '快捷键速查')
     ok('P8 菜单 shortcutHelp → 快捷键速查打开', true)
+    // P8.1 速查面板三处同源：全应用组含 Esc 行（docs/快捷键.md 全应用 Esc）——2026-09-14 平台层快捷键体检
+    await evalUntil(page, pageHas('关闭当前浮层'), (v) => v === true, 8000, 'Esc 行存在')
+    ok('P8.1 速查面板含「关闭当前浮层（Esc）」行', true)
+    if (process.env.ZJ_SHOT) {
+      const s = await page.cmd('Page.captureScreenshot', { format: 'png' })
+      const dir = process.env.ZJ_SHOT_DIR || '/Users/USER/Pictures/zhijuan'
+      mkdirSync(dir, { recursive: true })
+      const file = `${dir}/shortcut-help-${new Date().toTimeString().slice(0, 5).replace(':', '')}.png`
+      writeFileSync(file, Buffer.from(s.data, 'base64'))
+      console.log('SHOT:', file)
+    }
 
     // —— P9 无 JS 异常 ——
     ok('P9 全程无页面 JS 异常', page.errors.length === 0, page.errors.join(' || '))

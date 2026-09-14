@@ -44,7 +44,8 @@ const GROUPS: { title: string; rows: { label: string; keys: string[] }[] }[] = [
     title: '全应用',
     rows: [
       { label: '命令面板（页面 / 章节 / 项目 / 素材搜索）', keys: ['⌘K'] },
-      { label: '保存当前文档', keys: ['⌘S'] }
+      { label: '保存当前文档', keys: ['⌘S'] },
+      { label: '关闭当前浮层（查找条 / 命令面板 / 对话框）', keys: ['Esc'] }
     ]
   },
   {
