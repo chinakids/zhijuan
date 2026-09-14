@@ -16,7 +16,7 @@ import {
   AGENT_PANEL_STEP,
   clampAgentWidth
 } from '../../../../shared/uiPrefs'
-import { expandCommand, filterCommandCandidates, insertCommand, matchFixedCommand, parseCommandTrigger, parsePatrolArgs, type ZjCommand } from '../../../../shared/commands'
+import { expandCommand, filterCommandCandidates, insertCommand, matchFixedCommand, parseCommandTrigger, parsePatrolArgs, ALL_COMMANDS, type ZjCommand } from '../../../../shared/commands'
 import { createStreamBuffer } from '../../../../shared/streamBuffer'
 import { useAgentStore } from './store'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
@@ -78,7 +78,8 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs 
         <LoadingIndicator size={12} className="shrink-0 text-accent" />
       )}
       <span className={cn('shrink-0 font-medium', failed ? 'text-danger' : 'text-ink-2')}>{toolLabel(tool)}</span>
-      {args && <span className="flex-1 break-all font-mono text-[10px] leading-4 text-ink-3" title={args}>{args}</span>}
+      {/* 参数行：truncate 单行 + title 全量（原 break-all 会把 CJK 文件名逐字竖排——F-20260912-06 修复） */}
+      {args && <span className="min-w-0 flex-1 truncate font-mono text-[10px] leading-4 text-ink-3" title={args}>{args}</span>}
       {failed && <span className="shrink-0 rounded-full bg-danger-soft px-2 py-0.5 text-[10px] text-danger">失败</span>}
       {done && summary && (
         <span className={cn('shrink-0 whitespace-nowrap', failed ? 'text-danger' : 'text-ink-3')}>{summary}</span>
@@ -747,6 +748,13 @@ export default function AgentPanel(props: AgentPanelProps) {
     void send(prompt.trim(), quote)
   }
 
+  // 当前输入若为 /命令（未加参数）→ 参数提示（复用 ALL_COMMANDS.argHint）
+  const cmdHint = (() => {
+    const m = /^\/(\S+)\s*$/.exec(input.trim())
+    if (!m) return ''
+    const c = ALL_COMMANDS.find((x) => x.name === m[1])
+    return c?.argHint ?? ''
+  })()
   // 快捷指令点击：插入 `/命令 `（可编辑/加参数后发送；与 / 命令槽位同链路）
   const insertCmd = (name: string) => {
     const base = `/${name} `
@@ -793,7 +801,8 @@ export default function AgentPanel(props: AgentPanelProps) {
             doSend()
           }
         }}
-        placeholder="让 agent 续写 / 改写 / 查设定…（Enter 发送，@ 引用，/ 命令）"
+        placeholder="让 agent 做什么…"
+        title="Enter 发送 · @ 引用 · / 命令 · Shift+Enter 换行"
         className="max-h-40 min-h-[64px] w-full resize-none rounded-xl border border-hair bg-surface pb-9 pl-2.5 pr-11 pt-2 text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:ring-1 focus:ring-accent"
       />
       {/* @ 引用浮层（GitHub/Slack mention 范式：固定在输入框上方） */}
@@ -811,6 +820,7 @@ export default function AgentPanel(props: AgentPanelProps) {
         {atRefs.length > 0 && (
           <span className="opacity-60">· @注入 {atRefs.length}条 ≤{fmtCtx(injectBudget)}</span>
         )}
+        {cmdHint && <span className="truncate text-accent/80">· /{cmdHint}</span>}
       </div>
       {/* 悬浮发送按钮 */}
       <div className="absolute bottom-2 right-2">
