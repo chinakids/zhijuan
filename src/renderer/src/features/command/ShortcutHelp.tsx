@@ -3,9 +3,9 @@ import { Keyboard } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 /**
- * 键盘快捷键速查（发现性：织卷用 custom 标题栏、无应用菜单承载快捷键文字，
- * 用 ⌘K 面板与设置页「关于」进入本面板替代——Apple HIG Keyboards「快捷键应可发现」口径）。
- * 内容与 docs/快捷键.md 总表同源，新增快捷键时两边同步更新。
+ * 键盘快捷键速查（页内速查入口：⌘K 面板「帮助」与设置页「关于」）。
+ * macOS 系统菜单栏已于 2026-09-14 接入（docs/系统菜单-设计口径.md），菜单项本身也显示这些键位；
+ * 本面板保留为页内速查。内容与 docs/快捷键.md 总表（权威）同源，新增快捷键时三处同步。
  */
 
 const Kbd = ({ children }: { children: ReactNode }) => (
