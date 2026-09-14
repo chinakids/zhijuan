@@ -200,6 +200,15 @@ summary {
   }
 }
 
+/* 全站滚动条：标准属性方案（Chromium 121+ 支持 scrollbar-width/scrollbar-color）。
+ * 依据 Apple HIG Scroll views：scroll indicator 应「半透明、滚动后出现、不遮挡内容」。
+ * ① scrollbar-width: thin——细滚动条，克制不抢戏；
+ * ② thumb=发丝色(--hair-strong，paper 22%/dark 24% 半透明)，track 全透明——低调随主题；
+ * ③ 不用 ::-webkit-scrollbar 自定义：它会把 Chromium 从 overlay 形态强制为 classic 常驻占位
+ *    （实测 barGap>0 且丢失系统「滚动时显示/淡出」行为），与 HIG 目标相反；标准属性保留
+ *    macOS overlay 行为（不占布局、跟随系统设置）。
+ * 走查证据：scrollbar-ui-smoke.mjs（thin + 两主题色 + barGap=0 + 全站同口径）。
+ * 若未来想调整 thumb 深浅/透明度，只改上面 token 的 color-mix 百分比，勿加 ::-webkit-scrollbar。 */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--hair-strong) transparent;
