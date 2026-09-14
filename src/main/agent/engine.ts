@@ -267,7 +267,13 @@ export async function runSync(
   projectId: string,
   chapterRel: string
 ): Promise<
-  | { ok: true; items: ProposalItem[]; guard?: { issues: import('../../shared/types').SyncIssue[] } }
+  | {
+      ok: true
+      items: ProposalItem[]
+      guard?: { issues: import('../../shared/types').SyncIssue[] }
+      /** 本次比对基准（无设定变化时的可信呈现，2026-09-14 21:45） */
+      evidence?: import('../../shared/types').SyncEvidence
+    }
   | { ok: false; error: string }
 > {
   // 先读约定头拿切片名：世界状态一律进 世界观/切片_<切片名>.md（不存在则创建模板），anchor 也按它归一
@@ -290,8 +296,10 @@ export async function runSync(
     // 人物 target 全拦下并记 issues（安全方向：宁可提示也不越权新建档案，不会错写盘）
   }
   if (sliceName) ensureWorldSliceFile(projectDir(projectId), sliceName)
+  // 未建档人物（比对盲区计数；与 syncSystem 提示词共用同一口径）
+  const noFile = castAll.filter((c) => !knownFiles.includes(c))
   const parts: string[] = []
-  parts.push(syncSystem({ files: knownFiles, cast: castAll, noFile: castAll.filter((c) => !knownFiles.includes(c)) }))
+  parts.push(syncSystem({ files: knownFiles, cast: castAll, noFile }))
   parts.push(envBlock(projectId, chapterRel))
   try {
     const ctx = await buildWritingContext(projectId, chapterRel)
@@ -320,9 +328,21 @@ export async function runSync(
     const normalized = normalizeSyncItems(items, sliceName)
     // 防线（候选 2e）：人物 target 必须落现有档案；纠错/丢弃记入 issues 供 UI 提示
     const g = guardPersonTargets(normalized, { knownFiles, chapterCast: castAll })
-    const res: { ok: true; items: ProposalItem[]; guard?: { issues: import('../../shared/types').SyncIssue[] } } = {
+    const res: {
+      ok: true
+      items: ProposalItem[]
+      guard?: { issues: import('../../shared/types').SyncIssue[] }
+      evidence?: import('../../shared/types').SyncEvidence
+    } = {
       ok: true,
-      items: g.items
+      items: g.items,
+      // 比对基准证据（零额外 IO）：本次切片名/涉及人物数/人档基数/未建档盲区
+      evidence: {
+        slice: sliceName,
+        castCount: castAll.length,
+        knownFiles: knownFiles.length,
+        unarchived: noFile.length
+      }
     }
     if (g.issues.length) res.guard = { issues: g.issues }
     return res

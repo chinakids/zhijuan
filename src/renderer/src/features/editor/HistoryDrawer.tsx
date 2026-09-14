@@ -13,6 +13,7 @@ import { useModalA11y } from '../../lib/useModalA11y'
 import { buildDiffView, DIFF_MAX_ROWS } from './diffView'
 import { syncAfterChapterEdit } from '../sync/editSync'
 import { GuardIssuesNote } from '../sync/GuardIssues'
+import { describeSyncEvidence } from '../../../../shared/syncEvidence'
 import type { SyncIssue } from '../../../../shared/types'
 
 interface Props {
@@ -88,7 +89,7 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
     if (s.ok) {
       setSyncRetry(false)
       setSyncIssues(s.issues ?? [])
-      setMsg(s.items > 0 ? `✓ 已恢复；切片同步出 ${s.items} 条提案待确认` : `✓ 已恢复；切片同步无设定变化`)
+      setMsg(s.items > 0 ? `✓ 已恢复；切片同步出 ${s.items} 条提案待确认` : `✓ 已恢复；切片同步无设定变化${describeSyncEvidence(s.evidence)}`)
     } else {
       setSyncRetry(true)
       setSyncIssues([])

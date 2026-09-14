@@ -13,6 +13,7 @@ import { Textarea } from '../components/ui/textarea'
 import { cn } from '../lib/utils'
 import DocEditor from '../features/editor/DocEditor'
 import { runSliceSync } from '../features/sync/sliceSync'
+import { describeSyncEvidence } from '../../../shared/syncEvidence'
 import { GuardIssuesNote } from '../features/sync/GuardIssues'
 import type { SyncIssue } from '../../../shared/types'
 import { useProposalStore } from '../store/proposals'
@@ -203,7 +204,8 @@ export default function Novel() {
       const r = await runSliceSync(id, rel)
       if (r.ok) {
         setSyncIssues(r.issues ?? [])
-        setSyncMsg(r.items > 0 ? `✓ 已生成 ${r.items} 条切片提案` : `✓ 无设定变化`)
+        // 「无设定变化」追加比对基准证据（2026-09-14 21:45）：确认同步真跑了、基准是什么
+        setSyncMsg(r.items > 0 ? `✓ 已生成 ${r.items} 条切片提案` : `✓ 无设定变化${describeSyncEvidence(r.evidence)}`)
         useProposalStore.getState().bump()
         window.setTimeout(() => setSyncMsg(''), 6000)
       } else {

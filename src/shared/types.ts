@@ -235,6 +235,18 @@ export interface SyncIssue {
   action: 'corrected' | 'dropped'
   reason: string
 }
+
+/** 切片同步「比对基准」证据（2026-09-14 21:45 创作层：无设定变化时的可信呈现） */
+export interface SyncEvidence {
+  /** 约定头「切片」名（本次装配/归一的基准名）；空=作者未设，属须知信号 */
+  slice: string
+  /** 约定头「涉及人物」数 */
+  castCount: number
+  /** 本次可比对的现有人物档案数（人物/ 下 .md），比对基数 */
+  knownFiles: number
+  /** 约定头涉及但未建档的人数（比对盲区，作者需知情） */
+  unarchived: number
+}
 /** 批注同步来源引用（proposal.meta.annotations）：接受/拒绝后按行删除对应 csv 条目 */
 export interface AnnotationRef {
   /** 批注 csv 相对路径（如 正文/第01章_雾港_批注.csv） */

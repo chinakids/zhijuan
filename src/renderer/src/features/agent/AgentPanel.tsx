@@ -32,6 +32,7 @@ import { cn } from '../../lib/utils'
 import { Button } from '../../components/ui/button'
 import { syncAfterChapterEdit } from '../sync/editSync'
 import { GuardIssuesNote } from '../sync/GuardIssues'
+import { describeSyncEvidence } from '../../../../shared/syncEvidence'
 import type { SyncIssue } from '../../../../shared/types'
 import type { SliceSyncResult } from '../sync/sliceSync'
 
@@ -130,7 +131,7 @@ function toolLabel(tool: string): string {
 function describeSyncOutcome(s: SliceSyncResult | 'throttled' | 'skipped'): { text: string; retry: boolean; issues: SyncIssue[] } | null {
   if (s === 'throttled') return { text: '✓ 已采纳；本分钟内已同步过切片，不重复', retry: false, issues: [] }
   if (s === 'skipped') return null // 非正文（设定类工具写入），不提示
-  if (s.ok) return { text: s.items > 0 ? `✓ 切片同步：${s.items} 条提案待确认` : `✓ 切片同步：无设定变化`, retry: false, issues: s.issues ?? [] }
+  if (s.ok) return { text: s.items > 0 ? `✓ 切片同步：${s.items} 条提案待确认` : `✓ 切片同步：无设定变化${describeSyncEvidence(s.evidence)}`, retry: false, issues: s.issues ?? [] }
   return { text: `✗ 切片同步失败：${s.error ?? '未知错误'}`, retry: true, issues: [] }
 }
 function EditCard({ id, file, edits, state, error, projectId, onChanged }: {

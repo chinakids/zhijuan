@@ -12,6 +12,7 @@ import { useFsChanged, useFsEvents } from '../features/fs/useFsEvents'
 import { isBoardStale } from '../../../shared/boardAge'
 import { parseActsWarn } from '../../../shared/actsSeg'
 import { runSliceSync, type SliceSyncResult } from '../features/sync/sliceSync'
+import { describeSyncEvidence } from '../../../shared/syncEvidence'
 import { GuardIssuesNote } from '../features/sync/GuardIssues'
 import type { SyncIssue } from '../../../shared/types'
 import { toast } from '../components/ui/toast'
@@ -295,8 +296,8 @@ export default function Outline() {
               setMsg(`✓ 已替换正文并生成 ${s.items} 条切片提案（待确认）`)
               toast.update(tid, { kind: 'info', title: '切片提案待确认', description: `正文替换完成，生成 ${s.items} 条切片提案` })
             } else {
-              setMsg(`✓ 已替换正文；切片同步：无设定变化`)
-              toast.update(tid, { kind: 'success', title: '切片同步完成', description: '正文替换完成，无设定变化' })
+              setMsg(`✓ 已替换正文；切片同步：无设定变化${describeSyncEvidence(s.evidence)}`)
+              toast.update(tid, { kind: 'success', title: '切片同步完成', description: `正文替换完成，无设定变化${describeSyncEvidence(s.evidence)}` })
             }
           } else {
             setGuardIssues([])

@@ -3,12 +3,15 @@
 import { extractFrontMatter } from '../../../../shared/fmatter'
 import { useProposalStore } from '../../store/proposals'
 import type { SyncIssue } from '../../../../shared/types'
+import type { SyncEvidence } from '../../../../shared/types'
 
 export interface SliceSyncResult {
   ok: boolean
   items: number
   /** 产物守卫（target 存在性防线）拦截/纠正的记录；有内容即作者需知道的处置 */
   issues?: SyncIssue[]
+  /** 本次比对基准（无设定变化时的可信呈现；runSync 随 ok:true 返回） */
+  evidence?: SyncEvidence
   error?: string
 }
 
@@ -20,10 +23,10 @@ export async function runSliceSync(projectId: string, chapterRel: string): Promi
     const clean = r.items ?? []
     const ch = (await window.zhijuan.readDoc(projectId, chapterRel)) ?? ''
     const slice = String(extractFrontMatter(ch).fm?.['切片'] ?? '')
-    if (!clean.length) return { ok: true, items: 0, issues }
+    if (!clean.length) return { ok: true, items: 0, issues, evidence: r.evidence }
     const created = await window.zhijuan.createProposals(projectId, 'slice-sync', chapterRel, slice, clean)
     useProposalStore.getState().refresh(projectId)
-    return { ok: true, items: created.length, issues }
+    return { ok: true, items: created.length, issues, evidence: r.evidence }
   } catch (e) {
     return { ok: false, items: 0, error: String((e as Error).message || e) }
   }

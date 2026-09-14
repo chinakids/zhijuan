@@ -8,6 +8,7 @@ import { cn } from '../../lib/utils'
 import { useModalA11y } from '../../lib/useModalA11y'
 import { syncAfterChapterEdit } from '../sync/editSync'
 import { formatGuardIssuesText } from '../sync/guardText'
+import { describeSyncEvidence } from '../../../../shared/syncEvidence'
 import { isChapterTarget } from '../../../../shared/editSyncGate'
 import type { SliceSyncResult } from '../sync/sliceSync'
 
@@ -36,7 +37,7 @@ function describeChapterSync(s: SliceSyncResult | 'throttled' | 'skipped'): { ok
     return {
       ok: true,
       kind: 'success',
-      desc: s.items > 0 ? `正文已改写，切片同步到 ${s.items} 条提案待确认${guardNote}` : `正文已改写，切片同步无设定变化${guardNote}`
+      desc: s.items > 0 ? `正文已改写，切片同步到 ${s.items} 条提案待确认${guardNote}` : `正文已改写，切片同步无设定变化${describeSyncEvidence(s.evidence)}${guardNote}`
     }
   }
   return { ok: false, kind: 'warning', desc: s.error ?? '切片同步失败' }

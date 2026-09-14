@@ -1,5 +1,5 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
-import type { AgentEvent, AppSettings, ChapterEntry, OutlineCard, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult, MenuActionEvent, MenuActionId, MenuStateReport, SyncIssue } from '../../../shared/types'
+import type { AgentEvent, AppSettings, ChapterEntry, OutlineCard, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult, MenuActionEvent, MenuActionId, MenuStateReport, SyncIssue, SyncEvidence } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
 import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterSliceInDoc } from '../../../shared/outline'
 import { listChapterEntries } from '../../../shared/chapters'
@@ -1276,10 +1276,21 @@ const mock = {
           ? { target: '人物/沈眠.md', action: 'corrected', reason: '「沈眠」与现有档案近似，已纠正为 人物/沈藏.md' }
           : { target: `人物/新角色${i}.md`, action: 'dropped', reason: `本章「涉及人物」已列 新角色${i}，但 人物/新角色${i}.md 尚未建档（作者未建档案，同步不替建，请先建档案）` }
       )
-      const r: { ok: boolean; items: ProposalItem[]; guard?: { issues: SyncIssue[] } } = { ok: true, items: [], guard: { issues } }
+      const r: { ok: boolean; items: ProposalItem[]; guard?: { issues: SyncIssue[] }; evidence?: SyncEvidence } = { ok: true, items: [], guard: { issues } }
       return r
     }
-    return { ok: true, items: [] } as { ok: boolean; items: ProposalItem[] }
+    // 比对基准证据注入（2026-09-14 21:45）：?zj-slice=<名> 控制，__empty__=空切片；
+    // 缺省「雾港夜」+ 3 涉及人物 / 5 人档 / 1 未建档，供无头冒烟断言证据小字真实渲染
+    const sliceName = (() => {
+      const v = new URLSearchParams(location.search).get('zj-slice')
+      if (v === '__empty__') return ''
+      return v || '雾港夜'
+    })()
+    return {
+      ok: true,
+      items: [],
+      evidence: { slice: sliceName, castCount: 3, knownFiles: 5, unarchived: 1 }
+    }
   },
   agentStatus: async () => ({ online: true, provider: '本机 vLLM', model: 'deepseek-v4-flash-vision-exp-uncensored', message: '' }),
   agentListCapabilities: async () => [
