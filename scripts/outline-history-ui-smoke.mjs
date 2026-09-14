@@ -8,7 +8,7 @@
 // 说明：mock 任务每次生成固定文本（与真机"模型每次输出不同"不同），同内容写盘不会入史——这正是与真机
 //       writeSnapshot 一致的行为；冒烟用 writeDoc 写入不同内容模拟「重跑覆盖」，与 audit-history-entry-smoke 同套路。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const ID = 'demo-aseya'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 

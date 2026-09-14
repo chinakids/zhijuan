@@ -248,7 +248,7 @@ export function readDoc(id: string, rel: string): string | null {
 export function writeDoc(id: string, rel: string, content: string) {
   const f = abs(id, rel)
   ensureDir(dirname(f))
-  // 版本历史快照：写盘前把旧内容存档（仅版本化 rel：正文/ 与 大纲/审读_*，且内容有变化时；见 docs/正文版本历史-产品规划-2026-09-10.md、docs/审读存档版本化-产品规划-2026-09-12.md）
+  // 版本历史快照：写盘前把旧内容存档（仅版本化 rel——规则见 src/shared/versionedRel.ts：正文/、大纲/审读_*、大纲/ 下章卡与导演板分幕（索引.md 除外）；且内容有变化时）
   if (isVersionedRel(rel) && existsSync(f)) {
     const prev = readFileSync(f, 'utf-8')
     if (prev !== content) writeSnapshot(projectDir(id), rel, prev)
