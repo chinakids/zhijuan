@@ -158,10 +158,13 @@ await page.eval(`(() => {
 await sleep(400)
 await page.eval(clickBtn('保存批注', true))
 // 注：新批注 before（沈藏点了根烟）落在已有 L12 批注的 loc 切片内，ProseMirror 重叠装饰会拆成 >3 个 span，故断言 ≥3 + 徽标=批注 3
+// 坑（2026-09-14 修）：③ 点侧标跳转后编辑器持有模型选区 → 划词浮层弹出，其「批注」按钮（title=给选中文字添加批注）
+// innerText 恰为「批注」，startsWith('批注') 会先命中它导致「徽标=批注 3」恒超时（当时误判为徽标刷新链路故障）。
+// 计数徽标形态是「批注 N」→ 用 /^批注 \d+$/ 严格匹配（同浮层按钮/抽屉条目区分开）。
 await evalUntil(page, `document.querySelectorAll('.zj-anno').length`, (n) => n >= 3, 15000, '新增后高亮 ≥3')
 await evalUntil(page, `document.querySelectorAll('.zj-anno-mark').length`, (n) => n === 2, 15000, '同段合并后仍 2 个侧标')
 const badge3 = await evalUntil(page, `(() => {
-  const b = [...document.querySelectorAll('button')].find((x) => (x.innerText || '').trim().startsWith('批注'))
+  const b = [...document.querySelectorAll('button')].find((x) => /^批注 \\d+$/.test((x.innerText || '').trim()))
   return b ? b.innerText.trim() : ''
 })()`, (v) => v === '批注 3', 8000, '徽标=批注 3')
 ok('新增批注计数徽标 → 批注 3', badge3 === '批注 3', String(badge3))
