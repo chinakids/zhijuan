@@ -317,7 +317,7 @@
   position: absolute;
   inset: 0 0 0 0;
   width: 16px;
-  z-index: 50;
+  z-index: 40;
   pointer-events: none;
 }
 .zj-anno-gutter .zj-anno-mark {
