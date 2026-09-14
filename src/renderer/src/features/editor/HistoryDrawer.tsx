@@ -36,6 +36,7 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
   const [busy, setBusy] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [msg, setMsg] = useState('')
+  const [syncRetry, setSyncRetry] = useState(false)
   const [loading, setLoading] = useState(false)
   // 模态无障碍：焦点圈闭 / Esc 关闭 / 滚动锁 / 关闭回焦（Apple HIG Keyboards）
   const panelRef = useRef<HTMLDivElement>(null)
@@ -75,27 +76,36 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
     setOldText(t)
   }
 
+  // 正文为源、设定为流：恢复=正文回退，须与现有切片设定重新比对（非正文 rel 由收口自动跳过，如大纲审读）；
+  // 失败可感知可重试（2026-09-14 创作层）：失败留驻提示 + 「重试同步」按钮（重试同走收口，失败不节流可立即重试）
+  const runSync = useCallback(async () => {
+    const s = await syncAfterChapterEdit(projectId, rel)
+    if (s === 'throttled' || s === 'skipped') return
+    const guardNote =
+      s.issues && s.issues.length > 0 ? `（拦截 ${s.issues.length} 条：${s.issues[0].reason.slice(0, 20)}…）` : ''
+    if (s.ok) {
+      setSyncRetry(false)
+      setMsg(
+        s.items > 0
+          ? `✓ 已恢复；切片同步出 ${s.items} 条提案待确认${guardNote}`
+          : `✓ 已恢复；切片同步无设定变化${guardNote}`
+      )
+    } else {
+      setSyncRetry(true)
+      setMsg(`✓ 已恢复；切片同步失败：${s.error ?? '未知错误'}（可稍后保存触发）`)
+    }
+  }, [projectId, rel])
+
   const restore = async () => {
     if (!sel || oldText === null || busy) return
     setBusy(true)
     setMsg('')
+    setSyncRetry(false)
     try {
       await window.zhijuan.writeDoc(projectId, rel, oldText)
       setMsg('✓ 已恢复；恢复前的正文已自动留档，可在列表继续找回。')
       await load(true)
-      // 正文为源、设定为流：恢复=正文回退，须与现有切片设定重新比对（非正文 rel 由收口自动跳过，如大纲审读）
-      void syncAfterChapterEdit(projectId, rel).then((s) => {
-        if (s === 'throttled' || s === 'skipped') return
-        const guardNote =
-          s.issues && s.issues.length > 0 ? `（拦截 ${s.issues.length} 条：${s.issues[0].reason.slice(0, 20)}…）` : ''
-        setMsg(
-          s.ok
-            ? s.items > 0
-              ? `✓ 已恢复；切片同步出 ${s.items} 条提案待确认${guardNote}`
-              : `✓ 已恢复；切片同步无设定变化${guardNote}`
-            : `✓ 已恢复；切片同步失败：${s.error ?? '未知错误'}（可稍后保存触发）`
-        )
-      })
+      void runSync()
     } catch (e) {
       setMsg('恢复失败：' + String((e as Error).message ?? e))
     } finally {
@@ -151,7 +161,19 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
             </div>
 
             <ScrollArea className="min-h-0 flex-1 px-3 py-2">
-              {msg && <p className="mb-2 rounded-md bg-accent-soft/60 px-2 py-1 text-[11px] text-accent">{msg}</p>}
+              {msg && (
+                <div className="mb-2 flex items-center gap-2 rounded-md bg-accent-soft/60 px-2 py-1 text-[11px] text-accent">
+                  <span className="min-w-0 flex-1">{msg}</span>
+                  {syncRetry && (
+                    <button
+                      className="shrink-0 rounded-md border border-hair bg-surface px-1.5 py-0.5 text-[10px] text-accent transition-colors hover:bg-accent-soft"
+                      onClick={() => void runSync()}
+                    >
+                      重试同步
+                    </button>
+                  )}
+                </div>
+              )}
               {sel && oldText !== null && (
                 <>
                   <div className="mb-1.5 flex items-center gap-2 text-[11px] text-ink-3">

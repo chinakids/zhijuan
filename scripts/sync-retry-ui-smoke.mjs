@@ -1,8 +1,11 @@
-// 织卷无头冒烟 · 切片同步失败→就地重试闭环（03:45 观察② → 06:45 候选 2）
+// 织卷无头冒烟 · 切片同步失败→就地重试闭环（03:45 观察② → 06:45 候选 2 → 09:45 候选 2 续：收口三入口）
 // Tab A（Novel）：保存正文→agentSync 一次性失败→失败浮条「✗ 切片同步失败」+「重试同步」按钮
 //                →留驻不自动清除→点击重试→成功提示（✓ 无设定变化）+ 按钮消失 + agentSync 被调 2 次
 // Tab B（Outline）：分幕采纳→agentSync 一次性失败→toast「切片同步失败」+ action「重试同步」
 //                →点击重试→toast 更新「切片同步完成」
+// Tab C（EditCard 采纳，创作层 2026-09-14）：agent 演示修改卡→采纳并写入→同步失败→卡内「重试同步」→成功
+// Tab D（HistoryDrawer 恢复，创作层 2026-09-14）：造历史→恢复此版本→同步失败→抽屉内「重试同步」→成功
+// Tab E（批注提案接受，创作层 2026-09-14）：批注定时优化首扫生成提案→接受→toast 失败+action→重试成功
 // 用法：node scripts/sync-retry-ui-smoke.mjs
 // 前置：python3 -m http.server 8123 --directory out/renderer；本机无头 Chrome CDP 127.0.0.1:9224
 const CDP = 'http://127.0.0.1:9224'
@@ -147,7 +150,130 @@ try {
   ok('⑫ agentSync 第二次调用（成功）', (await pageB.eval(syncCount)) === 2, 'count=' + (await pageB.eval(syncCount)))
   pageB.close()
 
-  console.log('── 全部通过：' + passed + '/12 ──')
+  // ══ Tab C：EditCard 采纳失败 → 卡内重试成功 ══
+  console.log('── Tab C：EditCard 采纳失败→卡内重试 ──')
+  const tabC = await openTab(BASE + '/?cb=' + Date.now() + '&zj-fail=agentSync#/project/demo-aseya/novel')
+  const pageC = await attach(tabC.webSocketDebuggerUrl)
+  await evalUntil(
+    pageC,
+    `document.body.innerText.includes('Agent') && !!document.querySelector('textarea')`,
+    (v) => v === true,
+    20000,
+    '正文页 Agent 输入框就绪'
+  )
+  await pageC.eval(spyAgentSync)
+  // 输入含「改」触发 devShim 正文修改演示卡
+  await pageC.eval(`(() => {
+    const ta = document.querySelector('textarea')
+    ta.focus()
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(ta), 'value').set
+    setter.call(ta, '把这段改一下')
+    ta.setSelectionRange(ta.value.length, ta.value.length)
+    ta.dispatchEvent(new Event('input', { bubbles: true }))
+    ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    return true
+  })()`)
+  await evalUntil(pageC, pageHas('采纳并写入'), (v) => v === true, 20000, 'EditCard 出现')
+  ok('⑬ Agent 演示修改卡出现（EditCard）', true)
+  await pageC.eval(clickText('采纳并写入'))
+  await evalUntil(pageC, pageHas('✗ 切片同步失败'), (v) => v === true, 15000, '卡内失败提示')
+  ok('⑭ EditCard 采纳后「✗ 切片同步失败」出现', true)
+  ok('⑮ EditCard 内「重试同步」按钮出现', (await pageC.eval(pageHas('重试同步'))) === true)
+  ok('⑯ agentSync 首次调用（失败）', (await pageC.eval(syncCount)) === 1, 'count=' + (await pageC.eval(syncCount)))
+  await pageC.eval(clickText('重试同步', true))
+  await evalUntil(pageC, pageHas('✓ 切片同步：无设定变化'), (v) => v === true, 15000, '卡内重试成功')
+  ok('⑰ 重试后卡内「✓ 切片同步：无设定变化」', true)
+  await sleep(300)
+  ok('⑱ 重试后按钮消失', (await pageC.eval(pageHas('重试同步'))) === false)
+  ok('⑲ agentSync 第二次调用（成功）', (await pageC.eval(syncCount)) === 2, 'count=' + (await pageC.eval(syncCount)))
+  pageC.close()
+
+  // ══ Tab D：HistoryDrawer 恢复失败 → 抽屉内重试成功 ══
+  console.log('── Tab D：历史恢复失败→抽屉内重试 ──')
+  const tabD = await openTab(BASE + '/?cb=' + Date.now() + '&zj-fail=agentSync#/project/demo-aseya/novel')
+  const pageD = await attach(tabD.webSocketDebuggerUrl)
+  await evalUntil(pageD, pageHas('第1章 · 雾港'), (v) => v === true, 20000, 'Novel 章节列表就绪')
+  await pageD.eval(spyAgentSync)
+  await pageD.eval(clickText('第1章 · 雾港'))
+  await evalUntil(pageD, `window.__ZJ_EDITORS && window.__ZJ_EDITORS.length > 0`, (v) => v === true, 20000, '编辑器挂载')
+  // 造历史：writeDoc 变一下正文 → devShim 入史一版（不触发 agentSync，保留首次失败给恢复）
+  // 顶层 await 在 Runtime.evaluate 不可用（被当普通标识符）→ 先读后写，内容用 JSON.stringify 安全嵌入
+  const curMd = await pageD.eval(`window.zhijuan.readDoc('demo-aseya', '正文/第01章_雾港.md')`)
+  await pageD.eval(
+    `window.zhijuan.writeDoc('demo-aseya', '正文/第01章_雾港.md', ${JSON.stringify((curMd || '') + '\n\n> 冒烟：造一版历史。')}).then(() => true)`
+  )
+  await sleep(800)
+  await pageD.eval(clickText('历史', true))
+  await evalUntil(pageD, pageHas('版本历史'), (v) => v === true, 10000, '历史抽屉出现')
+  ok('⑳ 历史抽屉打开且含版本条目', (await pageD.eval(pageHas('最新'))) === true)
+  await pageD.eval(clickText('恢复此版本'))
+  await evalUntil(pageD, pageHas('再次点击确认恢复'), (v) => v === true, 6000, '确认文案出现')
+  await pageD.eval(clickText('再次点击确认恢复'))
+  await evalUntil(pageD, pageHas('✓ 已恢复；切片同步失败'), (v) => v === true, 15000, '恢复后同步失败提示')
+  ok('㉑ 恢复后「✓ 已恢复；切片同步失败」出现', true)
+  ok('㉒ 抽屉内「重试同步」按钮出现', (await pageD.eval(pageHas('重试同步'))) === true)
+  ok('㉓ agentSync 首次调用（失败）', (await pageD.eval(syncCount)) === 1, 'count=' + (await pageD.eval(syncCount)))
+  await pageD.eval(clickText('重试同步', true))
+  await evalUntil(pageD, pageHas('✓ 已恢复；切片同步无设定变化'), (v) => v === true, 15000, '抽屉重试成功')
+  ok('㉔ 重试后「✓ 已恢复；切片同步无设定变化」', true)
+  await sleep(300)
+  ok('㉕ 重试后按钮消失', (await pageD.eval(pageHas('重试同步'))) === false)
+  ok('㉖ agentSync 第二次调用（成功）', (await pageD.eval(syncCount)) === 2, 'count=' + (await pageD.eval(syncCount)))
+  pageD.close()
+
+  // ══ Tab E：批注提案接受失败 → toast action 重试成功 ══
+  console.log('── Tab E：批注提案接受失败→toast action 重试 ──')
+  const tabE = await openTab(BASE + '/?cb=' + Date.now() + '&zj-fail=agentSync#/project/demo-aseya/settings')
+  const pageE = await attach(tabE.webSocketDebuggerUrl)
+  await evalUntil(pageE, pageHas('外观与数据'), (v) => v === true, 20000, '设置页加载')
+  await pageE.eval(clickText('外观与数据'))
+  await evalUntil(pageE, pageHas('批注定时优化'), (v) => v === true, 10000, '批注开关')
+  await pageE.eval(`(() => {
+    const rows = [...document.querySelectorAll('div')].filter((d) => d.textContent && d.textContent.includes('批注定时优化') && d.querySelector('button[role="switch"]'))
+    const row = rows[rows.length - 1]
+    const s = row && row.querySelector('button[role="switch"]')
+    if (!s) return 'NO_SWITCH'
+    if (s.getAttribute('aria-checked') !== 'true') s.click()
+    return 'OK'
+  })()`)
+  await pageE.eval(clickText('保存设置', true))
+  await sleep(600)
+  await pageE.eval(`(() => { location.hash = '#/project/demo-aseya/novel'; return 1 })()`)
+  await evalUntil(pageE, pageHas('第1章 · 雾港'), (v) => v === true, 20000, '正文载入')
+  await pageE.eval(spyAgentSync)
+  // 打开项目 10s 自动首扫 → 生成批注提案 → 顶栏「待确认提案」入口
+  await evalUntil(pageE, pageHas('待确认提案'), (v) => v === true, 25000, '批注提案入口出现')
+  ok('㉗ 批注首扫生成提案，顶栏「待确认提案」出现', true)
+  await pageE.eval(clickText('待确认提案'))
+  await evalUntil(pageE, pageHas('来自：批注同步'), (v) => v === true, 10000, '抽屉批注提案')
+  ok('㉘ 抽屉含「来自：批注同步」提案', true)
+  await pageE.eval(clickText('接受'))
+  // 一次性失败 → toast 失败 + action（toast title「切片同步」，失败描述为具体错误）
+  await evalUntil(
+    pageE,
+    `[...document.querySelectorAll('.zj-toast')].some((t) => (t.innerText || '').includes('切片同步'))`,
+    (v) => v === true,
+    15000,
+    '失败 toast 出现'
+  )
+  ok('㉙ 接受批注提案后出现「切片同步」结果 toast', true)
+  await evalUntil(
+    pageE,
+    `[...document.querySelectorAll('.zj-toast button')].some((b) => (b.innerText || '').trim() === '重试同步')`,
+    (v) => v === true,
+    8000,
+    'toast action'
+  )
+  ok('㉚ 失败 toast 内含「重试同步」action', true)
+  ok('㉛ agentSync 首次调用（失败）', (await pageE.eval(syncCount)) === 1, 'count=' + (await pageE.eval(syncCount)))
+  await pageE.eval(`[...document.querySelectorAll('.zj-toast button')].find((b) => (b.innerText || '').trim() === '重试同步').click()`)
+  await evalUntil(pageE, pageHas('切片同步无设定变化'), (v) => v === true, 15000, 'toast 更新为成功')
+  ok('㉜ 重试后 toast 更新「正文已改写，切片同步无设定变化」', true)
+  await sleep(300)
+  ok('㉝ agentSync 第二次调用（成功）', (await pageE.eval(syncCount)) === 2, 'count=' + (await pageE.eval(syncCount)))
+  pageE.close()
+
+  console.log('── 全部通过：' + passed + '/33 ──')
 } catch (e) {
   console.error('FAILED at step, passed=' + passed)
   throw e

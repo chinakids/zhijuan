@@ -3,11 +3,12 @@ import { Check, X, FileText, GitCompare, Inbox, ChevronDown, Trash2, RefreshCw }
 import type { Proposal } from '../../../../shared/types'
 import { Button } from '../../components/ui/button'
 import { ScrollArea } from '../../components/ui/scroll-area'
-import { toast } from '../../store/toasts'
+import { toast, type ToastKind } from '../../store/toasts'
 import { cn } from '../../lib/utils'
 import { useModalA11y } from '../../lib/useModalA11y'
 import { syncAfterChapterEdit } from '../sync/editSync'
 import { isChapterTarget } from '../../../../shared/editSyncGate'
+import type { SliceSyncResult } from '../sync/sliceSync'
 
 interface Props {
   projectId: string
@@ -23,23 +24,68 @@ const STATUS: Record<string, { text: string; cls: string }> = {
   stale: { text: '已过期', cls: 'bg-surface-2 text-ink-3' }
 }
 
+/** 正文同步结果 → toast 呈现；失败带「重试同步」action（重试共用同收口：失败不节流，可立即重试） */
+function describeChapterSync(s: SliceSyncResult | 'throttled' | 'skipped'): { ok: boolean; kind: ToastKind; desc: string } | null {
+  if (s === 'throttled' || s === 'skipped') return null
+  const guardNote = s.issues && s.issues.length > 0 ? `（拦截 ${s.issues.length} 条）` : ''
+  if (s.ok) {
+    return {
+      ok: true,
+      kind: 'success',
+      desc: s.items > 0 ? `正文已改写，切片同步到 ${s.items} 条提案待确认${guardNote}` : `正文已改写，切片同步无设定变化${guardNote}`
+    }
+  }
+  return { ok: false, kind: 'warning', desc: s.error ?? '切片同步失败' }
+}
+
+/** 重试：更新同一条 toast（loading → 结果），失败仍可再重试 */
+function retryChapterSync(projectId: string, target: string) {
+  const tid = toast.add({ kind: 'loading', title: '切片同步重试中…', duration: 0 })
+  void syncAfterChapterEdit(projectId, target)
+    .then((s) => {
+      const d = describeChapterSync(s)
+      if (!d) {
+        toast.dismiss(tid)
+        return
+      }
+      toast.update(tid, {
+        kind: d.kind,
+        title: '切片同步',
+        description: d.desc,
+        action: d.ok ? null : { label: '重试同步', onClick: () => retryChapterSync(projectId, target) }
+      })
+    })
+    .catch(() => {
+      toast.update(tid, {
+        kind: 'warning',
+        title: '切片同步',
+        description: '同步失败',
+        action: { label: '重试同步', onClick: () => retryChapterSync(projectId, target) }
+      })
+    })
+}
+
 /** 正文类提案（annotation-sync 批注改写）接受后：与「保存/分幕采纳/EditCard 采纳」同口径触发切片同步（收口+节流），结果 toast */
 function toastAfterChapterApply(projectId: string, target: string) {
-  void syncAfterChapterEdit(projectId, target).then((s) => {
-    if (s === 'throttled' || s === 'skipped') return
-    const guardNote = s.issues && s.issues.length > 0 ? `（拦截 ${s.issues.length} 条）` : ''
-    toast.add({
-      kind: s.ok ? 'success' : 'warning',
-      title: '切片同步',
-      description: s.ok
-        ? s.items > 0
-          ? `正文已改写，切片同步到 ${s.items} 条提案待确认${guardNote}`
-          : `正文已改写，切片同步无设定变化${guardNote}`
-        : s.error ?? '切片同步失败'
+  void syncAfterChapterEdit(projectId, target)
+    .then((s) => {
+      const d = describeChapterSync(s)
+      if (!d) return
+      toast.add({
+        kind: d.kind,
+        title: '切片同步',
+        description: d.desc,
+        action: d.ok ? undefined : { label: '重试同步', onClick: () => retryChapterSync(projectId, target) }
+      })
     })
-  }).catch(() => {
-    toast.add({ kind: 'warning', title: '切片同步', description: '同步失败（可稍后手动保存触发）' })
-  })
+    .catch(() => {
+      toast.add({
+        kind: 'warning',
+        title: '切片同步',
+        description: '同步失败',
+        action: { label: '重试同步', onClick: () => retryChapterSync(projectId, target) }
+      })
+    })
 }
 
 function ItemCard({ p, projectId, onChanged }: { p: Proposal; projectId: string; onChanged: () => void }) {
