@@ -30,7 +30,8 @@ const STATUS: Record<string, { text: string; cls: string }> = {
 function describeChapterSync(s: SliceSyncResult | 'throttled' | 'skipped'): { ok: boolean; kind: ToastKind; desc: string } | null {
   if (s === 'throttled' || s === 'skipped') return null
   const guardText = formatGuardIssuesText(s.issues)
-  const guardNote = guardText ? `（拦截 ${s.issues!.length} 条：${guardText}）` : ''
+  // 摘要行「（拦截 N 条）」一行、明细逐条一行（formatGuardIssuesText \n 分隔；toast description 已 whitespace-pre-wrap）
+  const guardNote = guardText ? `（拦截 ${s.issues!.length} 条）\n${guardText}` : ''
   if (s.ok) {
     return {
       ok: true,

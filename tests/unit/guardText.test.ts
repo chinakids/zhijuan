@@ -25,13 +25,13 @@ describe('formatGuardIssuesText（守卫拦截明细纯文本，toast 型承载�
     expect(formatGuardIssuesText(undefined)).toBe('')
     expect(formatGuardIssuesText([])).toBe('')
   })
-  it('逐条给「处置 target：reason」，；分隔（完整 reason 不截断）', () => {
+  it('逐条给「处置 target：reason」，每条一行（完整 reason 不截断）', () => {
     const t = formatGuardIssuesText([
       iss({}),
       iss({ target: '人物/新角色1.md', action: 'dropped', reason: '本章「涉及人物」已列 新角色1，但 人物/新角色1.md 尚未建档' })
     ])
     expect(t).toBe(
-      '已纠正 人物/沈眠.md：「沈眠」与现有档案近似，已纠正为 人物/沈藏.md；已丢弃 人物/新角色1.md：本章「涉及人物」已列 新角色1，但 人物/新角色1.md 尚未建档'
+      '已纠正 人物/沈眠.md：「沈眠」与现有档案近似，已纠正为 人物/沈藏.md\n已丢弃 人物/新角色1.md：本章「涉及人物」已列 新角色1，但 人物/新角色1.md 尚未建档'
     )
   })
   it('target 与 reason 原样保留（不做任何截断/改写）', () => {

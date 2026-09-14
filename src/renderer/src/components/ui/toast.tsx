@@ -42,7 +42,7 @@ function ToastCard({ t }: { t: ToastItem }) {
       ) : null}
       <div className="min-w-0 flex-1">
         <div className="text-xs font-medium leading-5 text-ink">{t.title}</div>
-        {t.description && <div className="mt-0.5 break-all text-[11px] leading-4 text-ink-2">{t.description}</div>}
+        {t.description && <div className="mt-0.5 whitespace-pre-wrap break-all text-[11px] leading-4 text-ink-2">{t.description}</div>}
         {t.action && (
           <button
             onClick={(e) => {
