@@ -657,12 +657,15 @@ export default function Novel() {
         {/* 切片同步结果：浮动提示，不占版面（失败带就地重试按钮，可点击） */}
         {syncMsg && (
           <div
-            className={`${syncRetry ? 'pointer-events-auto' : 'pointer-events-none'} absolute right-24 top-11 z-10 flex items-center gap-2 rounded-full border border-hair bg-surface px-3 py-1 text-[11px] shadow-md`}
+            className={`${syncRetry ? 'pointer-events-auto' : 'pointer-events-none'} absolute right-24 top-11 z-10 flex max-w-[calc(100%-6rem)] items-center gap-2 rounded-full border border-hair bg-surface px-3 py-1 text-[11px] shadow-md`}
           >
-            <span className={syncMsg.startsWith('✓') ? 'text-success' : syncMsg.startsWith('✗') ? 'text-danger' : 'text-accent'}>
+            <span
+              title={syncMsg}
+              className={`pointer-events-auto min-w-0 truncate ${syncMsg.startsWith('✓') ? 'text-success' : syncMsg.startsWith('✗') ? 'text-danger' : 'text-accent'}`}
+            >
               {syncMsg}
             </span>
-            {syncIssues.length > 0 && <GuardIssuesNote issues={syncIssues} className="pointer-events-auto" />}
+            {syncIssues.length > 0 && <GuardIssuesNote issues={syncIssues} className="pointer-events-auto shrink-0" />}
             {syncRetry && (
               <button
                 onClick={() => void doSync(syncRetry.rel)}

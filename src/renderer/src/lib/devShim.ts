@@ -1284,24 +1284,30 @@ const mock = {
     // 无头冒烟断言用：记录每次切片同步调用（仅 devShim 测试面，真机走 agentSync IPC）
     const w = window as unknown as { __ZJ_SYNCS?: string[] }
     ;(w.__ZJ_SYNCS ??= []).push(id + '|' + rel)
-    // 无头冒烟：`?zj-guard=N` 注入守卫拦截结果（1 条已纠正 + 其余已丢弃），验证各入口拦截明细完整可达
+    // 无头冒烟：`?zj-guard=N` 注入守卫拦截结果（1 条已纠正 + 其余已丢弃），验证各入口拦截明细完整可达；
+    // 与真机 runSync 同口径：guard 与 evidence 同时返回（Novel 浮条「拦截 N 条 · 查看」与证据小字并存）
     const n = Number(new URLSearchParams(location.search).get('zj-guard') ?? '0')
+    const sliceName = (() => {
+      const v = new URLSearchParams(location.search).get('zj-slice')
+      if (v === '__empty__') return ''
+      return v || '雾港夜'
+    })()
     if (n > 0) {
       const issues: SyncIssue[] = Array.from({ length: n }, (_, i) =>
         i === 0
           ? { target: '人物/沈眠.md', action: 'corrected', reason: '「沈眠」与现有档案近似，已纠正为 人物/沈藏.md' }
           : { target: `人物/新角色${i}.md`, action: 'dropped', reason: `本章「涉及人物」已列 新角色${i}，但 人物/新角色${i}.md 尚未建档（作者未建档案，同步不替建，请先建档案）` }
       )
-      const r: { ok: boolean; items: ProposalItem[]; guard?: { issues: SyncIssue[] }; evidence?: SyncEvidence } = { ok: true, items: [], guard: { issues } }
+      const r: { ok: boolean; items: ProposalItem[]; guard?: { issues: SyncIssue[] }; evidence?: SyncEvidence } = {
+        ok: true,
+        items: [],
+        guard: { issues },
+        evidence: { slice: sliceName, castCount: 3, knownFiles: 5, unarchived: 1 }
+      }
       return r
     }
     // 比对基准证据注入（2026-09-14 21:45）：?zj-slice=<名> 控制，__empty__=空切片；
     // 缺省「雾港夜」+ 3 涉及人物 / 5 人档 / 1 未建档，供无头冒烟断言证据小字真实渲染
-    const sliceName = (() => {
-      const v = new URLSearchParams(location.search).get('zj-slice')
-      if (v === '__empty__') return ''
-      return v || '雾港夜'
-    })()
     return {
       ok: true,
       items: [],
