@@ -47,8 +47,8 @@ function parseFrontMatter(text: string): { meta: string; body: string } {
   return { meta: m[1], body: text.slice(m[0].length) }
 }
 
-/** 取文件前 max 字符并给出文件信息头；超长时注明可调 maxChars 或改用 zj_search */
-async function readClipped(file: string, max: number, label: string, signal?: AbortSignal): Promise<string> {
+/** 取文件第 offset 字符起 max 字符并给出文件信息头；超长注明已读到哪里、如何续读（Claude Code Read offset/limit 同构） */
+async function readClipped(file: string, max: number, label: string, offset = 0, signal?: AbortSignal): Promise<string> {
   const buf = await readFile(file, { encoding: 'utf8', signal: signal ?? ABORT })
   const { meta, body } = parseFrontMatter(buf)
   let head = `【${label} · ${basename(file)}】`
@@ -60,8 +60,13 @@ async function readClipped(file: string, max: number, label: string, signal?: Ab
       .filter((l) => /^(章号|题名|切片|时间|涉及人物|姓名|身份|标签):/.test(l))
     if (keep.length) head += '\n' + keep.join('\n')
   }
-  if (body.length <= max) return `${head}\n\n${body}`
-  return `${head}\n\n${body.slice(0, max)}\n\n…（剩余 ${body.length - max} 字符，可增大 maxChars 或定向 zj_search）`
+  const start = Math.max(0, offset)
+  const seg = body.slice(start, start + max)
+  if (body.length <= max && start === 0) return `${head}\n\n${body}`
+  const readTo = start + seg.length
+  if (!seg.length) return `${head}\n\n…（已到文件末尾：全文共 ${body.length} 字符，之前已读 ${start} 字符；要看更早内容请用较小的 offset 或 zj_search）`
+  if (readTo >= body.length) return `${head}\n\n${seg}\n\n…（已到文件末尾，全文共 ${body.length} 字符）`
+  return `${head}\n\n${seg}\n\n…（已读到第 ${readTo} 字符，全文共 ${body.length} 字符，剩 ${body.length - readTo} 字符；可传 offset=${readTo} 继续读，或调大 maxChars、定向 zj_search）`
 }
 
 async function walkMd(root: string, dir: string, depth = 0, out: string[] = []): Promise<string[]> {
@@ -85,7 +90,7 @@ async function walkMd(root: string, dir: string, depth = 0, out: string[] = []):
   return out
 }
 
-const tools: ToolDef[] = [
+export const tools: ToolDef[] = [
   {
     name: 'zj_workspace',
     description: '查看织卷作品的总体结构：顶层目录各有多少文档、最近改动的几个文件。适合开始工作时先了解项目里有什么。',
@@ -144,20 +149,22 @@ const tools: ToolDef[] = [
   {
     name: 'zj_read_doc',
     description:
-      '读取织卷作品的某个文档正文（返回约定头和正文前部）。file 为相对作品根目录的路径，如 正文/第03章_晨雾.md、人物/阿七.md、世界观/第一幕_雾港之夜.md、素材库/桥段/追忆型开头.md。超长时按 maxChars 截断。',
+      '读取织卷作品的某个文档正文（返回约定头和正文内容片段）。file 为相对作品根目录的路径，如 正文/第03章_晨雾.md、人物/阿七.md、世界观/第一幕_雾港之夜.md、素材库/桥段/追忆型开头.md。默认从开头读 maxChars 个字符；超长时返回里会注明已读到第几字符、全文多长，并把继续读所需的 offset 直接给出（照抄重调即可）；读文件末尾可传 offset=全文长度-目标长度。',
     parameters: {
       base: { type: 'string', required: true, description: '作品根目录（绝对路径）' },
       file: { type: 'string', required: true, description: '相对作品根目录的文档路径' },
-      maxChars: { type: 'number', description: '最多返回的字符数，默认 6000，最大 80000' }
+      maxChars: { type: 'number', description: '最多返回的字符数，默认 6000，最大 80000' },
+      offset: { type: 'number', description: '从第几个字符开始读（默认 0=开头；续读=上一次返回提示里的 offset 值）' }
     },
     output: { schema: { type: 'string' }, render: (_a, v) => [{ type: 'text', text: String(v) }] },
     async execute(args, exec) {
       const base = String(args.base)
       const file = String(args.file)
       const max = Math.min(Number(args.maxChars) || 6000, MAX_HEAD)
+      const off = Math.max(0, Math.floor(Number(args.offset) || 0))
       const full = clamp(base, file)
       try {
-        return await readClipped(full, max, '文档', exec.signal)
+        return await readClipped(full, max, '文档', off, exec.signal)
       } catch (e) {
         if ((e as NodeJS.ErrnoException).code === 'ENOENT') return `（没有这个文档：${file}）`
         throw e

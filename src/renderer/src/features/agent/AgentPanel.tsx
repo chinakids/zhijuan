@@ -9,6 +9,7 @@ import type { ProseApi } from '../editor/Prose'
 import type { AuditKind, EditItem, ChapterCheckKind, DirectorSheet } from '../../../../shared/types'
 import { filterAtCandidates, insertAtMention, parseAtTrigger, type AtCandidate } from '../../../../shared/mention'
 import { parseAtRefs, REF_CAP } from '../../../../shared/atRefs'
+import { WCTX_MAX } from '../../../../shared/contextCaps'
 import {
   AGENT_PANEL_DEFAULT_WIDTH,
   AGENT_PANEL_MAX_WIDTH,
@@ -18,6 +19,7 @@ import {
 } from '../../../../shared/uiPrefs'
 import { expandCommand, filterCommandCandidates, insertCommand, matchFixedCommand, parseCommandTrigger, parsePatrolArgs, ALL_COMMANDS, type ZjCommand } from '../../../../shared/commands'
 import { createStreamBuffer } from '../../../../shared/streamBuffer'
+import { trimHistoryMessage } from '../../../../shared/historyTrim'
 import { useAgentStore } from './store'
 import { useUiStore } from '../../store/ui'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
@@ -42,7 +44,7 @@ interface AgentPanelProps {
   onChapterCheck?: (tab?: ChapterCheckKind) => void
 }
 
-const CHAR_LIMIT = 60000 // 上下文预算：首屏截断，超长走尾部
+const CHAR_LIMIT = 60000 // 渲染层单条回复显示截断上限（非上下文预算；预算见 shared/contextCaps）
 let ridSeq = 0
 const newRid = () => 'r' + Date.now().toString(36) + (ridSeq++).toString(36)
 
@@ -626,14 +628,14 @@ export default function AgentPanel(props: AgentPanelProps) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
   }, [messages, streaming])
 
-  // 上下文用量：当前可见对话的字符规模（上传给引擎的历史 + 本次输入）
+  // 对话用量：与主进程注入同口径（shared/historyTrim 同一条消息裁剪；引擎历史不带 thinking；quote 将在发送时拼入 content）
   const ctxChars = useMemo(() => {
     const his = messages
       .filter((m) => m.role !== 'tool')
       .slice(-20)
-      .reduce((a, m) => a + (m.content?.length ?? 0) + (m.thinking?.length ?? 0), 0)
-    return his + input.length
-  }, [messages, input])
+      .reduce((a, m) => a + trimHistoryMessage(m.content ?? '').length, 0)
+    return his + input.length + (quote ? quote.length + 24 : 0)
+  }, [messages, input, quote])
 
   // @ 引用注入预算：解析当前输入里的引用标记，按主进程同口径（每条 ≤4000、合计 ≤12000）估算注入量
   const atRefs = useMemo(() => parseAtRefs(input), [input])
@@ -817,10 +819,13 @@ export default function AgentPanel(props: AgentPanelProps) {
       {cmdTrg && (
         <CommandMenu items={cmdItems} active={cmdActive} onPick={(i) => pickCmd(i)} onActiveChange={setCmdActive} />
       )}
-      {/* 上下文用量（发送按钮左侧） */}
+      {/* 上下文用量（发送按钮左侧）：分解口径与主进程装配同源（Claude Code /context 范式）——
+          对话=可见历史+输入；装配=写作上下文预算上限（shared/contextCaps，与主进程同源）；@注入=引用预算 */}
       <div className="pointer-events-none absolute inset-x-2.5 bottom-2 flex items-center gap-1 text-[10px] text-ink-3">
-        <span>上下文 {fmtCtx(ctxChars)}</span>
-        <span className="opacity-60">/ {fmtCtx(CHAR_LIMIT)}</span>
+        <span>对话 {fmtCtx(ctxChars)}</span>
+        {props.chapterRel && (
+          <span className="opacity-60">· 装配 ≤{fmtCtx(WCTX_MAX)}</span>
+        )}
         {atRefs.length > 0 && (
           <span className="opacity-60">· @注入 {atRefs.length}条 ≤{fmtCtx(injectBudget)}</span>
         )}

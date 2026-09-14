@@ -10,13 +10,12 @@ import { extractFrontMatter } from '../../shared/fmatter'
 import { worldSliceFile } from '../../shared/paths'
 import { stripHtmlComments } from '../../shared/comments'
 import { matchActPlaceholders } from '../../shared/actsSeg'
+import { WCTX_CAPS as CAP } from '../../shared/contextCaps'
 
 export interface WritingContext {
   blocks: string[]
   sources: string[]
 }
-
-const CAP = { chapter: 8000, prevTail: 3000, char: 4000, slice: 4000, card: 2000, director: 2500, material: 1200, maxChars: 4 }
 
 function firstLineName(rel: string): string {
   return rel.replace(/^(正文|大纲)\//, '').replace(/\.md$/, '')
