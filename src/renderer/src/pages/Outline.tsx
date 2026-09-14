@@ -374,49 +374,84 @@ export default function Outline() {
             const done = hasCard(c)
             return (
               <div key={c.file} className="mb-0.5">
-                <button
-                  onClick={() => setSel(cardRel(c))}
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors',
-                    sel === cardRel(c) ? 'bg-accent-soft' : 'hover:bg-surface'
-                  )}
-                >
-                  {done ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
-                  ) : (
-                    <CircleDashed className="h-3.5 w-3.5 shrink-0 text-ink-3" />
-                  )}
-                  <span className={cn('truncate text-sm', sel === cardRel(c) ? 'font-medium text-accent' : 'text-ink')}>
-                    {c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}
-                  </span>
-                  {!done && <span className="ml-auto rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn">待回建</span>}
-                </button>
-                {hasBoard(c) && (
+                <div className="flex items-center">
                   <button
-                    onClick={() => setSel(boardRel(c))}
+                    onClick={() => setSel(cardRel(c))}
                     className={cn(
-                      'ml-5 flex w-[calc(100%-1.25rem)] items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors',
-                      sel === boardRel(c) ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface'
+                      'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors',
+                      sel === cardRel(c) ? 'bg-accent-soft' : 'hover:bg-surface'
                     )}
                   >
-                    <Clapperboard className="h-3 w-3 shrink-0" />
-                    <span className="min-w-0 flex-1 truncate">导演板</span>
-                    {staleBoards.has(c.name) && (
-                      <span className="shrink-0 rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn">偏旧</span>
+                    {done ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
+                    ) : (
+                      <CircleDashed className="h-3.5 w-3.5 shrink-0 text-ink-3" />
                     )}
+                    <span className={cn('truncate text-sm', sel === cardRel(c) ? 'font-medium text-accent' : 'text-ink')}>
+                      {c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}
+                    </span>
+                    {!done && <span className="ml-auto rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn">待回建</span>}
                   </button>
+                  {done && (
+                    <button
+                      onClick={() => setHistoryRel(cardRel(c))}
+                      className="mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-3 transition-colors hover:bg-surface hover:text-accent"
+                      title="版本历史（章卡被重跑覆盖时旧版自动留档，可回看/恢复）"
+                      aria-label="版本历史"
+                      data-testid="card-history"
+                    >
+                      <History className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+                {hasBoard(c) && (
+                  <div className="ml-5 flex items-center">
+                    <button
+                      onClick={() => setSel(boardRel(c))}
+                      className={cn(
+                        'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors',
+                        sel === boardRel(c) ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface'
+                      )}
+                    >
+                      <Clapperboard className="h-3 w-3 shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">导演板</span>
+                      {staleBoards.has(c.name) && (
+                        <span className="shrink-0 rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn">偏旧</span>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setHistoryRel(boardRel(c))}
+                      className="mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-3 transition-colors hover:bg-surface hover:text-accent"
+                      title="版本历史（导演板被重导覆盖时旧版自动留档，可对照旧承诺后重导）"
+                      aria-label="版本历史"
+                      data-testid="board-history"
+                    >
+                      <History className="h-3 w-3" />
+                    </button>
+                  </div>
                 )}
                 {hasActs(c) && (
-                  <button
-                    onClick={() => setSel(actsRel(c))}
-                    className={cn(
-                      'ml-5 flex w-[calc(100%-1.25rem)] items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors',
-                      sel === actsRel(c) ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface'
-                    )}
-                  >
-                    <PenLine className="h-3 w-3 shrink-0" />
-                    <span className="min-w-0 flex-1 truncate">分幕草稿</span>
-                  </button>
+                  <div className="ml-5 flex items-center">
+                    <button
+                      onClick={() => setSel(actsRel(c))}
+                      className={cn(
+                        'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors',
+                        sel === actsRel(c) ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface'
+                      )}
+                    >
+                      <PenLine className="h-3 w-3 shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">分幕草稿</span>
+                    </button>
+                    <button
+                      onClick={() => setHistoryRel(actsRel(c))}
+                      className="mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-3 transition-colors hover:bg-surface hover:text-accent"
+                      title="版本历史（分幕草稿被重写/补写覆盖时旧版自动留档，可回看/恢复）"
+                      aria-label="版本历史"
+                      data-testid="acts-history"
+                    >
+                      <History className="h-3 w-3" />
+                    </button>
+                  </div>
                 )}
               </div>
             )

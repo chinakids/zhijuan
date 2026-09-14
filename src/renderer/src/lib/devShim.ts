@@ -17,6 +17,7 @@ import { sliceSectionOrderCheck } from '../../../shared/sliceorder'
 import { findAnchorLine, normalizeAnchor } from '../../../shared/anchor'
 import { auditDocMarkdown } from '../../../shared/auditDoc'
 import { parseAnnotationCsv, segmentFromText, escapeCsvField } from '../../../shared/annotations'
+import { isVersionedRel } from '../../../shared/versionedRel'
 import type { RecentEntry } from '../../../shared/projects'
 import { toast } from '../store/toasts'
 
@@ -63,6 +64,25 @@ function snapNameDev(ts: number): string {
   const d = new Date(ts)
   const p = (n: number, w = 2) => String(n).padStart(w, '0')
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}-${p(d.getMilliseconds(), 3)}`
+}
+
+/** 与真机 store.writeDoc 同口径的写盘：内容变化时对版本化 rel 先留旧版快照；任务 mock（回建/导演/分幕）落盘也走这里，
+ * 让无头 UI 冒烟能驱动与真机一致的入史链路（2026-09-14 智能层：章卡/导演板/分幕草稿入史，索引.md 例外）。 */
+function devWriteDoc(projectId: string, rel: string, content: string): boolean {
+  const k = projectId + '/' + rel
+  const prev = docs.get(k)
+  if (isVersionedRel(rel) && prev !== undefined && prev !== content) {
+    const arr = histories.get(k) ?? []
+    // 与真机 writeSnapshot 同口径：版本文件名 = yyyyMMdd-HHmmss-SSS.md（带扩展名；真实 listSnapshots 按 .md 过滤）
+    arr.unshift({ name: snapNameDev(Date.now() + arr.length) + '.md', content: prev, mtimeMs: Date.now() })
+    if (arr.length > HISTORY_LIMIT_DEV) arr.length = HISTORY_LIMIT_DEV
+    histories.set(k, arr)
+  }
+  if (rel.includes('任务_演示停滞') && prev !== undefined && prev !== content) taskTouched.add(k)
+  docs.set(k, content)
+  fsEmit(projectId, rel)
+  // 与真机 doc:write handler 同口径：返回 true（2026-09-13 口径审计）
+  return true
 }
 const seeded = { id: 'demo-aseya', name: '余烬的灯', description: '示例：失忆的守灯人找回自己' }
 
@@ -455,23 +475,7 @@ const mock = {
   },
   getRecentEntries: async (): Promise<RecentEntry[]> => recents.slice().sort((a, b) => b.openedAt - a.openedAt),
   readDoc: async (_id: string, rel: string) => docs.get(_id + '/' + rel) ?? null,
-  writeDoc: async (_id: string, rel: string, content: string) => {
-    const k = _id + '/' + rel
-    const prev = docs.get(k)
-    // 与真机 isVersionedRel 同口径：正文/ 与 大纲/审读_*（2026-09-12 对齐）
-    if ((rel.startsWith('正文/') || rel.startsWith('大纲/审读_')) && prev !== undefined && prev !== content) {
-      const arr = histories.get(k) ?? []
-      // 与真机 writeSnapshot 同口径：版本文件名 = yyyyMMdd-HHmmss-SSS.md（带扩展名；真实 listSnapshots 按 .md 过滤）
-      arr.unshift({ name: snapNameDev(Date.now() + arr.length) + '.md', content: prev, mtimeMs: Date.now() })
-      if (arr.length > HISTORY_LIMIT_DEV) arr.length = HISTORY_LIMIT_DEV
-      histories.set(k, arr)
-    }
-    if (rel.includes('任务_演示停滞') && prev !== undefined && prev !== content) taskTouched.add(k)
-    docs.set(k, content)
-    fsEmit(_id, rel)
-    // 与真机 doc:write handler 同口径：返回 true（2026-09-13 口径审计）
-    return true
-  },
+  writeDoc: async (_id: string, rel: string, content: string) => devWriteDoc(_id, rel, content),
   deleteDoc: async (_id: string, rel: string) => {
     // 与真机 store.deleteDoc 同口径防御：只收 .md、拒绝空/绝对/带 .. 段的路径
     const bad = !rel || !rel.endsWith('.md') || rel.startsWith('/') || rel.split('/').some((s) => s === '..')
@@ -1315,12 +1319,10 @@ const mock = {
     const writes: string[] = []
     for (const c of cards) {
       const rel = '大纲/' + c.file.replace(/^正文\//, '')
-      docs.set(projectId + '/' + rel, outlineCardDoc(c, c.file))
+      await devWriteDoc(projectId, rel, outlineCardDoc(c, c.file))
       writes.push(rel)
-      fsEmit(projectId, rel)
     }
-    docs.set(projectId + '/大纲/索引.md', outlineIndexDoc(cards))
-    fsEmit(projectId, '大纲/索引.md')
+    await devWriteDoc(projectId, '大纲/索引.md', outlineIndexDoc(cards))
     return { ok: true, cards, written: writes }
   },
   // 章节导演（dev 模式：写 mock 的 大纲/<章>_导演.md 并返回导演板；与真机同口径支持取消）
@@ -1349,8 +1351,7 @@ const mock = {
       redlines: ['不要把守塔人写成单纯的恶人', '钥匙不能提前解释来历，先落一个钩子'],
       hooks: ['灯芯带回来要呼应', '旧钥匙的来历下一章揭' ]
     }
-    docs.set(projectId + '/' + rel, '# 导演板 · ' + name + '（演示数据）\n\n## 本章戏剧任务\n' + sheet.premise + '\n')
-    fsEmit(projectId, rel)
+    await devWriteDoc(projectId, rel, '# 导演板 · ' + name + '（演示数据）\n\n## 本章戏剧任务\n' + sheet.premise + '\n')
     return { ok: true, written: rel, sheet }
   },
   // 导演兑现检查（dev 模式：固定演示核对报告，对照上面的演示导演板）
@@ -1408,8 +1409,7 @@ const mock = {
         return m
       })
       if (!replaced) return { ok: false, error: '草稿里没有要求重写的段落（第 ' + only.join('、') + ' 段）。' }
-      docs.set(projectId + '/' + rel, fmPart + out)
-      fsEmit(projectId, rel)
+      await devWriteDoc(projectId, rel, fmPart + out)
       return { ok: true, written: rel, acts: replaced, words: 100 }
     }
     const body = [
@@ -1422,11 +1422,11 @@ const mock = {
       '他还没把钥匙掂热，守塔人就从身后的阴影里伸出手，把柜台上那盏唯一的油灯吹熄了。整个海湾沉进一片静里，只剩码头下的浪还在一下一下推着船帮。',
       ''
     ].join('\n')
-    docs.set(
-      projectId + '/' + rel,
+    await devWriteDoc(
+      projectId,
+      rel,
       '---\n状态: 分幕草稿\n题名: ' + name + '\n---\n\n# ' + name + '（分幕草稿）\n\n> 由「分幕生成」按导演板情绪弧分段逐段写出（演示数据）。确认后把下面的正文部分搬进正文文件即可。\n\n' + body
     )
-    fsEmit(projectId, rel)
     return { ok: true, written: rel, acts: 2, words: 128 }
   },
   // 采纳分幕草稿为本章正文（dev 模式：复用 shared/actsAdopt 纯函数，与真机 handler 同口径——剥段标记/缺段警示、保留本章题名、countWords 计数）

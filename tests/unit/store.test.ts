@@ -289,7 +289,7 @@ describe('importProject（导入已有目录：复制入库、跳过杂物、幂
   })
 })
 
-describe('writeDoc 版本快照挂接（2026-09-12：正文 ∪ 大纲/审读_）', () => {
+describe('writeDoc 版本快照挂接（2026-09-14：正文 ∪ 大纲/审读_ ∪ 大纲/章卡·导演板·分幕草稿；索引.md 例外）', () => {
   beforeEach(() => {
     setSettings({ workspace: join(holder.tmp, 'ws'), libraryRoot: holder.projects() })
   })
@@ -320,16 +320,22 @@ describe('writeDoc 版本快照挂接（2026-09-12：正文 ∪ 大纲/审读_�
     expect(snaps).toHaveLength(1)
   })
 
-  it('章卡/导演板/自然页：不产生快照', () => {
-    const p = store.createProject('副产物不入史', '')!
+  it('章卡/导演板/分幕草稿：两次不同内容 → 旧版入史；索引/人物/世界观仍不入史', () => {
+    const p = store.createProject('副产物入史', '')!
     store.writeDoc(p.id, '大纲/第01章_雾港.md', '# 章卡\n\n目标…')
     store.writeDoc(p.id, '大纲/第01章_雾港.md', '# 章卡2\n\n目标…')
     store.writeDoc(p.id, '大纲/第01章_雾港_导演.md', '# 导演板\n\n…')
     store.writeDoc(p.id, '大纲/第01章_雾港_导演.md', '# 导演板2\n\n…')
+    store.writeDoc(p.id, '大纲/第01章_雾港_分幕.md', '# 分幕草稿 v1')
+    store.writeDoc(p.id, '大纲/第01章_雾港_分幕.md', '# 分幕草稿 v2')
     store.writeDoc(p.id, '人物/林晚.md', '# 林晚\n\n档案 v1')
     store.writeDoc(p.id, '人物/林晚.md', '# 林晚\n\n档案 v2')
-    expect(listSnapshots(join(holder.projects(), p.id), '大纲/第01章_雾港.md')).toHaveLength(0)
-    expect(listSnapshots(join(holder.projects(), p.id), '大纲/第01章_雾港_导演.md')).toHaveLength(0)
+    store.writeDoc(p.id, '大纲/索引.md', '# 索引 v1')
+    store.writeDoc(p.id, '大纲/索引.md', '# 索引 v2')
+    expect(listSnapshots(join(holder.projects(), p.id), '大纲/第01章_雾港.md')).toHaveLength(1)
+    expect(listSnapshots(join(holder.projects(), p.id), '大纲/第01章_雾港_导演.md')).toHaveLength(1)
+    expect(listSnapshots(join(holder.projects(), p.id), '大纲/第01章_雾港_分幕.md')).toHaveLength(1)
     expect(listSnapshots(join(holder.projects(), p.id), '人物/林晚.md')).toHaveLength(0)
+    expect(listSnapshots(join(holder.projects(), p.id), '大纲/索引.md')).toHaveLength(0)
   })
 })

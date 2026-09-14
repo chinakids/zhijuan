@@ -28,16 +28,18 @@ describe('history（正文版本历史）', () => {
     expect(isNovelRel('大纲/索引.md')).toBe(false)
   })
 
-  it('isVersionedRel：正文 ∪ 大纲/审读_ 前缀（审读报告版本化，2026-09-12）', () => {
+  it('isVersionedRel：正文 ∪ 大纲/审读_ ∪ 大纲/章卡与导演板/分幕草稿；索引.md 例外（2026-09-14 智能层）', () => {
     // 正例
     expect(isVersionedRel('正文/第01章_雾港.md')).toBe(true)
     expect(isVersionedRel('大纲/审读_一致性巡查.md')).toBe(true)
     expect(isVersionedRel('大纲/审读_冷读报告.md')).toBe(true)
     expect(isVersionedRel('大纲/审读_多视角审视.md')).toBe(true)
     expect(isVersionedRel('大纲/审读_人物在场核查.md')).toBe(true)
-    // 反例：章卡/导演板/大纲其他、人物/世界观、素材库
-    expect(isVersionedRel('大纲/第01章_雾港.md')).toBe(false)
-    expect(isVersionedRel('大纲/第01章_雾港_导演.md')).toBe(false)
+    expect(isVersionedRel('大纲/第01章_雾港.md')).toBe(true) // 章卡
+    expect(isVersionedRel('大纲/第01章_雾港_导演.md')).toBe(true) // 导演板
+    expect(isVersionedRel('大纲/第01章_雾港_分幕.md')).toBe(true) // 分幕草稿
+    expect(isVersionedRel('大纲/第03章_夜航_导演.md')).toBe(true) // 任意章副产物
+    // 反例：索引（路标可重建）、人物/世界观、素材库
     expect(isVersionedRel('大纲/索引.md')).toBe(false)
     expect(isVersionedRel('人物/林晚.md')).toBe(false)
     expect(isVersionedRel('世界观/切片_第一幕.md')).toBe(false)
@@ -77,9 +79,19 @@ describe('history（正文版本历史）', () => {
     const rel = '人物/林晚.md'
     expect(writeSnapshot(root, rel, 'x')).toBe(null)
     expect(existsSync(join(root, snapDirFor(rel)))).toBe(false)
-    // 章卡/导演板同样不入历史
-    expect(writeSnapshot(root, '大纲/第01章_雾港.md', 'x')).toBe(null)
-    expect(writeSnapshot(root, '大纲/第01章_雾港_导演.md', 'x')).toBe(null)
+    // 索引.md 是路标可重建，同样不入历史
+    expect(writeSnapshot(root, '大纲/索引.md', 'x')).toBe(null)
+    expect(existsSync(join(root, snapDirFor('大纲/索引.md')))).toBe(false)
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('章卡/导演板/分幕草稿 rel：writeSnapshot 落盘（写作副产物版本化，2026-09-14）', () => {
+    const root = tmpRoot()
+    for (const rel of ['大纲/第01章_雾港.md', '大纲/第01章_雾港_导演.md', '大纲/第01章_雾港_分幕.md']) {
+      expect(writeSnapshot(root, rel, '旧版')).toBeTruthy()
+      expect(listSnapshots(root, rel)).toHaveLength(1)
+      expect(readSnapshot(root, rel, listSnapshots(root, rel)[0].name)).toBe('旧版')
+    }
     rmSync(root, { recursive: true, force: true })
   })
 

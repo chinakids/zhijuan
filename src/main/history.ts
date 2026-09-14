@@ -1,26 +1,24 @@
 // ===== 织卷 · 版本化快照（正文 M3 + 审读存档 2026-09-12）=====
 // 形态：自动快照制（Scrivener Snapshots + JetBrains Local History 混合，方向见 docs/正文版本历史-产品规划-2026-09-10.md）。
 // 挂接点：store.writeDoc 写盘前，若目标已存在且内容不同，先把旧内容存档一版到 .zhijuan/history/<rel>/<ts>.md。
-// 范围：正文/ 与 大纲/审读_*（审读报告版本化，见 docs/审读存档版本化-产品规划-2026-09-12.md）；
-// 章卡/导演板等写作副产物不入历史（恢复需求弱，观察项）。
+// 范围：正文/ ∪ 大纲/审读_*（审读报告版本化，见 docs/审读存档版本化-产品规划-2026-09-12.md）
+// ∪ 大纲/ 下章卡与导演板/分幕草稿（写作副产物版本化，2026-09-14 智能层轮：重导/重跑会覆盖旧版，
+//    旧版正是「重导前对照」的回看物；大纲/索引.md 是纯路标可随时重建，不入史）。
 // 不依赖 git：项目库可能是普通目录；用户自管 git 时快照与其互不干扰（纯文件、可入 git 或自行 ignore）。
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { DOT_DIR } from '../shared/paths'
+import { isVersionedRel } from '../shared/versionedRel'
+
+export { isVersionedRel }
 
 export const HISTORY_DIR = `${DOT_DIR}/history`
 /** 每文件保留的版本数上限（超出删最旧；默认值先行，设置化留给后续轮） */
 export const HISTORY_LIMIT = 50
 const NOVEL_PREFIX = '正文/'
-const AUDIT_PREFIX = '大纲/审读_'
 
 export function isNovelRel(rel: string): boolean {
   return rel.startsWith(NOVEL_PREFIX)
-}
-
-/** 是否纳入版本历史：正文/（写正文快照）∪ 大纲/审读_（审读报告快照） */
-export function isVersionedRel(rel: string): boolean {
-  return isNovelRel(rel) || rel.startsWith(AUDIT_PREFIX)
 }
 
 /** 版本文件名：yyyyMMdd-HHmmss-SSS（可排序、肉眼可读；同 ms 冲突由 writeSnapshot 追加序号） */
