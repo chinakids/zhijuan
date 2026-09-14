@@ -40,16 +40,16 @@
 .zj-md .ProseMirror p { margin: 0 0 0.85em; }
 .zj-md .ProseMirror p:last-child { margin-bottom: 0; }
 
-/* 列表 / 引用 / 代码块：行距随正文体系 */
+/* 列表 / 引用 / 代码块：行距随正文体系（2026-09-14 波2复核：1.8→1.85，与正文 29.6px 同体系，HIG「三行以上避免紧行距」） */
 .zj-md .ProseMirror ul,
 .zj-md .ProseMirror ol { margin: 0 0 0.85em; padding-left: 1.5em; }
-.zj-md .ProseMirror li { line-height: 1.8; margin: 0.2em 0; }
+.zj-md .ProseMirror li { line-height: 1.85; margin: 0.2em 0; }
 .zj-md .ProseMirror blockquote {
   border-left: 3px solid var(--accent);
   margin: 0 0 0.85em;
   padding: 0.05em 0 0.05em 1em;
   color: var(--ink-2);
-  line-height: 1.8;
+  line-height: 1.85;
 }
 .zj-md .ProseMirror code {
   font-family: var(--font-mono);
