@@ -16,6 +16,7 @@ import {
   FSWatcher
 } from 'fs'
 import { extractFrontMatter, serializeFrontMatter, setFrontMatterField } from '../shared/fmatter'
+import { posixRel, toPosix } from '../shared/relpath'
 import { isOutlineCardRel, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterSliceInDoc } from '../shared/outline'
 import { listChapterEntries } from '../shared/chapters'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, DOT_DIR } from '../shared/paths'
@@ -286,9 +287,10 @@ export function listDocs(id: string, relDir: string): { file: string; name: stri
     for (const e of readdirSync(p, { withFileTypes: true })) {
       if (e.name.startsWith('.')) continue
       const fp = join(p, e.name)
-      if (e.isDirectory()) walk(fp, join(prefix, e.name))
+      if (e.isDirectory()) walk(fp, posixRel(prefix, e.name))
       else if (e.name.endsWith('.md')) {
-        const rel = join(prefix, e.name)
+        // rel 必须正斜杠（跨 IPC 契约，渲染层/devShim 全用 '/'；Windows 上 path.join 会产出反斜杠——见 shared/relpath.ts 与 docs/平台层-走向win-走查.md）
+        const rel = posixRel(prefix, e.name)
         out.push({ file: rel, name: e.name.replace(/\.md$/, ''), mtime: statSync(fp).mtimeMs })
       }
     }
@@ -535,7 +537,7 @@ export function watchProject(id: string, onEvent: (evt: FsEvent) => void): () =>
   try {
     watcher = watch(root, { recursive: true }, (_evt, filename) => {
       if (!filename) return
-      const rel = relative(root, String(filename))
+      const rel = toPosix(relative(root, String(filename)))
       if (!rel || rel.startsWith(DOT_DIR)) return // 工具目录变化不刷外部界面
       const kind = mapEvt(_evt)
       refreshCb?.({ projectId: id, kind, path: rel })

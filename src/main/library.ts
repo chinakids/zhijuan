@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, type Dirent
 import { join } from 'path'
 import { projectDir } from './store'
 import { sanitizeFile } from '../shared/paths'
+import { posixRel } from '../shared/relpath'
 import type { LibraryCategory, RecentLibraryDoc, SearchHit } from '../shared/types'
 
 /** 素材库下「工具目录」：采集池任务卡不属于素材，一律不参与类别/搜索 */
@@ -104,11 +105,11 @@ export function searchDocs(id: string, relDir: string, query: string, opts?: { e
       if (e.name.startsWith('.')) continue
       const fp = join(p, e.name)
       if (e.isDirectory()) {
-        walk(fp, join(prefix, e.name))
+        walk(fp, posixRel(prefix, e.name))
         continue
       }
       if (!e.name.endsWith('.md')) continue
-      const rel = join(prefix, e.name)
+      const rel = posixRel(prefix, e.name)
       const relFromRoot = (relDir ? relDir + '/' : '') + rel
       if (exclude.some((pre) => relFromRoot.startsWith(pre))) continue
       const name = e.name.replace(/\.md$/, '')
@@ -149,11 +150,11 @@ export function recentLibraryDocs(id: string, n = 5): RecentLibraryDoc[] {
       if (e.name.startsWith('.')) continue
       const fp = join(p, e.name)
       if (e.isDirectory()) {
-        walk(fp, join(prefix, e.name))
+        walk(fp, posixRel(prefix, e.name))
         continue
       }
       if (!e.name.endsWith('.md')) continue
-      const rel = join(prefix, e.name)
+      const rel = posixRel(prefix, e.name)
       const relFromRoot = relDir + '/' + rel
       if (relFromRoot.startsWith(relDir + '/' + COLLECTION_DIR + '/')) continue
       let mtime = 0
