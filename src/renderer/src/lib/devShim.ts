@@ -1002,27 +1002,27 @@ const mock = {
     // 用于无头验证「工具链」容器与「续读」徽标；不提及则维持原有的单次读演示（既有冒烟零回归）
     if (/链|续读/.test(input.prompt)) {
       const chain = [
-        { args: '正文/第01章_雾港.md', msg: '已读到第 6000 字符，全文共 12400 字符（可传 offset=6000 继续读）' },
-        { args: '正文/第01章_雾港.md (offset=6000)', msg: '已读到第 12000 字符（可传 offset=12000 继续读）' },
-        { args: '正文/第01章_雾港.md (offset=12000)', msg: '已读到末尾，全文共 12400 字符' }
+        { args: '正文/第01章_雾港.md', argsJson: JSON.stringify({ file: '正文/第01章_雾港.md' }), msg: '已读到第 6000 字符，全文共 12400 字符（可传 offset=6000 继续读）', result: '「灯语约定始于父亲出事那一夜……」（第 1-6000 字符节选）' },
+        { args: '正文/第01章_雾港.md (offset=6000)', argsJson: JSON.stringify({ file: '正文/第01章_雾港.md', offset: 6000 }), msg: '已读到第 12000 字符（可传 offset=12000 继续读）', result: '「海风灌进候船厅，阿七把灯芯拨亮了些。」（第 6001-12000 字符节选）' },
+        { args: '正文/第01章_雾港.md (offset=12000)', argsJson: JSON.stringify({ file: '正文/第01章_雾港.md', offset: 12000 }), msg: '已读到末尾，全文共 12400 字符', result: '（第 12001-12400 字符）' }
       ]
       for (const c of chain) {
-        emit({ requestId: rid, type: 'meta', tool: 'zj_read_doc', args: c.args })
+        emit({ requestId: rid, type: 'meta', tool: 'zj_read_doc', args: c.args, argsJson: c.argsJson })
         await demoDelay()
-        emit({ requestId: rid, type: 'meta-done', tool: 'zj_read_doc', message: c.msg })
+        emit({ requestId: rid, type: 'meta-done', tool: 'zj_read_doc', message: c.msg, result: c.result })
         await demoDelay()
       }
     } else {
-      emit({ requestId: rid, type: 'meta', tool: 'zj_read_doc', args: '正文/第01章_雾港.md' })
+      emit({ requestId: rid, type: 'meta', tool: 'zj_read_doc', args: '正文/第01章_雾港.md', argsJson: JSON.stringify({ file: '正文/第01章_雾港.md' }) })
       await demoDelay()
-      emit({ requestId: rid, type: 'meta-done', tool: 'zj_read_doc', message: '章节已读完' })
+      emit({ requestId: rid, type: 'meta-done', tool: 'zj_read_doc', message: '章节已读完', result: '「阿七靠着候船厅的柱子，指节发白地攥着那盏旧灯。」（全文 12400 字符）' })
     }
     // 工具失败演示：prompt 提到「失败/读不到/不存在」时演示一次失败工具卡（红色徽标）
     if (/失败|读不到|不存在/.test(input.prompt)) {
       await demoDelay()
-      emit({ requestId: rid, type: 'meta', tool: 'zj_search', args: '幽灵船' })
+      emit({ requestId: rid, type: 'meta', tool: 'zj_search', args: '幽灵船', argsJson: JSON.stringify({ query: '幽灵船', limit: 10 }) })
       await demoDelay()
-      emit({ requestId: rid, type: 'meta-done', tool: 'zj_search', message: '未找到匹配（ENOENT）', ok: false })
+      emit({ requestId: rid, type: 'meta-done', tool: 'zj_search', message: '未找到匹配（ENOENT）', ok: false, result: 'Error: ENOENT 未找到匹配\n  在 素材库/关于雾港的传说.md 中未发现「幽灵船」；请检查关键词或换一个词再试。' })
     }
     // 正文修改演示：prompt 提到「改」时给出 IDE 式修改方案
     if (/改|修|润|错别/.test(input.prompt)) {
@@ -1045,7 +1045,7 @@ const mock = {
         ]
       })
       await demoDelay()
-      emit({ requestId: rid, type: 'meta-done', tool: 'zj_edit_doc', message: '已生成正文修改方案（1 处），采纳后写入' })
+      emit({ requestId: rid, type: 'meta-done', tool: 'zj_edit_doc', message: '已生成正文修改方案（1 处），采纳后写入', result: '★ZJ_EDIT★\n{"file":"正文/第01章_雾港.md","edits":[{"find":"…","replace":"…"}]}\n★ZJ_END★' })
     }
     // 只有明确提到计划/提问词时才演示卡片（避免平时也冒一堆卡）
     const needDemo = /计划|todo|任务|问|确认/.test(input.prompt)

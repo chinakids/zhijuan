@@ -163,6 +163,10 @@ export interface AgentEvent {
   tool?: string
   /** 工具开始时的参数字符串（如 zj_read_doc 的 file，用于 UI 展示“读了哪个文档”） */
   args?: string
+  /** type = meta：完整参数 JSON（工具卡「细节展开」用；超长已截断） */
+  argsJson?: string
+  /** type = meta-done：完整结果正文（展开可查；失败时含完整报错；超长已截断） */
+  result?: string
   message?: string
   /** type = todo 时的全量清单 */
   items?: TodoItem[]

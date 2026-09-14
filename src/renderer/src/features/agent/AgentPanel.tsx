@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Rea
 import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, Users, UserCheck, ListOrdered, FileWarning, FileQuestion, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, Rows3, Tags, Waypoints } from 'lucide-react'
+import { Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, Users, UserCheck, ListOrdered, FileWarning, FileQuestion, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, Rows3, Tags, Waypoints } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import type { ProseApi } from '../editor/Prose'
@@ -58,12 +58,15 @@ function fmtDur(ms: number): string {
   return m + 'm' + Math.round(s - m * 60) + 's'
 }
 
-function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs, step, continued }: {
+function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs, step, continued, argsJson, result }: {
   tool: string; args?: string; done?: boolean; toolOk?: boolean; summary?: string; startedAt?: number; elapsedMs?: number
   /** 工具链内序号（如 2/3）——多轮连续工具调用可追溯顺序 */
   step?: { no: number; total: number }
   /** 续读徽标：链内更早的 zj_read_doc 已读过同一文档（offset 续读链） */
   continued?: boolean
+  /** 完整参数 JSON / 完整结果正文：「细节展开」（默认折叠，零噪音；对照 Claude Code 工具调用默认折叠+可展开详细执行） */
+  argsJson?: string
+  result?: string
 }) {
   const failed = done === true && toolOk === false
   // 进行中态：每秒刷新「已 Ns」；完成后不再刷新（meta-done 事件里已带最终耗时）
@@ -74,49 +77,91 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
     return () => window.clearInterval(h)
   }, [done, startedAt])
   const live = !done && startedAt != null ? Math.max(0, performance.now() - startedAt) : undefined
+  // 「细节展开」：仅有可查看的完整参数/结果时给入口（old 事件无新字段 → 不显示，视觉零回归）
+  const hasDetail = !!(argsJson || result)
+  const [open, setOpen] = useState(false)
+  const prettyArgs = useMemo(() => {
+    if (!argsJson) return undefined
+    try {
+      return JSON.stringify(JSON.parse(argsJson), null, 2)
+    } catch {
+      return argsJson
+    }
+  }, [argsJson])
   return (
     <div
       className={cn(
-        'flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[11px]',
+        'rounded-lg border text-[11px]',
         failed ? 'border-danger/40 bg-surface' : done ? 'border-hair bg-surface' : 'border-accent/30 bg-surface'
       )}
+      data-testid={hasDetail ? 'zj-tool-detail' : undefined}
     >
-      {failed ? (
-        <CircleX className="h-3 w-3 shrink-0 text-danger" />
-      ) : done ? (
-        <Check className="h-3 w-3 shrink-0 text-success" />
-      ) : (
-        <LoadingIndicator size={12} className="shrink-0 text-accent" />
-      )}
-      {step && (
-        <span data-testid="zj-step" className="shrink-0 rounded bg-surface-2 px-1 py-0.5 text-[10px] leading-none text-ink-3">
-          {step.no}/{step.total}
-        </span>
-      )}
-      <span className={cn('shrink-0 font-medium', failed ? 'text-danger' : 'text-ink-2')}>{toolLabel(tool)}</span>
-      {continued && (
-        <span
-          data-testid="zj-continued"
-          title="同一文档的续读片段（offset 续读链：前面的读取已提示「可传 offset=… 继续读」）"
-          className="shrink-0 rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] text-accent"
-        >
-          续读
-        </span>
-      )}
-      {/* 参数行：truncate 单行 + title 全量（原 break-all 会把 CJK 文件名逐字竖排——F-20260912-06 修复） */}
-      {args && <span className="min-w-0 flex-1 truncate font-mono text-[10px] leading-4 text-ink-3" title={args}>{args}</span>}
-      {failed && <span className="shrink-0 rounded-full bg-danger-soft px-2 py-0.5 text-[10px] text-danger">失败</span>}
-      {done && summary && (
-        <span className={cn('shrink-0 whitespace-nowrap', failed ? 'text-danger' : 'text-ink-3')}>{summary}</span>
-      )}
-      {live != null && (
-        <span className="shrink-0 whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-[10px] text-accent">已 {fmtDur(live)}</span>
-      )}
-      {!done && live == null && elapsedMs != null && (
-        <span className="shrink-0 whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-[10px] text-accent">已 {fmtDur(elapsedMs)}</span>
-      )}
-      {done && elapsedMs != null && (
-        <span className="shrink-0 whitespace-nowrap rounded-full bg-surface px-2 py-0.5 text-[10px] text-ink-3">{fmtDur(elapsedMs)}</span>
+      <div className="flex items-center gap-2 px-2.5 py-1.5">
+        {failed ? (
+          <CircleX className="h-3 w-3 shrink-0 text-danger" />
+        ) : done ? (
+          <Check className="h-3 w-3 shrink-0 text-success" />
+        ) : (
+          <LoadingIndicator size={12} className="shrink-0 text-accent" />
+        )}
+        {step && (
+          <span data-testid="zj-step" className="shrink-0 rounded bg-surface-2 px-1 py-0.5 text-[10px] leading-none text-ink-3">
+            {step.no}/{step.total}
+          </span>
+        )}
+        <span className={cn('shrink-0 font-medium', failed ? 'text-danger' : 'text-ink-2')}>{toolLabel(tool)}</span>
+        {continued && (
+          <span
+            data-testid="zj-continued"
+            title="同一文档的续读片段（offset 续读链：前面的读取已提示「可传 offset=… 继续读」）"
+            className="shrink-0 rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] text-accent"
+          >
+            续读
+          </span>
+        )}
+        {/* 参数行：truncate 单行 + title 全量（原 break-all 会把 CJK 文件名逐字竖排——F-20260912-06 修复） */}
+        {args && <span className="min-w-0 flex-1 truncate font-mono text-[10px] leading-4 text-ink-3" title={args}>{args}</span>}
+        {failed && <span className="shrink-0 rounded-full bg-danger-soft px-2 py-0.5 text-[10px] text-danger">失败</span>}
+        {done && summary && (
+          <span className={cn('shrink-0 whitespace-nowrap', failed ? 'text-danger' : 'text-ink-3')}>{summary}</span>
+        )}
+        {live != null && (
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-[10px] text-accent">已 {fmtDur(live)}</span>
+        )}
+        {!done && live == null && elapsedMs != null && (
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-[10px] text-accent">已 {fmtDur(elapsedMs)}</span>
+        )}
+        {done && elapsedMs != null && (
+          <span className="shrink-0 whitespace-nowrap rounded-full bg-surface px-2 py-0.5 text-[10px] text-ink-3">{fmtDur(elapsedMs)}</span>
+        )}
+        {hasDetail && (
+          <button
+            data-testid="zj-tool-detail-toggle"
+            title={open ? '收起完整参数/结果' : '查看完整参数与结果'}
+            aria-label={open ? '收起详情' : '展开详情'}
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+            className="shrink-0 rounded p-0.5 text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
+          >
+            <ChevronDown className={cn('h-3 w-3 transition-transform', open && 'rotate-180')} />
+          </button>
+        )}
+      </div>
+      {open && (
+        <div data-testid="zj-tool-detail-body" className="space-y-1.5 border-t border-hair px-2.5 py-2">
+          {prettyArgs != null && (
+            <div>
+              <p className="mb-0.5 text-[10px] font-medium text-ink-3">参数</p>
+              <pre className="max-h-36 overflow-auto whitespace-pre-wrap break-all rounded bg-surface-2 px-2 py-1 font-mono text-[10px] leading-4 text-ink-2">{prettyArgs}</pre>
+            </div>
+          )}
+          {result != null && (
+            <div>
+              <p className="mb-0.5 text-[10px] font-medium text-ink-3">结果</p>
+              <pre className={cn('max-h-48 overflow-auto whitespace-pre-wrap break-all rounded px-2 py-1 font-mono text-[10px] leading-4', failed ? 'bg-danger-soft/60 text-danger' : 'bg-surface-2 text-ink-2')}>{result}</pre>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
@@ -145,6 +190,8 @@ function ToolChain({ msgs }: { msgs: AgentMsg[] }) {
             elapsedMs={m.elapsedMs}
             step={{ no: i + 1, total: msgs.length }}
             continued={isContinuedRead(msgs, i)}
+            argsJson={m.toolArgsJson}
+            result={m.toolResult}
           />
         ))}
       </div>
@@ -369,14 +416,14 @@ function useSender(props: AgentPanelProps) {
             else if (e.type === 'meta') {
               const id = rid + '-m' + metaSeq++
               metaStack.push(id)
-              useAgentStore.getState().upsertTool({ id, kind: 'meta', tool: e.tool ?? '', toolArgs: e.args, done: false, startedAt: performance.now() })
+              useAgentStore.getState().upsertTool({ id, kind: 'meta', tool: e.tool ?? '', toolArgs: e.args, toolArgsJson: e.argsJson, done: false, startedAt: performance.now() })
             } else if (e.type === 'meta-done') {
               const id = activeMeta()
               if (id) metaStack.pop()
               if (id) {
                 const prev = useAgentStore.getState().messages.find((x) => x.id === id)
                 const elapsedMs = prev?.startedAt != null ? Math.max(0, performance.now() - prev.startedAt) : undefined
-                useAgentStore.getState().upsertTool({ id, kind: 'meta', tool: e.tool ?? '', done: true, toolOk: e.ok !== false, content: e.message ?? '', elapsedMs })
+                useAgentStore.getState().upsertTool({ id, kind: 'meta', tool: e.tool ?? '', done: true, toolOk: e.ok !== false, content: e.message ?? '', toolResult: e.result ?? prev?.toolResult, elapsedMs })
               }
             } else if (e.type === 'edit') {
               if (e.file && e.edits?.length) {
@@ -1089,7 +1136,7 @@ export default function AgentPanel(props: AgentPanelProps) {
                 }
                 return (
                   <div key={m.id} className="w-full">
-                    <ToolActivity tool={m.tool ?? ''} args={m.toolArgs} done={m.done} toolOk={m.toolOk} summary={m.content} startedAt={m.startedAt} elapsedMs={m.elapsedMs} />
+                    <ToolActivity tool={m.tool ?? ''} args={m.toolArgs} done={m.done} toolOk={m.toolOk} summary={m.content} startedAt={m.startedAt} elapsedMs={m.elapsedMs} argsJson={m.toolArgsJson} result={m.toolResult} />
                   </div>
                 )
               }

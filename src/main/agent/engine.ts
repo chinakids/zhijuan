@@ -7,7 +7,7 @@ import { projectDir, listDocs } from '../store'
 import { buildWritingContext, buildProjectContext } from './context'
 import { expandAtRefs } from './refs'
 import { trimHistoryMessage } from '../../shared/historyTrim'
-import { summarizeToolArgs } from '../../shared/toolArgs'
+import { summarizeToolArgs, serializeToolArgs } from '../../shared/toolArgs'
 import { normalizeSyncItems, ensureWorldSliceFile, guardPersonTargets, classifySyncRaw } from './syncAnchor'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { readFileSync } from 'fs'
@@ -22,8 +22,8 @@ export { closeHarness as shutdown } from './runtime'
 export type AgentOutEvent =
   | { requestId: string; type: 'delta'; text: string } // 模型文本增量
   | { requestId: string; type: 'think'; text: string } // 模型思考增量（reasoning 块）
-  | { requestId: string; type: 'meta'; tool: string; args?: string } // 工具开始（带参数摘要）
-  | { requestId: string; type: 'meta-done'; tool: string; message: string; ok?: boolean } // 工具结果摘要（ok=false=工具失败）
+  | { requestId: string; type: 'meta'; tool: string; args?: string; argsJson?: string } // 工具开始（参数摘要 + 完整参数 JSON，供细节展开）
+  | { requestId: string; type: 'meta-done'; tool: string; message: string; ok?: boolean; result?: string } // 工具结果摘要（ok=false=工具失败）+ 结果全文（供细节展开）
   | { requestId: string; type: 'edit'; file: string; edits: import('../../shared/types').EditItem[] } // 正文修改提案（IDE 前/>后，待采纳）
   | { requestId: string; type: 'final'; text: string } // 本轮最终答复
   | { requestId: string; type: 'done' }
@@ -164,7 +164,7 @@ function translate(n: DriveEvent, requestId: string, emit: (e: AgentOutEvent) =>
   } else if (t === 'tool/call') {
     const name = String(d.name ?? d.callId ?? '工具')
     lastToolName.set(requestId, name)
-    emit({ requestId, type: 'meta', tool: name, args: summarizeToolArgs(d.arguments) })
+    emit({ requestId, type: 'meta', tool: name, args: summarizeToolArgs(d.arguments), argsJson: serializeToolArgs(d.arguments) })
   } else if (t === 'tool/result') {
     const blocks = d.message?.content ?? []
     const text = blocks
@@ -180,7 +180,7 @@ function translate(n: DriveEvent, requestId: string, emit: (e: AgentOutEvent) =>
       const json = extractEditPayload(text)
       if (json) {
         emit({ requestId, type: 'edit', file: String(json.file ?? ''), edits: json.edits })
-        emit({ requestId, type: 'meta-done', tool: name, message: `已生成正文修改方案（${json.edits?.length ?? 0} 处），采纳后写入` })
+        emit({ requestId, type: 'meta-done', tool: name, message: `已生成正文修改方案（${json.edits?.length ?? 0} 处），采纳后写入`, result: text.slice(0, 4000) })
         return
       }
     }
@@ -189,7 +189,8 @@ function translate(n: DriveEvent, requestId: string, emit: (e: AgentOutEvent) =>
       type: 'meta-done',
       tool: name,
       message: text.slice(0, 80) || (failed ? '失败' : '完成'),
-      ok: !failed
+      ok: !failed,
+      result: text.slice(0, 4000) // 完整结果正文（失败时含完整报错，展开可查）
     })
   } else if (t === 'todo/write') {
     const todos = Array.isArray(d.todos)

@@ -18,6 +18,9 @@ export interface AgentMsg {
   /** meta 卡：工具名与参数展示 */
   tool?: string
   toolArgs?: string
+  /** meta 卡：完整参数 JSON 与完整结果正文（「细节展开」用，默认折叠） */
+  toolArgsJson?: string
+  toolResult?: string
   done?: boolean
   /** meta 卡：工具结果是否成功（done 后才有意义；false=失败态） */
   toolOk?: boolean

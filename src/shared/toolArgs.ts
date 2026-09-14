@@ -25,3 +25,15 @@ export function summarizeToolArgs(args: unknown): string | undefined {
   const v = obj[k]
   return typeof v === 'string' || typeof v === 'number' ? `${k}=${v}` : k
 }
+
+/** 完整参数 JSON（供工具卡「细节展开」）：对象序列化、字符串原样；超长截断保护，解析不了返回 undefined。 */
+export function serializeToolArgs(args: unknown, cap = 4000): string | undefined {
+  if (args == null) return undefined
+  try {
+    const raw = typeof args === 'string' ? args : JSON.stringify(args)
+    if (!raw) return undefined
+    return raw.length > cap ? raw.slice(0, cap) + '…（截断）' : raw
+  } catch {
+    return undefined
+  }
+}
