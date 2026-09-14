@@ -178,41 +178,6 @@ export default function Home() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* 顶栏 */}
-      <header className="flex items-center gap-3 border-b border-hair bg-surface px-6 py-3">
-        <div className="flex items-center gap-2">
-          {/* 定制徽标：「织」册子 SVG（渐变+书页织纹；主人 2026-09-12 SVG 化） */}
-          <svg viewBox="0 0 32 32" className="h-8 w-8 shrink-0" aria-hidden="true">
-            <defs>
-              <linearGradient id="zj-logo-g" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor="var(--accent)" />
-                <stop offset="1" stopColor="color-mix(in srgb, var(--accent) 60%, #000 40%)" />
-              </linearGradient>
-            </defs>
-            <rect width="32" height="32" rx="8" fill="url(#zj-logo-g)" />
-            <path
-              d="M16 9 C13 7.4 9.6 7.1 7 8 v15 C9.6 22.1 13 22.4 16 24 C19 22.4 22.4 22.1 25 23 V8 C22.4 7.1 19 7.4 16 9 Z"
-              fill="rgba(255,255,255,0.92)"
-            />
-            <path d="M16 9 V24" stroke="var(--accent)" strokeWidth="1.2" opacity="0.5" />
-            <path d="M10.5 12.5 L14 12.5 M10.5 15.5 L14 15.5" stroke="var(--accent)" strokeWidth="1.1" strokeLinecap="round" opacity="0.55" />
-            <path d="M18 12.5 L21.5 12.5 M18 15.5 L21.5 15.5" stroke="var(--accent)" strokeWidth="1.1" strokeLinecap="round" opacity="0.55" />
-            <rect width="32" height="32" rx="8" fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="1" />
-          </svg>
-          <div>
-            <h1 className="text-base font-semibold leading-none">织卷</h1>
-            <p className="text-xs text-ink-3">小说创作工作台</p>
-          </div>
-        </div>
-        <div className="flex-1" />
-        <Button variant="ghost" size="sm" onClick={() => setImporting(true)}>
-          <FolderOpen /> 导入目录
-        </Button>
-        <Button size="sm" onClick={() => setCreating(true)}>
-          <Plus /> 新建项目
-        </Button>
-      </header>
-
       {/* 项目网格 */}
       <main className="flex-1 overflow-auto p-6">
         {/* 工具条：搜索过滤 + 排序说明（窄窗口不换行，truncate） */}
@@ -233,6 +198,15 @@ export default function Home() {
           </p>
           <div className="flex-1" />
           <p className="hidden shrink-0 text-xs text-ink-3 sm:block">排序：最近打开优先 · 未打开的按最近编辑</p>
+          {/* 主操作区（2026-09-14 顶栏合并：原 header 按钮上移至工具条，窄窗口不换行） */}
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setImporting(true)} data-testid="home-import-dir">
+              <FolderOpen /> 导入目录
+            </Button>
+            <Button size="sm" onClick={() => setCreating(true)} data-testid="home-new-project">
+              <Plus /> 新建项目
+            </Button>
+          </div>
         </div>
         {loading && (
           <div className="flex items-center justify-center gap-2 pt-20 text-sm text-ink-3">
@@ -262,7 +236,7 @@ export default function Home() {
           <EmptyState
             art="library"
             title="还没有项目"
-            hint="点右上角「新建项目」开始第一本，或导入一个已有目录。"
+            hint="点上方「新建项目」开始第一本，或导入一个已有目录。"
             action={
               <Button size="sm" onClick={() => setCreating(true)}>
                 <Plus /> 新建项目
