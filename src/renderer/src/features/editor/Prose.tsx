@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type MutableRefObject } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type MutableRefObject } from 'react'
 import { Editor, rootCtx, defaultValueCtx, editorViewCtx, parserCtx, serializerCtx, prosePluginsCtx } from '@milkdown/kit/core'
 import { commonmark } from '@milkdown/kit/preset/commonmark'
 import { gfm } from '@milkdown/kit/preset/gfm'
@@ -18,6 +18,12 @@ import EditorToolbar from './EditorToolbar'
 import FindBar from './FindBar'
 import { findInDoc, type FindPos } from './finder'
 import { EMPTY_ACTIVE, activeEq, readToolbarActive, type ActiveState } from './toolbarActive'
+import {
+  computeFloatingPos,
+  FLOAT_EST_ANNO_POP,
+  FLOAT_EST_BUBBLE,
+  type FloatSize
+} from './floatingPos'
 import type { AnnotationRow } from '../../../../shared/annotations'
 import { MENU_EV_FIND, isMenuJustHandled } from '../menu/menuBus'
 import {
@@ -178,10 +184,26 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
     []
   )
 
-  /* —— 划词浮层：选中文本 → 送进对话引用（全局事件 zj:quote-text）—— */
-  const [bubble, setBubble] = useState<{ text: string; x: number; y: number; below: boolean } | null>(null)
+  /* —— 划词浮层：选中文本 → 送进对话引用（全局事件 zj:quote-text）——
+   * 位置口径（2026-09-15 体验层：贴边翻转）：state 存锚点视口矩形（cx/top/bottom）与初始方位意图；
+   * 渲染与测量 effect 共同经 computeFloatingPos（floatingPos.ts 纯函数，可单测）得出最终坐标——
+   * 垂直按「上方放不下→翻下方→双侧不足取大侧并钳制」，水平中心越界钳回视口（HIG Popovers 定位）。 */
+  const [bubble, setBubble] = useState<{ text: string; cx: number; top: number; bottom: number; below: boolean } | null>(null)
   const bubbleRef = useRef(bubble)
   bubbleRef.current = bubble
+  const bubbleElRef = useRef<HTMLDivElement | null>(null)
+  const [bubbleSize, setBubbleSize] = useState<FloatSize | null>(null)
+  // 挂载后实测浮层尺寸并回写 state（useLayoutEffect：paint 前完成，首帧估计位不闪烁）
+  useLayoutEffect(() => {
+    if (!bubble) {
+      setBubbleSize(null)
+      return
+    }
+    const el = bubbleElRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    setBubbleSize((cur) => (cur && cur.w === r.width && cur.h === r.height ? cur : { w: r.width, h: r.height }))
+  }, [bubble])
   /** 焦点回编辑器（浮层/气泡动作或 Esc 关闭后；HIG：焦点不丢、人知道在哪） */
   const focusEditor = () => {
     try {
@@ -209,8 +231,9 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
         return
       }
       const rect = r.getBoundingClientRect()
+      // below 仅作首帧意图（贴近顶部）；权威方位由 computeFloatingPos 按实测尺寸与视口空间判定
       const below = rect.top < 120
-      setBubble({ text: t, x: rect.left + rect.width / 2, y: below ? rect.bottom : rect.top, below })
+      setBubble({ text: t, cx: rect.left + rect.width / 2, top: rect.top, bottom: rect.bottom, below })
     }
     const onDown = (e: MouseEvent) => {
       if ((e.target as HTMLElement)?.closest?.('.zj-sel-bubble')) return
@@ -245,9 +268,21 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
 
   /* —— 批注气泡（2026-09-13 体验层：点击高亮弹出意图卡片，替代纯 title 提示；含加入对话/删除该批注）——
    * 位置锚定高亮首行矩形，上方/下方自适应；点击别处/Esc/滚动即关（HIG Popovers：小量信息、箭头指向触发元素、点外关闭）。 */
-  const [annoPop, setAnnoPop] = useState<{ row: number; x: number; y: number; below: boolean } | null>(null)
+  const [annoPop, setAnnoPop] = useState<{ row: number; cx: number; top: number; bottom: number; below: boolean } | null>(null)
   const annoPopRef = useRef(annoPop)
   annoPopRef.current = annoPop
+  const annoPopElRef = useRef<HTMLDivElement | null>(null)
+  const [annoPopSize, setAnnoPopSize] = useState<FloatSize | null>(null)
+  useLayoutEffect(() => {
+    if (!annoPop) {
+      setAnnoPopSize(null)
+      return
+    }
+    const el = annoPopElRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    setAnnoPopSize((cur) => (cur && cur.w === r.width && cur.h === r.height ? cur : { w: r.width, h: r.height }))
+  }, [annoPop])
   useEffect(() => {
     if (!annoPop) return
     const onDown = (e: MouseEvent) => {
@@ -293,10 +328,18 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
     if (!Number.isFinite(row) || row < 1) return
     const rects = (el as HTMLElement).getClientRects()
     const r = rects.length ? rects[0] : (el as HTMLElement).getBoundingClientRect()
+    // below 仅作首帧意图；权威方位按实测尺寸与视口空间判定（floatingPos，贴边翻转）
     const below = r.top < 140
-    setAnnoPop((cur) => (cur && cur.row === row ? null : { row, x: r.left + r.width / 2, y: below ? r.bottom : r.top, below }))
+    setAnnoPop((cur) => (cur && cur.row === row ? null : { row, cx: r.left + r.width / 2, top: r.top, bottom: r.bottom, below }))
   }
   const annoPopRow = annoPop ? (annoRef.current.find((a) => a.row === annoPop.row) ?? null) : null
+  /** 最终布局（floatingPos 纯函数）：尺寸未测得时用估计值（挂载后 useLayoutEffect 立即实测修正，paint 前完成） */
+  const bubblePos = bubble
+    ? computeFloatingPos({ cx: bubble.cx, top: bubble.top, bottom: bubble.bottom }, bubbleSize ?? FLOAT_EST_BUBBLE, window.innerWidth, window.innerHeight)
+    : null
+  const annoPopPos = annoPop
+    ? computeFloatingPos({ cx: annoPop.cx, top: annoPop.top, bottom: annoPop.bottom }, annoPopSize ?? FLOAT_EST_ANNO_POP, window.innerWidth, window.innerHeight)
+    : null
 
   /* —— 批注侧标（2026-09-13 体验层：候选1② 收口）——
    * 形态：正文左缘（.ProseMirror 的 1.4rem padding 区内）画琥珀圆点，标出被批注段落；
@@ -962,15 +1005,16 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
           </div>
         )}
       </div>
-      {bubble && (
+      {bubble && bubblePos && (
         <div
+          ref={bubbleElRef}
           role="toolbar"
           aria-label="选中文字操作"
           className="zj-sel-bubble flex items-center gap-1"
           style={{
-            left: bubble.x,
-            top: bubble.below ? bubble.y + 10 : bubble.y,
-            transform: bubble.below ? 'translate(-50%, 4px)' : 'translate(-50%, calc(-100% - 10px))'
+            left: bubblePos.x,
+            top: bubblePos.top,
+            transform: 'translate(-50%, 0)'
           }}
         >
           <button onClick={copyBubble} title="复制选中文字" aria-label="复制选中文字">
@@ -987,15 +1031,16 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
           </button>
         </div>
       )}
-      {annoPop && annoPopRow && (
+      {annoPop && annoPopRow && annoPopPos && (
         <div
+          ref={annoPopElRef}
           className="zj-anno-pop"
           role="group"
           aria-label="批注"
           style={{
-            left: annoPop.x,
-            top: annoPop.below ? annoPop.y + 10 : annoPop.y,
-            transform: annoPop.below ? 'translate(-50%, 4px)' : 'translate(-50%, calc(-100% - 10px))'
+            left: annoPopPos.x,
+            top: annoPopPos.top,
+            transform: 'translate(-50%, 0)'
           }}
         >
           <div className="zj-anno-pop-note">{annoPopRow.note}</div>
