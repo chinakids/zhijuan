@@ -653,6 +653,12 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
           focusEditor()
           return
         }
+        // 焦点在正文工具栏内：Esc 回焦正文编辑器（Tab 进工具栏后的键盘出口；HIG Keyboards＝控件
+        // 遍历靠 Tab 循环，Esc 结束当前控件层；不 preventDefault——Radix More 菜单等后续处理器照常）。
+        if (fEl?.closest?.('.zj-md-toolbar')) {
+          focusEditor()
+          return
+        }
         // 浮层开着但焦点在编辑器内（键盘选择后）：Esc 取消当前选区工具（无查找会话时），关注点不动
         if ((bubbleRef.current || annoPopRef.current) && !findOpenRef.current && fEl?.closest?.('.ProseMirror')) {
           e.preventDefault()
