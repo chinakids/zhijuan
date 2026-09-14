@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  DEFAULT_DURATION,
   LEAVE_MS,
   MAX_TOASTS,
   resetToastsForTest,
@@ -119,6 +120,69 @@ describe('toasts 全局通知（自研轻量）', () => {
     t = useToastsStore.getState().toasts.find((x) => x.id === id)
     expect(t?.action).toBeNull()
     expect(t?.kind).toBe('loading')
+  })
+
+  it('带 action 的 toast 常驻：不自动消失（duration 0），手动 dismiss 才退场', () => {
+    const id = toast.add({
+      kind: 'error',
+      title: '切片同步失败',
+      action: { label: '重试同步', onClick: () => void 0 }
+    })
+    expect(useToastsStore.getState().toasts.find((x) => x.id === id)?.duration).toBe(0)
+    // 远超 error 默认 10s 仍在（VS Code「带 action 的失败通知」建议口径）
+    vi.advanceTimersByTime(30000)
+    expect(useToastsStore.getState().toasts).toHaveLength(1)
+    expect(useToastsStore.getState().toasts[0].leaving).toBeUndefined()
+    toast.dismiss(id)
+    vi.advanceTimersByTime(LEAVE_MS)
+    expect(useToastsStore.getState().toasts).toHaveLength(0)
+  })
+
+  it('update 移除 action（收尾成功）→ 恢复类型默认自动消失', () => {
+    const id = toast.add({
+      kind: 'error',
+      title: '切片同步失败',
+      action: { label: '重试同步', onClick: () => void 0 }
+    })
+    toast.update(id, { kind: 'success', title: '切片同步完成', action: null })
+    const t = useToastsStore.getState().toasts.find((x) => x.id === id)
+    expect(t?.action).toBeNull()
+    expect(t?.duration).toBe(DEFAULT_DURATION.success)
+    vi.advanceTimersByTime(5999)
+    expect(useToastsStore.getState().toasts).toHaveLength(1)
+    vi.advanceTimersByTime(1)
+    expect(useToastsStore.getState().toasts[0].leaving).toBe(true)
+    vi.advanceTimersByTime(LEAVE_MS)
+    expect(useToastsStore.getState().toasts).toHaveLength(0)
+  })
+
+  it('update 给无 action 的 toast 挂 action → 转常驻（现有计时停止）', () => {
+    const id = toast.add({ kind: 'warning', title: 'w' })
+    vi.advanceTimersByTime(3000)
+    expect(useToastsStore.getState().toasts).toHaveLength(1)
+    toast.update(id, { action: { label: '重试同步', onClick: () => void 0 } })
+    expect(useToastsStore.getState().toasts.find((x) => x.id === id)?.duration).toBe(0)
+    vi.advanceTimersByTime(60000)
+    expect(useToastsStore.getState().toasts).toHaveLength(1)
+    expect(useToastsStore.getState().toasts[0].leaving).toBeUndefined()
+    // 仅 action 变化（kind 不变）也重排计时——再次挂 action 保持常驻
+    toast.update(id, { action: { label: '再试', onClick: () => void 0 } })
+    vi.advanceTimersByTime(60000)
+    expect(useToastsStore.getState().toasts).toHaveLength(1)
+  })
+
+  it('悬停暂停中 update 成常驻类（loading/带 action）→ 恢复不误退场', () => {
+    const id = toast.add({ kind: 'error', title: '失败' })
+    const st = useToastsStore.getState()
+    st.pause(id)
+    // 悬停中重试：摘 action 转 loading（常驻）
+    toast.update(id, { kind: 'loading', title: '重试中', action: null })
+    st.resume(id)
+    // 常驻类恢复后不应被立即 dismiss（left=0 误判防护）
+    expect(useToastsStore.getState().toasts).toHaveLength(1)
+    expect(useToastsStore.getState().toasts[0].leaving).toBeUndefined()
+    vi.advanceTimersByTime(60000)
+    expect(useToastsStore.getState().toasts).toHaveLength(1)
   })
 
   it('pause/resume：悬停暂停倒计时，离开继续', () => {

@@ -2,7 +2,7 @@
 // Tab A（Novel）：保存正文→agentSync 一次性失败→失败浮条「✗ 切片同步失败」+「重试同步」按钮
 //                →留驻不自动清除→点击重试→成功提示（✓ 无设定变化）+ 按钮消失 + agentSync 被调 2 次
 // Tab B（Outline）：分幕采纳→agentSync 一次性失败→toast「切片同步失败」+ action「重试同步」
-//                →点击重试→toast 更新「切片同步完成」
+//                →点击重试→toast 更新「切片同步完成」；带 action 的失败 toast 常驻不自动消失（创作层 2026-09-14 候选 2）
 // Tab C（EditCard 采纳，创作层 2026-09-14）：agent 演示修改卡→采纳并写入→同步失败→卡内「重试同步」→成功
 // Tab D（HistoryDrawer 恢复，创作层 2026-09-14）：造历史→恢复此版本→同步失败→抽屉内「重试同步」→成功
 // Tab E（批注提案接受，创作层 2026-09-14）：批注定时优化首扫生成提案→接受→toast 失败+action→重试成功
@@ -142,6 +142,12 @@ try {
   )
   ok('⑨ 失败 toast 内含「重试同步」按钮', true)
   ok('⑩ agentSync 首次调用（失败）', (await pageB.eval(syncCount)) === 1, 'count=' + (await pageB.eval(syncCount)))
+  // 带 action 的失败 toast 常驻：远超 error 默认 10s 仍在（VS Code「带 action 的通知不自动关闭」口径）
+  await sleep(10500)
+  ok(
+    '⑩b 失败 toast 10.5s 后仍在（带 action 常驻，不自动消失）',
+    (await pageB.eval(`[...document.querySelectorAll('.zj-toast')].some((t) => (t.innerText || '').includes('切片同步失败'))`)) === true
+  )
   // 点 toast 内重试 → 成功
   await pageB.eval(`[...document.querySelectorAll('.zj-toast button')].find((b) => (b.innerText || '').trim() === '重试同步').click()`)
   await evalUntil(pageB, pageHas('切片同步完成'), (v) => v === true, 15000, 'toast 更新为完成')
@@ -266,6 +272,12 @@ try {
   )
   ok('㉚ 失败 toast 内含「重试同步」action', true)
   ok('㉛ agentSync 首次调用（失败）', (await pageE.eval(syncCount)) === 1, 'count=' + (await pageE.eval(syncCount)))
+  // 带 action 的失败 toast 常驻：远超 warning 默认 8s 仍在
+  await sleep(8500)
+  ok(
+    '㉛b 失败 toast 8.5s 后仍在（带 action 常驻，不自动消失）',
+    (await pageE.eval(`[...document.querySelectorAll('.zj-toast')].some((t) => (t.innerText || '').includes('切片同步'))`)) === true
+  )
   await pageE.eval(`[...document.querySelectorAll('.zj-toast button')].find((b) => (b.innerText || '').trim() === '重试同步').click()`)
   await evalUntil(pageE, pageHas('切片同步无设定变化'), (v) => v === true, 15000, 'toast 更新为成功')
   ok('㉜ 重试后 toast 更新「正文已改写，切片同步无设定变化」', true)
@@ -273,7 +285,7 @@ try {
   ok('㉝ agentSync 第二次调用（成功）', (await pageE.eval(syncCount)) === 2, 'count=' + (await pageE.eval(syncCount)))
   pageE.close()
 
-  console.log('── 全部通过：' + passed + '/33 ──')
+  console.log('── 全部通过：' + passed + '/35 ──')
 } catch (e) {
   console.error('FAILED at step, passed=' + passed)
   throw e
