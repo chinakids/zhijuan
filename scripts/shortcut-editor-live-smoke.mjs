@@ -7,7 +7,11 @@
 // 验收点：T1 编辑器挂载+焦点进入；T2 insertText 探针（CDP→PM 链路）；T3 ⌘B 包裹输入（strong）；
 //        T4 ⌘I（emphasis）；T5 ⌘Z/⌘Y/⇧⌘Z 撤销重做；T6 ⇧⌘B 引用块；T7 ⌥⌘1 标题；
 //        T8 ⌘E 无选区 no-op（不产行内代码、不下查找词）；T9 ⌘E 有选区=设置查找词且无行内代码（遮蔽实锤）；
-//        T10 ⌘F 打开查找条；T11 全程零 JS 异常。
+//        T10 ⌘F 打开查找条；T12/T13 ⌥⌘2..6 标题；T14 ⌥⌘0 正文段落；T15 ⌘A 全选；
+//        T16 Tab/⇧Tab 列表缩进（listItemKeymap Sink/Lift）；T17 ⌘G/⇧⌘G 高亮步进；T11 全程零 JS 异常。
+// 键位事实（安装包源码，2026-09-15 核对 node_modules/@milkdown/preset-commonmark/lib/index.js）：
+//  paragraphKeymap.TurnIntoText=Mod-Alt-0；headingKeymap.TurnIntoH1..H6=Mod-Alt-1..6；
+//  listItemKeymap.SinkListItem=["Tab","Mod-]"] / LiftListItem=["Shift-Tab","Mod-["]（preset-gfm 的 Tab 仅表格 NextCell）。
 import { writeFileSync, mkdirSync } from 'node:fs'
 const CDP = 'http://127.0.0.1:9224'
 const BASE = process.env.ZJ_SMOKE_BASE || 'http://127.0.0.1:8899'
@@ -70,7 +74,7 @@ async function evalUntil(page, expr, pred, timeoutMs = 25000, label = expr) {
 
 const pageHas = (t) => `document.body.innerText.includes(${JSON.stringify(t)})`
 // 真实键盘：rawKeyDown 触发 keydown（无 char）；导航键用 type='keyDown' 让浏览器执行默认编辑行为（光标移动）
-const VK = { b: 66, i: 73, e: 69, z: 90, y: 89, g: 71, f: 70, '1': 49, Home: 36, End: 35 }
+const VK = { b: 66, i: 73, e: 69, z: 90, y: 89, g: 71, f: 70, a: 65, Tab: 9, Home: 36, End: 35, '0': 48, '1': 49, '2': 50, '3': 51, '4': 52, '5': 53, '6': 54, ArrowDown: 40, ArrowRight: 39 }
 async function press(page, key, code, mods = 0, type = 'rawKeyDown') {
   await page.cmd('Input.dispatchKeyEvent', { type, key, code, modifiers: mods, windowsVirtualKeyCode: VK[key] ?? 0 })
   await sleep(80)
@@ -194,6 +198,61 @@ const ok = (name, cond, extra = '') => {
       console.log('SHOT:', file)
     }
     await page.eval(`(() => { window.__ZJ_FIND?.close?.(); return true })()`)
+
+    // —— T12/T13 ⌥⌘2..6 标题（与 T7 ⌥⌘1 同构；headingKeymap TurnIntoH2..H6）——
+    const headingLevels = [[2, '## '], [3, '### '], [4, '#### '], [5, '##### '], [6, '###### ']]
+    for (const [n, prefix] of headingLevels) {
+      await page.eval(edit(`await e.setContent(''); await e.focus();`))
+      await insertText(page, `标题${n}探针`)
+      await press(page, String(n), `Digit${n}`, 5) // Alt+Meta
+      const mdH = await mdOf(page)
+      ok(`T12 ⌥⌘${n} 当前段转 H${n}（md 以 ${JSON.stringify(prefix)} 开头）`, mdH.startsWith(prefix) && mdH.includes(`标题${n}探针`), JSON.stringify(mdH))
+    }
+
+    // —— T14 ⌥⌘0 正文段落（paragraphKeymap TurnIntoText：标题还原正文）——
+    await page.eval(edit(`await e.setContent('# 标题行'); await e.focus();`))
+    await press(page, '0', 'Digit0', 5) // Alt+Meta
+    const md14 = await mdOf(page)
+    ok('T14 ⌥⌘0 标题恢复正文段落（md 无 # 前缀）', !md14.startsWith('#') && md14.includes('标题行'), JSON.stringify(md14))
+
+    // —— T15 ⌘A 全选（浏览器默认（PM 无 Mod-a keymap），keyDown 类型让默认编辑行为生效）——
+    await page.eval(edit(`await e.setContent('第一行。\\n第二行。'); await e.focus();`))
+    await press(page, 'a', 'KeyA', 4, 'keyDown') // Meta+A
+    const st15 = JSON.parse(await findState(page))
+    const sel15 = await page.eval(`(async () => { const e = window.__ZJ_EDITORS[0]; return e.getSelected() })()`)
+    ok('T15a ⌘A 全选（selFrom/selTo 形成非空选区）', st15.selFrom !== null && st15.selTo !== null && st15.selTo > st15.selFrom, JSON.stringify(st15))
+    ok('T15b ⌘A 后编辑器选区文本=全文', typeof sel15 === 'string' && sel15.includes('第一行') && sel15.includes('第二行'), JSON.stringify(sel15))
+
+    // —— T16 Tab/⇧Tab 列表缩进（listItemKeymap SinkListItem/LiftListItem）。
+    //     坑（2026-09-15 实踩）：setContent 注入后光标在文档首（selFrom=0），End/ArrowDown 会落到 trailing
+    //     空段——须用 ProseApi.setCursor('乙') 把光标钉进列表项文本再驱动；Milkdown serializer 列表用 `*` 非 `-`。——
+    await page.eval(edit(`await e.setContent('- 甲\\n- 乙\\n- 丙'); await e.setCursor('乙'); await e.focus();`))
+    const st16pos = JSON.parse(await findState(page))
+    ok('T16 前置：setCursor 定位到「乙」项内', st16pos.selFrom > 0 && st16pos.selFrom < 18, JSON.stringify({ selFrom: st16pos.selFrom, selTo: st16pos.selTo }))
+    await press(page, 'Tab', 'Tab', 0)
+    const md16a = await mdOf(page)
+    ok('T16a Tab 列表项下沉（md 出现缩进子项）', /(^|\n)\s{2,}[*-] /.test(md16a ?? ''), JSON.stringify(md16a))
+    await press(page, 'Tab', 'Tab', 8) // Shift+Tab
+    const md16b = await mdOf(page)
+    ok('T16b ⇧Tab 列表项回升（子项缩进消除）', !/(^|\n)\s{2,}[*-] /.test(md16b ?? ''), JSON.stringify(md16b))
+
+    // —— T17 ⌘G/⇧⌘G 高亮步进：真实键入构造两行（Enter 分行），Home/Shift+End 选第一行，
+    //     ⌘E 设词 → ⌘G 下一处 → ⇧⌘G 上一处（两处匹配，断言 current 变化）——
+    await page.eval(edit(`await e.setContent(''); await e.focus();`))
+    await insertText(page, '灯塔之光。')
+    await press(page, 'Enter', 'Enter', 0) // PM splitParagraph（rawKeyDown 触发 keydown）
+    await insertText(page, '灯塔之光。')
+    await press(page, 'Home', 'Home', 0, 'keyDown') // 行首
+    await press(page, 'End', 'End', 8, 'keyDown') // Shift+End 选第一行
+    await press(page, 'e', 'KeyE', 4) // ⌘E 用选区设查找词
+    const st17a = JSON.parse(await findState(page))
+    ok('T17a 前置：⌘E 设词后 total=2 且 current=0', st17a.total === 2 && st17a.current === 0, JSON.stringify(st17a))
+    await press(page, 'g', 'KeyG', 4) // ⌘G 下一处
+    const st17b = JSON.parse(await findState(page))
+    ok('T17b ⌘G 步进到第 2 处（current 0→1）', st17b.current === 1, JSON.stringify(st17b))
+    await press(page, 'g', 'KeyG', 12) // ⇧⌘G 上一处
+    const st17c = JSON.parse(await findState(page))
+    ok('T17c ⇧⌘G 回退到第 1 处（current 1→0）', st17c.current === 0, JSON.stringify(st17c))
 
     // —— T11 零 JS 异常 ——
     ok('T11 全程无页面 JS 异常', page.errors.length === 0, page.errors.join(' || '))

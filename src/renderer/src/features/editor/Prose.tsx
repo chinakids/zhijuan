@@ -34,6 +34,8 @@ export interface ProseApi {
   getSelected(): string | null
   applyMarkdown(md: string, replaceSel: boolean): void
   setContent(md: string): void
+  /** 测试/脚本用：把光标定位到 doc 文本中第一个 needle 起始处（无匹配不动） */
+  setCursor(needle: string): void
   focus(): void
   /** 跳到第 idx 条（默认 0=第一条）可定位的批注（选中并滚动到它）；找不到不动作。
    * row 提供时按 csv 行号精确跳（导航列表用；该行未命中则不动）。 */
@@ -777,6 +779,22 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
             const parser = ctx.get(parserCtx)
             const doc = parser(md)
             view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, doc))
+          }),
+        setCursor: (needle) =>
+          e.action((ctx) => {
+            const view = ctx.get(editorViewCtx)
+            let pos = -1
+            view.state.doc.descendants((node, p) => {
+              if (pos >= 0) return false
+              if (node.isText && node.text) {
+                const i = node.text.indexOf(needle)
+                if (i >= 0) pos = p + i
+              }
+              return true
+            })
+            if (pos < 0) return
+            view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos)))
+            view.focus()
           }),
         focus: () => e.action((ctx) => ctx.get(editorViewCtx).focus()),
         setAnnoActive: (row) =>
