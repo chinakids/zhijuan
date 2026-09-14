@@ -1,7 +1,7 @@
 // 织卷无头验证 · 项目模板 UI 冒烟：新建项目对话框出现「初始内容」选择 → 选「示例」→ 创建进入项目页
-// 用法：npm run build && python3 -m http.server 8123 --directory out/renderer &
+// 用法：npm run build && node scripts/serve-renderer.mjs 8123 &
 //       node scripts/template-ui-smoke.mjs    （CDP 127.0.0.1:9224 需在跑）
-const BASE = 'http://127.0.0.1:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://127.0.0.1:8123'
 const CB = Date.now()
 
 async function newTab() {

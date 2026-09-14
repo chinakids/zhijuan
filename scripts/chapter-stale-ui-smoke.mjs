@@ -3,9 +3,9 @@
 //      → 抽屉显示「已过期」卡（接受禁用+清除可用）→ 大纲页章卡消失（devShim 大纲事件口径）
 //      → 清除后入口消失、抽屉回空态。
 // 用法：node scripts/chapter-stale-ui-smoke.mjs
-// 前置：npm run build；python3 /tmp/spa_server.py（8123 SPA fallback）；本机无头 Chrome CDP 127.0.0.1:9224
+// 前置：npm run build；node scripts/serve-renderer.mjs（8123 SPA fallback）；本机无头 Chrome CDP 127.0.0.1:9224
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const fs = await import('node:fs')
 

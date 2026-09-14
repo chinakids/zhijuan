@@ -5,7 +5,7 @@
 //       → 底部「批注 N」徽标 → 点击跳第一条 → ⌘F 查找高亮共存 → 亮/暗主题色核对
 //       → 划词新增批注（zj:anno-compose 弹层 → 保存）→ 高亮与计数即时刷新
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

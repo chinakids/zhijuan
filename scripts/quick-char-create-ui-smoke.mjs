@@ -6,7 +6,7 @@
 //   已纠正行无「建档案」按钮；未建档行有 → 点击 → 人物/新角色1.md 按模板落盘（readDoc 断言）
 //   → 徽标变「已建档」→ 再编辑保存重跑同步 → 该 target 不再拦截（只剩已纠正 1 条）
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const PID = 'demo-aseya'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 

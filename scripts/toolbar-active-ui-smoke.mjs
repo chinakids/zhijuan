@@ -6,7 +6,7 @@
 //         ④ 标题/引用/无序/有序块：对应块工具激活；⑤ 撤销等非 toggle 无 aria-pressed 属性；
 //         ⑥ 深色主题激活态颜色跟随 tokens；⑦ 全程无 JS 异常；⑧ 截图（亮色激活/深色激活）存 ~/Pictures/zhijuan/。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const OUT = process.env.HOME + '/Pictures/zhijuan'
 

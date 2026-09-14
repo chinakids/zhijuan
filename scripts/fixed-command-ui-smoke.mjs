@@ -6,7 +6,7 @@
 //         ⑥ 回归：/续写 仍走模板展开（不误入固定逻辑）；⑦ /巡查 未知参数就地提示（不静默降级）；
 //         ⑧ /导演 运行中点「停止」→ 取消提示 + 不再落资产。 2026-09-12 追加 ⑦⑧。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

@@ -1,6 +1,6 @@
 // 织卷无头冒烟 · 文案口径第二波：标点/空格 + 动词句式（HIG Writing + 中文排版指北）
 // 用法：node scripts/copy-voice-ui-smoke.mjs
-// 前置：npm run build；/tmp/spa_server.py（8123）；CDP 9224
+// 前置：npm run build；node scripts/serve-renderer.mjs（8123）；CDP 9224
 // 验收点：① 建章对话框涉及人物占位=全角逗号「如：林晚，顾知远」；
 //         ② 有上一章时预填涉及人物=全角逗号分隔「阿七，沈藏」（join('，') 口径）；
 //         ③ 预填切片仍用原名；④ 正文空态/命令面板空态文案（正文空态用 demo 有章节绕过，命令面板由 cmdk-ui-smoke 覆盖）；
@@ -10,7 +10,7 @@ import path from 'node:path'
 import os from 'node:os'
 
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const OUT = path.join(os.homedir(), 'Pictures', 'zhijuan')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 

@@ -14,7 +14,7 @@
 //         ② 焦点环两主题（focus-visible 2px accent 混色）；③ 禁用项（撤销/重做）不在 Tab 序列；
 //         ④ 窄窗 More 键盘开合（Enter 开/Esc 关）；⑤ Esc 回焦编辑器；⑥ 无 JS 异常；⑦ 截图。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const OUT = process.env.HOME + '/Pictures/zhijuan'
 const NOVEL = '#/project/demo-aseya/novel?ch=' + encodeURIComponent('第01章_雾港.md')

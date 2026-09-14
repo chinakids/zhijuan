@@ -4,7 +4,7 @@
 // writeDoc 版本化含 大纲/审读_*；searchDocs/listDocs mtime 与 docsOf 特判同口径。
 // 用法：node scripts/devshim-parity-ui-smoke.mjs（前置：node scripts/serve-renderer.mjs；CDP 127.0.0.1:9224）
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

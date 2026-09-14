@@ -14,7 +14,7 @@
 //  由 tests/unit/floating-pos.test.ts 7 例纯函数覆盖（右缘/左缘/超宽居中），冒烟只做视口内不越界共性断言。
 import { writeFileSync } from 'fs'
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const OUT = process.env.HOME + '/Pictures/zhijuan'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 

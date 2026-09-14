@@ -1,11 +1,11 @@
 // 织卷无头冒烟 · 人物在场与称谓核查：审计抽屉「在场」Tab（devShim 演示数据）
 // 用法：node scripts/presence-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 正文页 Agent 面板出现「人物在场与称谓核查」入口按钮；② 点击后抽屉标题=人物在场与称谓核查；
 //         ③ 状态行显示「本地规则核查：共列 1 条」；④ 演示条目（清单列了却未署名出场）渲染；
 //         ⑤ 演示摘要口径含「档案登记的别名参与匹配」（别名约定已生效的文案证据）。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

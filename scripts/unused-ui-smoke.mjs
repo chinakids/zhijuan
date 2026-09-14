@@ -1,11 +1,11 @@
 // 织卷无头冒烟 · 人物档案腐坏核查：审计抽屉「档案」Tab（devShim 演示数据真实计算）
 // 用法：node scripts/unused-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① Agent 面板出现「人物档案腐坏核查」入口按钮；② 点击后抽屉标题=人物档案腐坏核查；
 //         ③ 状态行显示「本地规则核查：共列 1 条」；④ 演示条目（沈老爹 = 登记但全卷未出现的别名）渲染且带「让 agent 改」；
 //         ⑤ 抽屉内「档案」Tab 高亮，切「在场」再切回「档案」标题随切。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

@@ -6,7 +6,7 @@
 //   Tab B（Novel，zj-slice=__empty__）：保存 → 浮条「⚠约定头未设切片名」（硬信号分支）
 //   Tab C（AgentPanel EditCard，切片=雾港夜）：发「改」→ 采纳并写入 → 卡内「切片同步：无设定变化 · 已比对…」
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

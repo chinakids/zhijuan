@@ -4,9 +4,9 @@
 // 本脚本：?zj-guard=2 注入守卫结果（1 条已纠正 人物/沈眠.md + 1 条已丢弃 人物/新角色1.md），
 //       驱动三条真实触发路径，断言各入口「拦截 2 条」摘要出现且展开明细完整可达。
 // 用法：node scripts/guard-issues-3entry-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机无头 Chrome CDP 127.0.0.1:9224
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

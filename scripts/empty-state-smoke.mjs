@@ -13,7 +13,7 @@
 // ⑨ 主题跟随：empty-projects 切 .dark 后插图底色 computed 变化且仍半透明（无硬编码色）
 // ⑩ narrow viewport：小窗下空态不横向溢出（scrollWidth <= clientWidth + 1）
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

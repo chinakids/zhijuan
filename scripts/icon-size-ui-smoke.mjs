@@ -1,8 +1,8 @@
 // V-04 图标统一 · 无头 UI 冒烟：验证紧凑 shadcn Button 内图标实际渲染 12px（[&_svg]:size-3 生效），
 // 且默认 Button 图标仍 16px。驱动 devShim「改」触发 EditCard（采纳并写入/拒绝 按钮）。
-// 用法：node scripts/icon-size-ui-smoke.mjs   （先 npm run build + python3 /tmp/spa_server.py 8123）
+// 用法：node scripts/icon-size-ui-smoke.mjs   （先 npm run build + node scripts/serve-renderer.mjs 8123）
 const PORT = 8123
-const BASE = `http://localhost:${PORT}`
+const BASE = process.env.ZJ_SMOKE_BASE || `http://localhost:${PORT}`
 const list = await (await fetch('http://127.0.0.1:9224/json')).json()
 const page = list.find((t) => t.type === 'page' && new RegExp(`:${PORT}`).test(t.url) && /novel/.test(t.url))
 if (!page) { console.error('NO NOVEL PAGE'); process.exit(1) }

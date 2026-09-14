@@ -1,6 +1,6 @@
 // 织卷无头冒烟 · 首页项目库可见性（模块设计 §四 A：底栏「当前库根」+「库根路径（可改）」）
 // 用法：node scripts/home-libroot-ui-smoke.mjs
-// 前置：out/renderer 已 build；python3 scripts/spa_server.py 8123 --directory out/renderer；本机无头 Chrome CDP 127.0.0.1:9224
+// 前置：out/renderer 已 build；node scripts/serve-renderer.mjs 8123；本机无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 底栏出现「当前项目库：<生效库根>」且路径与 getPaths().documents 动态一致（不硬编）；
 //         ② 路径元素 truncate 抗窄窗、按钮 whitespace-nowrap 不换行；
 //         ③ 点击「更改库根路径…」→ devShim 模拟选库 → footer 路径更新为新库 → toast「已更改项目库」；

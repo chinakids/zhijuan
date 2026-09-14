@@ -1,9 +1,9 @@
 // 织卷无头冒烟 · 档案切片核查（devShim 空态路径）：Agent 面板新按钮 → 抽屉打开 → 标题/结果渲染
 // 命中路径由 scripts/sliceord-data-smoke.mjs（主进程真实现 + 临时库）覆盖，此处验证 UI 接线（按钮/标题/空态/无 JS 异常）。
 // 用法：node scripts/sliceord-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

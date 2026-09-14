@@ -1,8 +1,8 @@
 // 采集任务卡「点击看结果」UI 冒烟：无头 Chrome（CDP 9224）+ devShim 演示数据（demo-aseya 采集池任务卡）
 // 步骤：开新 tab（缓存破坏参数）→ 直接 hash 导航到 项目/素材库 → 等任务卡渲染 → 点击任务卡 → 断言详情 Dialog 含结果路径
-// 前置：python3 -m http.server 8123 --directory out/renderer &（本仓库），且 npm run build 已跑
+// 前置：node scripts/serve-renderer.mjs 8123 &（本仓库），且 npm run build 已跑
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://127.0.0.1:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://127.0.0.1:8123'
 const ID = 'tk' + Date.now()
 
 const tab = await (await fetch(CDP + '/json/new?' + encodeURIComponent(BASE + '/?cb=' + ID), { method: 'PUT' })).json()

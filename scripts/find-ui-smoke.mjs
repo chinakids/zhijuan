@@ -1,11 +1,11 @@
 // 织卷无头冒烟 · 正文查找条（⌘F/⌘G/⇧⌘G/Esc + 高亮 + 编辑重算）
 // 用法：node scripts/find-ui-smoke.mjs
-// 前置：npm run build；python3 -m http.server 8123 --directory out/renderer（SPA fallback）；CDP 127.0.0.1:9224
+// 前置：npm run build；node scripts/serve-renderer.mjs 8123（SPA fallback）；CDP 127.0.0.1:9224
 // 验收点：① 真实 ⌘F 打开查找条并聚焦输入框；② 输入关键词出现计数与 CSS 高亮，当前匹配被真实选中；
 //         ③ ⌘G/⇧⌘G 循环移动；④ 无匹配显示「无匹配」且按钮禁用；⑤ Esc 关闭并清高亮；
 //         ⑥ 正文被编辑时匹配重算不崩；⑦ 全程无 JS 异常。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

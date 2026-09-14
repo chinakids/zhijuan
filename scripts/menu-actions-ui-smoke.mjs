@@ -1,6 +1,6 @@
 // 织卷无头冒烟 · 系统菜单第二刀：渲染层单点分发（MenuBridge）+ 页面接线 + 启用态上报
 // 用法：node scripts/menu-actions-ui-smoke.mjs
-// 前置：npm run build；python3 /tmp/spa_server.py 8123（SPA fallback）；CDP 127.0.0.1:9224
+// 前置：npm run build；node scripts/serve-renderer.mjs 8123（SPA fallback）；CDP 127.0.0.1:9224
 // 链路：devShim __ZJ_MENU_EMIT（模拟主进程 menu:action）→ preload 桥等价 → MenuBridge switch
 //       → CustomEvent 派发 → Home/Novel/DocEditor/Prose 接线 → UI 实效断言。
 // 验收点：① 初始启用态上报 route=home/editor=false；② settings 跳转；③ newProject 打开建项对话框；

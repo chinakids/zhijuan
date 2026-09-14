@@ -1,12 +1,12 @@
 // 织卷无头冒烟 · 分幕「采纳为正文」后自动触发切片同步（devShim 演示数据）
 // 用法：node scripts/acts-adopt-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer（或任意本地服务出 out/renderer）
+// 前置：node scripts/serve-renderer.mjs 8123（或任意本地服务出 out/renderer）
 //       本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 选中第1章后「分幕生成」mock 出草稿；②「采纳为正文」两击；
 //         ③ 采纳成功后 msg 出现「切片同步」结果（runSliceSync 真的被调用——修复点）；
 //         ④ 演示项目正文被替换成分幕草稿内容（org 读回验证）。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

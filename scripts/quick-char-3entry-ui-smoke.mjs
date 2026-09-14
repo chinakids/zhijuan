@@ -5,9 +5,9 @@
 //       驱动三条真实触发路径（历史恢复 / 分幕采纳 / EditCard 采纳），各入口断言：
 //       明细出现「建档案」→ 点击 → readDoc 断言档案按模板落盘 → UI 转「已建档」且按钮消失。
 // 用法：node scripts/quick-char-3entry-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机无头 Chrome CDP 127.0.0.1:9224
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const PID = 'demo-aseya'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 

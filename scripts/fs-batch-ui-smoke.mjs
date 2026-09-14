@@ -3,7 +3,7 @@
 //       → 素材库页列表不刷新（与 CollectionBar 18dda8c 同类竞态）；新 useFsChanged 原语检查批内全部新事件 → 列表刷新。
 // 前置：npm run build 已跑；serve-renderer（8123）在跑；Chrome CDP 127.0.0.1:9224 已启动。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://127.0.0.1:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://127.0.0.1:8123'
 const ID = 'fsb' + Date.now()
 const TS = Date.now()
 

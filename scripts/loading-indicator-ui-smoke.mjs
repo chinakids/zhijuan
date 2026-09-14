@@ -3,7 +3,7 @@
 // 弧旋转动画 zj-ind-spin 1.2s、accent 色），reduced-motion 下动画关闭，暗色主题色跟随。
 // 用法：node scripts/loading-indicator-ui-smoke.mjs   （先 npm run build + SPA server 8123 + CDP 9224）
 const PORT = 8123
-const BASE = `http://localhost:${PORT}`
+const BASE = process.env.ZJ_SMOKE_BASE || `http://localhost:${PORT}`
 const list = await (await fetch('http://127.0.0.1:9224/json')).json()
 const page = list.find((t) => t.type === 'page' && new RegExp(`:${PORT}`).test(t.url))
 if (!page) { console.error('NO PAGE'); process.exit(1) }

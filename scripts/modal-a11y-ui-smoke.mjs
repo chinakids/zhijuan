@@ -1,9 +1,9 @@
 // 模态无障碍（Apple HIG Keyboards · Focus and selection）· 无头 UI 冒烟：
 // 验证自研抽屉 useModalA11y：初始聚焦入面板、Tab/Shift+Tab 圈闭、Esc 关闭、滚动锁、关闭回焦；
 // 以及 icon-only 按钮 aria-label 补齐（可发现性）。
-// 用法：node scripts/modal-a11y-ui-smoke.mjs   （先 npm run build + python3 /tmp/spa_server.py 8123 + 无头 Chrome CDP 9224）
+// 用法：node scripts/modal-a11y-ui-smoke.mjs   （先 npm run build + node scripts/serve-renderer.mjs 8123 + 无头 Chrome CDP 9224）
 const PORT = 8123
-const BASE = `http://localhost:${PORT}`
+const BASE = process.env.ZJ_SMOKE_BASE || `http://localhost:${PORT}`
 const list = await (await fetch('http://127.0.0.1:9224/json')).json()
 const page = list.find((t) => t.type === 'page')
 if (!page) { console.error('NO PAGE'); process.exit(1) }

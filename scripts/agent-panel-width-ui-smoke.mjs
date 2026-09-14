@@ -1,12 +1,12 @@
 // 织卷无头冒烟 · Agent 面板宽度记忆（模块设计 §十二）
 // 用法：node scripts/agent-panel-width-ui-smoke.mjs
-// 前置：out/renderer 已 build；python3 ~/Desktop/织卷/scripts/spa_server.py 8123 --directory out/renderer（SPA fallback）；
+// 前置：out/renderer 已 build；node scripts/serve-renderer.mjs 8123（SPA fallback）；
 //      本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 默认 320 且分隔条 aria 齐全；② CDP 真实鼠标拖拽左移 120 → 440 且设置已写；
 //         ③ 拖右 300 → 钳到最小 280；④ 键盘 ←/→ 微调、Home/End 最窄/最宽、越界钳制；
 //         ⑤ 双击恢复默认 320；⑥ 全程零 JS 异常。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 let failures = 0
 const ok = (label) => console.log('OK', label)

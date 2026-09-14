@@ -1,6 +1,6 @@
 // 织卷无头冒烟 · 文案口径回归（「人物/角色」统一 + 引导「主要人物」+ 示例说明措辞）
 // 用法：node scripts/terminology-ui-smoke.mjs
-// 前置：npm run build；python3 /tmp/spa_server.py（8899）；CDP 9224（127.0.0.1:9224）
+// 前置：npm run build；node scripts/serve-renderer.mjs（8899）；CDP 9224（127.0.0.1:9224）
 // 验收点：① 人物页组头/按钮「人物档案」、空态「出场人物」，全程无「角色档案」；
 //         ② 新建项目对话框示例说明=「人物档案」；③ 引导步骤「主要人物」/按钮「下一步：主要人物」/「加一个人物」，无「主要角色」；
 //         ④ 无 JS 异常。截图存 ~/Pictures/zhijuan/terminology-*.png。
@@ -9,7 +9,7 @@ import path from 'node:path'
 import os from 'node:os'
 
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8899'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8899'
 const OUT = path.join(os.homedir(), 'Pictures', 'zhijuan')
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 

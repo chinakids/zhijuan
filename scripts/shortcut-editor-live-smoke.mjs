@@ -1,6 +1,6 @@
 // 织卷无头冒烟 · 编辑器内快捷键「真实按下生效」实测闭环（平台层 2026-09-14 22:30 轮候选 1）
 // 用法：node scripts/shortcut-editor-live-smoke.mjs
-// 前置：npm run build；/tmp/spa_server.py（8899，SPA fallback）；CDP 127.0.0.1:9224
+// 前置：npm run build；node scripts/serve-renderer.mjs（8899，SPA fallback）；CDP 127.0.0.1:9224
 // 链路：CDP Input.dispatchKeyEvent（浏览器级真实输入管线，isTrusted=true，与 Puppeteer 同源）
 //       → DOM keydown 到达编辑器 → ProseMirror keymap（strong/emphasis/blockquote/heading/history）
 //       / 应用层捕获监听（⌘F/⌘E/⌘G，window 捕获 + preventDefault 遮蔽 Milkdown 键位）→ 实测断言。

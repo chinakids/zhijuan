@@ -1,10 +1,10 @@
 // 织卷无头冒烟 · @ 引用注入预算提示（AgentPanel 上下文用量行）
 // 用法：node scripts/ref-budget-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；CDP 127.0.0.1:9224
 // 验收：① 初始无引用 → 显示行无「@注入」；② 输入含 2 个引用 → 显示「@注入 2条 ≤8.0 千字」；
 //       ③ 4 条引用 → ≤1.2 万字（总预算兜底）；④ 清空 → 「@注入」消失；⑤ 截图留档
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

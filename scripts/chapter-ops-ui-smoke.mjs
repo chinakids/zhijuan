@@ -1,11 +1,11 @@
 // 织卷无头冒烟 · 章节右键菜单（§6.2）：重命名 / 导出单章 md / 删除（联动大纲副产物）
 // 用法：node scripts/chapter-ops-ui-smoke.mjs
-// 前置：npm run build；python3 -m http.server 8123 --directory out/renderer；本机无头 Chrome CDP 127.0.0.1:9224
+// 前置：npm run build；node scripts/serve-renderer.mjs 8123；本机无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 右键章节列表项出现菜单（重命名/导出 md/删除 三项）；② 重命名走真 mock：约定头题名与文件名都换、旧文件消失；
 //         ③ 导出触发「已导出单章」回执；④ 删除走确认框 → toast「已移入废纸篓」、章节从列表消失、readDoc 为空；
 //         ⑤ 全程无 JS 异常；两主题截图存档。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const fs = await import('node:fs')
 

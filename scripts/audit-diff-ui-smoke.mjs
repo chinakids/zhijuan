@@ -1,12 +1,12 @@
 // 织卷无头冒烟 · 审读存档版本化三期：审计抽屉「与上次对比」→ 语义三态（新增/已解决/依旧）
 // 用法：node scripts/audit-diff-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；无头 Chrome CDP 127.0.0.1:9224
 // 验收：① 预写两版报告（历史留 1 版）后打开一致性巡查 → 落盘第三版（历史 2 版）；
 //       ② 点「与上次对比」→ 三态计数（新增 1/已解决 2/依旧 2）+ 1 条严重度变化 + shiftHint 提示；
 //       ③ 依旧组显示「严重度 low → medium」；④ 返回列表复原；⑤ 冷读报告首跑无历史 → 空态提示；
 //       ⑥ 无 JS 异常；⑦ 截图存档 ~/Pictures/zhijuan/。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const ID = 'demo-aseya'
 const REL = '大纲/审读_一致性巡查.md'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))

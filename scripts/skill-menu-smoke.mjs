@@ -1,10 +1,10 @@
 // 织卷无头冒烟 · 输入框 / 命令（skill 槽位：触发浮层 → 过滤 → 回车插入 → 发送展开为模板 prompt）
 // 用法：node scripts/skill-menu-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① / 触发浮层出现（续写/润色/延伸）；② 输入「续」过滤只剩续写；③ 回车确认后输入框出现 /续写 ；
 //         ④ Enter 发送后 user 气泡为展开模板（含《题名》、zj_edit_doc、参数）；⑤ 无匹配命令出现空态；⑥ /延伸 正常展开。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

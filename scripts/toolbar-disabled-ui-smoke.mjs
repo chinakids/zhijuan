@@ -1,13 +1,13 @@
 // 织卷无头冒烟 · 编辑器工具栏撤销/重做可用态（HIG：不可用项置灰示态、不响应交互，但不隐藏）
 // 用法：node scripts/toolbar-disabled-ui-smoke.mjs
-// 前置：npm run build；python3 -m http.server 8123 --directory out/renderer；本机无头 Chrome CDP 127.0.0.1:9224
+// 前置：npm run build；node scripts/serve-renderer.mjs 8123；本机无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 新文档：撤销/重做均 disabled（zj-tb-off+置灰计算色）；点击不产生任何效果；
 //         ② setContent（事务）后：撤销可用/重做不可用（computed 色恢复 ink-2、无 zj-tb-off）；
 //         ③ 真点「撤销」→ 内容回退、撤销转置灰、重做变可用；④ 真点「重做」→ 对称；
 //         ⑤ 窄窗把撤销/重做收进 More 菜单后，菜单项仍带禁用态（Radix data-disabled）；
 //         ⑥ 深色主题同断言 + 无 JS 异常；⑦ 截图（rest/可用）存档 ~/Pictures/zhijuan/。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const OUT = process.env.HOME + '/Pictures/zhijuan'
 

@@ -1,9 +1,9 @@
 // 采集任务卡「停滞提示 + 提交查重」UI 冒烟：无头 Chrome（CDP 9224）+ devShim 演示数据（demo-aseya）
-// 前置：npm run build 已跑；python3 -m http.server 8123 --directory out/renderer 在跑
+// 前置：npm run build 已跑；node scripts/serve-renderer.mjs 8123 在跑
 // 步骤：开新 tab（缓存破坏）→ hash 导航 项目/素材库 → 断言列表出现「停滞 3 天」徽标（演示停滞卡）
 //       → 点卡片 → 详情出现「任务已停滞 3 天」提示 → 关闭 → 发起采集：输入相同需求出现查重警告、改文本警告消失
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://127.0.0.1:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://127.0.0.1:8123'
 const ID = 'stale' + Date.now()
 
 const tab = await (await fetch(CDP + '/json/new?' + encodeURIComponent(BASE + '/?cb=' + ID), { method: 'PUT' })).json()

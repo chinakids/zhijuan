@@ -1,6 +1,6 @@
 // 织卷无头冒烟 · devShim 与真机口径一致性回归（候选 3 对表审计产物）
 // 用法：node scripts/devshim-consistency-smoke.mjs
-// 前置：out/renderer 已 build；/tmp/spa_server.py（8899）提供 SPA fallback；本机无头 Chrome CDP 127.0.0.1:9224
+// 前置：out/renderer 已 build；node scripts/serve-renderer.mjs（8899）提供 SPA fallback；本机无头 Chrome CDP 127.0.0.1:9224
 // 验收点（本轮修复项逐一锁定）：
 //  ① writeDoc 返回 true（真机 doc:write handler 同口径；preload 类型 Promise<boolean>）
 //  ② removeProject 返回 { ok: true }（真机 store.removeProject）

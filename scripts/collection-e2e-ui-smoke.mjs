@@ -2,9 +2,9 @@
 // 模拟管道回填全程：① 页面发起采集 → 新任务卡 pending 上栏；② 注入脚本以管道名义改写任务卡(done+结果+完成)+写素材草稿
 //    （devShim writeDoc 自动广播 fs 事件 = 真机 chokidar watcher 语义）；③ 断言页面**无需手动刷新**即显示状态流转 done，
 //    详情含结果/完成，点「结果」预览素材 markdown 渲染 —— 纯织卷侧验证「App 观察外部回填」闭环，不依赖采集 cron 是否恢复。
-// 前置：npm run build 已跑；python3 -m http.server 8123 --directory out/renderer 在跑；Chrome CDP 127.0.0.1:9224 已启动。
+// 前置：npm run build 已跑；node scripts/serve-renderer.mjs 8123 在跑；Chrome CDP 127.0.0.1:9224 已启动。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://127.0.0.1:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://127.0.0.1:8123'
 const ID = 'ce2e' + Date.now()
 const DEMAND = 'e2e回填闭环-' + Date.now() + ' 校园老图书馆细节，写实贴国内校园'
 const FIN = '2026-09-12 07:45'

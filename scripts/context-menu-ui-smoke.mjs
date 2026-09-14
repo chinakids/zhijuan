@@ -1,12 +1,12 @@
 // 织卷无头冒烟 · 正文右键菜单 + 划词浮层（Apple HIG Context menus 第一批）
 // 用法：node scripts/context-menu-ui-smoke.mjs
-// 前置：npm run build；python3 -m http.server 8123 --directory out/renderer；本机无头 Chrome CDP 127.0.0.1:9224
+// 前置：npm run build；node scripts/serve-renderer.mjs 8123；本机无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 划词浮层含「复制」「添加到对话」且复制真写入剪贴板；
 //         ② 正文右键菜单出现：有选区=剪切/复制/粘贴/全选/添加到对话（2组），无选区=仅粘贴/全选；
 //         ③ 剪切真删文本且剪贴板=选中；④ 全选真选全文；⑤ 添加到对话真进 agent 引用条；
 //         ⑥ 钻进菜单无 JS 异常 + 两主题截图存档。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

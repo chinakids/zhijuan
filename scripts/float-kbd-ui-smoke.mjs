@@ -6,7 +6,7 @@
 //   → 批注气泡：点开不抢焦点 → Tab×3 入气泡 → Tab/⇧Tab 圈闭不逃逸 → Esc 关+焦点回编辑器
 //   → 查找高亮对比度走查（暖纸/深色两主题：样式规则+变量 → WCAG 相对亮度/对比度，cur 与 hit 文字对比 ≥4.5）
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

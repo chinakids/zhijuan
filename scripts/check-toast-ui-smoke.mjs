@@ -1,11 +1,11 @@
 // 织卷无头冒烟 · 检查抽屉的全局通知（本章小环 / 导演兑现检查 → Toaster）
 // 用法：node scripts/check-toast-ui-smoke.mjs
-// 前置：npm run build；python3 -m http.server 8123 --directory out/renderer；CDP 9224
+// 前置：npm run build；node scripts/serve-renderer.mjs 8123；CDP 9224
 // 验收点：① 运行中关闭小环 → 完成 warning「发现 N 条」；② 开着完成 → 不打扰（无 toast）；
 //         ③ 运行中关闭 + 失败 → error toast；④ 兑现检查运行中关闭 → warning「N 处未兑现」；
 //         ⑤ 兑现检查开着完成 → 不打扰；⑥ 无 JS 异常。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

@@ -6,7 +6,7 @@ import { resolve } from 'node:path'
 const OUT = resolve(process.argv[2] ?? resolve(process.cwd(), 'shots'))
 mkdirSync(OUT, { recursive: true })
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8899'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8899'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

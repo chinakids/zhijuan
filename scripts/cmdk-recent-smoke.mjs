@@ -1,12 +1,12 @@
 // 织卷无头冒烟 · ⌘K 命令面板「最近素材 + 命中类别路径」（平台层 2026-09-11）
 // 用法：node scripts/cmdk-recent-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 项目内 ⌘K，空输入出现「最近素材」组（最近修改 5 条内，排除采集池）；
 //         ② 条目显示「类别/文件名」+ 相对时间（devShim mtime=now → 刚刚）；
 //         ③ 点击最近条目 → library?doc= 打开对应素材（__ZJ_DOC.rel 实锤）；
 //         ④ 输入关键词 → 全文搜索组仍显示，命中行带「类别/」前缀；⑤ 无 JS 异常。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

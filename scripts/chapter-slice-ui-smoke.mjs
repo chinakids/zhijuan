@@ -1,11 +1,11 @@
 // 织卷无头冒烟 · 章节「修改切片名」（store.editChapterSlice + 右键菜单 + Dialog + 引用面收口）
 // 用法：node scripts/chapter-slice-ui-smoke.mjs
-// 前置：npm run build；python3 -m http.server 8123 --directory out/renderer；本机无头 Chrome CDP 127.0.0.1:9224
+// 前置：npm run build；node scripts/serve-renderer.mjs 8123；本机无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 右键菜单出现「修改切片名」；② Dialog 预填当前切片名、可改；
 //         ③ 确认后正文约定头「切片」=新值、大纲章卡 fm 切片同步、旧的 slice-sync pending 置 stale；
 //         ④ 列表行显示新切片名、toast 出现；⑤ 全程无 JS 异常 + 截图存档。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const fs = await import('node:fs')
 

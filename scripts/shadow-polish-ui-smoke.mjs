@@ -7,7 +7,7 @@
 //         ④ 临时元素用 shadow-[var(--shadow)] 的 Tailwind 类被正确生成（抽屉/浮层同款类可用）；
 //         ⑤ 页面无 JS 异常；三主题下 token 均有效（paper/dark/ink？——织卷主题为 light/dark/paper，此处核对 light 与 dark）。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

@@ -1,11 +1,11 @@
 // 织卷无头冒烟 · 新项目引导 flow（ProjectGuide + 建章故事要素对话框）
 // 用法：node scripts/guide-ui-smoke.mjs
-// 前置：npm run build；python3 -m http.server 8123 --directory out/renderer；CDP 9224
+// 前置：npm run build；node scripts/serve-renderer.mjs 8123；CDP 9224
 // 验收点：① 新建项目→引导弹窗（世界观/角色/完成三步骤）；② 「现在新建第一章」→ 自动打开建章对话框；
 //         ③ 建章后章节列表出现；④ 引导写入的世界观/角色掉进 mock 数据层；⑤ 「以后补充」路径原样可用（防回归）；
 //         ⑥ 全程无 JS 异常。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

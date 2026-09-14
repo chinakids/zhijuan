@@ -5,7 +5,7 @@
 //       渲染层 streamBuffer 按帧合并 → 断言「思考过程」全文 = 60 片段完整拼接、正文 = demo 全文（无丢失/无错序/无残余尾缀）。
 // 背景：长 reasoning 思考每增量一次全量 setState 会形成渲染风暴；节流后渲染频率钳到帧率，flushNow 保证尾段不丢。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

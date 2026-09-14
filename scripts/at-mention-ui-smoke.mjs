@@ -1,11 +1,11 @@
 // 织卷无头冒烟 · 输入框 @ 引用（devShim 演示数据真实计算 → 浮层 → 过滤 → 回车插入 → 发送后 user 气泡见引用文本）
 // 用法：node scripts/at-mention-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① @ 触发浮层出现（见「人物」分组与 沈藏/阿七）；② 输入「沈」过滤后只剩含沈的候选；
 //         ③ 回车确认后输入框出现 〔人物·沈藏｜人物/沈藏.md〕；④ Enter 发送后 user 气泡含引用文本；
 //         ⑤ 素材候选在空 query 时不出现、输入「旧茶楼」后出现「素材」类型条目。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

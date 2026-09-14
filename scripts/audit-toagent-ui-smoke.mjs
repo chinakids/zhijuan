@@ -1,11 +1,11 @@
 // 织卷无头冒烟 · 审读条目「让 agent 改」：审计抽屉条目一键发给 agent 区（devShim 演示数据）
 // 用法：node scripts/audit-toagent-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 正文页打开「一致性巡查」抽屉出结果；② 每条目出现「让 agent 改」按钮；
 //         ③ 点击后抽屉关闭、agent 区出现含「审读发现」的用户消息（即条目指令文本）；
 //         ④ devShim mock 对含「改/修」的 prompt 回编辑事件 → 页面出现正文修改卡（zj_edit_doc 通道收到）。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

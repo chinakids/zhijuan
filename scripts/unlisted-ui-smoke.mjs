@@ -1,11 +1,11 @@
 // 织卷无头冒烟 · 保存前置「名单外出场」提示：正文用了档案别名但约定头未列 → 提示卡 → 一键补入
 // 用法：node scripts/unlisted-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 打开演示项目正文页、进入第3章（正文含「沈爷」但约定头只列阿七）；
 //         ② 编辑→保存后出现提示卡（含「沈爷＝沈藏 的登记别名」）与两个处置按钮；
 //         ③ 点「补入涉及人物」→ 文档约定头变为 [阿七, 沈藏]，卡片消失。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

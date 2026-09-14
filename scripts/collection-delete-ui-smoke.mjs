@@ -1,9 +1,9 @@
 // 采集任务卡「重发 / 删除」UI 冒烟：无头 Chrome（CDP 9224）+ devShim 演示数据（demo-aseya）
-// 前置：npm run build 已跑；python3 -m http.server 8123 --directory out/renderer 在跑
+// 前置：npm run build 已跑；node scripts/serve-renderer.mjs 8123 在跑
 // 步骤：开新 tab（缓存破坏）→ 素材库页 → 停滞卡详情（含重发/删除按钮）→ 重发后停滞徽标消失
 //       → 删除弹确认（非终态文案）→ 取消不误删 → 确认后卡片从列表消失 → done 卡无重发按钮/终态确认文案
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://127.0.0.1:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://127.0.0.1:8123'
 const ID = 'del' + Date.now()
 
 const tab = await (await fetch(CDP + '/json/new?' + encodeURIComponent(BASE + '/?cb=' + ID), { method: 'PUT' })).json()

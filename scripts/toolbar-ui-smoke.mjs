@@ -1,11 +1,11 @@
 // 织卷无头冒烟 · 编辑器工具栏窄窗溢出（More 菜单）＋ 标题栏章节题名
 // 用法：node scripts/toolbar-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 宽窗 12 按钮全见、无 More；② 视口收窄 → 低频项进「⋯」More 菜单（按钮数减少）；
 //         ③ More 菜单项点击可执行（有序列表真实落 doc）；④ 恢复宽窗 → More 消失、按钮回全；
 //         ⑤ 标题栏显示「第1章 · 雾港」（V3）；⑥ 深色主题无 JS 异常；⑦ 截图存档。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

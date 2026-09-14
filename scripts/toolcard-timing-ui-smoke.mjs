@@ -1,10 +1,10 @@
 // 织卷无头冒烟 · 工具活动卡耗时显示（meta→meta-done 计时 + 进行中「已 Ns」tick）
 // 用法：node scripts/toolcard-timing-ui-smoke.mjs
-// 前置：npm run build；python3 -m http.server 8123 --directory out/renderer；CDP 9224
+// 前置：npm run build；node scripts/serve-renderer.mjs 8123；CDP 9224
 // 验收：① devShim 演示（zj-agent-delay=1600）zj_read_doc 进行中卡显示「已 1.x s」；
 //       ② meta-done 完成后卡显示总耗时（x.xs）；③ 进行中 tick 每秒更新；④ 无 JS 异常。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

@@ -3,12 +3,12 @@
 // ② Tab 逐页走查：素材库树/大纲章卡/章节列表/人物文档列表均为原生 button 可达（focus+Enter 可激活）；
 // ③ focus-visible 焦点环两主题（paper/dark）getComputedStyle 核对；
 // ④ Esc 层级：查找条+批注抽屉共存时 Esc 先关抽屉（Prose 不再抢占）、再 Esc 关查找条。
-// 用法：node scripts/focus-a11y-smoke.mjs   （先 npm run build + /tmp/spa_server.py 8123 + 无头 Chrome CDP 9224）
+// 用法：node scripts/focus-a11y-smoke.mjs   （先 npm run build + node scripts/serve-renderer.mjs 8123 + 无头 Chrome CDP 9224）
 const PORT = 8899
-const BASE = `http://localhost:${PORT}`
+const BASE = process.env.ZJ_SMOKE_BASE || `http://localhost:${PORT}`
 const list = await (await fetch('http://127.0.0.1:9224/json')).json()
 // 选 8899 SPA 的页面（遗留 8123/其他 server 的旧 tab 会干扰 find）
-const page = list.find((t) => t.type === 'page' && (t.url || '').includes(':8899')) || list.find((t) => t.type === 'page')
+const page = list.find((t) => t.type === 'page' && (t.url || '').includes(':' + new URL(BASE).port)) || list.find((t) => t.type === 'page')
 if (!page) { console.error('NO PAGE'); process.exit(1) }
 const ws = new WebSocket(page.webSocketDebuggerUrl)
 let seq = 0

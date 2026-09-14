@@ -1,10 +1,10 @@
 // 织卷无头冒烟 · Agent 面板用量行口径（观察项①收尾：分解显示 + 同源预算）
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 点击章节 → 用量行出现「对话 …」「· 装配 ≤3.7 万字」（与主进程 shared/contextCaps 同源）；
 //         ② 不再出现误导性「/ 6 万」（渲染层显示截断上限被移除）；
 //         ③ 输入文本后「对话」数值随 input 增长（口径=历史 trim + 输入 + quote）。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

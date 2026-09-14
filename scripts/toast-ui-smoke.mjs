@@ -1,10 +1,10 @@
 // 织卷无头冒烟 · 全局 Toast 通知系统（store/toasts + components/ui/toast）
 // 用法：node scripts/toast-ui-smoke.mjs
-// 前置：npm run build；python3 -m http.server 8123 --directory out/renderer；CDP 9224
+// 前置：npm run build；node scripts/serve-renderer.mjs 8123；CDP 9224
 // 验收点：① 大纲页真实动作（导演本章）→ 成功 toast；② 并发/堆叠（回建 + 导演并存）；
 //         ③ 自动消失（默认 6s）；④ 错误类 toast（__ZJ_TOAST 直发）；⑤ 栈上限 4；⑥ 无 JS 异常。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

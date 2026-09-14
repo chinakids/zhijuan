@@ -10,7 +10,7 @@
 // ⑥ 首页 ?zj-fail=createProject → 新建项目 → toast「新建项目失败」
 // ⑦–⑪（体验层 2026-09-11 11:15 轮）素材库/大纲/时间线/设置读取失败卡+重试；空白项目空态「新建第一章」直达按钮
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

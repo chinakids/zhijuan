@@ -1,13 +1,13 @@
 // 织卷无头冒烟 · 侧栏组头口径统一 + 阴影清尾/V-02（质感专项 V-03，2026-09-11 17:15 轮）
 // 用法：node scripts/sidebar-polish-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer（out/ 已 build）；本机无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123（out/ 已 build）；本机无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 五个侧栏组头（章节/角色档案/世界观设定/素材库/章卡）均 11px + tracking-wide + ink-3；
 //         ② Novel 组头文案精简为「章节」（不再含「按时间切片」）；
 //         ③ 阴影：--shadow token 计算值有效；shadow-[var(--shadow)] 类生成且不带 Tailwind 默认冷黑；
 //         ④ V-02：bundle 中无 #e6f0ee / shadow-lg 残留；
 //         ⑤ 切 .dark 后组头色随主题变化；页面无 JS 异常。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

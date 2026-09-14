@@ -1,10 +1,10 @@
 // 织卷无头冒烟 · 工具活动卡失败态（meta-done ok:false → 红色失败徽标）
 // 用法：node scripts/toolcard-fail-ui-smoke.mjs
-// 前置：npm run build；python3 -m http.server 8123 --directory out/renderer；CDP 9224
+// 前置：npm run build；node scripts/serve-renderer.mjs 8123；CDP 9224
 // 验收：① devShim 演示 prompt 含「读不到」→ zj_search 失败卡（红「失败」徽标 + 错误摘要）；
 //       ② 同轮成功工具卡仍渲染对勾；③ 无 JS 异常。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

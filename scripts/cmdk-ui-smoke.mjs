@@ -1,11 +1,11 @@
 // 织卷无头冒烟 · ⌘K 全局命令面板（cmdk）——页面导航 / 打开章节 / 打开项目 / 空态
 // 用法：node scripts/cmdk-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① Cmd+K 打开面板（cmdk-root，分组：页面/打开章节/打开项目）；
 //         ② 输入过滤后回车跳转页面（人物设定）；③ 打开章节项 → novel?ch= 定位并高亮（__ZJ_DOC.rel）；
 //         ④ 无匹配时出现空态文案；⑤ 无页面异常。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

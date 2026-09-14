@@ -1,13 +1,13 @@
 // 织卷无头冒烟 · 动效基线（V-08：覆盖层统一 150ms ease 进场 / 高频浮层 100ms 淡入 / 尊重 prefers-reduced-motion）
 // 用法：node scripts/motion-polish-ui-smoke.mjs
-// 前置：npm run build；/tmp/spa_server.py（或 python -m http.server 8123 --directory out/renderer）；CDP 127.0.0.1:9224
+// 前置：npm run build；node scripts/serve-renderer.mjs 8123（SPA fallback）；CDP 127.0.0.1:9224
 // 验收点：① 本章小环抽屉：overlay/panel 计算 animationName=enter、duration=0.15s、timing=ease；
 //         ② 新建项目 Dialog（Radix）：content 动画 enter/0.15s，数据态类生效；
 //         ③ @ 浮层：animation-duration=0.1s（高频交互 100ms 淡入）；
 //         ④ Emulation.setEmulatedMedia(prefers-reduced-motion=reduce) 后：抽屉/Dialog 动画被关（animationName=none）；
 //         ⑤ 全程无 JS 异常。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

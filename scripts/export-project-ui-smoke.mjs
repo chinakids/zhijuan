@@ -2,7 +2,7 @@
 // 场景：首页卡片「更多操作」→「导出到…」→ devShim exportProject 返回 ok+dest → toast「已导出」出现。
 // 前置：npm run build 已跑；serve-renderer（8123）在跑；Chrome CDP 127.0.0.1:9224 已启动。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://127.0.0.1:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://127.0.0.1:8123'
 const ID = 'exp' + Date.now()
 
 const tab = await (await fetch(CDP + '/json/new?' + encodeURIComponent(BASE + '/?cb=' + ID), { method: 'PUT' })).json()

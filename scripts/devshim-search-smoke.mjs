@@ -4,7 +4,7 @@
 //       ④ 空 query 返回 []；⑤ snippet 与真机 snippetOf 算法逐字一致；⑥ 多词 AND 语义。
 // 用法：cd ~/Desktop/织卷 && node scripts/devshim-search-smoke.mjs
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://127.0.0.1:8899'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://127.0.0.1:8899'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 let fails = 0

@@ -1,12 +1,12 @@
 // 织卷无头冒烟 · 审读存档版本化二期：大纲区「审读存档」条目旁「历史」按钮 → HistoryDrawer 复用
 // 用法：node scripts/audit-history-entry-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收：① 无审读报告时大纲区无「审读存档」区；② writeDoc 重跑两版（旧内容留档 1 版）后区出现；
 //       ③ 条目旁有「历史」按钮且点击弹出 HistoryDrawer（版本历史/共 1 版/相对路径头/diff + 行）；
 //       ④ 点条目本身仍走原文打开（回归）；⑤ 抽屉内两击「恢复此版本」→ 报告回旧版、历史新增一版；
 //       ⑥ 无 JS 异常；⑦ 截图存档 ~/Pictures/zhijuan/。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const ID = 'demo-aseya'
 const REL = '大纲/审读_一致性巡查.md'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))

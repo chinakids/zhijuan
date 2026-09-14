@@ -1,10 +1,10 @@
 // 织卷真模型冒烟 · 生成停止链路（页面级，智能层 2026-09-13 第三波收尾）
 // 用法：node scripts/agent-cancel-live-ui-smoke.mjs
-// 前置：node scripts/zj-bridge.mjs（8810）；python3 serve-renderer.mjs（8123）；CDP 9224；vLLM 在线
+// 前置：node scripts/zj-bridge.mjs（8810）；node scripts/serve-renderer.mjs（8123）；CDP 9224；vLLM 在线
 // 链路：无头页面（devShim）→ 注入 zj-bridge 桥（agent 通道换真引擎+真模型）→ 发消息 → 等首批 delta
 //       → 点「停止生成」→ 断言：assistant 出现「（已停止）」、停止按钮恢复、内容不再增长、无 JS 异常。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

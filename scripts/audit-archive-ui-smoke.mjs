@@ -1,11 +1,11 @@
 // 织卷无头冒烟 · 审读存档：全卷审计自动落盘 大纲/审读_<名>.md + 大纲区「审读存档」可回看（devShim 演示数据）
 // 用法：node scripts/audit-archive-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 正文页 Agent 面板点「一致性巡查」→ 抽屉跑完显示「已存档」；
 //         ② 大纲/ 下真有 审读_一致性巡查.md（listDocs 读到、内容含报告头）；
 //         ③ 大纲区出现「审读存档」区且可点击 → 编辑器渲染出报告内容。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

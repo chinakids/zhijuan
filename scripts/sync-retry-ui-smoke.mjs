@@ -7,9 +7,9 @@
 // Tab D（HistoryDrawer 恢复，创作层 2026-09-14）：造历史→恢复此版本→同步失败→抽屉内「重试同步」→成功
 // Tab E（批注提案接受，创作层 2026-09-14）：批注定时优化首扫生成提案→接受→toast 失败+action→重试成功
 // 用法：node scripts/sync-retry-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机无头 Chrome CDP 127.0.0.1:9224
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

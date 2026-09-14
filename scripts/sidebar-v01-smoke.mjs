@@ -1,8 +1,8 @@
 // V-01 侧栏/内容区分隔收尾 · 无头冒烟：纸卡去框（border/radius=0）+ 正文页台面留白（main p-3）
 // 断言：① .zj-md 容器 borderWidth=0 ② main padding=12px ③ 面板与纸卡之间露出 body 纸色台面 ④ 明/暗两主题一致
-// 用法：node scripts/sidebar-v01-smoke.mjs   （先 npm run build + python3 /tmp/spa_server.py 8123 + CDP 9224）
+// 用法：node scripts/sidebar-v01-smoke.mjs   （先 npm run build + node scripts/serve-renderer.mjs 8123 + CDP 9224）
 const PORT = 8123
-const BASE = `http://localhost:${PORT}`
+const BASE = process.env.ZJ_SMOKE_BASE || `http://localhost:${PORT}`
 const list = await (await fetch('http://127.0.0.1:9224/json')).json()
 const page = list.find((t) => t.type === 'page' && new RegExp(`:${PORT}`).test(t.url) && /novel/.test(t.url))
 if (!page) { console.error('NO NOVEL PAGE'); process.exit(1) }

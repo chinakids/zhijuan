@@ -7,7 +7,7 @@
 // 背景：devShim agentCancel 此前为空操作（停止=点了没反应），本轮补停止模拟并真机口径对表
 //       （事件不再转发 + aborted 替代 final/done）。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

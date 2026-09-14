@@ -5,7 +5,7 @@
 //         不越编辑器左界/右锚点（right-24 不变）、守卫「拦截 N 条 · 查看」完整在浮条内
 //         ③ 证据 span 带 title=全文（hover 可达，pointer-events:auto） ④ 全程无 JS 异常 ⑤ 截图
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const OUT = process.env.HOME + '/Pictures/zhijuan'
 const FULL = '✓ 无设定变化 · 已比对 切片「雾港夜」、人档 5、1 人未建档'

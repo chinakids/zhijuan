@@ -7,7 +7,7 @@
 // 背景：AgentPanel delta 分支曾用 messages.at(-1).content 拼接——工具卡 append 在消息尾部时会把
 //       「摘要+增量」覆盖进 assistant（前文丢失+摘要混入）；修复后按 role 定位最后一条 assistant。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

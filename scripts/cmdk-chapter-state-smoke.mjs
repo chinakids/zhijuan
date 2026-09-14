@@ -1,13 +1,13 @@
 // 织卷无头冒烟 · ⌘K 命令面板「章节状态徽章 + 最近素材键盘到达性」（平台层 2026-09-11）
 // 用法：node scripts/cmdk-chapter-state-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 注入无切片章（writeDoc → 正文/第05章_雾堤.md）后，⌘K 打开章节组：
 //          有切片章显示「切片：<名>」徽章、无切片章显示「未设切片」；
 //         ② 组顺序=页面 → 最近素材 → 打开章节（最近素材前移，键盘可达）；
 //         ③ 键盘到达性：打开面板纯 ↓ 键 ≤9 步选中最近素材组条目，回车跳素材库；
 //         ④ 无 JS 异常。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

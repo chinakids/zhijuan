@@ -6,7 +6,7 @@
 //       完整明细（已纠正 人物/沈眠.md / 已丢弃 人物/新角色1.md + 完整 reason）
 //       → 关停；另验 Outline 分幕采纳 header 同组件（devShim 模拟缺段草稿硬采路径）
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

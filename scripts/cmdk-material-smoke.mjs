@@ -1,12 +1,12 @@
 // 织卷无头冒烟 · ⌘K 全局命令面板素材全文搜索（平台层：素材检索跨页直达）
 // 用法：node scripts/cmdk-material-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① ⌘K 面板空输入不显示素材组；② 输入「旧物」→「素材 · 全文搜索」组出现、命中「追忆型开头」；
 //         ③ 点击命中 → 跳转 library?doc= 且素材编辑器打开（__ZJ_DOC.rel 实锤）、doc 参数被消费清掉；
 //         ④ 第二次搜索「茶楼」文件名命中 → 打开 素材库/人物/旧茶楼账房.md；⑤ 无结果不出素材组 + 空态；
 //         ⑥ 原有页面/章节/项目三组不回归；⑦ 无 JS 异常。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

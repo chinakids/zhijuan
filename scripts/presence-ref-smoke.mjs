@@ -1,11 +1,11 @@
 // 织卷无头冒烟 · 审读发现→agent 处置指路（refFile/target 结构化档案路径）
 // 用法：node scripts/presence-ref-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 「在场」Tab 的 unlisted 别名命中（沈爷=沈藏登记别名）条目显示「关联档案：人物/沈藏.md」；
 //         ② 点该条「让 agent 改」→ 对话区出现 user 消息，含「请处理下面这条审读发现」与「关联档案：人物/沈藏.md」；
 //         ③ 「档案」Tab 的 unused 条目（沈老爹）带 target → 出现「转提案」按钮。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

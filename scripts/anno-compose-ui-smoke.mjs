@@ -3,7 +3,7 @@
 //   →zj:anno-compose（loc 尽力计算 + before 原文）→Novel 弹层→保存→csv 落盘
 // 前置：node scripts/serve-renderer.mjs 8123；无头 Chrome CDP 127.0.0.1:9224
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 async function openTab(url) {
   const r = await fetch(CDP + '/json/new?' + encodeURIComponent(url), { method: 'PUT' })

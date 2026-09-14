@@ -1,12 +1,12 @@
 // 织卷无头冒烟 · 正文写入后切片同步 · 剩余两入口（批注提案接受 / 历史版本恢复）补链验收
 // 用法：node scripts/anno-history-sync-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer（或 scripts/serve-renderer.mjs）；无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123（或 scripts/serve-renderer.mjs）；无头 Chrome CDP 127.0.0.1:9224
 // 场景A（新 tab）：设置开「批注定时优化」→ 回项目 10s 自动首扫生成批注提案 → 顶栏「待确认提案」→ 抽屉「接受」
 //   → 断言 window.__ZJ_SYNCS 记录 agentSync(demo-aseya|正文/第01章_雾港.md) + toast「切片同步」+ 提案 accepted
 // 场景B（新 tab，独立内存/独立节流门）：writeDoc 造两版历史 → 选章 → 「历史」→ 选旧版 v1 → 恢复（二次确认）
 //   → 断言 __ZJ_SYNCS 记录同步调用 + 抽屉「切片同步无设定变化」+ 正文内容确实恢复为旧版
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

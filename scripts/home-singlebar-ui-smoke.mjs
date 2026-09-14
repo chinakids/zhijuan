@@ -7,7 +7,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs'
 
 const CDP = 'http://127.0.0.1:9224'
-const SPA = 'http://127.0.0.1:8899'
+const SPA = process.env.ZJ_SMOKE_BASE || 'http://127.0.0.1:8899'
 
 // 新建 tab（/json/new 必须用 PUT）
 const r = await fetch(`${CDP}/json/new?${encodeURIComponent(`${SPA}/#/?cb=${Date.now()}`)}`, { method: 'PUT' })

@@ -1,11 +1,11 @@
 // 织卷无头冒烟 · 切片时序核查：审计抽屉「时序」Tab（devShim 演示数据）
 // 用法：node scripts/order-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 正文页 Agent 面板出现「切片时序核查」入口按钮；② 点击后抽屉标题=切片时序核查；
 //         ③ 状态行显示「本地规则核查：共列 2 条」；④ 演示条目（切片序号倒流 / 章号跳号）渲染；
 //         ⑤ 抽屉内「时序」Tab 可切换（在「在场」与「时序」间往返）且标题随切。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

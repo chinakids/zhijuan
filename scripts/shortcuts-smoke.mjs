@@ -1,8 +1,8 @@
 // 织卷无头冒烟 · 写作快捷键（⌘E 用选区设查找词 / ⌘G 工作流 / Esc 清高亮）+ 快捷键速查面板入口（⌘K 帮助组 / 设置页关于）
 // 用法：node scripts/shortcuts-smoke.mjs
-// 前置：npm run build；python3 -m http.server 8123 --directory out/renderer（SPA fallback）；CDP 127.0.0.1:9224
+// 前置：npm run build；node scripts/serve-renderer.mjs 8123（SPA fallback）；CDP 127.0.0.1:9224
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

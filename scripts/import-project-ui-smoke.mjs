@@ -5,7 +5,7 @@
 // ② 输入路径 → 点「导入」→ devShim 结构化返回 ok+copied → toast「已导入「xxx」」+ 跳转 #/project/…
 // ③ ?zj-fail=importProject → 导入 → toast「导入失败」（错误路径不崩）
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

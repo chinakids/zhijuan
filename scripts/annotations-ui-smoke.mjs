@@ -5,7 +5,7 @@
 //       → 生成 2 条「批注同步」提案 → 顶栏「待确认提案 2」→ 抽屉「扫描批注」按钮/来源
 //       → 接受 → 正文按 before→after 替换 + csv 行删除（含防重：不重复生成）
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

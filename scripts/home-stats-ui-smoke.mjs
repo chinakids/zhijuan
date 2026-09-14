@@ -1,6 +1,6 @@
 // 织卷无头冒烟 · 首页项目卡片元信息完整性（模块设计 §四 A：每卡「章节数·人物数·素材数」）
 // 用法：node scripts/home-stats-ui-smoke.mjs
-// 前置：out/renderer 已 build；python3 scripts/spa_server.py 8123 --directory out/renderer；本机无头 Chrome CDP 127.0.0.1:9224
+// 前置：out/renderer 已 build；node scripts/serve-renderer.mjs 8123；本机无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 卡片封面小字出现且带 data-testid="zj-card-stats"；
 //         ② 每张卡「N 章 · 人物 N · 素材 N」与 window.zhijuan.listProjects() 的 stats 动态一致（含素材数，不硬编）；
 //         ③ 回归：文本同时含「章」「人物」；

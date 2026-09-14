@@ -1,11 +1,11 @@
 // 织卷无头冒烟 · 编辑器字排（Apple HIG Typography 第一批）
 // 用法：node scripts/typography-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① .ProseMirror 正文 16px / line-height 1.85（computed 29.6px）；
 //         ② 段落下间距 0.85em（computed 13.6px）；③ 标题层级字号（h1 1.6em=25.6px / 600）；
 //         ④ 两主题（paper/dark）句柄一致、无 JS 异常；⑤ 截图存档。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

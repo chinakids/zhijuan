@@ -5,7 +5,7 @@
 //         ③ 浮层选章即关 ④ Esc/点外关闭 ⑤ Agent 用 End 拖到 560 后 1300 也折叠（阈值动态）
 //         ⑥ 恢复宽窗侧栏自动回归 ⑦ 全程无 JS 异常 ⑧ 截图（折叠态/浮层态）
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const OUT = process.env.HOME + '/Pictures/zhijuan'
 

@@ -1,11 +1,11 @@
 // 织卷无头冒烟 · EditCard 采纳（doc:applyEdit）→ 切片同步触发（正文为源、设定为流；D-V2-13 主写入口径补链）
 // 用法：node scripts/edit-sync-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① devShim 发「改」→ EditCard 出现；② 点「采纳并写入」→ 状态「已采纳，已写入」正式写入；
 //         ③ 卡片内出现「✓ 切片同步：无设定变化」（devShim agentSync 返回空集）——采纳后同步被触发（修复前缺失）；
 //         ④ 第二次发「改」→ 再采纳 → 出现「本分钟内已同步过切片，不重复」（60s 节流生效）。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

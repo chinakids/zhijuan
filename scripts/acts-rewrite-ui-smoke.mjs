@@ -1,13 +1,13 @@
 // 织卷无头冒烟 · 兑现检查「没兑现/部分兑现」→「重写第 N 段」（只重写该分幕段，其余段保留）
 // 用法：node scripts/acts-rewrite-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer（或任意本地服务出 out/renderer）
+// 前置：node scripts/serve-renderer.mjs 8123（或任意本地服务出 out/renderer）
 //       本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 选中第1章 → 分幕生成（mock 草稿，含 第1/2 段）；
 //         ② 兑现检查抽屉出现（mock 报告：第 2 段「部分兑现」）；
 //         ③ 点「重写第 2 段」→ agentActs 走 { only:[2] }（devShim 同语义 mock）；
 //         ④ 草稿里第 2 段带「已重写」标记、第 1 段原文原样保留；顶部 msg 报成功。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

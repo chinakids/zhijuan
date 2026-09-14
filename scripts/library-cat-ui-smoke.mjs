@@ -1,9 +1,9 @@
 // 素材库类别树 + 搜索 UI 冒烟：无头 Chrome（CDP 9224）+ devShim 演示数据（demo-aseya）
-// 前置：npm run build 已跑；python3 -m http.server 8123 --directory out/renderer 在跑
+// 前置：npm run build 已跑；node scripts/serve-renderer.mjs 8123 在跑
 // 步骤：开新 tab（缓存破坏）→ hash 导航 项目/素材库 → 断言类别树（人物/环境/索引）→ 点「环境」出素材卡（预览/标签）
 //       → 点「＋ 新类别」建「场景」→ 树新增 → 搜索「借书卡」出命中（正文徽章+snippet）→ 点击命中进编辑器（__ZJ_DOC.rel）
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://127.0.0.1:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://127.0.0.1:8123'
 const ID = 'lib' + Date.now()
 
 const tab = await (await fetch(CDP + '/json/new?' + encodeURIComponent(BASE + '/?cb=' + ID), { method: 'PUT' })).json()

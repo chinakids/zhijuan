@@ -5,7 +5,7 @@
 //       → 加入对话（进 agent 引用条）→ 再点开 → 删除该批注（csv 删行 → 高亮/徽标即时减少 + toast）
 //       → 点外/Esc 关闭 → 亮/暗主题卡片配色核对
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

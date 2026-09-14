@@ -5,7 +5,7 @@
 //       → 点击条目跳转到对应高亮（模型选区=命中文段，抽屉保持打开）→ 焦点圈闭/收起按钮/Esc 关闭+回焦
 //       → 气泡删除一条 → 列表即时减员 → 删最后一条 → 抽屉自动收起 → 亮/暗主题抽屉底色核对
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

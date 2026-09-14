@@ -1,9 +1,9 @@
 // 织卷无头冒烟 · 称谓发现核查（devShim 空态路径）：Agent 面板新按钮 → 抽屉打开 → 标题/摘要/空态渲染
 // 命中路径由 scripts/nameform-data-smoke.mjs（主进程真实现 + 临时库）覆盖，此处验证 UI 接线（按钮/标题/空态/无 JS 异常）。
 // 用法：node scripts/nameform-ui-smoke.mjs
-// 前置：npm run build 后 python3 /tmp/spa_server.py（SPA fallback，127.0.0.1:8899）；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：npm run build 后 node scripts/serve-renderer.mjs（SPA fallback，127.0.0.1:8899）；本机专用无头 Chrome CDP 127.0.0.1:9224
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8899'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8899'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

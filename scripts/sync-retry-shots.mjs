@@ -6,7 +6,7 @@ import { writeFileSync, mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const PICS = `${homedir()}/Pictures/zhijuan`
 mkdirSync(PICS, { recursive: true })

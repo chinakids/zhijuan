@@ -1,6 +1,6 @@
 // 织卷无头冒烟 · 写作副产物版本化（2026-09-14 智能层）：章卡/导演板/分幕草稿入史 + 大纲区「历史」入口
 // 用法：node scripts/outline-history-ui-smoke.mjs
-// 前置：npm run build；python3 -m http.server 8123 --directory out/renderer（或 /tmp/spa_server.py）；CDP 127.0.0.1:9224
+// 前置：npm run build；node scripts/serve-renderer.mjs 8123（或 node scripts/serve-renderer.mjs）；CDP 127.0.0.1:9224
 // 验收：① seed 章卡/导演板 → 对应「历史」按钮存在、分幕未生成时无 acts-history；
 //       ② 导演本章覆盖 seed → 旧版入史（共 1 版）+ 抽屉 diff 可见；③ writeDoc 再改版 → 共 2 版 + 恢复可走（两击确认）；
 //       ④ 章卡/分幕：writeDoc 改版 → 对应历史共 1 版（首次无旧版 → 空态）；⑤ 索引行无历史按钮（不入史）；

@@ -6,7 +6,7 @@
 //   → 再走划词 → 弹层填写意图 → 保存 → 焦点回编辑器 + 批注写入
 //   → 点击批注高亮 → 气泡 role=group + aria-label=批注（原 role=tooltip 语义不确）
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

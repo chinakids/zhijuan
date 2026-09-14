@@ -1,11 +1,11 @@
 // 织卷无头冒烟 · 正文版本历史 UI（M3）
 // 用法：node scripts/history-ui-smoke.mjs
-// 前置：python3 -m http.server 8123 --directory out/renderer；本机专用无头 Chrome CDP 127.0.0.1:9224
+// 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
 // 验收：① 编辑器底部「历史」入口存在；② 保存两个版本后抽屉列出 ≥2 版；
 //       ③ 默认选中最新版并渲染行级 diff（− + 行存在）；④ 两击「恢复此版本」→ 正文回旧版且历史新增一版；
 //       ⑤ writeDoc 模拟 fs:event 广播（观察项①）；⑥ 恢复后编辑器经 extVersion 静默重载为恢复内容；⑦ 无 JS 异常。
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const REL = '正文/第01章_雾港.md'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
