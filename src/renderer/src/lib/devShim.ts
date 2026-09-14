@@ -12,6 +12,7 @@ import { extractFrontMatter, setFrontMatterField } from '../../../shared/fmatter
 import { adoptActsChapter } from '../../../shared/actsAdopt'
 import { countWords } from '../../../shared/count'
 import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceCheck, chapterMissingFromRaw } from '../../../shared/presence'
+import { nameFormCheck } from '../../../shared/nameform'
 import { actGapsCheck } from '../../../shared/actGaps'
 import { sliceSectionOrderCheck } from '../../../shared/sliceorder'
 import { findAnchorLine, normalizeAnchor } from '../../../shared/anchor'
@@ -1123,7 +1124,7 @@ const mock = {
   },
   agentAudit: async (projectId: string, kind: string) => {
     // 与主进程同语义：审计成功后把结论落盘 大纲/审读_<名>.md（供无头 UI 冒烟断言「已存档」与大纲区「审读存档」）
-    const name = kind === 'consistency' ? '一致性巡查' : kind === 'perspectives' ? '多视角审视' : kind === 'presence' ? '人物在场核查' : kind === 'order' ? '切片时序核查' : kind === 'unused' ? '人物档案腐坏核查' : kind === 'actgaps' ? '正文缺段核查' : kind === 'sliceord' ? '档案切片核查' : '冷读报告'
+    const name = kind === 'consistency' ? '一致性巡查' : kind === 'perspectives' ? '多视角审视' : kind === 'presence' ? '人物在场核查' : kind === 'order' ? '切片时序核查' : kind === 'unused' ? '人物档案腐坏核查' : kind === 'actgaps' ? '正文缺段核查' : kind === 'sliceord' ? '档案切片核查' : kind === 'nameform' ? '称谓发现核查' : '冷读报告'
     const res =
       kind === 'presence'
         ? (() => {
@@ -1193,6 +1194,24 @@ const mock = {
               .filter((c) => c.raw.trim())
             return { ok: true as const, result: sliceSectionOrderCheck({ characters, chapters }) }
           })()
+        : kind === 'nameform'
+        ? (() => {
+            // 与主进程同语义：复用共享纯函数 + devShim 内存文档真实计算（演示项目仅沈藏（已有登记别名，正文用「沈爷」已登记不报）→ 零命中空态；命中路径由单测/数据层冒烟覆盖）
+            const aliasMap: Record<string, string[]> = {}
+            const names: string[] = []
+            for (const { file, name } of docsOf(projectId + '/人物')) {
+              const n = name.replace(/\.md$/i, '').trim()
+              if (n && !['总览', '索引'].includes(n)) {
+                names.push(n)
+                const al = parseAliases(extractFrontMatter(docs.get(projectId + '/人物/' + file) ?? '').fm)
+                if (al.length) aliasMap[n] = al
+              }
+            }
+            const chapters = docsOf(projectId + '/正文')
+              .map(({ file }) => ({ file: '正文/' + file, raw: docs.get(projectId + '/正文/' + file) ?? '' }))
+              .filter((c) => c.raw.trim())
+            return { ok: true as const, result: nameFormCheck({ knownChars: names, aliasMap, chapters }) }
+          })()
         : kind === 'consistency'
         ? {
             ok: true as const,
@@ -1227,8 +1246,8 @@ const mock = {
                 ]
               }
             }
-    // 人物在场核查 / 切片时序核查 / 档案腐坏核查 / 正文缺段核查 / 档案切片核查：主进程同语义——本地规则结果，不落盘（高频重跑噪音大）
-    if (kind === 'presence' || kind === 'order' || kind === 'unused' || kind === 'actgaps' || kind === 'sliceord') return res
+    // 人物在场核查 / 切片时序核查 / 档案腐坏核查 / 正文缺段核查 / 档案切片核查 / 称谓发现核查：主进程同语义——本地规则结果，不落盘（高频重跑噪音大）
+    if (kind === 'presence' || kind === 'order' || kind === 'unused' || kind === 'actgaps' || kind === 'sliceord' || kind === 'nameform') return res
     const rel = '大纲/审读_' + name + '.md'
     // 与真机 auditToMarkdown 同源模板（shared/auditDoc.ts）——dev 报告可被 parseAuditMarkdown 解析出条目
     const md = auditDocMarkdown(res.result, name)

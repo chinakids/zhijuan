@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Rea
 import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, Users, UserCheck, ListOrdered, FileWarning, FileQuestion, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, Rows3 } from 'lucide-react'
+import { Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, Users, UserCheck, ListOrdered, FileWarning, FileQuestion, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, Rows3, Tags } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import type { ProseApi } from '../editor/Prose'
@@ -964,6 +964,14 @@ export default function AgentPanel(props: AgentPanelProps) {
             className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
           >
             <Rows3 className="h-3.5 w-3.5" />
+          </button>
+          <button
+            title="称谓发现核查：正文出现「姓+称谓 / 老小阿大+姓」但档案未登记（本地规则·秒级·零模型）"
+            aria-label="称谓发现核查"
+            onClick={() => setAudit({ open: true, tab: 'nameform' })}
+            className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
+          >
+            <Tags className="h-3.5 w-3.5" />
           </button>
           <button title="清空对话" aria-label="清空对话" onClick={() => useAgentStore.getState().reset()} className="text-ink-3 hover:text-ink">
             <RotateCcw className="h-3.5 w-3.5" />

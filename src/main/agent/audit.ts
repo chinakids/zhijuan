@@ -3,6 +3,7 @@
 // 供 UI 渲染成可逐条转提案的检查报告。和 runSync 同构：独立的 session、无提问、离线出结果。
 import { readDoc, listChapters, listDocs, writeDoc } from '../store'
 import { presenceCheck, unusedAliasCheck, parseAliases, listedFrom, unlistedInBody, chapterMissingFromRaw } from '../../shared/presence'
+import { nameFormCheck } from '../../shared/nameform'
 import { actGapsCheck } from '../../shared/actGaps'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { chapterOrderCheck } from '../../shared/chapterorder'
@@ -36,7 +37,8 @@ const AUDIT_NAMES: Record<AuditKind, string> = {
   order: '切片时序核查',
   unused: '人物档案腐坏核查',
   actgaps: '正文缺段核查',
-  sliceord: '档案切片核查'
+  sliceord: '档案切片核查',
+  nameform: '称谓发现核查'
 }
 
 /** 审计结果存档的相对路径：大纲/审读_<名>.md */
@@ -191,6 +193,20 @@ export function runSliceOrder(
   }
 }
 
+// ===== 称谓发现核查（本地规则层，零模型、秒级） =====
+// 机械层第七块：正文出现「姓+常见称谓后缀 / 老·小·阿·大+姓」但人物档案未登记 → 疑似新称呼未登记。
+// 与 presence/order/unused/actgaps/sliceord 同策略：不落盘、高频可重跑；复用 readCharIndex 一次扫描。
+export function runNameForms(
+  projectId: string
+): { ok: true; result: AuditResult } | { ok: false; error: string } {
+  try {
+    const { knownChars, aliasMap } = readCharIndex(projectId)
+    return { ok: true, result: nameFormCheck({ knownChars, aliasMap, chapters: readVolumeChapters(projectId) }) }
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message ?? e) }
+  }
+}
+
 /** 审计结果 → 可入 git 的 markdown 存档（纯函数，可单测；模板单源在 shared/auditDoc.ts，devShim 同用） */
 export function auditToMarkdown(
   result: AuditResult,
@@ -293,6 +309,7 @@ export async function runAudit(
   if (kind === 'unused') return runUnusedAliases(projectId)
   if (kind === 'actgaps') return runActGaps(projectId)
   if (kind === 'sliceord') return runSliceOrder(projectId)
+  if (kind === 'nameform') return runNameForms(projectId)
   // 多视角审视是独立能力，参数不同（无 kind），单独路由
   const r =
     kind === 'perspectives'
