@@ -7,6 +7,7 @@ import { toast, type ToastKind } from '../../store/toasts'
 import { cn } from '../../lib/utils'
 import { useModalA11y } from '../../lib/useModalA11y'
 import { syncAfterChapterEdit } from '../sync/editSync'
+import { formatGuardIssuesText } from '../sync/guardText'
 import { isChapterTarget } from '../../../../shared/editSyncGate'
 import type { SliceSyncResult } from '../sync/sliceSync'
 
@@ -24,10 +25,12 @@ const STATUS: Record<string, { text: string; cls: string }> = {
   stale: { text: '已过期', cls: 'bg-surface-2 text-ink-3' }
 }
 
-/** 正文同步结果 → toast 呈现；失败带「重试同步」action（重试共用同收口：失败不节流，可立即重试） */
+/** 正文同步结果 → toast 呈现；失败带「重试同步」action（重试共用同收口：失败不节流，可立即重试）；
+ *  拦截明细走完整纯文本（toast 无法挂行内交互——Text 承载直接给全文，最长一二条可扫读） */
 function describeChapterSync(s: SliceSyncResult | 'throttled' | 'skipped'): { ok: boolean; kind: ToastKind; desc: string } | null {
   if (s === 'throttled' || s === 'skipped') return null
-  const guardNote = s.issues && s.issues.length > 0 ? `（拦截 ${s.issues.length} 条）` : ''
+  const guardText = formatGuardIssuesText(s.issues)
+  const guardNote = guardText ? `（拦截 ${s.issues!.length} 条：${guardText}）` : ''
   if (s.ok) {
     return {
       ok: true,

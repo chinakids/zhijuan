@@ -12,6 +12,8 @@ import { useFsChanged, useFsEvents } from '../features/fs/useFsEvents'
 import { isBoardStale } from '../../../shared/boardAge'
 import { parseActsWarn } from '../../../shared/actsSeg'
 import { runSliceSync, type SliceSyncResult } from '../features/sync/sliceSync'
+import { GuardIssuesNote } from '../features/sync/GuardIssues'
+import type { SyncIssue } from '../../../shared/types'
 import { toast } from '../components/ui/toast'
 
 /** 大纲区：agent 把已有正文回建成章卡，画布随进度活起来。 */
@@ -32,6 +34,8 @@ export default function Outline() {
   // 审读存档条目旁的「历史」抽屉（复用正文 HistoryDrawer，rel=审读报告路径）
   const [historyRel, setHistoryRel] = useState<string | null>(null)
   const [msg, setMsg] = useState('')
+  // 守卫拦截明细（分幕采纳触发同步后的防线提示，可展开查看）
+  const [guardIssues, setGuardIssues] = useState<SyncIssue[]>([])
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
   // 当前选中章节的分幕草稿里「未写成」的段号（>0 时显示「补写缺段」按钮）
@@ -271,6 +275,7 @@ export default function Outline() {
     setConfirmAdopt(false)
     setAdopting(true)
     setMsg('')
+    setGuardIssues([])
     try {
       const r = await window.zhijuan.adoptActs(id, '正文/' + selChapter.file, actsRel(selChapter))
       if (r.ok) {
@@ -284,19 +289,17 @@ export default function Outline() {
         // 结果呈现统一入口（首跑与「重试同步」共用）：成功→提示/toast 更新；失败→toast 挂 action 按钮可就地重试
         let retrySync: (() => void) | null = null
         const applySyncOutcome = (s: SliceSyncResult) => {
-          const guardNote =
-            s.issues && s.issues.length > 0
-              ? `（拦截 ${s.issues.length} 条：${s.issues[0].reason.slice(0, 24)}…）`
-              : ''
           if (s.ok) {
+            setGuardIssues(s.issues ?? [])
             if (s.items > 0) {
-              setMsg(`✓ 已替换正文并生成 ${s.items} 条切片提案${guardNote}（待确认）`)
+              setMsg(`✓ 已替换正文并生成 ${s.items} 条切片提案（待确认）`)
               toast.update(tid, { kind: 'info', title: '切片提案待确认', description: `正文替换完成，生成 ${s.items} 条切片提案` })
             } else {
-              setMsg(`✓ 已替换正文；切片同步：无设定变化${guardNote}`)
+              setMsg(`✓ 已替换正文；切片同步：无设定变化`)
               toast.update(tid, { kind: 'success', title: '切片同步完成', description: '正文替换完成，无设定变化' })
             }
           } else {
+            setGuardIssues([])
             setMsg(`✗ 正文已替换，但切片同步失败：${s.error ?? '未知原因'}`)
             toast.update(tid, {
               kind: 'error',
@@ -308,6 +311,7 @@ export default function Outline() {
         }
         retrySync = () => {
           setMsg('切片同步重试中…')
+          setGuardIssues([])
           toast.update(tid, { kind: 'loading', title: '切片同步重试中…', description: undefined, action: null })
           void runSliceSync(id, '正文/' + selChapter.file).then(applySyncOutcome)
         }
@@ -496,6 +500,7 @@ export default function Outline() {
           </span>
           <span className="flex-1" />
           {msg && <span className={cn('max-w-[40vw] truncate rounded-full px-2.5 py-0.5 text-[11px]', msg.startsWith('✓') ? 'bg-success-soft text-success' : msg.startsWith('✗') ? 'bg-danger-soft text-danger' : 'bg-accent-soft text-accent')}>{msg}</span>}
+          {guardIssues.length > 0 && <GuardIssuesNote issues={guardIssues} className="shrink-0" />}
           {building && (
             <span className="flex items-center gap-1 text-[11px] text-accent">
               <LoadingIndicator size={12} /> 写作引擎逐章回建中…（每章约一两分钟）

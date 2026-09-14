@@ -13,6 +13,8 @@ import { Textarea } from '../components/ui/textarea'
 import { cn } from '../lib/utils'
 import DocEditor from '../features/editor/DocEditor'
 import { runSliceSync } from '../features/sync/sliceSync'
+import { GuardIssuesNote } from '../features/sync/GuardIssues'
+import type { SyncIssue } from '../../../shared/types'
 import { useProposalStore } from '../store/proposals'
 import { useDocTitleStore } from '../store/docTitle'
 import { useUiStore } from '../store/ui'
@@ -78,6 +80,8 @@ export default function Novel() {
   const events = useFsEvents(id)
   const apiRef = useRef<ProseApi | null>(null)
   const [syncMsg, setSyncMsg] = useState('')
+  // 守卫拦截（target 存在性防线）：浮条「查看」可展开完整明细（正文为源、设定为流，拦截需作者判断是否补档案）
+  const [syncIssues, setSyncIssues] = useState<SyncIssue[]>([])
   // 切片同步失败后的就地重试（03:45 观察②→06:45 候选 2）：失败浮条不随 6s 自动清，留「重试同步」按钮
   const [syncRetry, setSyncRetry] = useState<{ rel: string } | null>(null)
   const [checkOpen, setCheckOpen] = useState(false)
@@ -195,13 +199,11 @@ export default function Novel() {
       if (!id) return
       setSyncMsg('切片同步中…')
       setSyncRetry(null)
+      setSyncIssues([])
       const r = await runSliceSync(id, rel)
       if (r.ok) {
-        const guardNote =
-          r.issues && r.issues.length > 0
-            ? `（拦截 ${r.issues.length} 条：${r.issues[0].reason.slice(0, 24)}…）`
-            : ''
-        setSyncMsg(r.items > 0 ? `✓ 已生成 ${r.items} 条切片提案${guardNote}` : `✓ 无设定变化${guardNote}`)
+        setSyncIssues(r.issues ?? [])
+        setSyncMsg(r.items > 0 ? `✓ 已生成 ${r.items} 条切片提案` : `✓ 无设定变化`)
         useProposalStore.getState().bump()
         window.setTimeout(() => setSyncMsg(''), 6000)
       } else {
@@ -658,6 +660,7 @@ export default function Novel() {
             <span className={syncMsg.startsWith('✓') ? 'text-success' : syncMsg.startsWith('✗') ? 'text-danger' : 'text-accent'}>
               {syncMsg}
             </span>
+            {syncIssues.length > 0 && <GuardIssuesNote issues={syncIssues} className="pointer-events-auto" />}
             {syncRetry && (
               <button
                 onClick={() => void doSync(syncRetry.rel)}

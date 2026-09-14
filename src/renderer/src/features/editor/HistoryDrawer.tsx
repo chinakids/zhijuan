@@ -12,6 +12,8 @@ import { cn } from '../../lib/utils'
 import { useModalA11y } from '../../lib/useModalA11y'
 import { buildDiffView, DIFF_MAX_ROWS } from './diffView'
 import { syncAfterChapterEdit } from '../sync/editSync'
+import { GuardIssuesNote } from '../sync/GuardIssues'
+import type { SyncIssue } from '../../../../shared/types'
 
 interface Props {
   projectId: string
@@ -37,6 +39,8 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
   const [confirming, setConfirming] = useState(false)
   const [msg, setMsg] = useState('')
   const [syncRetry, setSyncRetry] = useState(false)
+  // 守卫拦截明细（历史版本恢复触发同步后的防线提示，可展开查看）
+  const [syncIssues, setSyncIssues] = useState<SyncIssue[]>([])
   const [loading, setLoading] = useState(false)
   // 模态无障碍：焦点圈闭 / Esc 关闭 / 滚动锁 / 关闭回焦（Apple HIG Keyboards）
   const panelRef = useRef<HTMLDivElement>(null)
@@ -81,17 +85,13 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
   const runSync = useCallback(async () => {
     const s = await syncAfterChapterEdit(projectId, rel)
     if (s === 'throttled' || s === 'skipped') return
-    const guardNote =
-      s.issues && s.issues.length > 0 ? `（拦截 ${s.issues.length} 条：${s.issues[0].reason.slice(0, 20)}…）` : ''
     if (s.ok) {
       setSyncRetry(false)
-      setMsg(
-        s.items > 0
-          ? `✓ 已恢复；切片同步出 ${s.items} 条提案待确认${guardNote}`
-          : `✓ 已恢复；切片同步无设定变化${guardNote}`
-      )
+      setSyncIssues(s.issues ?? [])
+      setMsg(s.items > 0 ? `✓ 已恢复；切片同步出 ${s.items} 条提案待确认` : `✓ 已恢复；切片同步无设定变化`)
     } else {
       setSyncRetry(true)
+      setSyncIssues([])
       setMsg(`✓ 已恢复；切片同步失败：${s.error ?? '未知错误'}（可稍后保存触发）`)
     }
   }, [projectId, rel])
@@ -164,6 +164,7 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
               {msg && (
                 <div className="mb-2 flex items-center gap-2 rounded-md bg-accent-soft/60 px-2 py-1 text-[11px] text-accent">
                   <span className="min-w-0 flex-1">{msg}</span>
+                  {syncIssues.length > 0 && <GuardIssuesNote issues={syncIssues} />}
                   {syncRetry && (
                     <button
                       className="shrink-0 rounded-md border border-hair bg-surface px-1.5 py-0.5 text-[10px] text-accent transition-colors hover:bg-accent-soft"

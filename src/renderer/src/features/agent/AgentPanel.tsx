@@ -29,6 +29,8 @@ import CommandMenu from './CommandMenu'
 import { cn } from '../../lib/utils'
 import { Button } from '../../components/ui/button'
 import { syncAfterChapterEdit } from '../sync/editSync'
+import { GuardIssuesNote } from '../sync/GuardIssues'
+import type { SyncIssue } from '../../../../shared/types'
 import type { SliceSyncResult } from '../sync/sliceSync'
 
 interface AgentPanelProps {
@@ -123,15 +125,11 @@ function toolLabel(tool: string): string {
 // 正文为源、设定为流：EditCard 采纳（doc:applyEdit）写入正文后，与「保存正文」「分幕采纳」同口径触发切片同步；
 // 节流（60s 同文件）与「批注提案接受/历史版本恢复」统一收口 features/sync/editSync：一次对话内连续改写不重复烧引擎，失败不节流
 // 失败可感知可重试（2026-09-14 创作层）：收口三入口（EditCard/历史恢复/批注接受）与 Novel/Outline 同口径，失败挂「重试同步」
-function describeSyncOutcome(s: SliceSyncResult | 'throttled' | 'skipped'): { text: string; retry: boolean } | null {
-  if (s === 'throttled') return { text: '✓ 已采纳；本分钟内已同步过切片，不重复', retry: false }
+function describeSyncOutcome(s: SliceSyncResult | 'throttled' | 'skipped'): { text: string; retry: boolean; issues: SyncIssue[] } | null {
+  if (s === 'throttled') return { text: '✓ 已采纳；本分钟内已同步过切片，不重复', retry: false, issues: [] }
   if (s === 'skipped') return null // 非正文（设定类工具写入），不提示
-  const guardNote =
-    s.issues && s.issues.length > 0
-      ? `（拦截 ${s.issues.length} 条：${s.issues[0].reason.slice(0, 24)}…）`
-      : ''
-  if (s.ok) return { text: s.items > 0 ? `✓ 切片同步：${s.items} 条提案待确认${guardNote}` : `✓ 切片同步：无设定变化${guardNote}`, retry: false }
-  return { text: `✗ 切片同步失败：${s.error ?? '未知错误'}`, retry: true }
+  if (s.ok) return { text: s.items > 0 ? `✓ 切片同步：${s.items} 条提案待确认` : `✓ 切片同步：无设定变化`, retry: false, issues: s.issues ?? [] }
+  return { text: `✗ 切片同步失败：${s.error ?? '未知错误'}`, retry: true, issues: [] }
 }
 function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
   id: string
@@ -144,7 +142,7 @@ function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
 }) {
   const [busy, setBusy] = useState(false)
   // 同步结果（含失败重试）：失败时 card 内挂「重试同步」，重试与首跑共用 runSync（同收口，失败不节流可立即重试）
-  const [sync, setSync] = useState<{ text: string; retry: boolean } | null>(null)
+  const [sync, setSync] = useState<{ text: string; retry: boolean; issues: SyncIssue[] } | null>(null)
   const [syncBusy, setSyncBusy] = useState(false)
   const runSync = useCallback(async () => {
     setSyncBusy(true)
@@ -152,7 +150,7 @@ function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
       const s = await syncAfterChapterEdit(projectId, file)
       setSync(describeSyncOutcome(s))
     } catch (e) {
-      setSync({ text: `✗ 切片同步失败：${String((e as Error).message ?? e)}`, retry: true })
+      setSync({ text: `✗ 切片同步失败：${String((e as Error).message ?? e)}`, retry: true, issues: [] })
     } finally {
       setSyncBusy(false)
     }
@@ -210,6 +208,7 @@ function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
       {sync && (
         <div className="mt-2 flex items-center gap-2">
           <p className={cn('min-w-0 flex-1 text-[11px]', sync.text.startsWith('✗') ? 'text-danger' : 'text-ink-2')}>{sync.text}</p>
+          {sync.issues.length > 0 && <GuardIssuesNote issues={sync.issues} className="shrink-0" />}
           {sync.retry && (
             <button
               className="shrink-0 rounded-md border border-hair px-1.5 py-0.5 text-[10px] text-accent transition-colors hover:bg-accent-soft disabled:opacity-60"
