@@ -190,11 +190,29 @@ export async function driveSession(
   const sub = client.subscribeSessionTree(sid)
   let acc = ''
   let stage: 'awaiting-prompt' | 'in-turn' | 'done' = 'awaiting-prompt'
-  const deadline = Date.now() + (opts?.maxMs ?? 10 * 60 * 1000)
+  let finished = false
+  let timedOut = false
+  let timeoutMsg = ''
+  // 超时必须由独立时钟驱动（2026-09-14）：事件泵在引擎静默时（无任何通知）for await 不迭代，
+  // 旧实现把 deadline 检查放在事件分支，静默时 maxMs 永不触发（driveSession 永久悬挂）。
+  // 到点后：① 真取消引擎侧轮次（cancelTurn——SDK 无公开中断口，走 session/cancel 补丁；失败降级）；
+  // ② 关闭订阅唤醒挂起的 next()（close 会 reject 全部 waiter），catch 里统一翻成超时文案。
+  const guard = setTimeout(() => {
+    if (finished) return
+    timedOut = true
+    void (async () => {
+      const cancelled = await cancelTurn(sid).catch(() => false)
+      timeoutMsg = cancelled
+        ? '写作引擎驱动超时（已中止引擎本轮）'
+        : '写作引擎驱动超时（引擎侧未能中止，任务可能仍在后台运行）'
+      if (!finished) {
+        try { sub.close() } catch {}
+      }
+    })()
+  }, Math.max(1, opts?.maxMs ?? 10 * 60 * 1000))
   try {
     await client.prompt(sid, [{ type: 'text', text }])
     for await (const n of sub) {
-      if (Date.now() > deadline) throw new Error('写作引擎驱动超时')
       opts?.onEvent?.(n)
       if (opts?.isAborted?.()) break // 外部已取消：尽快收尾（awaiting-prompt 阶段引擎可能已清队列、不再发事件）
       if (n.method !== 'session.event') {
@@ -212,7 +230,17 @@ export async function driveSession(
         if (stage === 'in-turn') stage = 'done'
       }
     }
+  } catch (e: any) {
+    if (timedOut) {
+      // 等取消结果落定（RPC 毫秒级；竞态窗口极小）再抛统一文案——调用方（runSubtask/runSync/runChat）
+      // 的错误提示必须让用户知道引擎侧是否已中止，不能裸抛 "notification subscription closed"。
+      for (let i = 0; i < 50 && !timeoutMsg; i++) await new Promise((r) => setTimeout(r, 50))
+      throw new Error(timeoutMsg || '写作引擎驱动超时（引擎侧中止状态未知）')
+    }
+    throw e
   } finally {
+    finished = true
+    clearTimeout(guard)
     try { sub.close() } catch {}
   }
   return acc
