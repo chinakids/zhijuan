@@ -5,9 +5,11 @@
 //       → CustomEvent 派发 → Home/Novel/DocEditor/Prose 接线 → UI 实效断言。
 // 验收点：① 初始启用态上报 route=home/editor=false；② settings 跳转；③ newProject 打开建项对话框；
 //         ④ 进项目+选章后 editor=true 上报；⑤ newChapter 打开建章对话框；⑥ 菜单 save 真实写盘；
-//         ⑦ 菜单 findOpen 打开查找条；⑧ shortcutHelp 打开速查；⑨ 全程无 JS 异常。
+//         ⑦ 菜单 findOpen 打开查找条；⑦.5 菜单 find 组双触发（窗口内 ⌘G/⇧⌘G 不双步进，P6.5 同型）；
+//         ⑧ shortcutHelp 打开速查；⑨ 全程无 JS 异常。
+import { writeFileSync, mkdirSync } from 'node:fs'
 const CDP = 'http://127.0.0.1:9224'
-const BASE = 'http://localhost:8123'
+const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {
@@ -163,6 +165,49 @@ const ok = (name, cond, extra = '') => {
     await sleep(300)
     const findOpenStill = await page.eval(`document.querySelector('.zj-find-input') !== null`)
     ok('P7 菜单 findOpen → 查找条打开；findNext 无词 no-op 不报错', findOpenStill === true)
+
+    // —— P7.5 菜单 find 组 + keydown ⌘G/⇧⌘G 双触发兜底（P6.5 同型）：窗口内不再步进 ——
+    // 正文注入两个相同探针词（findInDoc 按词匹配；stepFind 回绕：cur>=n→0，双触发步进会使计数
+    // 从 2/2 变 1/2——正是断言信号；断言面 zj-find-count 文本 `${current+1}/${total}`）。
+    await page.eval(`(() => { const e = window.__ZJ_EDITORS[0]; e.setContent(e.getMarkdown() + '\\n\\n菜单find探针词。菜单find探针词。'); return true })()`)
+    await sleep(300)
+    // 在查找条输入探针词（React 受控 input：native setter + input 事件，模板冒烟同款）
+    await page.eval(`(() => {
+      const el = document.querySelector('.zj-find-input')
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+      setter.call(el, '菜单find探针词')
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+      return true })()`)
+    await evalUntil(page, `document.querySelector('.zj-find-count')?.innerText === '1/2'`, (v) => v === true, 8000, '探针词 1/2')
+    // 菜单 findNext → step(1) → 2/2（写入 lastMenuAction 时间戳）
+    await page.eval(menuEmit('findNext'))
+    await evalUntil(page, `document.querySelector('.zj-find-count')?.innerText === '2/2'`, (v) => v === true, 8000, '菜单 findNext 2/2')
+    // 窗口内真实 keydown ⌘G（应被 isMenuJustHandled('findNext') 跳过；双触发则步进回绕显示 1/2）
+    await page.eval(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'g', metaKey: true, bubbles: true, cancelable: true }))`)
+    await sleep(400)
+    const cnt1 = await page.eval(`document.querySelector('.zj-find-count')?.innerText`)
+    ok('P7.5 菜单 findNext 后窗口内 ⌘G 不双步进（计数仍 2/2）', cnt1 === '2/2', 'count=' + cnt1)
+    // P7.5a 正向对照：窗口过期后 ⌘G 正常步进（2/2→1/2 回绕，证去重不吞正常按键）
+    await sleep(900)
+    await page.eval(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'g', metaKey: true, bubbles: true, cancelable: true }))`)
+    await evalUntil(page, `document.querySelector('.zj-find-count')?.innerText === '1/2'`, (v) => v === true, 5000, '窗口外 ⌘G 步进')
+    ok('P7.5a 窗口过期后 ⌘G 正常步进（2/2→1/2 回绕）', true)
+    // P7.5b 菜单 findPrev + 窗口内 ⇧⌘G：计数停 2/2（双触发 step(-1) 则 1/2）
+    await page.eval(menuEmit('findPrev'))
+    await evalUntil(page, `document.querySelector('.zj-find-count')?.innerText === '2/2'`, (v) => v === true, 8000, '菜单 findPrev 2/2')
+    await page.eval(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'g', metaKey: true, shiftKey: true, bubbles: true, cancelable: true }))`)
+    await sleep(400)
+    const cnt2 = await page.eval(`document.querySelector('.zj-find-count')?.innerText`)
+    ok('P7.5b 菜单 findPrev 后窗口内 ⇧⌘G 不双步进（计数停 2/2）', cnt2 === '2/2', 'count=' + cnt2)
+    // 可选截图（ZJ_SHOT=1 时，存到 ~/Pictures/zhijuan/<名字>-<HHMM>.png；home-stats 冒烟同款规格）
+    if (process.env.ZJ_SHOT) {
+      const s = await page.cmd('Page.captureScreenshot', { format: 'png' })
+      const dir = process.env.ZJ_SHOT_DIR || '/Users/USER/Pictures/zhijuan'
+      mkdirSync(dir, { recursive: true })
+      const file = `${dir}/find-menu-dedup-${new Date().toTimeString().slice(0, 5).replace(':', '')}.png`
+      writeFileSync(file, Buffer.from(s.data, 'base64'))
+      console.log('SHOT:', file)
+    }
 
     // —— P8 菜单 shortcutHelp → 全局速查 ——
     await page.eval(menuEmit('shortcutHelp'))
