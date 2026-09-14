@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Rea
 import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, Users, UserCheck, ListOrdered, FileWarning, FileQuestion, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, Rows3, Tags } from 'lucide-react'
+import { Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, Users, UserCheck, ListOrdered, FileWarning, FileQuestion, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, Rows3, Tags, Waypoints } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import type { ProseApi } from '../editor/Prose'
@@ -20,7 +20,8 @@ import {
 import { expandCommand, filterCommandCandidates, insertCommand, matchFixedCommand, parseCommandTrigger, parsePatrolArgs, ALL_COMMANDS, type ZjCommand } from '../../../../shared/commands'
 import { createStreamBuffer } from '../../../../shared/streamBuffer'
 import { trimHistoryMessage } from '../../../../shared/historyTrim'
-import { useAgentStore } from './store'
+import { useAgentStore, type AgentMsg } from './store'
+import { groupToolMeta, isContinuedRead } from './toolChain'
 import { useUiStore } from '../../store/ui'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
 import TodoCard from './TodoCard'
@@ -57,8 +58,12 @@ function fmtDur(ms: number): string {
   return m + 'm' + Math.round(s - m * 60) + 's'
 }
 
-function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs }: {
+function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs, step, continued }: {
   tool: string; args?: string; done?: boolean; toolOk?: boolean; summary?: string; startedAt?: number; elapsedMs?: number
+  /** 工具链内序号（如 2/3）——多轮连续工具调用可追溯顺序 */
+  step?: { no: number; total: number }
+  /** 续读徽标：链内更早的 zj_read_doc 已读过同一文档（offset 续读链） */
+  continued?: boolean
 }) {
   const failed = done === true && toolOk === false
   // 进行中态：每秒刷新「已 Ns」；完成后不再刷新（meta-done 事件里已带最终耗时）
@@ -83,7 +88,21 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs 
       ) : (
         <LoadingIndicator size={12} className="shrink-0 text-accent" />
       )}
+      {step && (
+        <span data-testid="zj-step" className="shrink-0 rounded bg-surface-2 px-1 py-0.5 text-[10px] leading-none text-ink-3">
+          {step.no}/{step.total}
+        </span>
+      )}
       <span className={cn('shrink-0 font-medium', failed ? 'text-danger' : 'text-ink-2')}>{toolLabel(tool)}</span>
+      {continued && (
+        <span
+          data-testid="zj-continued"
+          title="同一文档的续读片段（offset 续读链：前面的读取已提示「可传 offset=… 继续读」）"
+          className="shrink-0 rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] text-accent"
+        >
+          续读
+        </span>
+      )}
       {/* 参数行：truncate 单行 + title 全量（原 break-all 会把 CJK 文件名逐字竖排——F-20260912-06 修复） */}
       {args && <span className="min-w-0 flex-1 truncate font-mono text-[10px] leading-4 text-ink-3" title={args}>{args}</span>}
       {failed && <span className="shrink-0 rounded-full bg-danger-soft px-2 py-0.5 text-[10px] text-danger">失败</span>}
@@ -99,6 +118,36 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs 
       {done && elapsedMs != null && (
         <span className="shrink-0 whitespace-nowrap rounded-full bg-surface px-2 py-0.5 text-[10px] text-ink-3">{fmtDur(elapsedMs)}</span>
       )}
+    </div>
+  )
+}
+
+/** 工具链容器（智能层 2026-09-15）：把同一轮里连续的工具调用连成一条可追溯轨迹——
+ * 左缘竖线 + 步序号 + 续读徽标，多步「读文档→续读→搜索」顺序与次数一目了然。 */
+function ToolChain({ msgs }: { msgs: AgentMsg[] }) {
+  return (
+    <div data-testid="zj-tool-chain" className="w-full rounded-lg border border-hair bg-surface p-2">
+      <div className="mb-1.5 flex items-center gap-1 px-0.5 text-[10px] text-ink-3">
+        <Waypoints className="h-3 w-3 shrink-0" />
+        <span>工具链</span>
+        <span data-testid="zj-chain-count">· {msgs.length} 步</span>
+      </div>
+      <div className="ml-1.5 space-y-1.5 border-l-2 border-accent/30 pl-2.5">
+        {msgs.map((m, i) => (
+          <ToolActivity
+            key={m.id}
+            tool={m.tool ?? ''}
+            args={m.toolArgs}
+            done={m.done}
+            toolOk={m.toolOk}
+            summary={m.content}
+            startedAt={m.startedAt}
+            elapsedMs={m.elapsedMs}
+            step={{ no: i + 1, total: msgs.length }}
+            continued={isContinuedRead(msgs, i)}
+          />
+        ))}
+      </div>
     </div>
   )
 }
@@ -367,6 +416,15 @@ export default function AgentPanel(props: AgentPanelProps) {
   const messages = useAgentStore((s) => s.messages)
   const quote = useAgentStore((s) => s.quote)
   const streaming = useAgentStore((s) => s.streaming)
+  // 工具链分组（2026-09-15）：相邻 meta 卡聚合为链（≥2 张），单卡保持既有视觉零回归
+  const chainInfo = useMemo(() => {
+    const byId = new Map<string, { ids: string[]; isHead: boolean }>()
+    for (const it of groupToolMeta(messages)) {
+      if (it.type === 'chain') it.ids.forEach((id, i) => byId.set(id, { ids: it.ids, isHead: i === 0 }))
+    }
+    return byId
+  }, [messages])
+  const metaById = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages])
   const [input, setInput] = useState('')
   const { send, stop, streaming: sending } = useSender(props)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -1021,12 +1079,20 @@ export default function AgentPanel(props: AgentPanelProps) {
                     />
                   </div>
                 )
-              if (m.kind === 'meta')
+              if (m.kind === 'meta') {
+                // 工具链：链首整组渲染，链内其余卡在 ToolChain 中显示（此处跳过防重复）
+                const ch = chainInfo.get(m.id)
+                if (ch) {
+                  if (!ch.isHead) return null
+                  const chainMsgs = ch.ids.map((id) => metaById.get(id)).filter((x): x is AgentMsg => !!x)
+                  return <ToolChain key={ch.ids[0]} msgs={chainMsgs} />
+                }
                 return (
                   <div key={m.id} className="w-full">
                     <ToolActivity tool={m.tool ?? ''} args={m.toolArgs} done={m.done} toolOk={m.toolOk} summary={m.content} startedAt={m.startedAt} elapsedMs={m.elapsedMs} />
                   </div>
                 )
+              }
               return <div key={m.id} className="h-px" />
             }
             return (

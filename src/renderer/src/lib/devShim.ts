@@ -998,9 +998,25 @@ const mock = {
     emit({ requestId: rid, type: 'think', text: '先看一下当前章节里需要改的位置，再决定怎么改…' })
     await new Promise((r) => setTimeout(r, 40))
     // 工具调用：带参数（读了哪个文档）
-    emit({ requestId: rid, type: 'meta', tool: 'zj_read_doc', args: '正文/第01章_雾港.md' })
-    await demoDelay()
-    emit({ requestId: rid, type: 'meta-done', tool: 'zj_read_doc', message: '章节已读完' })
+    // 多轮工具链演示（2026-09-15 智能层）：prompt 提到「链/续读/工具链」时演示 zj_read_doc offset 续读链（3 步同一文档），
+    // 用于无头验证「工具链」容器与「续读」徽标；不提及则维持原有的单次读演示（既有冒烟零回归）
+    if (/链|续读/.test(input.prompt)) {
+      const chain = [
+        { args: '正文/第01章_雾港.md', msg: '已读到第 6000 字符，全文共 12400 字符（可传 offset=6000 继续读）' },
+        { args: '正文/第01章_雾港.md (offset=6000)', msg: '已读到第 12000 字符（可传 offset=12000 继续读）' },
+        { args: '正文/第01章_雾港.md (offset=12000)', msg: '已读到末尾，全文共 12400 字符' }
+      ]
+      for (const c of chain) {
+        emit({ requestId: rid, type: 'meta', tool: 'zj_read_doc', args: c.args })
+        await demoDelay()
+        emit({ requestId: rid, type: 'meta-done', tool: 'zj_read_doc', message: c.msg })
+        await demoDelay()
+      }
+    } else {
+      emit({ requestId: rid, type: 'meta', tool: 'zj_read_doc', args: '正文/第01章_雾港.md' })
+      await demoDelay()
+      emit({ requestId: rid, type: 'meta-done', tool: 'zj_read_doc', message: '章节已读完' })
+    }
     // 工具失败演示：prompt 提到「失败/读不到/不存在」时演示一次失败工具卡（红色徽标）
     if (/失败|读不到|不存在/.test(input.prompt)) {
       await demoDelay()

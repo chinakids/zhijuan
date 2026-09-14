@@ -7,6 +7,7 @@ import { projectDir, listDocs } from '../store'
 import { buildWritingContext, buildProjectContext } from './context'
 import { expandAtRefs } from './refs'
 import { trimHistoryMessage } from '../../shared/historyTrim'
+import { summarizeToolArgs } from '../../shared/toolArgs'
 import { normalizeSyncItems, ensureWorldSliceFile, guardPersonTargets, classifySyncRaw } from './syncAnchor'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { readFileSync } from 'fs'
@@ -151,22 +152,6 @@ export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void
 
 /** 把写作引擎 session.event 翻译成渲染层事件 */
 const lastToolName = new Map<string, string>() // requestId → 最近一次工具名（tool/result 认领用）
-function toolArgs(args: unknown): string | undefined {
-  if (!args) return undefined
-  let obj: any = args
-  if (typeof args === 'string') {
-    try { obj = JSON.parse(args) } catch { return String(args).slice(0, 60) }
-  }
-  if (typeof obj !== 'object' || obj === null) return undefined
-  // 展示最有用的一两个参数：读文件的展示 file，搜索展示 query，其余取前几个键值
-  const pick = obj.file ?? obj.query ?? obj.dir
-  if (pick !== undefined) return String(pick)
-  const keys = Object.keys(obj).filter((k) => !['base'].includes(k))
-  if (!keys.length) return undefined
-  const k = keys[0]
-  const v = obj[k]
-  return typeof v === 'string' || typeof v === 'number' ? `${k}=${v}` : k
-}
 function translate(n: DriveEvent, requestId: string, emit: (e: AgentOutEvent) => void) {
   if (n.method !== 'session.event') return
   const ev = n.params?.event as any
@@ -179,7 +164,7 @@ function translate(n: DriveEvent, requestId: string, emit: (e: AgentOutEvent) =>
   } else if (t === 'tool/call') {
     const name = String(d.name ?? d.callId ?? '工具')
     lastToolName.set(requestId, name)
-    emit({ requestId, type: 'meta', tool: name, args: toolArgs(d.arguments) })
+    emit({ requestId, type: 'meta', tool: name, args: summarizeToolArgs(d.arguments) })
   } else if (t === 'tool/result') {
     const blocks = d.message?.content ?? []
     const text = blocks
