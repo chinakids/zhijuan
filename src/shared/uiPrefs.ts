@@ -16,3 +16,26 @@ export function clampAgentWidth(n: number): number {
   if (!Number.isFinite(n)) return AGENT_PANEL_DEFAULT_WIDTH
   return Math.min(AGENT_PANEL_MAX_WIDTH, Math.max(AGENT_PANEL_MIN_WIDTH, Math.round(n)))
 }
+
+// ===== 窄窗正文保护（2026-09-14 体验层；HIG Sidebars「自动随窗口缩放隐藏侧栏」） =====
+/** 左侧一级导航（SectionNav）固定宽度（px），对应 w-60 */
+export const SECTION_NAV_WIDTH = 240
+/** 章节列表列宽（px），对应 w-60 */
+export const CHAPTER_COL_WIDTH = 240
+/** 正文编辑区保护宽度（px）：可用正文宽低于此值时折叠章节列，保证正文可写 */
+export const EDITOR_MIN_WIDTH = 360
+
+/**
+ * 窄窗判据：窗口宽 - 一级导航 - Agent 面板 - 章节列 < 正文保护宽 → 应折叠章节列。
+ * Agent 面板拖宽后阈值自动升高（正文始终受保护）；折叠只改变章列存在与否，
+ * 不反过来影响判据量（无反馈环，无需迟滞）。
+ * 纯函数无 fs、无 React（工程红线）；winW/agentWd 非有限值一律视为不折叠（保守）。
+ */
+export function shouldCollapseChapterList(
+  winW: number,
+  agentWd: number,
+  navW: number = SECTION_NAV_WIDTH
+): boolean {
+  if (!Number.isFinite(winW) || !Number.isFinite(agentWd)) return false
+  return winW - navW - agentWd - CHAPTER_COL_WIDTH < EDITOR_MIN_WIDTH
+}

@@ -19,6 +19,7 @@ import {
 import { expandCommand, filterCommandCandidates, insertCommand, matchFixedCommand, parseCommandTrigger, parsePatrolArgs, ALL_COMMANDS, type ZjCommand } from '../../../../shared/commands'
 import { createStreamBuffer } from '../../../../shared/streamBuffer'
 import { useAgentStore } from './store'
+import { useUiStore } from '../../store/ui'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
 import TodoCard from './TodoCard'
 import AskCard from './AskCard'
@@ -376,6 +377,10 @@ export default function AgentPanel(props: AgentPanelProps) {
 
   // ---------- 面板宽度记忆（模块设计 §十二：分隔条可拖拽 + AppSettings 持久化；WAI-ARIA Window Splitter） ----------
   const [panelWd, setPanelWd] = useState(AGENT_PANEL_DEFAULT_WIDTH)
+  // 实时宽度进 ui store（供 Novel 窄窗判据等跨组件读；持久化仍走 AppSettings，双轨互补）
+  useEffect(() => {
+    useUiStore.getState().setAgentPanelWidth(panelWd)
+  }, [panelWd])
   useEffect(() => {
     let alive = true
     window.zhijuan

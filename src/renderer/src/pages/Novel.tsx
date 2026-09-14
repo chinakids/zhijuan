@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams, useOutletContext } from 'react-router-dom'
-import { Plus, BookOpen } from 'lucide-react'
+import { Plus, BookOpen, PanelLeftOpen, X } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import type { ChapterEntry, ChapterCheckKind, UnlistedHit, MissingHit } from '../../../shared/types'
 import { serializeFrontMatter, addFrontMatterListItem, removeFrontMatterListItem } from '../../../shared/fmatter'
+import { shouldCollapseChapterList, AGENT_PANEL_DEFAULT_WIDTH } from '../../../shared/uiPrefs'
 import { Button } from '../components/ui/button'
 import { EmptyState } from '../components/EmptyState'
 import { Input } from '../components/ui/input'
@@ -14,6 +15,7 @@ import DocEditor from '../features/editor/DocEditor'
 import { runSliceSync } from '../features/sync/sliceSync'
 import { useProposalStore } from '../store/proposals'
 import { useDocTitleStore } from '../store/docTitle'
+import { useUiStore } from '../store/ui'
 import type { ProseApi } from '../features/editor/Prose'
 import AgentPanel from '../features/agent/AgentPanel'
 import ChapterCheckDrawer from '../features/check/ChapterCheckDrawer'
@@ -90,6 +92,36 @@ export default function Novel() {
   const [sliceVal, setSliceVal] = useState('')
   const [deleting, setDeleting] = useState<ChapterEntry | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
+  // 窄窗正文保护（2026-09-14 体验层；HIG Sidebars「随窗口缩放自动隐藏/显示侧栏」）：
+  // 正文可用宽 <360px 时折叠章节列，改由「章节列表」浮层访问；Agent 面板拖宽会抬高阈值（正文始终受保护）
+  const [winW, setWinW] = useState<number>(() => window.innerWidth)
+  const [chapOpen, setChapOpen] = useState(false)
+  const agentWd = useUiStore((s) => s.agentPanelWidth) ?? AGENT_PANEL_DEFAULT_WIDTH
+  const narrow = shouldCollapseChapterList(winW, agentWd)
+  const chapRef = useRef<HTMLDivElement | null>(null)
+  const prevSelRef = useRef<string | null>(sel)
+  useEffect(() => {
+    const onResize = () => setWinW(window.innerWidth)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  // 选章后 / 变回宽窗时自动收起浮层（浮层语义＝临时层，选中即消失——HIG Popovers；仅在 sel 发生变化时触发）
+  useEffect(() => {
+    if (chapOpen && prevSelRef.current !== sel) setChapOpen(false)
+    prevSelRef.current = sel
+  }, [sel, chapOpen])
+  useEffect(() => {
+    if (!narrow && chapOpen) setChapOpen(false)
+  }, [narrow, chapOpen])
+  // Esc 关闭章节浮层（bubble 阶段：Prose 已处理查找条/浮层层级，模态抽屉由 useModalA11y 先行）
+  useEffect(() => {
+    if (!chapOpen) return
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') setChapOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [chapOpen])
   // 菜单收起：点击菜单外任意处 / Esc；菜单项操作后各自关闭
   useEffect(() => {
     if (!menu) return
@@ -411,6 +443,88 @@ export default function Novel() {
   // 章卡的 file 是相对 正文/ 的裸名；凡要当项目根相对路径传给主进程处，统一在此拼前缀（见本技能 listDocs 坑）
   const chapterRel = sel ? '正文/' + sel : ''
 
+  // 章节列内容（侧栏与窄窗浮层共源复用；浮层额外补关闭按钮）
+  const chapterHeader = (
+    <div className="flex items-center justify-between px-3 pb-2 pt-3">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">章节</span>
+      <span className="flex items-center gap-0.5">
+        <Button variant="ghost" size="icon" className="h-7 w-7" title="新建章节" aria-label="新建章节" onClick={openCreate}>
+          <Plus />
+        </Button>
+        {narrow && (
+          <Button variant="ghost" size="icon" className="h-7 w-7" title="关闭章节列表" aria-label="关闭章节列表" onClick={() => setChapOpen(false)}>
+            <X />
+          </Button>
+        )}
+      </span>
+    </div>
+  )
+  const chapterList = (
+    <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+      {loading && (
+        <div className="flex items-center justify-center gap-2 px-2 py-6 text-xs text-ink-3">
+          <LoadingIndicator size={16} />
+          <span>正在读取章节…</span>
+        </div>
+      )}
+      {!loading && loadErr && (
+        <div className="px-2 py-5 text-center">
+          <p className="text-xs text-danger">读取章节失败</p>
+          <p className="mt-0.5 break-all text-[11px] text-ink-3">{loadErr}</p>
+          <button
+            className="mt-1.5 text-xs text-accent underline-offset-2 hover:underline"
+            onClick={() => {
+              setLoading(true)
+              setLoadErr('')
+              void refresh()
+            }}
+          >
+            重试
+          </button>
+        </div>
+      )}
+      {!loading && !loadErr && chapters.length === 0 && (
+        <EmptyState
+          compact
+          hint="还没有章节，点右上角「新建第一章」开始。"
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 shrink-0 whitespace-nowrap text-[11px] [&_svg]:size-3"
+              onClick={openCreate}
+            >
+              <Plus /> 新建第一章
+            </Button>
+          }
+          dataTestId="empty-chapters"
+        />
+      )}
+      {chapters.map((c) => (
+        <button
+          key={c.file}
+          onClick={() => setSel(c.file)}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            setMenu({ c, x: e.clientX, y: e.clientY })
+          }}
+          className={cn(
+            'mb-0.5 flex w-full flex-col gap-0.5 rounded-lg px-3 py-2 text-left transition-colors',
+            sel === c.file ? 'bg-accent-soft' : 'hover:bg-surface'
+          )}
+        >
+          <p className={cn('truncate text-sm', sel === c.file ? 'font-medium text-accent' : 'text-ink')}>
+            {c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}
+          </p>
+          <p className="mt-0.5 flex items-center gap-1 text-[11px] text-ink-3">
+            <BookOpen className="h-3 w-3" />
+            {c.fm?.['切片'] ?? '未设切片'} · {c.wordCount} 字
+          </p>
+        </button>
+      ))}
+    </div>
+  )
+
   // 标题栏文档题名（V3）：正文页把「第N章 · 题名」上报到全局 store；组件卸载/无选中时清空
   const setDocTitle = useDocTitleStore((s) => s.setTitle)
   useEffect(() => {
@@ -420,77 +534,12 @@ export default function Novel() {
 
   return (
     <div className="flex h-full min-h-0">
-      <aside className="flex w-60 shrink-0 flex-col border-r border-hair bg-surface-2">
-        <div className="flex items-center justify-between px-3 pb-2 pt-3">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">章节</span>
-          <Button variant="ghost" size="icon" className="h-7 w-7" title="新建章节" aria-label="新建章节" onClick={openCreate}>
-            <Plus />
-          </Button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
-          {loading && (
-            <div className="flex items-center justify-center gap-2 px-2 py-6 text-xs text-ink-3">
-              <LoadingIndicator size={16} />
-              <span>正在读取章节…</span>
-            </div>
-          )}
-          {!loading && loadErr && (
-            <div className="px-2 py-5 text-center">
-              <p className="text-xs text-danger">读取章节失败</p>
-              <p className="mt-0.5 break-all text-[11px] text-ink-3">{loadErr}</p>
-              <button
-                className="mt-1.5 text-xs text-accent underline-offset-2 hover:underline"
-                onClick={() => {
-                  setLoading(true)
-                  setLoadErr('')
-                  void refresh()
-                }}
-              >
-                重试
-              </button>
-            </div>
-          )}
-          {!loading && !loadErr && chapters.length === 0 && (
-            <EmptyState
-              compact
-              hint="还没有章节，点右上角「新建第一章」开始。"
-              action={
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 shrink-0 whitespace-nowrap text-[11px] [&_svg]:size-3"
-                  onClick={openCreate}
-                >
-                  <Plus /> 新建第一章
-                </Button>
-              }
-              dataTestId="empty-chapters"
-            />
-          )}
-          {chapters.map((c) => (
-            <button
-              key={c.file}
-              onClick={() => setSel(c.file)}
-              onContextMenu={(e) => {
-                e.preventDefault()
-                setMenu({ c, x: e.clientX, y: e.clientY })
-              }}
-              className={cn(
-                'mb-0.5 flex w-full flex-col gap-0.5 rounded-lg px-3 py-2 text-left transition-colors',
-                sel === c.file ? 'bg-accent-soft' : 'hover:bg-surface'
-              )}
-            >
-              <p className={cn('truncate text-sm', sel === c.file ? 'font-medium text-accent' : 'text-ink')}>
-                {c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}
-              </p>
-              <p className="mt-0.5 flex items-center gap-1 text-[11px] text-ink-3">
-                <BookOpen className="h-3 w-3" />
-                {c.fm?.['切片'] ?? '未设切片'} · {c.wordCount} 字
-              </p>
-            </button>
-          ))}
-        </div>
-      </aside>
+      {!narrow && (
+        <aside data-testid="chapter-sidebar" className="flex w-60 shrink-0 flex-col border-r border-hair bg-surface-2">
+          {chapterHeader}
+          {chapterList}
+        </aside>
+      )}
 
       {/* 章节右键菜单（§6.2）：重命名 / 导出单章 md / 删除（进废纸篓可恢复） */}
       {menu && (
@@ -540,13 +589,64 @@ export default function Novel() {
         </div>
       )}
 
-      <main className="relative flex min-w-0 flex-1 flex-col">
+      <main
+        className="relative flex min-w-0 flex-1 flex-col"
+        onMouseDown={(e) => {
+          // 浮层为临时层：点其外任意处关闭（HIG Popovers）；右键菜单打开时放行（菜单项点击不关浮层）
+          if (chapOpen && !chapRef.current?.contains(e.target as Node) && !menuRef.current?.contains(e.target as Node)) {
+            setChapOpen(false)
+          }
+        }}
+      >
+        {/* 窄窗入口条：章节列已折叠时提供「章节列表」入口（HIG Sidebars show/hide） */}
+        {narrow && (
+          <div className="flex h-9 shrink-0 items-center gap-1 border-b border-hair px-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              data-testid="chapter-toggle"
+              title="显示章节列表"
+              aria-label="显示章节列表"
+              onClick={() => setChapOpen((v) => !v)}
+            >
+              <PanelLeftOpen />
+            </Button>
+            <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">章节</span>
+            <span className="flex-1" />
+          </div>
+        )}
+        {/* 窄窗章节浮层：临时面板，选章/Esc/点外/关闭按钮收起 */}
+        {narrow && chapOpen && (
+          <div
+            ref={chapRef}
+            data-testid="chapter-drawer"
+            className="absolute inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-hair bg-surface-2 shadow-[var(--shadow)]"
+          >
+            {chapterHeader}
+            {chapterList}
+          </div>
+        )}
         {sel ? (
           <>
             <div className="min-h-0 flex-1">
               <DocEditor projectId={id} rel={chapterRel} withFm extVersion={extVersion} editorApiRef={apiRef} annotations={annotations} onSave={() => { void refresh(); void handleChapterSaved(chapterRel) }} />
             </div>
           </>
+        ) : narrow ? (
+          <div className="flex h-full items-center justify-center">
+            <EmptyState
+              art="chapter"
+              title="还没有选中章节"
+              hint="打开章节列表，选择一个章节开始写作。"
+              action={
+                <Button onClick={() => setChapOpen(true)}>
+                  <PanelLeftOpen /> 打开章节列表
+                </Button>
+              }
+              dataTestId="narrow-pick-chapter"
+            />
+          </div>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-ink-3">选择左侧一个章节开始（编辑器已就绪）</div>
         )}
