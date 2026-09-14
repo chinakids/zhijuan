@@ -1293,11 +1293,21 @@ const mock = {
       return v || '雾港夜'
     })()
     if (n > 0) {
-      const issues: SyncIssue[] = Array.from({ length: n }, (_, i) =>
-        i === 0
-          ? { target: '人物/沈眠.md', action: 'corrected', reason: '「沈眠」与现有档案近似，已纠正为 人物/沈藏.md' }
-          : { target: `人物/新角色${i}.md`, action: 'dropped', reason: `本章「涉及人物」已列 新角色${i}，但 人物/新角色${i}.md 尚未建档（作者未建档案，同步不替建，请先建档案）` }
-      )
+      // 与真机 guardPersonTargets 同口径：已快速建档（docs 已存在该人物档）的 target 不再拦截；
+      // 未建档 dropped 带 unfiled 标记（UI「建档案」动作的语义判据）
+      const issues: SyncIssue[] = [
+        { target: '人物/沈眠.md', action: 'corrected', reason: '「沈眠」与现有档案近似，已纠正为 人物/沈藏.md' }
+      ]
+      for (let i = 1; i < n; i++) {
+        const target = `人物/新角色${i}.md`
+        if (docs.has(id + '/' + target)) continue
+        issues.push({
+          target,
+          action: 'dropped',
+          unfiled: true,
+          reason: `本章「涉及人物」已列 新角色${i}，但 人物/新角色${i}.md 尚未建档（作者未建档案，同步不替建，请先建档案）`
+        })
+      }
       const r: { ok: boolean; items: ProposalItem[]; guard?: { issues: SyncIssue[] }; evidence?: SyncEvidence } = {
         ok: true,
         items: [],

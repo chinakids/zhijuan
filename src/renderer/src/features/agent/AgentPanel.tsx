@@ -307,7 +307,7 @@ function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
       {sync && (
         <div className="mt-2 flex items-center gap-2">
           <p className={cn('min-w-0 flex-1 text-[11px]', sync.text.startsWith('✗') ? 'text-danger' : 'text-ink-2')}>{sync.text}</p>
-          {sync.issues.length > 0 && <GuardIssuesNote issues={sync.issues} className="shrink-0" />}
+          {sync.issues.length > 0 && <GuardIssuesNote issues={sync.issues} projectId={projectId} className="shrink-0" />}
           {sync.retry && (
             <button
               className="shrink-0 rounded-md border border-hair px-1.5 py-0.5 text-[10px] text-accent transition-colors hover:bg-accent-soft disabled:opacity-60"

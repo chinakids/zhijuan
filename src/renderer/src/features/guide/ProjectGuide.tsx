@@ -13,6 +13,7 @@ import {
   DialogFooter
 } from '../../components/ui/dialog'
 import { sanitizeFile } from '../../../../shared/paths'
+import { charDocMarkdown } from '../../../../shared/charDoc'
 
 interface CharRow {
   name: string
@@ -34,19 +35,7 @@ const steps = [
   { icon: PartyPopper, label: '完成' }
 ]
 
-/** 人物档案模板（正文保存时切片同步会把各章新状态补进「## 切片：<切片名>」小节） */
-function charDoc(name: string, role: string, traits: string): string {
-  return (
-    `---\n别名: []\n---\n` +
-    `# ${name}\n\n` +
-    `> 定位：${role}\n` +
-    `> 关键特征：${traits}\n\n` +
-    `## 基础档案\n\n` +
-    `（年龄 / 外貌 / 背景 / 性格取向，按需补写）\n\n` +
-    `<!-- 正文保存时，切片同步会把 TA 在本章的新状态写入「## 切片：<切片名>」小节（没有则自动追加）；基础档案是长期设定，请在这里手动维护，勿与切片小节混写。 -->\n` +
-    `<!-- 若 TA 在正文里还有别的称呼（昵称/化名），把「别名: [小七, 七爷]」写进顶部 front matter——「在场/称谓」机械检查会按它识别。 -->\n`
-  )
-}
+/** 人物档案模板已抽到 shared/charDoc.ts（2026-09-15：守卫快速建档与引导共用，防形态漂移） */
 
 /** 世界总纲：引导时大概率还是空模板，直接生成结构；如有已有内容则保留并仅附注 */
 function worldDoc(world: { background: string; tone: string; rules: string }, keepOriginal: boolean): string {
@@ -84,7 +73,7 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
       for (const r of chars) {
         if (!r.name.trim()) continue
         const nm = sanitizeFile(r.name.trim())
-        await window.zhijuan.writeDoc(projectId, `人物/${nm}.md`, charDoc(nm, r.role.trim(), r.traits.trim()))
+        await window.zhijuan.writeDoc(projectId, `人物/${nm}.md`, charDocMarkdown(nm, r.role.trim(), r.traits.trim()))
       }
       setChanged(true)
       setStep(2)

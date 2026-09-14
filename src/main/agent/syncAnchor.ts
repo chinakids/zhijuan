@@ -145,6 +145,7 @@ export function guardPersonTargets(
       issues.push({
         target: it.target,
         action: 'dropped',
+        unfiled: true,
         reason: `本章「涉及人物」已列 ${name}，但 人物/${name}.md 尚未建档（作者未建档案，同步不替建，请先建档案）`
       })
       continue

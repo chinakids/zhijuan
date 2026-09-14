@@ -238,6 +238,8 @@ export interface SyncIssue {
   /** corrected=已自动纠正为近名档案；dropped=已丢弃（该条不进提案） */
   action: 'corrected' | 'dropped'
   reason: string
+  /** 未建档型 dropped（涉及人物已列但 人物/<名>.md 不存在）——UI 可提供「快速建档」动作（2026-09-15 创作层） */
+  unfiled?: boolean
 }
 
 /** 切片同步「比对基准」证据（2026-09-14 21:45 创作层：无设定变化时的可信呈现） */

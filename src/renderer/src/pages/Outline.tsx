@@ -501,7 +501,7 @@ export default function Outline() {
           </span>
           <span className="flex-1" />
           {msg && <span className={cn('max-w-[40vw] truncate rounded-full px-2.5 py-0.5 text-[11px]', msg.startsWith('✓') ? 'bg-success-soft text-success' : msg.startsWith('✗') ? 'bg-danger-soft text-danger' : 'bg-accent-soft text-accent')}>{msg}</span>}
-          {guardIssues.length > 0 && <GuardIssuesNote issues={guardIssues} className="shrink-0" />}
+          {guardIssues.length > 0 && <GuardIssuesNote issues={guardIssues} projectId={id} className="shrink-0" />}
           {building && (
             <span className="flex items-center gap-1 text-[11px] text-accent">
               <LoadingIndicator size={12} /> 写作引擎逐章回建中…（每章约一两分钟）

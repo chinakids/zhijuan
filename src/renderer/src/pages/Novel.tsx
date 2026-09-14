@@ -665,7 +665,7 @@ export default function Novel() {
             >
               {syncMsg}
             </span>
-            {syncIssues.length > 0 && <GuardIssuesNote issues={syncIssues} className="pointer-events-auto shrink-0" />}
+            {syncIssues.length > 0 && <GuardIssuesNote issues={syncIssues} projectId={id} className="pointer-events-auto shrink-0" />}
             {syncRetry && (
               <button
                 onClick={() => void doSync(syncRetry.rel)}

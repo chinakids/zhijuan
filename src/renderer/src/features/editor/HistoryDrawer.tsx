@@ -165,7 +165,7 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
               {msg && (
                 <div className="mb-2 flex items-center gap-2 rounded-md bg-accent-soft/60 px-2 py-1 text-[11px] text-accent">
                   <span className="min-w-0 flex-1">{msg}</span>
-                  {syncIssues.length > 0 && <GuardIssuesNote issues={syncIssues} />}
+                  {syncIssues.length > 0 && <GuardIssuesNote issues={syncIssues} projectId={projectId} />}
                   {syncRetry && (
                     <button
                       className="shrink-0 rounded-md border border-hair bg-surface px-1.5 py-0.5 text-[10px] text-accent transition-colors hover:bg-accent-soft"
