@@ -100,7 +100,9 @@ try {
 
   // ④ 本轮成功工具卡仍为对勾（zj_read_doc 成功）
   await evalUntil(page, `document.body.innerText.includes('章节已读完')`, (v) => v === true, 8000, '成功卡摘要')
-  const okBadge = await page.eval(`(() => { const s = [...document.querySelectorAll('span')].find((e) => e.innerText === '章节已读完'); if (!s) return null; const row = s.closest('div'); return row ? { text: row.innerText, cls: row.className } : null })()`)
+  // ④ 注意：summary span 最近 div 是工具卡内部 flex 行（无 border-hair），须向上找工具卡容器
+  //（智能层 e9ccfad ToolChain 容器也带 border-hair，但 closest 命中更近的内层工具卡，见 AgentPanel L98-104）
+  const okBadge = await page.eval(`(() => { const s = [...document.querySelectorAll('span')].find((e) => e.innerText === '章节已读完'); if (!s) return null; const row = s.closest('div[class*="border-hair"]'); return row ? { text: row.innerText, cls: row.className } : null })()`)
   ok('④ 成功工具卡仍渲染（对勾绿）', !!okBadge && /border-hair/.test(okBadge.cls), JSON.stringify(okBadge))
 
   // ⑤ 无 JS 异常

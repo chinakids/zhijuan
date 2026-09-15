@@ -1,7 +1,7 @@
 // 织卷无头冒烟 · @ 引用注入预算提示（AgentPanel 上下文用量行）
 // 用法：node scripts/ref-budget-ui-smoke.mjs
 // 前置：node scripts/serve-renderer.mjs 8123；CDP 127.0.0.1:9224
-// 验收：① 初始无引用 → 显示行无「@注入」；② 输入含 2 个引用 → 显示「@注入 2条 ≤8.0 千字」；
+// 验收：① 初始无引用 → 用量行有「对话」（09-14 7805329 改版后无「上下文」字样）且无「@注入」；② 输入含 2 个引用 → 显示「@注入 2条 ≤8.0 千字」；
 //       ③ 4 条引用 → ≤1.2 万字（总预算兜底）；④ 清空 → 「@注入」消失；⑤ 截图留档
 const CDP = 'http://127.0.0.1:9224'
 const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
@@ -81,8 +81,8 @@ try {
   )
   console.log('OK 正文页就绪')
 
-  // ① 初始：显示行有「上下文」，无「@注入」
-  await evalUntil(page, `document.body.innerText.includes('上下文')`, (v) => v === true, 8000, '用量行存在')
+  // ① 初始：用量行有「对话」（改版口径，见 AgentPanel L978），无「@注入」
+  await evalUntil(page, `document.body.innerText.includes('对话')`, (v) => v === true, 8000, '用量行存在')
   const t0 = await page.eval(`document.body.innerText`)
   if (t0.includes('@注入')) throw new Error('初始不应显示 @注入：' + t0.slice(-200))
   console.log('OK ① 初始无引用 → 无 @注入 提示')
