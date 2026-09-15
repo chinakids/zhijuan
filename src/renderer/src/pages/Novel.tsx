@@ -24,6 +24,7 @@ import AgentPanel from '../features/agent/AgentPanel'
 import ChapterCheckDrawer from '../features/check/ChapterCheckDrawer'
 import { useFsChanged, useFsEvents } from '../features/fs/useFsEvents'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog'
+import { FieldError, fieldInvalidClass } from '../components/ui/field-error'
 import { toast } from '../store/toasts'
 import type { AnnotationRow } from '../../../shared/annotations'
 
@@ -92,6 +93,8 @@ export default function Novel() {
   const [menu, setMenu] = useState<{ c: ChapterEntry; x: number; y: number } | null>(null)
   const [renaming, setRenaming] = useState<ChapterEntry | null>(null)
   const [renameVal, setRenameVal] = useState('')
+  // 重命名字段级错误（HIG 就近反馈；输入即清、修正后消失；取代右上角 toast 一闪而过）
+  const [renameErr, setRenameErr] = useState('')
   // 章节「切片」名修改（约定头字段编辑收口）：正文约定头 + 大纲副产物 fm 同步 + 旧切片提案置 stale
   const [sliceEditing, setSliceEditing] = useState<ChapterEntry | null>(null)
   const [sliceVal, setSliceVal] = useState('')
@@ -387,9 +390,18 @@ export default function Novel() {
   // ---- 章节右键菜单操作（§6.2）----
   async function doRename() {
     if (!id || !renaming) return
-    const r = await window.zhijuan.renameChapter(id, '正文/' + renaming.file, renameVal)
+    setRenameErr('')
+    let r: Awaited<ReturnType<typeof window.zhijuan.renameChapter>>
+    try {
+      r = await window.zhijuan.renameChapter(id, '正文/' + renaming.file, renameVal)
+    } catch (e) {
+      // IPC/主进程异常（磁盘等）：对话框内就近提示，不静默丢反馈
+      setRenameErr('重命名失败：' + String((e as Error).message ?? e))
+      return
+    }
     if (!r.ok) {
-      toast.add({ kind: 'error', title: '重命名失败', description: r.error })
+      // 字段级校验错误：就近展示（HIG 及时反馈），对话框保持打开供修正
+      setRenameErr('重命名失败：' + (r.error ?? '未知原因'))
       return
     }
     await refresh()
@@ -402,7 +414,13 @@ export default function Novel() {
   }
   async function doEditSlice() {
     if (!id || !sliceEditing) return
-    const r = await window.zhijuan.editChapterSlice(id, '正文/' + sliceEditing.file, sliceVal)
+    let r: Awaited<ReturnType<typeof window.zhijuan.editChapterSlice>>
+    try {
+      r = await window.zhijuan.editChapterSlice(id, '正文/' + sliceEditing.file, sliceVal)
+    } catch (e) {
+      toast.add({ kind: 'error', title: '修改切片名失败', description: String((e as Error).message ?? e) })
+      return
+    }
     if (!r.ok) {
       toast.add({ kind: 'error', title: '修改切片名失败', description: r.error })
       return
@@ -419,7 +437,13 @@ export default function Novel() {
   }
   async function doDelete() {
     if (!id || !deleting) return
-    const r = await window.zhijuan.deleteChapter(id, '正文/' + deleting.file)
+    let r: Awaited<ReturnType<typeof window.zhijuan.deleteChapter>>
+    try {
+      r = await window.zhijuan.deleteChapter(id, '正文/' + deleting.file)
+    } catch (e) {
+      toast.add({ kind: 'error', title: '删除失败', description: String((e as Error).message ?? e) })
+      return
+    }
     if (!r.ok) {
       toast.add({ kind: 'error', title: '删除失败', description: r.error })
       return
@@ -557,6 +581,7 @@ export default function Novel() {
             onClick={() => {
               setRenaming(menu.c)
               setRenameVal(String(menu.c.fm?.['题名'] ?? ''))
+              setRenameErr('')
               setMenu(null)
             }}
           >
@@ -838,11 +863,17 @@ export default function Novel() {
               autoFocus
               value={renameVal}
               placeholder="新题名"
-              onChange={(e) => setRenameVal(e.target.value)}
+              aria-invalid={!!renameErr}
+              className={fieldInvalidClass}
+              onChange={(e) => {
+                setRenameVal(e.target.value)
+                if (renameErr) setRenameErr('')
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && renameVal.trim()) void doRename()
               }}
             />
+            {renameErr && <FieldError data-testid="rename-field-error">{renameErr}</FieldError>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRenaming(null)}>取消</Button>

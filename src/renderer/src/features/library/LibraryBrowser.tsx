@@ -5,6 +5,7 @@ import LoadingIndicator from '../../components/LoadingIndicator'
 import { Button } from '../../components/ui/button'
 import { EmptyState } from '../../components/EmptyState'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog'
+import { FieldError, fieldInvalidClass } from '../../components/ui/field-error'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import { cn } from '../../lib/utils'
@@ -69,6 +70,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
   const [newCatErr, setNewCatErr] = useState('')
   const [newMatOpen, setNewMatOpen] = useState(false)
   const [newMatName, setNewMatName] = useState('')
+  const [newMatErr, setNewMatErr] = useState('')
   const [creating, setCreating] = useState(false)
   const events = useFsEvents(id)
   const qTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -169,7 +171,14 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
     if (!id || !newCatName.trim()) return
     setCreating(true)
     setNewCatErr('')
-    const r = await window.zhijuan.createLibraryCategory(id, newCatName.trim())
+    let r: Awaited<ReturnType<typeof window.zhijuan.createLibraryCategory>>
+    try {
+      r = await window.zhijuan.createLibraryCategory(id, newCatName.trim())
+    } catch (e) {
+      setCreating(false)
+      setNewCatErr('新建类别失败：' + String((e as Error).message ?? e))
+      return
+    }
     setCreating(false)
     if (!r.ok) {
       setNewCatErr(r.error ?? '新建类别失败')
@@ -185,7 +194,13 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
     if (!id || !selCat || !newMatName.trim()) return
     const name = newMatName.trim()
     const rel = `素材库/${selCat}/${name}.md`
-    await window.zhijuan.writeDoc(id, rel, materialTemplate(name))
+    setNewMatErr('')
+    try {
+      await window.zhijuan.writeDoc(id, rel, materialTemplate(name))
+    } catch (e) {
+      setNewMatErr('新建素材失败：' + String((e as Error).message ?? e))
+      return
+    }
     setNewMatOpen(false)
     setNewMatName('')
     await refresh()
@@ -316,6 +331,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
                 title={selCat ? '在当前类别新建素材卡' : '先在左侧选择一个类别'}
                 onClick={() => {
                   setNewMatName('')
+                  setNewMatErr('')
                   setNewMatOpen(true)
                 }}
               >
@@ -444,10 +460,15 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
               autoFocus
               placeholder="如：人物、场景、器物、设定出处…"
               value={newCatName}
-              onChange={(e) => setNewCatName(e.target.value)}
+              aria-invalid={!!newCatErr}
+              className={fieldInvalidClass}
+              onChange={(e) => {
+                setNewCatName(e.target.value)
+                if (newCatErr) setNewCatErr('')
+              }}
               onKeyDown={(e) => e.key === 'Enter' && void createCat()}
             />
-            {newCatErr && <p className="text-xs text-destructive">{newCatErr}</p>}
+            {newCatErr && <FieldError data-testid="cat-field-error">{newCatErr}</FieldError>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewCatOpen(false)}>取消</Button>
@@ -468,9 +489,15 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
               autoFocus
               placeholder="如：旧图书馆的借书卡"
               value={newMatName}
-              onChange={(e) => setNewMatName(e.target.value)}
+              aria-invalid={!!newMatErr}
+              className={fieldInvalidClass}
+              onChange={(e) => {
+                setNewMatName(e.target.value)
+                if (newMatErr) setNewMatErr('')
+              }}
               onKeyDown={(e) => e.key === 'Enter' && void createMat()}
             />
+            {newMatErr && <FieldError data-testid="mat-field-error">{newMatErr}</FieldError>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewMatOpen(false)}>取消</Button>
