@@ -997,6 +997,41 @@ const mock = {
       mock.agentListeners.forEach((h) => h(e))
     }
     await demoDelay()
+    // 超时中断演示（2026-09-16 智能层候选3）：prompt 含「模拟超时」时——先给部分增量+正文修改方案，
+    // 再发顶层 error 事件（不发 final/done，与真机「引擎驱动超时 → error 事件」同构）；
+    // 用于验证错误态「成果保留（warn 降级提示）+ 重试」渲染链路
+    if (/模拟超时/.test(input.prompt)) {
+      emit({ requestId: rid, type: 'think', text: '先精确定位要改的句子，再给出替换方案…' })
+      await demoDelay()
+      emit({ requestId: rid, type: 'meta', tool: 'zj_read_doc', args: '正文/第01章_雾港.md', argsJson: JSON.stringify({ file: '正文/第01章_雾港.md' }) })
+      await demoDelay()
+      emit({ requestId: rid, type: 'meta-done', tool: 'zj_read_doc', message: '章节已读完', result: '「阿七靠着候船厅的柱子，指节发白地攥着那盏旧灯。」（全文 12400 字符）' })
+      await demoDelay()
+      emit({ requestId: rid, type: 'meta', tool: 'zj_edit_doc', args: '正文/第01章_雾港.md' })
+      await demoDelay()
+      emit({
+        requestId: rid,
+        type: 'edit',
+        file: '正文/第01章_雾港.md',
+        edits: [
+          {
+            id: 'e1',
+            find: '阿七靠着候船厅的柱子，指节发白地攥着那盏旧灯。',
+            replace: '阿七靠着候船厅的柱子，指节发白地攥着那盏旧灯，灯罩里的火苗被雨打灭过一回。',
+            reason: '给旧灯一个具象细节，呼应后文“灯语约定”',
+            before: 'L8 │ 阿七靠着候船厅的柱子，指节发白地攥着那盏旧灯。',
+            after: 'L8 │ 阿七靠着候船厅的柱子，指节发白地攥着那盏旧灯，灯罩里的火苗被雨打灭过一回。'
+          }
+        ]
+      })
+      await demoDelay()
+      emit({ requestId: rid, type: 'meta-done', tool: 'zj_edit_doc', message: '已生成正文修改方案（1 处），采纳后写入', result: '★ZJ_EDIT★\n{"file":"正文/第01章_雾港.md","edits":[{"find":"…","replace":"…"}]}\n★ZJ_END★' })
+      await demoDelay()
+      emit({ requestId: rid, type: 'delta', text: '已读完当前章节，定位到灯语伏笔处——' })
+      await demoDelay()
+      emit({ requestId: rid, type: 'error', message: '写作引擎驱动超时（已中止引擎本轮）' })
+      return { ok: true }
+    }
     // 思考过程演示
     emit({ requestId: rid, type: 'think', text: '先看一下当前章节里需要改的位置，再决定怎么改…' })
     await new Promise((r) => setTimeout(r, 40))

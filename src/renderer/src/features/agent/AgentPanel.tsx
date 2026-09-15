@@ -21,6 +21,7 @@ import { expandCommand, filterCommandCandidates, insertCommand, matchFixedComman
 import { createStreamBuffer } from '../../../../shared/streamBuffer'
 import { trimHistoryMessage } from '../../../../shared/historyTrim'
 import { useAgentStore, type AgentMsg } from './store'
+import ErrorNotice from './ErrorNotice'
 import { groupToolMeta, isContinuedRead } from './toolChain'
 import { useUiStore } from '../../store/ui'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
@@ -418,8 +419,10 @@ function useSender(props: AgentPanelProps) {
         useAgentStore.getState().patch(last.id, v)
       }
       const fail = (txt: string) => {
-        const msgs = useAgentStore.getState().messages
-        useAgentStore.getState().setError(msgs[msgs.length - 1].id, txt)
+        // 2026-09-16 智能层候选3：错误不替换已流式内容（store 改为 errorText 独立存），并附重试载荷；
+        // 目标必须是 assistant 气泡（lastAsst）——工具卡会在其后 append，msgs.at(-1) 会把错误标到工具卡上
+        const last = lastAsst()
+        if (last) useAgentStore.getState().setError(last.id, txt, { prompt: raw, quote, focus })
       }
       try {
         attachAgentBridge()
@@ -459,7 +462,7 @@ function useSender(props: AgentPanelProps) {
             else if (e.type === 'final') {
               deltaBuf.flushNow() // final 全量覆盖前先冲刷残余，防止尾段重复/错序
               patch(e.text ?? '')
-            } else if (e.type === 'error') fail('请求失败：' + (e.message ?? ''))
+            } else if (e.type === 'error') fail(e.message ?? '')
             else if (e.type === 'think') thinkBuf.push(e.text ?? '')
             else if (e.type === 'meta') {
               const id = rid + '-m' + metaSeq++
@@ -490,7 +493,7 @@ function useSender(props: AgentPanelProps) {
         deltaBuf.flushNow()
         if (r === 'aborted') patch((lastAsst()?.content ?? '') + '\n\n（已停止）')
       } catch (e) {
-        fail('请求失败：' + String((e as Error).message || e))
+        fail(String((e as Error).message || e))
       } finally {
         setStreaming(false)
         abortRef.current = null
@@ -522,6 +525,16 @@ export default function AgentPanel(props: AgentPanelProps) {
   const metaById = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages])
   const [input, setInput] = useState('')
   const { send, stop, streaming: sending } = useSender(props)
+  // 错误提示「重试」（2026-09-16 智能层候选3）：按原载荷重发一轮；不销毁旧消息（已产出的修改方案仍可采纳），
+  // 标记 retried 后按钮置「已重试」防连点
+  const onErrorRetry = useCallback(
+    (m: AgentMsg) => {
+      useAgentStore.getState().markRetried(m.id)
+      const r = m.errorRetry
+      if (r) send(r.prompt, r.quote, r.focus)
+    },
+    [send]
+  )
   const scrollRef = useRef<HTMLDivElement>(null)
   const [audit, setAudit] = useState<{ open: boolean; tab: AuditKind }>({ open: false, tab: 'consistency' })
   // 固定逻辑命令（/巡查 /导演）执行中：锁发送防连点
@@ -1090,7 +1103,7 @@ export default function AgentPanel(props: AgentPanelProps) {
               <span className="mt-1 inline-block text-[10px] text-ink-3">要改正文时 agent 会直接给出修改方案，采纳即写入，无需复制粘贴。</span>
             </p>
           )}
-          {messages.map((m) => {
+          {messages.map((m, idx) => {
             if (m.role === 'tool') {
               if (m.kind === 'todo' && m.items) return (
                 <div key={m.id} className="w-full">
@@ -1155,8 +1168,12 @@ export default function AgentPanel(props: AgentPanelProps) {
                   {m.role === 'assistant' && m.thinking && <ThinkingBlock text={m.thinking} active={streaming} />}
                   {m.role === 'assistant' ? (
                     <div className="prose">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content || (m.error ? '' : streaming ? '正在生成…' : '')}</ReactMarkdown>
-                      {m.error && <span className="text-danger">（{m.content}）</span>}
+                      {/* 错误语义化（2026-09-16 智能层候选3）：错误时 content=已流式部分（保留），
+                          错误文案在 ErrorNotice；旧 append 路径（content 即错误文案）不出 markdown */}
+                      {(!m.error || m.errorText) && (
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content || (m.error ? '' : streaming ? '正在生成…' : '')}</ReactMarkdown>
+                      )}
+                      {m.error && <ErrorNotice messages={messages} idx={idx} onRetry={onErrorRetry} />}
                     </div>
                   ) : (
                     <span className="whitespace-pre-wrap">{m.content}</span>
