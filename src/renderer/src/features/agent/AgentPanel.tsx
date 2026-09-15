@@ -942,7 +942,7 @@ export default function AgentPanel(props: AgentPanelProps) {
         }}
         placeholder="让 agent 做什么…"
         title="Enter 发送 · @ 引用 · / 命令 · Shift+Enter 换行"
-        className="max-h-40 min-h-[64px] w-full resize-none rounded-xl border border-hair bg-surface pb-9 pl-2.5 pr-11 pt-2 text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:ring-1 focus:ring-accent"
+        className="max-h-40 min-h-[64px] w-full resize-none rounded-xl border border-hair bg-surface pb-9 pl-2.5 pr-11 pt-2 text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/60"
       />
       {/* @ 引用浮层（GitHub/Slack mention 范式：固定在输入框上方） */}
       {atTrg && (
@@ -1016,7 +1016,7 @@ export default function AgentPanel(props: AgentPanelProps) {
           onPointerDown={onHandlePointerDown}
           onKeyDown={onHandleKey}
           onDoubleClick={resetWd}
-          className="group absolute -left-[4px] top-0 z-20 flex h-full w-[9px] cursor-col-resize items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+          className="group absolute -left-[4px] top-0 z-20 flex h-full w-[9px] cursor-col-resize items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
         >
           <span className="h-full w-px bg-transparent transition-colors group-hover:bg-accent/60 group-focus-visible:bg-accent/60" />
         </div>
@@ -1229,7 +1229,7 @@ export default function AgentPanel(props: AgentPanelProps) {
                   onClick={() => insertCmd(c.name)}
                   title={`${c.name}：${c.desc}`}
                   aria-label={`${c.name}：${c.desc}`}
-                  className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-hair bg-surface px-1.5 py-1 text-[11px] text-ink-2 transition-colors hover:bg-well hover:text-ink focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent"
+                  className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-hair bg-surface px-1.5 py-1 text-[11px] text-ink-2 transition-colors hover:bg-well hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                 >
                   <c.icon className="h-3 w-3" />
                   <span>{c.name}</span>

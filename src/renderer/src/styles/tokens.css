@@ -143,11 +143,19 @@ body {
   background: var(--selection);
 }
 
-/* ===== 交互基线（按 ui-ux-pro-max 规则落地：可见焦点 / 可点光标 / 过渡 / 尊重弱动效） ===== */
-:where(button, [role='button'], a, input, select, textarea, summary, [tabindex]):focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
-  outline-offset: 2px;
-  border-radius: 4px;
+/* ===== 交互基线（按 ui-ux-pro-max 规则落地：可见焦点 / 可点光标 / 过渡 / 尊重弱动效） =====
+ * 2026-09-15 体验层轮：全局焦点规则移入 @layer base —— Tailwind v4 级联根因：
+ * 本文件规则此前「无 layer」，CSS 规范规定 unlayered 样式优先于任何 @layer 内样式，
+ * 导致组件类 @layer utilities 里的 focus-visible:outline-none（outline-style:none）
+ * 永远输给这里的全局 outline，实测「新建章节/Agent 分隔条」聚焦时 outline 2px + ring 2px
+ * 双环叠加（HIG「be consistent」违例）。入 layer base 后层序 theme<base<components<utilities：
+ * 带 ring 的组件（有 outline-none）→ 单 ring；裸按钮/a/[tabindex] 无 ring 类 → 全局 outline 兜底 → 单环。 */
+@layer base {
+  :where(button, [role='button'], a, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
 }
 button:not(:disabled),
 [role='button']:not(:disabled),

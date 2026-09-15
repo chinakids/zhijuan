@@ -123,7 +123,7 @@ export default function AskCard({ id, batch, questions, onAnswered, answered }: 
                 })
               }
               placeholder="或直接输入你的回答…"
-              className="mt-1.5 h-8 w-full rounded-lg border border-hair bg-surface-2 px-2 text-xs text-ink placeholder:text-ink-3 focus:outline-none focus:ring-1 focus:ring-accent"
+              className="mt-1.5 h-8 w-full rounded-lg border border-hair bg-surface-2 px-2 text-xs text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/60"
             />
           </div>
         ))}
