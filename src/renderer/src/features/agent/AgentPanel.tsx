@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Rea
 import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, Users, UserCheck, ListOrdered, FileWarning, FileQuestion, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, Rows3, Tags, Waypoints, Repeat, RefreshCw } from 'lucide-react'
+import { Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, Users, UserCheck, ListOrdered, FileWarning, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, ListChecks, FileQuestion, Rows3, Tags, Waypoints, Repeat, RefreshCw } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import type { ProseApi } from '../editor/Prose'
@@ -31,6 +31,12 @@ import AtMentionMenu from './AtMentionMenu'
 import CommandMenu from './CommandMenu'
 import { cn } from '../../lib/utils'
 import { Button } from '../../components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '../../components/ui/dropdown-menu'
 import { syncAfterChapterEdit } from '../sync/editSync'
 import { GuardIssuesNote } from '../sync/GuardIssues'
 import { describeSyncEvidence } from '../../../../shared/syncEvidence'
@@ -207,6 +213,20 @@ const QUICK_CMDS: { id: string; name: string; desc: string; icon: LucideIcon }[]
   { id: 'extend', name: '延伸', desc: '给 3 个可发展的走向，不写正文', icon: Expand },
   { id: 'patrol', name: '巡查', desc: '本章小环·短巡查（参数：本章|修订|全卷）', icon: SearchCheck },
   { id: 'director', name: '导演', desc: '给当前章出导演板并写入大纲', icon: Clapperboard }
+]
+
+/** 检查阵容菜单（F-20260912-08：原 10 个 icon 平铺会在窄面板溢出，收进「检查」菜单） */
+const CHECKS: { tab: AuditKind; label: string; icon: LucideIcon }[] = [
+  { tab: 'consistency', label: '一致性巡查：按设定档案检查全卷', icon: ShieldAlert },
+  { tab: 'review', label: '冷读报告：以读者视角通读全卷', icon: BookOpenCheck },
+  { tab: 'perspectives', label: '多视角审视：以三种立场读者各通读一遍', icon: Users },
+  { tab: 'presence', label: '人物在场与称谓核查（本地规则·秒级）', icon: UserCheck },
+  { tab: 'order', label: '切片时序核查（本地规则·秒级）', icon: ListOrdered },
+  { tab: 'unused', label: '人物档案腐坏核查（本地规则·秒级）', icon: FileWarning },
+  { tab: 'actgaps', label: '正文缺段核查（本地规则·秒级）', icon: FileQuestion },
+  { tab: 'sliceord', label: '档案切片核查（本地规则·秒级）', icon: Rows3 },
+  { tab: 'nameform', label: '称谓发现核查（本地规则·秒级）', icon: Tags },
+  { tab: 'mixform', label: '称谓混用核查（本地规则·秒级）', icon: Repeat }
 ]
 
 function toolLabel(tool: string): string {
@@ -1034,86 +1054,26 @@ export default function AgentPanel(props: AgentPanelProps) {
               <ShieldAlert className="h-3.5 w-3.5" />
             </button>
           )}
-          <button
-            title="一致性巡查：按设定档案检查全卷"
-            aria-label="一致性巡查"
-            onClick={() => setAudit({ open: true, tab: 'consistency' })}
-            className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
-          >
-            <ShieldAlert className="h-3.5 w-3.5" />
-          </button>
-          <button
-            title="冷读报告：以读者视角通读全卷"
-            aria-label="冷读报告"
-            onClick={() => setAudit({ open: true, tab: 'review' })}
-            className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
-          >
-            <BookOpenCheck className="h-3.5 w-3.5" />
-          </button>
-          <button
-            title="多视角审视：以三种立场读者各通读一遍"
-            aria-label="多视角审视"
-            onClick={() => setAudit({ open: true, tab: 'perspectives' })}
-            className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
-          >
-            <Users className="h-3.5 w-3.5" />
-          </button>
-          <button
-            title="人物在场与称谓核查：约定头「涉及人物」vs 正文本名/登记别名（本地规则·秒级·零模型）"
-            aria-label="人物在场核查"
-            onClick={() => setAudit({ open: true, tab: 'presence' })}
-            className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
-          >
-            <UserCheck className="h-3.5 w-3.5" />
-          </button>
-          <button
-            title="切片时序核查：章号结构 + 切片顺序（本地规则·秒级·零模型）"
-            aria-label="切片时序核查"
-            onClick={() => setAudit({ open: true, tab: 'order' })}
-            className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
-          >
-            <ListOrdered className="h-3.5 w-3.5" />
-          </button>
-          <button
-            title="人物档案腐坏核查：别名声明但全卷正文从未出现（本地规则·秒级·零模型）"
-            aria-label="档案腐坏核查"
-            onClick={() => setAudit({ open: true, tab: 'unused' })}
-            className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
-          >
-            <FileWarning className="h-3.5 w-3.5" />
-          </button>
-          <button
-            title="正文缺段核查：分幕草稿缺段占位注释残留（本地规则·秒级·零模型）"
-            aria-label="正文缺段核查"
-            onClick={() => setAudit({ open: true, tab: 'actgaps' })}
-            className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
-          >
-            <FileQuestion className="h-3.5 w-3.5" />
-          </button>
-          <button
-            title="档案切片核查：人物档「切片」小节顺序/重复/残留（本地规则·秒级·零模型）"
-            aria-label="档案切片核查"
-            onClick={() => setAudit({ open: true, tab: 'sliceord' })}
-            className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
-          >
-            <Rows3 className="h-3.5 w-3.5" />
-          </button>
-          <button
-            title="称谓发现核查：正文出现「姓+称谓 / 老小阿大+姓」但档案未登记（本地规则·秒级·零模型）"
-            aria-label="称谓发现核查"
-            onClick={() => setAudit({ open: true, tab: 'nameform' })}
-            className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
-          >
-            <Tags className="h-3.5 w-3.5" />
-          </button>
-          <button
-            title="称谓混用核查：同章叙述层交替用多个称呼指同一人（本地规则·秒级·零模型）"
-            aria-label="称谓混用核查"
-            onClick={() => setAudit({ open: true, tab: 'mixform' })}
-            className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
-          >
-            <Repeat className="h-3.5 w-3.5" />
-          </button>
+          {/* 检查阵容：次级检查项收进菜单（原 10 个 icon 平铺会在窄面板溢出——F-20260912-08） */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                title="检查阵容：一致性/冷读/多视角/本地核查"
+                aria-label="检查"
+                className="rounded p-1 text-ink-3 hover:bg-surface hover:text-accent"
+              >
+                <ListChecks className="h-3.5 w-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-[60vh] overflow-y-auto">
+              {CHECKS.map((c) => (
+                <DropdownMenuItem key={c.tab} title={c.label} onSelect={() => setAudit({ open: true, tab: c.tab })}>
+                  <c.icon className="h-3.5 w-3.5" />
+                  <span>{c.label}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <button title="清空对话" aria-label="清空对话" onClick={() => useAgentStore.getState().reset()} className="text-ink-3 hover:text-ink">
             <RotateCcw className="h-3.5 w-3.5" />
           </button>

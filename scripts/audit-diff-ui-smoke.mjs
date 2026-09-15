@@ -70,7 +70,7 @@ const ok = (name, cond, extra = '') => {
 }
 
 try {
-  await evalUntil(page, `[...document.querySelectorAll('button')].some((x) => (x.title || '').includes('一致性巡查'))`, (v) => v === true, 20000, '正文页+Agent 面板就绪')
+  await evalUntil(page, `[...document.querySelectorAll('button')].some((x) => (x.title || '').includes('检查'))`, (v) => v === true, 20000, '正文页+Agent 面板就绪')
 
   // ① 预写两版报告（内容不同；首写无快照、第二写把第一版留进历史）
   const preseed = await page.eval(`(async () => {
@@ -105,13 +105,19 @@ try {
   })()`)
   ok('预写两版后历史留 1 版（老内容）', preseed === 1, 'history=' + preseed)
 
-  // ② 打开一致性巡查（Agent 面板头部盾牌按钮）→ 自动跑第一遍 → 落盘演示版（历史变 2 版）
-  const opened = await page.eval(`(() => {
-    const b = [...document.querySelectorAll('button')].find((x) => (x.title || '').includes('一致性巡查'))
-    if (b) b.click()
+  // ② 打开「检查」菜单 → 点一致性巡查（原头部盾牌按钮已收进菜单——F-20260912-08）
+  const menuOpen = await page.eval(`(() => {
+    const b = [...document.querySelectorAll('button')].find((x) => (x.title || '').includes('检查阵容'))
+    if (b) { b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' })); b.click() }
     return !!b
   })()`)
-  ok('找到并点击「一致性巡查」按钮', opened === true)
+  await sleep(350)
+  const opened = await page.eval(`(() => {
+    const b = [...document.querySelectorAll('[role="menuitem"]')].find((x) => (x.title || '').includes('一致性巡查'))
+    if (b) { b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' })); b.click() }
+    return !!b
+  })()`)
+  ok('打开检查菜单并点击「一致性巡查」', menuOpen === true && opened === true)
   await evalUntil(page, `document.body.innerText.includes('与上次对比') && document.body.innerText.includes('墙角提到一封信')`, (v) => v === true, 20000, '审计抽屉打开并渲染演示条目')
   const histAfter = await page.eval(`window.zhijuan.listHistory(${JSON.stringify(ID)}, ${JSON.stringify(REL)}).then((l) => l.length)`)
   ok('审计落盘第三版后历史 2 版', histAfter === 2, 'history=' + histAfter)
@@ -155,8 +161,11 @@ try {
   await evalUntil(page, `document.body.innerText.includes('沈确的称呼') && !document.body.innerText.includes('新增（这次发现）')`, (v) => v === true, 10000, '返回列表视图')
   ok('返回列表后恢复清单视图', true)
 
-  // ⑤ 冷读报告首跑（无历史）→ 「与上次对比」给出空态提示
-  await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.title || '').includes('冷读报告')); if (b) b.click(); return !!b })()`)
+  // ⑤ 冷读报告首跑（无历史）→ 「与上次对比」给出空态提示（冷读入口已收进检查菜单）
+  const menu2 = await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.title || '').includes('检查阵容')); if (b) { b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' })); b.click() } return !!b })()`)
+  await sleep(350)
+  await page.eval(`(() => { const b = [...document.querySelectorAll('[role="menuitem"]')].find((x) => (x.title || '').includes('冷读报告')); if (b) { b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' })); b.click() } return !!b })()`)
+  ok('打开检查菜单并点击「冷读报告」', menu2 === true)
   await evalUntil(page, `document.body.innerText.includes('与上次对比') && document.body.innerText.includes('这一遍没有发现问题') || document.body.innerText.includes('开篇节奏')`, (v) => v === true, 15000, '冷读抽屉打开')
   await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').includes('与上次对比')); if (b) b.click(); return !!b })()`)
   await evalUntil(page, `document.body.innerText.includes('还没有上一版可对比')`, (v) => v === true, 10000, '空态提示')
@@ -166,7 +175,9 @@ try {
   ok('无 JS 异常', page.errors.length === 0, page.errors.join(' | ').slice(0, 300))
 
   // ⑦ 截图（回到一致性巡查三态视图截图：重新打开再对比）
-  await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.title || '').includes('一致性巡查')); if (b) b.click(); return !!b })()`)
+  await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.title || '').includes('检查阵容')); if (b) { b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' })); b.click() } return !!b })()`)
+  await sleep(350)
+  await page.eval(`(() => { const b = [...document.querySelectorAll('[role="menuitem"]')].find((x) => (x.title || '').includes('一致性巡查')); if (b) { b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' })); b.click() } return !!b })()`)
   await evalUntil(page, `document.body.innerText.includes('与上次对比') && document.body.innerText.includes('沈确的称呼')`, (v) => v === true, 15000, '重开一致性巡查')
   await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').includes('与上次对比')); if (b) { b.click(); return true } return false })()`)
   await evalUntil(page, `document.body.innerText.includes('新增（这次发现）')`, (v) => v === true, 15000, '对比视图（截图）')

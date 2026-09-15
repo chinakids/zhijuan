@@ -54,9 +54,12 @@ async function evalUntil(page, expr, pred, timeoutMs = 15000, label = expr) {
 }
 
 const clickByTitle = (title) => `(() => {
-  const btns = [...document.querySelectorAll('button')]
-  const hit = btns.find((b) => b.title === ${JSON.stringify(title)})
+  const els = [...document.querySelectorAll('button, [role="menuitem"]')]
+  const hit = els.find((b) => b.title === ${JSON.stringify(title)})
   if (!hit) return 'NOT_FOUND'
+  // Radix 菜单 trigger 需要 pointer 事件序列（程序化 click 不打开）——统一走真实指针序列
+  hit.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+  hit.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
   hit.click()
   return 'CLICKED'
 })()`
@@ -77,7 +80,9 @@ try {
   await evalUntil(page, `document.body.innerText.includes('Agent') && document.body.innerText.includes('第1章')`, (v) => v === true, 20000, '正文页就绪')
   console.log('OK 正文页就绪')
 
-  // ① 打开一致性巡查抽屉（会自动开跑 devShim mock）
+  // ① 打开一致性巡查抽屉（检查按钮已收进菜单：先开「检查」菜单再点项——F-20260912-08）
+  console.log('打开检查菜单:', await page.eval(clickByTitle('检查阵容：一致性/冷读/多视角/本地核查')))
+  await sleep(350)
   console.log('打开巡查:', await page.eval(clickByTitle('一致性巡查：按设定档案检查全卷')))
   await evalUntil(page, `document.body.innerText.includes('全卷读完')`, (v) => v === true, 15000, '巡查出结果')
   await evalUntil(page, `document.body.innerText.includes('已存档')`, (v) => v === true, 8000, '出现已存档标记')
