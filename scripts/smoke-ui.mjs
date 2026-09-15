@@ -14,8 +14,11 @@
 //     --timeout = 每脚本超时秒数（默认 0=不限；--all（非 live）建议 300——不含模型类后此档够用）
 //     -x        = 首个失败即停（Playwright --max-failures=1 先例；默认失败继续，回归要全览）
 //     -v        = 子进程输出透传（默认收集，失败时打印尾部）
-// 预检：逐脚本提取 ZJ_SMOKE_BASE 默认端口 / const PORT / localhost 字面量，fetch 探活；
+// 预检：逐脚本提取 ZJ_SMOKE_BASE 默认端口 / const PORT / localhost 字面量，fetch 探活。
 //       脚本引用 9224 时探 CDP /json/version。不通 → 标 FAIL 并给出启动提示，不执行该脚本。
+//       内容级（2026-09-15 22:30）：对 renderer 服务（非 9224/8810）额外 fetch /index.html 与本地
+//       out/renderer/index.html 比对引用面（拦截服务指向旧构建/别的目录=整轮假绿）；全局另做构建
+//       新鲜度检查（src 晚于产物=改了没 build）。详见函数注释与 docs/模块推进/03-平台层.md。
 // 可选环境：8810（zj-bridge 真引擎桥）缺失标 SKIP 不计失败（--live 才可能全绿）。
 // 模型类口径（2026-09-15 16:30 收口）：真模型驱动的 smoke 依赖算力池 vLLM（127.0.0.1）忙闲，
 //   非织卷代码红/绿判据——门禁（--all）若包含它们会因模型侧波动恒红，违背「改动后一切如常」的
@@ -28,7 +31,7 @@
 //       Playwright Annotations test.slow/fixme/@fast/@slow + --grep（playwright.dev/docs/test-annotations）
 
 import { spawn } from 'node:child_process'
-import { readdirSync, readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -128,6 +131,91 @@ if (all) {
 }
 if (all && live) targets = targets.filter((f, i) => targets.indexOf(f) === i) // 去重（live 不含 smoke，安全去重）
 
+// ---------- 预检：构建新鲜度（2026-09-15 22:30 平台层轮） ----------
+// 门禁判据 1：out/renderer/index.html 的 mtime 必须不早于 src/ 内任何源文件与 electron.vite.config.*——
+//   拦截「改了源码没 npm run build，服务还停在旧 bundle」的经典假绿（技能实踩坑：源码改动不重新编译不生效）。
+//   容差 1000ms 吸收同秒粒度；只对门禁（--all/--list）整体检查一次，不逐脚本重复。
+function checkBuildFreshness() {
+  const idx = join(repoRoot, 'out', 'renderer', 'index.html')
+  let idxM
+  try {
+    idxM = statSync(idx).mtimeMs
+  } catch {
+    return { ok: false, reason: `本地无构建产物 ${idx}——请先 npm run build 再跑冒烟（门禁按失败计）` }
+  }
+  let maxM = 0
+  let latest = ''
+  const walk = (d) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p = join(d, e.name)
+      if (e.isDirectory()) walk(p)
+      else if (e.isFile()) {
+        const ms = statSync(p).mtimeMs
+        if (ms > maxM) { maxM = ms; latest = p }
+      }
+    }
+  }
+  walk(join(repoRoot, 'src'))
+  for (const cfg of ['electron.vite.config.ts', 'electron.vite.config.mjs', 'electron.vite.config.js']) {
+    const p = join(repoRoot, cfg)
+    try {
+      const ms = statSync(p).mtimeMs
+      if (ms > maxM) { maxM = ms; latest = p }
+    } catch { /* 不存在即跳过 */ }
+  }
+  if (maxM > idxM + 1000) {
+    return { ok: false, reason: `构建过期：${latest.replace(repoRoot + '/', '')}（${new Date(maxM).toLocaleString()}）晚于 out/renderer/index.html——请 npm run build 后重跑` }
+  }
+  return { ok: true }
+}
+
+// ---------- 预检：服务内容一致性（2026-09-15 22:30 平台层轮） ----------
+// 门禁判据 2：端口探活=「服务在」，但服务可能起在**旧构建/别的目录**（本机实态：/tmp/spa_server.py 历史
+//   硬编码 ROOT、python http.server --directory 起错目录）——145 个脚本会整轮跑在旧 bundle 上仍输出
+//   「全绿」＝假绿。判据：对 renderer 静态服务（非 9224/8810）fetch /index.html，提取构建引用面
+//   （script/link src），与本地 out/renderer/index.html 比对（本地是唯一构建事实源）；不等=FAIL 并给
+//   双方资产清单。参考：Playwright webServer.url 健康检查也只是状态码级（2xx/3xx/400-403 即就绪，
+//   playwright.dev/docs/test-webserver）——行业无内容级标准，本机特化补上。
+const contentCheckCache = new Map() // URL -> { ok, note?, detail? }
+function localIndexRefs() {
+  const p = join(repoRoot, 'out', 'renderer', 'index.html')
+  try {
+    const t = readFileSync(p, 'utf8')
+    return { ok: true, refs: [...t.matchAll(/(?:src|href)="([^"]+)"/g)].map((m) => m[1]), path: p }
+  } catch {
+    return { ok: false, refs: [], path: p }
+  }
+}
+async function contentCheck(u) {
+  if (contentCheckCache.has(u)) return contentCheckCache.get(u)
+  let res
+  try {
+    const r = await fetch(u + '/index.html', { signal: AbortSignal.timeout(PING_TIMEOUT_MS) })
+    const body = await r.text()
+    const ct = r.headers.get('content-type') || ''
+    if (!/text\/html|xhtml/i.test(ct) && !/<html/i.test(body.slice(0, 2048))) {
+      res = { ok: true, note: '非 HTML 服务，跳过内容校验' }
+    } else {
+      const local = localIndexRefs()
+      if (!local.ok) {
+        res = { ok: true, note: '本地无构建参考（以全局构建检查为准）' }
+      } else {
+        const remote = [...body.matchAll(/(?:src|href)="([^"]+)"/g)].map((m) => m[1])
+        if (JSON.stringify(remote) !== JSON.stringify(local.refs)) {
+          const port = new URL(u).port
+          res = { ok: false, detail: `服务内容与本地构建不一致（疑似旧构建/别的目录）：远端 assets=[${remote.join(', ')}] vs 本地=[${local.refs.join(', ')}]——请 npm run build 后重启 node scripts/serve-renderer.mjs ${port}` }
+        } else {
+          res = { ok: true }
+        }
+      }
+    }
+  } catch (e) {
+    res = { ok: false, detail: `内容探活失败：${e.message}` }
+  }
+  contentCheckCache.set(u, res)
+  return res
+}
+
 // ---------- 预检：端口提取（正则覆盖全部历史形态） ----------
 function collectPorts(content) {
   const ports = new Set()
@@ -170,7 +258,12 @@ async function precheck(file) {
     if (!(await pingUrl(u))) {
       const opt = OPTIONAL_PORTS.has(new URL(u).port)
       ;(opt ? skipped : issues).push(`服务未起：${u}`)
+      continue
     }
+    const port = new URL(u).port
+    if (port === '9224' || port === '8810') continue // CDP / 桥：各自语义（/json/version、可选 SKIP）
+    const cc = await contentCheck(u)
+    if (!cc.ok) issues.push(`内容校验：${cc.detail}`)
   }
   if (/:9224/.test(content) && !(await pingUrl(CDP + '/json/version'))) {
     issues.push(`CDP 未起：${CDP}（本机专用无头 Chrome）`)
@@ -212,6 +305,12 @@ function runScript(file, timeoutMs) {
 console.log(`织卷冒烟回归 · ${targets.length} 个脚本${all ? '（--all' + (live ? ' + live' : '') + '）' : ''}`)
 if (list) console.log('--list：仅预检，不运行\n')
 
+// 全局构建检查：src 有任何文件晚于 out/renderer/index.html = 构建过期（改了没 build）按环境失败计
+const freshness = checkBuildFreshness()
+if (!freshness.ok) {
+  console.error(`⚠️  ${freshness.reason}`)
+}
+
 const results = []
 const t0 = Date.now()
 for (let i = 0; i < targets.length; i++) {
@@ -243,6 +342,10 @@ for (let i = 0; i < targets.length; i++) {
 }
 
 // ---------- 汇总 ----------
+if (!freshness.ok) {
+  // 构建过期=环境级失败：计入退出码，门禁必须红（否则「改了没 build」仍输出全绿=假绿）
+  results.push({ file: '（构建检查）', ok: false, env: true, reason: freshness.reason })
+}
 const fail = results.filter((r) => !r.ok)
 const skip = results.filter((r) => r.ok && r.skip)
 const pass = results.filter((r) => r.ok && !r.skip)
