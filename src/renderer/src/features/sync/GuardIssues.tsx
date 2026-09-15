@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { ShieldAlert, ChevronDown, ChevronUp, FilePlus2, Check } from 'lucide-react'
 import type { SyncIssue } from '../../../../shared/types'
-import { sanitizeFile } from '../../../../shared/paths'
-import { quickCharDocMarkdown } from '../../../../shared/charDoc'
 import { cn } from '../../lib/utils'
 import { guardIssueSummary } from './guardText'
+import { personRelOf, isUnfiledIssue } from './guardCreate'
+import { bulkQuickCreate } from './guardBulk'
 
 /**
  * 守卫拦截提示（渐进披露两级，NN/g Progressive Disclosure：摘要常显、明细按需一层展开，不做更深层级）：
@@ -47,26 +47,13 @@ export function GuardIssuesNote({
     }
   }, [open])
 
-  /** 从守卫 target（人物/<名>.md）归一化出可写路径；非人物 target / 空名返回 null */
-  function personRelOf(target: string): string | null {
-    if (!target.startsWith('人物/')) return null
-    const name = target.slice('人物/'.length).replace(/\.md$/, '').trim()
-    if (!name) return null
-    return `人物/${sanitizeFile(name)}.md`
-  }
-
   async function quickCreate(it: SyncIssue) {
-    const rel = personRelOf(it.target)
-    if (!projectId || !rel || created.has(it.target) || creating.has(it.target)) return
+    if (!projectId || !personRelOf(it.target) || created.has(it.target) || creating.has(it.target)) return
     setCreating((s) => new Set(s).add(it.target))
     try {
-      // 已有档案（如作者在别处已建、列表未刷新）→ 不覆盖，仅标记已建档
-      const existing = await window.zhijuan.readDoc(projectId, rel)
-      if (existing === null) {
-        const name = rel.slice('人物/'.length).replace(/\.md$/, '')
-        await window.zhijuan.writeDoc(projectId, rel, quickCharDocMarkdown(name))
-      }
-      setCreated((s) => new Set(s).add(it.target))
+      // 与 toast 批量建档同一实现：已有档案（作者在别处已建、列表未刷新）→ 不覆盖，仅标记已建档
+      const { created: c, skipped: sk } = await bulkQuickCreate(projectId, [it])
+      if (c.length || sk.length) setCreated((s) => new Set(s).add(it.target))
     } finally {
       setCreating((s) => {
         const n = new Set(s)
@@ -76,7 +63,7 @@ export function GuardIssuesNote({
     }
   }
 
-  const isUnfiled = (it: SyncIssue) => it.action === 'dropped' && it.unfiled === true
+  const isUnfiled = (it: SyncIssue) => isUnfiledIssue(it)
 
   if (!issues || !issues.length) return null
   return (

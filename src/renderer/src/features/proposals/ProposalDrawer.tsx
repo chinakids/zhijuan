@@ -1,13 +1,15 @@
 import { useMemo, useRef, useState } from 'react'
 import { Check, X, FileText, GitCompare, Inbox, ChevronDown, Trash2, RefreshCw } from 'lucide-react'
-import type { Proposal } from '../../../../shared/types'
+import type { Proposal, SyncIssue } from '../../../../shared/types'
 import { Button } from '../../components/ui/button'
 import { ScrollArea } from '../../components/ui/scroll-area'
-import { toast, type ToastKind } from '../../store/toasts'
+import { toast, type ToastKind, type ToastAction } from '../../store/toasts'
 import { cn } from '../../lib/utils'
 import { useModalA11y } from '../../lib/useModalA11y'
 import { syncAfterChapterEdit } from '../sync/editSync'
 import { formatGuardIssuesText } from '../sync/guardText'
+import { isUnfiledIssue } from '../sync/guardCreate'
+import { bulkQuickCreate } from '../sync/guardBulk'
 import { describeSyncEvidence } from '../../../../shared/syncEvidence'
 import { isChapterTarget } from '../../../../shared/editSyncGate'
 import type { SliceSyncResult } from '../sync/sliceSync'
@@ -26,21 +28,52 @@ const STATUS: Record<string, { text: string; cls: string }> = {
   stale: { text: '已过期', cls: 'bg-surface-2 text-ink-3' }
 }
 
-/** 正文同步结果 → toast 呈现；失败带「重试同步」action（重试共用同收口：失败不节流，可立即重试）；
- *  拦截明细走完整纯文本（toast 无法挂行内交互——Text 承载直接给全文，最长一二条可扫读） */
-function describeChapterSync(s: SliceSyncResult | 'throttled' | 'skipped'): { ok: boolean; kind: ToastKind; desc: string } | null {
+/** toast 同步结果的描述 + 可处置的未建档条目（批注接受入口：守卫明细在 toast 就地可处置，与四入口 GuardIssuesNote 同能力） */
+function describeChapterSync(s: SliceSyncResult | 'throttled' | 'skipped'): { ok: boolean; kind: ToastKind; desc: string; unfiled: SyncIssue[] } | null {
   if (s === 'throttled' || s === 'skipped') return null
+  const unfiled = (s.issues ?? []).filter(isUnfiledIssue)
   const guardText = formatGuardIssuesText(s.issues)
-  // 摘要行「（拦截 N 条）」一行、明细逐条一行（formatGuardIssuesText \n 分隔；toast description 已 whitespace-pre-wrap）
+  // 摘要行「（拦截 N 条）」一行、明细逐条一行（formatGuardIssuesText \\n 分隔；toast description 已 whitespace-pre-wrap）
   const guardNote = guardText ? `（拦截 ${s.issues!.length} 条）\n${guardText}` : ''
   if (s.ok) {
     return {
       ok: true,
       kind: 'success',
-      desc: s.items > 0 ? `正文已改写，切片同步到 ${s.items} 条提案待确认${guardNote}` : `正文已改写，切片同步无设定变化${describeSyncEvidence(s.evidence)}${guardNote}`
+      desc: s.items > 0 ? `正文已改写，切片同步到 ${s.items} 条提案待确认${guardNote}` : `正文已改写，切片同步无设定变化${describeSyncEvidence(s.evidence)}${guardNote}`,
+      unfiled
     }
   }
-  return { ok: false, kind: 'warning', desc: s.error ?? '切片同步失败' }
+  return { ok: false, kind: 'warning', desc: s.error ?? '切片同步失败', unfiled: [] }
+}
+
+/** toast 内「为 N 名人物建档案」一键批量建档：写前查存在不覆盖（与四入口同一实现），完成后更新同一条 toast */
+async function createMissingOnToast(tid: number, projectId: string, issues: SyncIssue[]) {
+  try {
+    const { created, skipped } = await bulkQuickCreate(projectId, issues)
+    const parts: string[] = []
+    if (created.length) parts.push(`已为 ${created.length} 名人物建档案`)
+    if (skipped.length) parts.push(`${skipped.length} 名已有档案未改动`)
+    // 摘除 action → 恢复类型默认自动消失（常驻到处置完成，符合带 action 常驻口径）
+    toast.update(tid, { kind: 'success', title: '已建档案', description: `${parts.join('，')}；下次保存同步不再拦截`, action: null })
+  } catch (e) {
+    toast.update(tid, {
+      kind: 'warning',
+      title: '建档案失败',
+      description: String((e as Error).message ?? e),
+      action: { label: '重试建档案', onClick: () => void createMissingOnToast(tid, projectId, issues) }
+    })
+  }
+}
+
+/** 同步成功且有未建档拦截 → 挂「为 N 名人物建档案」动作按钮（toast 本身已逐行展示明细，作者可先看清是谁） */
+function guardAction(tid: number, projectId: string, d: { ok: boolean; unfiled: SyncIssue[] }): ToastAction | null {
+  if (d.ok && d.unfiled.length > 0) {
+    return {
+      label: `为 ${d.unfiled.length} 名人物建档案`,
+      onClick: () => void createMissingOnToast(tid, projectId, d.unfiled)
+    }
+  }
+  return null
 }
 
 /** 重试：更新同一条 toast（loading → 结果），失败仍可再重试 */
@@ -57,7 +90,7 @@ function retryChapterSync(projectId: string, target: string) {
         kind: d.kind,
         title: '切片同步',
         description: d.desc,
-        action: d.ok ? null : { label: '重试同步', onClick: () => retryChapterSync(projectId, target) }
+        action: guardAction(tid, projectId, d) ?? (d.ok ? null : { label: '重试同步', onClick: () => retryChapterSync(projectId, target) })
       })
     })
     .catch(() => {
@@ -76,12 +109,9 @@ function toastAfterChapterApply(projectId: string, target: string) {
     .then((s) => {
       const d = describeChapterSync(s)
       if (!d) return
-      toast.add({
-        kind: d.kind,
-        title: '切片同步',
-        description: d.desc,
-        action: d.ok ? undefined : { label: '重试同步', onClick: () => retryChapterSync(projectId, target) }
-      })
+      const tid = toast.add({ kind: d.kind, title: '切片同步', description: d.desc })
+      const act = guardAction(tid, projectId, d) ?? (!d.ok ? { label: '重试同步', onClick: () => retryChapterSync(projectId, target) } : null)
+      if (act) toast.update(tid, { action: act })
     })
     .catch(() => {
       toast.add({
