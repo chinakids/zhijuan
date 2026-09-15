@@ -25,6 +25,8 @@
 //   确定性（基线 2026-09-15 13:30 实锤：acts/engine-sync 全量 300s 被杀=误杀）。
 //   处置=显式名单 MODEL_SCRIPTS 声明身份（对应 Playwright @slow/tag 语义：测试自己声明而非路径猜测），
 //   --all 跳过计 SKIP，--live 或单独指名运行。名单启动自检（防脚本删除后名单腐化）。
+//   漏网守卫（2026-09-16 07:30 接入）：--all 主流程自动跑 scripts/smoke-model-audit.mjs 的审计（非 strict，
+//     健康显示一行、疑似漏网提示清单——默认不阻断；CI 阻断=node scripts/smoke-model-audit.mjs --strict）。
 // 退出码 = FAIL 数（0=全绿）。
 // 参考：npm-run-all 生态缺口（api.github.com/repos/mysticatea/npm-run-all/contents/README.md）、
 //       Playwright test-cli --list/-x（playwright.dev/docs/test-cli）、
@@ -35,6 +37,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { MODEL_SCRIPTS, MODEL_SKIP_REASON } from './model-scripts.mjs' // 名单单源（2026-09-16 平台层轮抽取；判据与维护契约看该文件头注）
+import { analyze, report as auditReport } from './smoke-model-audit.mjs' // 门禁自动审计（2026-09-16 07:30 平台层轮接入——同进程复用 analyze/report，免子进程文本解析）
 
 const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url)) // scripts/（fileURLToPath 避免中文路径被 URL 编码）
 const repoRoot = resolve(SCRIPTS_DIR, '..')
@@ -71,7 +74,7 @@ if (!all && names.length === 0) {
 
 // ---------- 脚本收集 ----------
 const allFiles = readdirSync(SCRIPTS_DIR).filter((f) => f.endsWith('.mjs')).sort()
-const isSmoke = (f) => /smoke/i.test(f) && f !== 'smoke-ui.mjs' && f !== 'smoke-gate-check.mjs' // 入口自排除：本文件也含 smoke，不排除则 --all 把它自己排进去（无参运行恒 exit 2）；门禁自检=元测试（2026-09-16，跑在 --all 之前单独执行），不属页面冒烟集合
+const isSmoke = (f) => /smoke/i.test(f) && f !== 'smoke-ui.mjs' && f !== 'smoke-gate-check.mjs' && f !== 'smoke-model-audit.mjs' // 入口自排除：本文件也含 smoke，不排除则 --all 把它自己排进去（无参运行恒 exit 2）；门禁自检=元测试（2026-09-16，跑在 --all 之前单独执行），模型类审计=元审计（2026-09-16 07:30，门禁主流程自动跑），均不属页面冒烟集合
 const isLive = (f) => /-live\.mjs$/.test(f)
 
 function resolveName(param) {
@@ -293,6 +296,18 @@ if (!freshness.ok) {
   console.error(`⚠️  ${freshness.reason}`)
 }
 
+// 模型类名单审计（2026-09-16 07:30 接入，候选 1）：门禁模式自动跑一次（非 strict）——新增真模型冒烟
+//   未登记=漏网，--all 会把它跑进门禁=因 vLLM 算力池忙闲恒红误杀（基线实锤 acts 480s），漏网当刻现形。
+//   默认只提示不阻断（continue-on-error 语义：step 失败不阻断 job——docs.github.com/en/actions/reference/
+//   workflows-and-actions/workflow-syntax 官方原语）；CI 要阻断用独立脚本 node scripts/smoke-model-audit.mjs --strict。
+let auditNote = ''
+if (all) {
+  if (!auditReport(analyze())) {
+    auditNote = '模型类审计不健康（疑似漏网/名单腐化，清单见上）——默认不阻断；CI 阻断用 node scripts/smoke-model-audit.mjs --strict'
+    console.error(`⚠️  ${auditNote}`)
+  }
+}
+
 const results = []
 const t0 = Date.now()
 for (let i = 0; i < targets.length; i++) {
@@ -334,6 +349,7 @@ const pass = results.filter((r) => r.ok && !r.skip)
 console.log('\n========== 汇总 ==========')
 console.log(`PASS ${pass.length} · SKIP ${skip.length} · FAIL ${fail.length} · 共 ${results.length}（${((Date.now() - t0) / 1000).toFixed(1)}s）`)
 if (modelSkipped.length > 0) console.log(`（另：模型类门禁跳过 ${modelSkipped.length} 个——--live 或单独跑：${modelSkipped.join('、')}）`)
+if (auditNote) console.log(`（另：${auditNote}）`)
 for (const r of fail) console.log(`✗ ${r.file}${r.env ? ' [环境]' : ''} — ${r.reason}`)
 for (const r of skip) console.log(`⏭ ${r.file} — ${r.reason}`)
 for (const r of pass) console.log(`✓ ${r.file}`)

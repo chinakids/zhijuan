@@ -47,7 +47,7 @@ function hitMarkers(content) {
   return hits
 }
 
-function analyze() {
+export function analyze() {
   const allFiles = readdirSync(SCRIPTS_DIR).filter((f) => f.endsWith('.mjs')).sort()
   const files = new Set([...allFiles.filter(isSmoke), ...MODEL_SCRIPTS]) // 名单成员即使改名不在 isSmoke 也检查
   const leak = [] // 疑似漏网：未登记 + 未人工核对 + 特征命中
@@ -65,7 +65,7 @@ function analyze() {
   return { allFiles, leak, zeroHit, reviewedAbsent }
 }
 
-function report({ leak, zeroHit, reviewedAbsent }) {
+export function report({ leak, zeroHit, reviewedAbsent }) {
   console.log('模型类名单审计 · 扫描完成')
   if (leak.length === 0 && zeroHit.length === 0 && reviewedAbsent.length === 0) {
     console.log('✅ 健康：无疑似漏网、名单成员均有特征命中、人工核对集与 scripts/ 一致（MODEL_SCRIPTS ' + MODEL_SCRIPTS.size + ' / REVIEWED_NON_MODEL ' + REVIEWED_NON_MODEL.size + '）')
@@ -109,17 +109,22 @@ function selfcheck() {
   return bad === 0
 }
 
-// ---------- 主流程 ----------
-const args = process.argv.slice(2)
-if (args.includes('--selfcheck')) {
-  process.exit(selfcheck() ? 0 : 1)
+// ---------- 主流程（仅 CLI 直跑时执行；被 smoke-ui.mjs 以模块方式 import 时只取 analyze/report） ----------
+// 2026-09-16 07:30 平台层轮：导出 analyze/report 供 smoke-ui.mjs 门禁自动审计复用（同进程免文本解析）；
+// CLI 行为（--selfcheck/--strict/exit 码）逐字不变，isMain 守卫保证 import 无副作用。
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])
+if (isMain) {
+  const args = process.argv.slice(2)
+  if (args.includes('--selfcheck')) {
+    process.exit(selfcheck() ? 0 : 1)
+  }
+  const healthy = report(analyze())
+  if (!healthy && args.includes('--strict')) {
+    console.log('--strict：存在疑似漏网，退出码 1（登记/人工核对后重跑）')
+    process.exit(1)
+  }
+  if (!healthy && !args.includes('--strict')) {
+    console.log('（默认只提示不阻断：--strict 可让门禁/CI 对疑似漏网报 exit 1）')
+  }
+  process.exit(0)
 }
-const healthy = report(analyze())
-if (!healthy && args.includes('--strict')) {
-  console.log('--strict：存在疑似漏网，退出码 1（登记/人工核对后重跑）')
-  process.exit(1)
-}
-if (!healthy && !args.includes('--strict')) {
-  console.log('（默认只提示不阻断：--strict 可让门禁/CI 对疑似漏网报 exit 1）')
-}
-process.exit(0)
