@@ -166,7 +166,9 @@ ok('重做后：撤销可用、重做置灰', v3s.undo.disabled === false && v3s
 ok('重做后：测试正文恢复', v3s.mdHead.includes('工具栏禁用态冒烟'), v3s.mdHead)
 
 // ⑥ 窄窗收进 More：菜单项禁用态透传（10/11 项在 More，撤销可用/重做置灰——主面板此时编辑器列仅几十像素）
-await page.cmd('Emulation.setDeviceMetricsOverride', { width: 900, height: 800, deviceScaleFactor: 1, mobile: false })
+// 注（2026-09-15）：900 宽在 03deec5「窄窗正文保护」后章节列折叠、正文可用仍 340px（全量工具栏放得下，
+//     据实测无 More）→ 失配；改为 700（实测 barW≈140，More 出现），断言不变。
+await page.cmd('Emulation.setDeviceMetricsOverride', { width: 700, height: 800, deviceScaleFactor: 1, mobile: false })
 await evalUntil(page, `(() => {
   const bar = [...document.querySelectorAll('.zj-md-toolbar')].find((b) => !b.hasAttribute('data-zj-tb-measure'))
   const more = [...(bar?.querySelectorAll('.zj-tb-item') ?? [])].find((b) => b.getAttribute('title') === '更多格式')
