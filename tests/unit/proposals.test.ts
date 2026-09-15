@@ -209,6 +209,48 @@ describe('applyProposal', () => {
     expect(second.errors.join()).toContain('accepted')
   })
 
+  it('replace-text 缺 before → 拒绝且不写盘（提示缺文段）', () => {
+    mkdirSync(join(root, 'p', '正文'), { recursive: true })
+    writeFileSync(join(root, 'p', '正文/第01章_雾港.md'), '# 第1章\n\n你当真不记得了？')
+    const [p] = createProposals(root, 'p', 'annotation-sync', '正文/第01章_雾港.md', '第一幕_夜', [
+      item({ target: '正文/第01章_雾港.md', kind: 'replace-text', anchor: '', before: '', after: '你忘了？' })
+    ])
+    const r = applyProposal(root, 'p', p.id)
+    expect(r.ok).toBe(false)
+    expect(r.errors.join()).toContain('replace-text 缺少 before 文段')
+    expect(readFileSync(join(root, 'p', '正文/第01章_雾港.md'), 'utf-8')).toBe('# 第1章\n\n你当真不记得了？')
+    expect(listProposals(root, 'p')[0].status).toBe('rejected')
+  })
+
+  it('replace-text before 精确匹配 → 按 before→after 替换并置 accepted', () => {
+    mkdirSync(join(root, 'p', '正文'), { recursive: true })
+    writeFileSync(join(root, 'p', '正文/第01章_雾港.md'), '# 第1章\n\n你当真不记得了？')
+    const [p] = createProposals(root, 'p', 'annotation-sync', '正文/第01章_雾港.md', '第一幕_夜', [
+      item({ target: '正文/第01章_雾港.md', kind: 'replace-text', anchor: '', before: '你当真不记得了？', after: '你忘了？' })
+    ])
+    const r = applyProposal(root, 'p', p.id)
+    expect(r.ok).toBe(true)
+    expect(r.applied).toContain('正文/第01章_雾港.md')
+    const file = readFileSync(join(root, 'p', '正文/第01章_雾港.md'), 'utf-8')
+    expect(file).toContain('你忘了？')
+    expect(file).not.toContain('你当真不记得了？')
+    expect(listProposals(root, 'p')[0].status).toBe('accepted')
+  })
+
+  it('replace-text before 漂移（作者已手动改原文）→ 拒绝、提示请人工确认、正文未被改写', () => {
+    mkdirSync(join(root, 'p', '正文'), { recursive: true })
+    // 提案生成后原文被手动改动（before 漂移）：文件里是「你真不记得了？」，提案 before 是「你当真不记得了？」
+    writeFileSync(join(root, 'p', '正文/第01章_雾港.md'), '# 第1章\n\n你真不记得了？')
+    const [p] = createProposals(root, 'p', 'annotation-sync', '正文/第01章_雾港.md', '第一幕_夜', [
+      item({ target: '正文/第01章_雾港.md', kind: 'replace-text', anchor: '', before: '你当真不记得了？', after: '你忘了？' })
+    ])
+    const r = applyProposal(root, 'p', p.id)
+    expect(r.ok).toBe(false)
+    expect(r.errors.join()).toContain('请人工确认')
+    expect(readFileSync(join(root, 'p', '正文/第01章_雾港.md'), 'utf-8')).toBe('# 第1章\n\n你真不记得了？')
+    expect(listProposals(root, 'p')[0].status).toBe('rejected')
+  })
+
   it('提案不存在 → ok:false', () => {
     expect(applyProposal(root, 'p', 'nope').ok).toBe(false)
   })

@@ -133,8 +133,13 @@ function ItemCard({ p, projectId, onChanged }: { p: Proposal; projectId: string;
     setErr('')
     try {
       const r = await window.zhijuan.applyProposal(projectId, p.id)
-      if (!r.ok || r.errors?.length) setErr((r.errors?.join('；') || '写入失败') + '（可重试或改原地后再接受）')
-      else {
+      if (!r.ok || r.errors?.length) {
+        // 失败原因（如批注改写 before 漂移「请人工确认」）在卡片状态翻转后易被组间移动重置 →
+        // 除卡片内 err 外补 toast 兜底可见（2026-09-15 15:45 轮实锤：err 未渲染）
+        const msg = (r.errors?.join('；') || '写入失败') + '（可重试或改原地后再接受）'
+        setErr(msg)
+        toast.add({ kind: 'warning', title: '提案未应用', description: msg })
+      } else {
         // 正文为源、设定为流：正文类提案（批注改写）接受后触发切片同步（跳过则刷新列表）
         const t = p.items[0]?.target ?? ''
         if (isChapterTarget(t) && t) toastAfterChapterApply(projectId, t)

@@ -850,9 +850,11 @@ const mock = {
         errs.push(it?.target + ': ' + String((e as Error).message || e))
       }
     }
-    p.status = 'accepted'
-    devAnnoResolve(_id, p.meta?.annotations)
-    return { ok: errs.length === 0, applied: p.items.filter((_, i) => !errs[i]).map((i) => i.target), errors: errs }
+    // 与真机同口径（ipc.ts:208-210 / proposals.ts:136）：有错误 → 整体不标记成功、不删批注行（保留重扫机会）
+    const ok = errs.length === 0
+    p.status = ok ? 'accepted' : 'rejected'
+    if (ok && p.meta?.annotations) devAnnoResolve(_id, p.meta.annotations)
+    return { ok, applied: ok ? p.items.map((i) => i.target) : [], errors: errs }
   },
   rejectProposal: async (_id: string, pid: string) => {
     const p = mock.proposals.find((x) => x.id === pid)
