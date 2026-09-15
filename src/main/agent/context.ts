@@ -116,6 +116,7 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
   //    与正文「超长装结尾」同构（创作最需要最新状态），开头可用 zj_read_doc 现读。
   const castAll: string[] = Array.isArray(fm?.['涉及人物']) ? (fm?.['涉及人物'] as string[]) : []
   const cast = castAll.slice(0, CAP.maxChars)
+  const attachedNames: string[] = []
   for (const c of cast) {
     const t = read(`人物/${c}.md`)
     if (t.trim()) {
@@ -126,11 +127,16 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
           : t
       blocks.push(`【人物档案：${c}】\n${body}`)
       sources.push(`人物/${c}.md`)
+      attachedNames.push(c)
     }
   }
-  if (castAll.length > cast.length) {
+  // 2026-09-16 上下文全要素审计：原案「已附前 N 位档案；其余未附」与实际不符——「前 N 位」中可能有
+  // 人根本没有档案文件（read 空则跳过），且 ≤4 位但部分无档时旧代码**完全静默**（模型误以为都有档）。
+  // 改为按实际附档名单生成：已附/未附都点实名，模型不再误判；未附者仍提示可 zj_read_doc 现读。
+  if (castAll.length > attachedNames.length) {
+    const missing = castAll.filter((c) => !attachedNames.includes(c))
     blocks.push(
-      `【涉及人物补充】本章「涉及人物」共 ${castAll.length} 位：${castAll.join('、')}。已附前 ${cast.length} 位档案；其余未附档案——若写到时需要其设定，请用 zj_read_doc 读取 人物/<姓名>.md。`
+      `【涉及人物补充】本章「涉及人物」共 ${castAll.length} 位：${castAll.join('、')}。已附档案：${attachedNames.join('、') || '（无）'}；未附档案：${missing.join('、')}——若写到时需要其设定，请用 zj_read_doc 读取 人物/<姓名>.md。`
     )
   }
 

@@ -14,6 +14,8 @@ const listDocsMock = vi.mocked(listDocs)
 
 const FM_1 = ['---', '章号: 1', '题名: 第一章', '切片: 第一幕', '涉及人物: [林晚]', '---'].join('\n') + '\n'
 const FM_2 = ['---', '章号: 2', '题名: 第二章', '切片: 第二幕', '涉及人物: [林晚, 周守, 顾知远, 苏禾, 第五]', '---'].join('\n') + '\n'
+// 3 位涉及人物（≤maxChars 4，不触发预算截断——旧代码此时完全静默，部分无档无从知晓）
+const FM_3 = ['---', '章号: 1', '题名: 第一章', '切片: 第一幕', '涉及人物: [林晚, 周守, 顾知远]', '---'].join('\n') + '\n'
 
 const chEntry = (file: string) => ({
   file,
@@ -68,6 +70,9 @@ describe('buildWritingContext（写作上下文装配）', () => {
     expect(extra).toContain('共 5 位')
     expect(extra).toContain('第五')
     expect(extra).toContain('zj_read_doc')
+    // 2026-09-16 审计修复：按实际附档名单点明已附/未附（原「已附前 4 位档案」与事实不符时误导模型）
+    expect(extra).toContain('已附档案：林晚、周守、顾知远、苏禾')
+    expect(extra).toContain('未附档案：第五')
     expect(blocks.join('\n').indexOf('涉及人物补充')).toBeGreaterThan(blocks.join('\n').indexOf('人物档案：苏禾'))
     // front matter 不泄漏进上下文
     expect(blocks.join('\n')).not.toMatch(/^---\n?/)
@@ -441,6 +446,27 @@ describe('buildWritingContext（写作上下文装配）', () => {
     expect(all).toContain('第一章正文')
     expect(all).toContain('年龄：17')
     expect(all).toContain('事件：大雾')
+  })
+
+  it('涉及人物部分无档案（≤4 位不触发预算截断）：补充块按实际附档名单点明已附/未附（2026-09-16 审计修复）', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      const table: Record<string, string> = {
+        '正文/第1章_a.md': FM_3 + '第一章正文',
+        '人物/林晚.md': '林晚档案'
+      }
+      return table[rel] ?? null
+    })
+    listChaptersMock.mockReturnValue([] as never)
+
+    const { blocks } = await buildWritingContext('p', '正文/第1章_a.md')
+    const extra = blocks.find((b) => b.includes('涉及人物补充'))
+    expect(extra).toBeTruthy()
+    expect(extra).toContain('共 3 位')
+    expect(extra).toContain('已附档案：林晚')
+    expect(extra).toContain('未附档案：周守、顾知远')
+    expect(extra).toContain('zj_read_doc')
+    // 未附者没有档案块注入
+    expect(blocks.find((b) => b.includes('人物档案：周守'))).toBeUndefined()
   })
 
   it('读不到的内容静默跳过，绝不抛错', async () => {
