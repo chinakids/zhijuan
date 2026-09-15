@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Clock, Users } from 'lucide-react'
+import { Clock, Users, History } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import type { SliceEntry } from '../../../shared/types'
 import { Button } from '../components/ui/button'
 import { EmptyState } from '../components/EmptyState'
+import SyncLogDrawer from '../features/sync/SyncLogDrawer'
 
 function chapterNo(chapter: string): number | null {
   const m = chapter.match(/第\s*(\d+)/)
@@ -17,6 +18,7 @@ export default function Timeline() {
   const [slices, setSlices] = useState<SliceEntry[] | null>(null)
   const [loadErr, setLoadErr] = useState('')
   const [retryTick, setRetryTick] = useState(0)
+  const [syncOpen, setSyncOpen] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -58,7 +60,19 @@ export default function Timeline() {
   if (!slices || !slices.length) {
     return (
       <div className="mx-auto max-w-3xl p-6">
-        <h2 className="text-lg font-semibold">项目时间线</h2>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">项目时间线</h2>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 shrink-0 gap-1 px-2 text-xs"
+            data-testid="sync-log-open"
+            onClick={() => setSyncOpen(true)}
+          >
+            <History className="h-3.5 w-3.5" />
+            同步记录
+          </Button>
+        </div>
         <EmptyState
           art="timeline"
           title="还没有时间切片"
@@ -66,15 +80,28 @@ export default function Timeline() {
           className="mt-4"
           dataTestId="empty-timeline"
         />
+        <SyncLogDrawer projectId={id ?? ''} open={syncOpen} onClose={() => setSyncOpen(false)} />
       </div>
     )
   }
 
   return (
     <div className="mx-auto max-w-3xl p-6">
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold">项目时间线</h2>
-        <p className="mt-0.5 text-sm text-ink-3">按章号排序的「故事时间切片」一览；切片是各章节对应时刻的世界状态。</p>
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold">项目时间线</h2>
+          <p className="mt-0.5 text-sm text-ink-3">按章号排序的「故事时间切片」一览；切片是各章节对应时刻的世界状态。</p>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 shrink-0 gap-1 px-2 text-xs"
+          data-testid="sync-log-open"
+          onClick={() => setSyncOpen(true)}
+        >
+          <History className="h-3.5 w-3.5" />
+          同步记录
+        </Button>
       </div>
       <ol className="relative space-y-5 border-l border-hair pl-6">
         {slices.map((s) => {
@@ -120,6 +147,7 @@ export default function Timeline() {
       <div className="mt-5 text-center">
         <Link to="../novel" className="text-xs text-accent hover:underline">回正文创作</Link>
       </div>
+      <SyncLogDrawer projectId={id ?? ''} open={syncOpen} onClose={() => setSyncOpen(false)} />
     </div>
   )
 }

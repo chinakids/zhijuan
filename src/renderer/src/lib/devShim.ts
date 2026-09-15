@@ -1,5 +1,5 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
-import type { AgentEvent, AppSettings, ChapterEntry, OutlineCard, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult, MenuActionEvent, MenuActionId, MenuStateReport, SyncIssue, SyncEvidence } from '../../../shared/types'
+import type { AgentEvent, AppSettings, ChapterEntry, OutlineCard, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult, MenuActionEvent, MenuActionId, MenuStateReport, SyncIssue, SyncEvidence, SyncLogEntry } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
 import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterSliceInDoc } from '../../../shared/outline'
 import { listChapterEntries } from '../../../shared/chapters'
@@ -65,6 +65,31 @@ function snapNameDev(ts: number): string {
   const d = new Date(ts)
   const p = (n: number, w = 2) => String(n).padStart(w, '0')
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}-${p(d.getMilliseconds(), 3)}`
+}
+
+// ---- 切片同步历史日志 mock（2026-09-16）：真机写 .zhijuan/sync-log.jsonl（main/agent/syncLog.ts），
+// devShim 用内存数组保持「最新在前」同口径；?zj-synclog=N 预置 N 条演示记录供无头冒烟断言列表渲染。 ----
+const syncLogMem: SyncLogEntry[] = []
+const syncLogSeed = Number(new URLSearchParams(location.search).get('zj-synclog') ?? '0')
+if (Number.isFinite(syncLogSeed) && syncLogSeed > 0) {
+  for (let i = syncLogSeed; i >= 1; i--) {
+    syncLogMem.push({
+      time: Date.now() - (syncLogSeed - i + 1) * 3600_000,
+      chapter: `正文/第0${i}章_雾港.md`,
+      slice: '雾港夜',
+      castCount: 3,
+      fileCount: 5,
+      itemCount: i % 2 === 0 ? 2 : 0,
+      guardCount: i % 3 === 0 ? 1 : 0,
+      ok: i !== 1
+    })
+  }
+}
+/** 与真机 appendSyncLog 同口径（仅 devShim 调用面；时间最新在前） */
+function devAppendSyncLog(id: string, chapterRel: string, slice: string, extra?: Partial<SyncLogEntry>) {
+  void id
+  syncLogMem.unshift({ time: Date.now(), chapter: chapterRel, slice, castCount: 3, fileCount: 5, itemCount: 0, guardCount: 0, ok: true, ...extra })
+  if (syncLogMem.length > 500) syncLogMem.length = 500
 }
 
 /** 与真机 store.writeDoc 同口径的写盘：内容变化时对版本化 rel 先留旧版快照；任务 mock（回建/导演/分幕）落盘也走这里，
@@ -1377,16 +1402,20 @@ const mock = {
         guard: { issues },
         evidence: { slice: sliceName, castCount: 3, knownFiles: 5, unarchived: 1 }
       }
+      devAppendSyncLog(id, rel, sliceName, { itemCount: 0, guardCount: issues.length })
       return r
     }
     // 比对基准证据注入（2026-09-14 21:45）：?zj-slice=<名> 控制，__empty__=空切片；
     // 缺省「雾港夜」+ 3 涉及人物 / 5 人档 / 1 未建档，供无头冒烟断言证据小字真实渲染
+    devAppendSyncLog(id, rel, sliceName)
     return {
       ok: true,
       items: [],
       evidence: { slice: sliceName, castCount: 3, knownFiles: 5, unarchived: 1 }
     }
   },
+  // 切片同步历史日志（devShim：内存态；真机读 .zhijuan/sync-log.jsonl，最新在前）
+  syncLogList: async () => [...syncLogMem],
   agentStatus: async () => ({ online: true, provider: '本机 vLLM', model: 'deepseek-v4-flash-vision-exp-uncensored', message: '' }),
   agentListCapabilities: async () => [
     { id: 'audit', title: '全卷检查', description: '（演示）一致性巡查 / 冷读报告：跨全卷对照设定找问题' },

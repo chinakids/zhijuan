@@ -1,6 +1,7 @@
 // ===== 织卷 · agent IPC 路由（主进程） =====
 import { ipcMain, BrowserWindow } from 'electron'
 import { runChat, runSync, abortRequest, type AgentOutEvent } from './engine'
+import { listSyncLog } from './syncLog'
 import { runAudit, runChapterCheck, type AuditKind } from './audit'
 import { runOutlineRebuild } from './outline'
 import { runMaterialTriage } from './triage'
@@ -46,6 +47,8 @@ export function registerAgentIpc() {
   })
   // 切片同步（设定补丁）
   ipcMain.handle('agent:sync', (_e, projectId: string, chapterRel: string) => runSync(projectId, chapterRel))
+  // 切片同步历史日志（`.zhijuan/sync-log.jsonl`；最新在前）
+  ipcMain.handle('sync:log', (_e, projectId: string) => listSyncLog(projectId))
   // 用户回答某个 ask 批次（写答案文件 → 写作引擎插件轮询回灌模型循环）
   ipcMain.handle('agent:answer', (_e, batch: string, answers: AskAnswer[]) => {
     if (!batch) return { ok: false, error: 'missing batch' }

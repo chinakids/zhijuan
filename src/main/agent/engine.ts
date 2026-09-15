@@ -9,6 +9,7 @@ import { expandAtRefs } from './refs'
 import { trimHistoryMessage } from '../../shared/historyTrim'
 import { summarizeToolArgs, serializeToolArgs } from '../../shared/toolArgs'
 import { normalizeSyncItems, ensureWorldSliceFile, guardPersonTargets, classifySyncRaw } from './syncAnchor'
+import { appendSyncLog, clipLogError } from './syncLog'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { readFileSync } from 'fs'
 import { join } from 'path'
@@ -311,6 +312,17 @@ export async function runSync(
       text = await driveSession(newSid(projectId) + '-r', parts.join('\n\n') + SYNC_RETRY_NOTE, { maxMs: 10 * 60 * 1000 })
       items = extractItems(text)
       if (items.length === 0 && classifySyncRaw(text) !== 'empty') {
+        appendSyncLog(projectId, {
+          time: Date.now(),
+          chapter: chapterRel,
+          slice: sliceName,
+          castCount: castAll.length,
+          fileCount: knownFiles.length,
+          itemCount: 0,
+          guardCount: 0,
+          ok: false,
+          error: clipLogError(`模型回复未能解析为设定 JSON 数组（已重试一次仍失败）——原文节选：${excerptSyncRaw(text)}`)
+        })
         return {
           ok: false,
           error: `模型回复未能解析为设定 JSON 数组（已重试一次仍失败）——原文节选：${excerptSyncRaw(text)}`
@@ -337,8 +349,29 @@ export async function runSync(
       }
     }
     if (g.issues.length) res.guard = { issues: g.issues }
+    appendSyncLog(projectId, {
+      time: Date.now(),
+      chapter: chapterRel,
+      slice: sliceName,
+      castCount: castAll.length,
+      fileCount: knownFiles.length,
+      itemCount: g.items.length,
+      guardCount: g.issues.length,
+      ok: true
+    })
     return res
   } catch (e: any) {
+    appendSyncLog(projectId, {
+      time: Date.now(),
+      chapter: chapterRel,
+      slice: sliceName,
+      castCount: castAll.length,
+      fileCount: knownFiles.length,
+      itemCount: 0,
+      guardCount: 0,
+      ok: false,
+      error: clipLogError(String(e?.message ?? e))
+    })
     return { ok: false, error: String(e?.message ?? e).slice(0, 300) }
   }
 }

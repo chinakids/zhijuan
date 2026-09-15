@@ -12,6 +12,7 @@ import type {
   ProposalItem,
   SyncIssue,
   SyncEvidence,
+  SyncLogEntry,
   AuditItem,
   AuditKind,
   ChapterCheckKind,
@@ -164,6 +165,7 @@ const api = {
   agentCancel: (requestId: string) => ipcRenderer.invoke('agent:cancel', requestId) as Promise<boolean>,
   agentSync: (projectId: string, chapterRel: string) =>
     ipcRenderer.invoke('agent:sync', projectId, chapterRel) as Promise<{ ok: boolean; items: ProposalItem[]; guard?: { issues: SyncIssue[] }; evidence?: SyncEvidence; error?: string }>,
+  syncLogList: (projectId: string) => ipcRenderer.invoke('sync:log', projectId) as Promise<SyncLogEntry[]>,
   agentAnswer: (batch: string, answers: { id: string; selected: string[]; custom?: string }[]) =>
     ipcRenderer.invoke('agent:answer', batch, answers) as Promise<{ ok: boolean; error?: string }>,
   agentAudit: (projectId: string, kind: AuditKind) =>

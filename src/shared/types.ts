@@ -253,6 +253,28 @@ export interface SyncEvidence {
   /** 约定头涉及但未建档的人数（比对盲区，作者需知情） */
   unarchived: number
 }
+
+/** 切片同步历史日志单条（2026-09-16 创作层：.zhijuan/sync-log.jsonl 着一行一条，作者可回溯） */
+export interface SyncLogEntry {
+  /** 时间戳（ms） */
+  time: number
+  /** 被同步章节相对路径 */
+  chapter: string
+  /** 约定头「切片」名（空=未设） */
+  slice: string
+  /** 约定头「涉及人物」数 */
+  castCount: number
+  /** 可比对人档基数 */
+  fileCount: number
+  /** 本次产出提案数（守卫后保留） */
+  itemCount: number
+  /** 守卫拦截/纠正条数 */
+  guardCount: number
+  /** 同步是否成功 */
+  ok: boolean
+  /** ok=false 时的错误摘要（截断 120 字） */
+  error?: string
+}
 /** 批注同步来源引用（proposal.meta.annotations）：接受/拒绝后按行删除对应 csv 条目 */
 export interface AnnotationRef {
   /** 批注 csv 相对路径（如 正文/第01章_雾港_批注.csv） */
