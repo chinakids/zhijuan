@@ -30,7 +30,7 @@ writeFileSync(
     '  { audit: (r) => r?.ok && !r.result?.items?.length && !r.result?.summary,',
     '    outline: (r) => r?.ok && Object.keys(r.emptyRaw ?? {}).length > 0,',
     '    triage: (r) => r?.ok && !r.result?.items?.length,',
-    "    director: (r) => r?.ok && !(r.sheet?.arcs?.length) },",
+    "    director: (r) => r?.ok && !(r.sheet?.arcs?.length) }",
     'async function step(name, fn, emptyKey) {',
     "  process.stdout.write('\\n## === ' + name + ' ===\\n')",
     '  const t = Date.now()',

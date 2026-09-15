@@ -57,7 +57,7 @@ if (!all && names.length === 0) {
 
 // ---------- 脚本收集 ----------
 const allFiles = readdirSync(SCRIPTS_DIR).filter((f) => f.endsWith('.mjs')).sort()
-const isSmoke = (f) => /smoke/i.test(f)
+const isSmoke = (f) => /smoke/i.test(f) && f !== 'smoke-ui.mjs' // 入口自排除：本文件也含 smoke，不排除则 --all 把它自己排进去（无参运行恒 exit 2）
 const isLive = (f) => /-live\.mjs$/.test(f)
 
 function resolveName(param) {
