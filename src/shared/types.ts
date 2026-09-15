@@ -285,8 +285,8 @@ export interface CollectionTask {
   error?: string
 }
 
-/** 全卷检查（agent-first）：一致性巡查 / 冷读报告 / 多视角审视；presence=本地规则「人物在场核查」（零模型）；order=本地规则「切片时序核查」（零模型）；unused=本地规则「人物档案腐坏核查」（零模型）；actgaps=本地规则「正文缺段核查」（零模型）；sliceord=本地规则「档案切片核查」（零模型）；nameform=本地规则「称谓发现核查」（零模型） */
-export type AuditKind = 'consistency' | 'review' | 'perspectives' | 'presence' | 'order' | 'unused' | 'actgaps' | 'sliceord' | 'nameform'
+/** 全卷检查（agent-first）：一致性巡查 / 冷读报告 / 多视角审视；presence=本地规则「人物在场核查」（零模型）；order=本地规则「切片时序核查」（零模型）；unused=本地规则「人物档案腐坏核查」（零模型）；actgaps=本地规则「正文缺段核查」（零模型）；sliceord=本地规则「档案切片核查」（零模型）；nameform=本地规则「称谓发现核查」（零模型）；mixform=本地规则「称谓混用核查」（零模型） */
+export type AuditKind = 'consistency' | 'review' | 'perspectives' | 'presence' | 'order' | 'unused' | 'actgaps' | 'sliceord' | 'nameform' | 'mixform'
 export interface AuditItem {
   severity: 'high' | 'medium' | 'low'
   type: string

@@ -12,7 +12,7 @@ import { extractFrontMatter, setFrontMatterField } from '../../../shared/fmatter
 import { adoptActsChapter } from '../../../shared/actsAdopt'
 import { countWords } from '../../../shared/count'
 import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceCheck, chapterMissingFromRaw } from '../../../shared/presence'
-import { nameFormCheck } from '../../../shared/nameform'
+import { nameFormCheck, nameMixCheck } from '../../../shared/nameform'
 import { actGapsCheck } from '../../../shared/actGaps'
 import { sliceSectionOrderCheck } from '../../../shared/sliceorder'
 import { findAnchorLine, normalizeAnchor } from '../../../shared/anchor'
@@ -117,10 +117,11 @@ docs.set(
   'demo-aseya/正文/第02章_灯塔.md',
   ['---', '章号: 2', '题名: 灯塔', '切片: 第二幕_灯塔', '涉及人物: [阿七]', '---', '', '# 灯塔', '', '（本章待写）', ''].join('\n')
 )
-// dev 演示：第3章正文用了「沈爷」（沈藏档案登记的别名）但约定头只列了阿七 → 保存时触发「名单外出场」提示
+// dev 演示：第3章正文用了「沈爷」（沈藏档案登记的别名）但约定头只列了阿七 → 保存时触发「名单外出场」提示；
+// 同时叙述层「沈藏/沈爷」交替出现 3 次 → 「称谓混用核查」演示命中（本地规则真算）
 docs.set(
   'demo-aseya/正文/第03章_码头.md',
-  ['---', '章号: 3', '题名: 码头', '切片: 第三幕_码头', '涉及人物: [阿七]', '---', '', '# 码头', '', '阿七在码头等船。沈爷远远站着，帽檐压得很低，像是怕被认出来。', ''].join('\n')
+  ['---', '章号: 3', '题名: 码头', '切片: 第三幕_码头', '涉及人物: [阿七]', '---', '', '# 码头', '', '阿七在码头等船。沈爷远远站着，帽檐压得很低，像是怕被认出来。沈藏没有上前，只在铁栏边站定。沈爷把手里的烟掐了，朝她走过来。阿七回头时，沈藏已经走到灯下。', ''].join('\n')
 )
 // dev 演示：第4章约定头列了阿七/沈藏但正文（≥字数阈值）均未出现 → 保存时触发「列入未出场」提示
 docs.set(
@@ -1140,7 +1141,7 @@ const mock = {
   },
   agentAudit: async (projectId: string, kind: string) => {
     // 与主进程同语义：审计成功后把结论落盘 大纲/审读_<名>.md（供无头 UI 冒烟断言「已存档」与大纲区「审读存档」）
-    const name = kind === 'consistency' ? '一致性巡查' : kind === 'perspectives' ? '多视角审视' : kind === 'presence' ? '人物在场核查' : kind === 'order' ? '切片时序核查' : kind === 'unused' ? '人物档案腐坏核查' : kind === 'actgaps' ? '正文缺段核查' : kind === 'sliceord' ? '档案切片核查' : kind === 'nameform' ? '称谓发现核查' : '冷读报告'
+    const name = kind === 'consistency' ? '一致性巡查' : kind === 'perspectives' ? '多视角审视' : kind === 'presence' ? '人物在场核查' : kind === 'order' ? '切片时序核查' : kind === 'unused' ? '人物档案腐坏核查' : kind === 'actgaps' ? '正文缺段核查' : kind === 'sliceord' ? '档案切片核查' : kind === 'nameform' ? '称谓发现核查' : kind === 'mixform' ? '称谓混用核查' : '冷读报告'
     const res =
       kind === 'presence'
         ? (() => {
@@ -1227,6 +1228,25 @@ const mock = {
               .map(({ file }) => ({ file: '正文/' + file, raw: docs.get(projectId + '/正文/' + file) ?? '' }))
               .filter((c) => c.raw.trim())
             return { ok: true as const, result: nameFormCheck({ knownChars: names, aliasMap, chapters }) }
+          })()
+        : kind === 'mixform'
+        ? (() => {
+            // 与主进程同语义：复用共享纯函数 + devShim 内存文档真实计算（演示项目第03章「沈藏/沈爷」叙述层交替 3 次 → 命中 1 条）
+            const aliasMap: Record<string, string[]> = {}
+            const names: string[] = []
+            for (const { file, name } of docsOf(projectId + '/人物')) {
+              const n = name.replace(/\.md$/i, '').trim()
+              if (n && !['总览', '索引'].includes(n)) {
+                names.push(n)
+                const fm = extractFrontMatter(docs.get(projectId + '/人物/' + file) ?? '').fm
+                const al = parseAliases(fm)
+                if (al.length) aliasMap[n] = al
+              }
+            }
+            const chapters = docsOf(projectId + '/正文')
+              .map(({ file }) => ({ file: '正文/' + file, raw: docs.get(projectId + '/正文/' + file) ?? '' }))
+              .filter((c) => c.raw.trim())
+            return { ok: true as const, result: nameMixCheck({ knownChars: names, aliasMap, chapters }) }
           })()
         : kind === 'consistency'
         ? {

@@ -211,3 +211,143 @@ export function nameFormCheck(opts: {
     : `称谓发现核查（本地规则·零模型）：扫描 ${persons.length} 个人物档案 × 常见称谓模式，未发现「正文使用但档案未登记」的疑似称谓。${scope}`
   return { summary, items }
 }
+
+// ===== 称谓混用核查（机械层第八块·同章同人称谓混用，零模型，2026-09-15） =====
+// 调研结论（The Editor's Blog 2015「Using Names in Fiction」，Beth Hill：#2 Multiple Names for One
+// Character——同一个人物使用多个名称必须「克制、有计划、前后一致」；昵称只出现一两次就不值得保留；
+// K.M. Weiland「Does Your Story Maintain Consistency in the Details?」（2011-05-11）举 Gaskell《Wives
+// & Daughters》例：女主角不同阶段被不同人用不同名字称呼——变名/异称可以有叙事理由（关系/视角变化），
+// 但**同章叙述层来回切换**通常是失控；ProWritingAid 的一致性报告只到「拼写/大小写/数字」文字级，
+// 无法识别「陈默=陈师傅=老陈」——织卷人物档案自带姓名/别名映射，可自动归属。
+// 与传统检测不同的是只看**叙述层（引号外）**：对话中人物互相称呼多变是正常的（陈师傅在对话里被叫
+// 「陈师傅」、被叫「老陈」都不算混用），叙述层才是作者用称失控的高发区。
+// 判据（2026-09-15 06:00 轮判框架 + 本轮细化）：同章内同一人物在叙述层使用 ≥2 种不同称呼、且
+// 交替（相邻出现即换称呼）≥3 次才提示；措辞「可能刻意」（自由间接引语/视角切换下异称有叙事语义，
+// 见 Wikipedia Free indirect speech——叙述者可「roam from viewpoint to viewpoint」）。
+// 口径边界（机械层承认局限）：单字名/代号（无姓可识别）不参与；同一称呼串被多人「声明」
+// （本名/登记别名/姓+称谓生成）→ 归属不明，不参与（避免指认错误）；三字人名「姓+单字」被当称谓的
+// 误报方向安全（low 级）；引号不成对时该段仍按叙述层算（漏报方向安全）。
+
+/** 剥成对引号内容（对话层）——「“…””“…”“「…」”“『…』”“‘…’”；不成对不剥（漏报方向安全），替换为空格防拼接 */
+export function stripDialogue(text: string): string {
+  let t = text
+  for (const re of [/“[^”]*”/g, /"[^"]*"/g, /「[^」]*」/g, /『[^』]*』/g, /‘[^’]*’/g]) {
+    t = t.replace(re, ' ')
+  }
+  return t
+}
+
+interface MixVariant {
+  v: string
+  /** 分类：全名 / 登记别名 / 姓+称谓 / 老·小·阿·大+姓 */
+  kind: 'name' | 'alias' | 'title' | 'pref'
+}
+
+/**
+ * 称谓混用核查：输入全部章节、人物档案题名与登记别名表，输出 AuditResult（与审计抽屉同构）。
+ * 只扫叙述层（引号外）；同一人物的称呼串（本名/登记别名/生成称谓）须「唯一归属」该人物；
+ * 同章内不同称呼交替 ≥3 次 → low（措辞「可能刻意」，带 target 可转提案/让 agent 改）。
+ */
+export function nameMixCheck(opts: {
+  knownChars: string[]
+  aliasMap?: Record<string, string[]>
+  chapters: PresenceChapter[]
+}): AuditResult {
+  const aliasMap = opts.aliasMap ?? {}
+  const persons: PersonInfo[] = []
+  for (const n of opts.knownChars) {
+    if (n.length < 2) continue
+    const sur = surnameOf(n)
+    if (sur) persons.push({ name: n, surname: sur })
+  }
+  if (!persons.length) {
+    return {
+      summary:
+        '称谓混用核查（本地规则·零模型）：项目里没有可从名字识别出姓的人物档案（单字名/代号/无常见姓不参与），没有可核查对象。',
+      items: []
+    }
+  }
+
+  // 声明表：称呼串 → 声明者集合（本名/登记别名/生成称谓都是「声明」；>1 人声明 = 归属不明）
+  const declare = new Map<string, Set<PersonInfo>>()
+  const declareOne = (v: string, p: PersonInfo) => {
+    const s = declare.get(v) ?? new Set<PersonInfo>()
+    s.add(p)
+    declare.set(v, s)
+  }
+  for (const p of persons) {
+    declareOne(p.name, p)
+    for (const a of aliasMap[p.name] ?? []) if (a.length >= 2) declareOne(a, p)
+    for (const suf of SUFFIXES) if ((p.surname + suf).length >= 2) declareOne(p.surname + suf, p)
+    for (const pre of PREFIXES) declareOne(pre + p.surname, p)
+  }
+  // 每人物可用变体：唯一归属自己的称呼串（去重；毛刺=声明者集合恰好只有自己）
+  const variantsByPerson = new Map<string, MixVariant[]>()
+  for (const p of persons) {
+    const own: MixVariant[] = []
+    const seen = new Set<string>()
+    const tryAdd = (v: string, kind: MixVariant['kind']) => {
+      if (seen.has(v) || v.length < 2) return
+      if (v === '') return
+      const owners = declare.get(v)
+      if (!owners || owners.size !== 1 || !owners.has(p)) return
+      seen.add(v)
+      own.push({ v, kind })
+    }
+    tryAdd(p.name, 'name')
+    for (const a of aliasMap[p.name] ?? []) tryAdd(a, 'alias')
+    for (const suf of SUFFIXES) tryAdd(p.surname + suf, 'title')
+    for (const pre of PREFIXES) tryAdd(pre + p.surname, 'pref')
+    if (own.length >= 2) variantsByPerson.set(p.name, own)
+  }
+  if (!variantsByPerson.size) {
+    return {
+      summary: `称谓混用核查（本地规则·零模型）：扫描 ${persons.length} 个人物档案 × 全卷正文，没有人物拥有 ≥2 种可识别的称呼（唯一归属），无可核查对象。`,
+      items: []
+    }
+  }
+
+  const items: AuditItem[] = []
+  for (const ch of opts.chapters) {
+    const { fm, body } = extractFrontMatter(ch.raw)
+    const text = stripDialogue(stripHtmlComments(body))
+    if (!text) continue
+    for (const p of persons) {
+      const variants = variantsByPerson.get(p.name)
+      if (!variants) continue
+      const sorted = [...variants].sort((a, b) => b.v.length - a.v.length)
+      const re = new RegExp(sorted.map((x) => escRe(x.v)).join('|'), 'g')
+      const refs: { v: string; pos: number }[] = []
+      let m: RegExpExecArray | null
+      while ((m = re.exec(text))) {
+        refs.push({ v: m[0], pos: m.index })
+      }
+      if (refs.length < 3) continue
+      let switches = 0
+      let firstSwitch = -1
+      for (let i = 1; i < refs.length; i++) {
+        if (refs[i].v !== refs[i - 1].v) {
+          switches++
+          if (firstSwitch < 0) firstSwitch = i
+        }
+      }
+      if (switches < 3 || firstSwitch < 0) continue
+      const shown = [...new Set(refs.map((r) => r.v))]
+      const ctx = clipCtx(text, refs[firstSwitch].pos, refs[firstSwitch].v.length)
+      items.push({
+        severity: 'low',
+        type: 'character',
+        where: `${titleOf(fm, ch.file)}（${ch.file}）`,
+        what: `本章叙述层交替使用了「${shown.join('」「')}」等 ${shown.length} 种称呼指「${p.name}」（共 ${refs.length} 处、交替 ${switches} 次）——若并非刻意（如人物关系变化、视角切换，自由间接引语下的异称有叙事语义），多个称呼混用容易让读者出戏。交替处：「…${ctx}…」。`,
+        suggest: `确认「${p.name}」在本章的称呼：若几种称呼都有叙事用意可保留；否则把叙述层统一为一两种，有意使用的其他称呼可登记到 人物/${p.name}.md 约定头「别名: [...]」，使称谓检查与 agent 引用识别它们。`,
+        target: `人物/${p.name}.md`
+      })
+    }
+  }
+  const scope =
+    '口径：扫描叙述层（引号外）；参与=本名/登记别名/姓+称谓/老·小·阿·大+姓；单字名、代号与归属不明（多主声明）不参与；同章内不同称呼交替 ≥3 次才提示。'
+  const summary = items.length
+    ? `称谓混用核查（本地规则·零模型）：扫描 ${persons.length} 个人物档案 × 全卷正文，发现 ${items.length} 章「同章叙述层交替使用多个称呼指同一人」——若并非刻意建议统一，避免读者出戏。${scope}`
+    : `称谓混用核查（本地规则·零模型）：扫描 ${persons.length} 个人物档案 × 全卷正文，未发现同章内交替使用多个称呼的情况。${scope}`
+  return { summary, items }
+}
