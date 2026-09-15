@@ -89,7 +89,7 @@ else bad('② 仍有副标题')
 
 // ③ 按钮与搜索框同排（工具条）
 const row = await evalJs(`(() => {
-  const inp = document.querySelector('input[type="search"]')
+  const inp = document.querySelector('[data-testid="home-search"]')
   const imp = document.querySelector('[data-testid="home-import-dir"]')
   const np = document.querySelector('[data-testid="home-new-project"]')
   if (!inp || !imp || !np) return { missing: true, inp: !!inp, imp: !!imp, np: !!np }

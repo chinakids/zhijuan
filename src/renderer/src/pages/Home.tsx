@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FolderOpen, FolderOutput, Plus, Trash2, MoreHorizontal, Search } from 'lucide-react'
+import { FolderOpen, FolderOutput, Plus, Trash2, MoreHorizontal, Search, X } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import type { ProjectSummary, ProjectTemplate } from '../../../shared/types'
 import type { RecentEntry } from '../../../shared/projects'
@@ -49,6 +49,7 @@ export default function Home() {
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [recents, setRecents] = useState<RecentEntry[]>([])
   const [query, setQuery] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
   const [creating, setCreating] = useState(false)
@@ -185,12 +186,37 @@ export default function Home() {
           <div className="relative w-64 shrink-0">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" />
             <Input
-              type="search"
-              className="pl-8"
+              ref={searchRef}
+              type="text"
+              data-testid="home-search"
+              className="pl-8 pr-8"
               placeholder="按名称或简介过滤…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                // HIG Search fields：Clear button + macOS 搜索框惯例（Esc 清空查询、焦点留在框内）；
+                // 不依赖浏览器对 type=search 的原生 clear/Esc（样式不可控、非键盘可达，且跨内核行为不一）。
+                if (e.key === 'Escape' && query) {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setQuery('')
+                }
+              }}
             />
+            {query && (
+              <button
+                type="button"
+                data-testid="home-search-clear"
+                aria-label="清空搜索"
+                className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-ink-3 transition-colors hover:text-ink active:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                onClick={() => {
+                  setQuery('')
+                  searchRef.current?.focus()
+                }}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
           <p className="truncate text-xs text-ink-3">
             {loading ? '正在读取项目库…' : loadErr ? '项目库读取失败' : `共 ${projects.length} 个项目`}

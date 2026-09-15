@@ -59,6 +59,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
   const [editorRel, setEditorRel] = useState<string | null>(null)
   const [cards, setCards] = useState<Map<string, CardMeta>>(new Map())
   const [searchQ, setSearchQ] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
   const [hits, setHits] = useState<SearchHit[] | null>(null)
   const [searching, setSearching] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -280,15 +281,29 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
             <div className="flex shrink-0 items-center gap-2 border-b border-hair px-4 py-2">
               <Search className="h-3.5 w-3.5 shrink-0 text-ink-3" />
               <input
+                ref={searchRef}
+                data-testid="lib-search"
                 className="h-7 min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-3"
                 placeholder="搜索素材名与全文…（空格分词 AND）"
                 value={searchQ}
                 onChange={(e) => onSearchChange(e.target.value)}
+                onKeyDown={(e) => {
+                  // HIG Search fields：Clear button + macOS 搜索框惯例（Esc 清空查询、焦点留在框内，与首页同口径）
+                  if (e.key === 'Escape' && searchQ) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onSearchChange('')
+                  }
+                }}
               />
               {searchQ && (
                 <button
-                  className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] text-ink-3 hover:text-ink"
-                  onClick={() => onSearchChange('')}
+                  data-testid="lib-search-clear"
+                  className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] text-ink-3 hover:text-ink active:text-ink-2"
+                  onClick={() => {
+                    onSearchChange('')
+                    searchRef.current?.focus()
+                  }}
                 >
                   <X className="h-3 w-3" /> 清除
                 </button>
