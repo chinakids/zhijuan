@@ -1577,7 +1577,9 @@ function devAnnoResolve(id: string, refs?: { file: string; rows: number[] }[]): 
 function applyAnchor(text: string, it: ProposalItem): string {
   if (it.kind === 'append') return text + '\n\n' + it.after
   if (it.kind === 'replace-text') {
-    if (!it.before || !text.includes(it.before)) throw new Error('原文段已变（可能被手动编辑），请人工确认')
+    // 与主进程 applyAnchor（proposals.ts:194-195）同口径：缺 before 与原文漂移是两种根因、两种处置
+    if (!it.before) throw new Error('replace-text 缺少 before 文段')
+    if (!text.includes(it.before)) throw new Error('原文段已变（可能被手动编辑），请人工确认')
     return text.replace(it.before, it.after)
   }
   const anchor = normalizeAnchor(it.anchor || '')

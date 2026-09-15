@@ -1,4 +1,6 @@
 // 织卷无头冒烟 · 批注提案「原文已变→请人工确认」分支（创作层 2026-09-15 15:45 轮；候选 2）
+// 追加（18:45 轮）：「replace-text 缺少 before 文段」分支——devShim applyAnchor 与真机同口径拆分两种失败
+//   原因（缺 before=提案构造不完整/防御分支；原文漂移=作者手动编辑竞态），冒烟补 devShim 侧文案断言。
 // 用法：node scripts/anno-drift-ui-smoke.mjs
 // 前置：npm run build；out/renderer 已由静态服务器伺服（如 scripts/serve-renderer.mjs / python -m http.server）；
 //       本机专用无头 Chrome CDP 127.0.0.1:9224
@@ -165,7 +167,52 @@ ok('漂移提案状态置 rejected（非 accepted）', st === 'rejected', String
 const csv = await page.eval(`window.zhijuan.readDoc('${PID}', '正文/第01章_雾港_批注.csv')`)
 ok('批注 csv 行未被删除（保留重扫）', typeof csv === 'string' && csv.includes('L10:1'), JSON.stringify(csv))
 
-// ⑩ 截图（失败提示可见态）
+// —— 追加（18:45）：devShim applyAnchor「缺 before」分支与真机同口径拆分 ——
+// ⑪ 注入「缺 before」的 replace-text 提案（agent-chat 来源；断言仅验证防御分支——
+//     真实生成渠道（批注引擎/切片同步）均保证 before 非空，本分支面向外部/异常数据守卫）
+const MISS_AFTER = '（缺 before 的改写结果）'
+const missId = await page.eval(`window.zhijuan.createProposals('${PID}', 'agent-chat', '正文/第02章_未存在.md', '雾港夜', [{ target: ${JSON.stringify(target)}, kind: 'replace-text', after: ${JSON.stringify(MISS_AFTER)}, reason: '测试：replace-text 缺失 before 文段' }]).then((ps) => (ps[0] ? ps[0].id : 'NONE'))`)
+ok('注入缺 before 提案（agent 来源，数据层可见）', typeof missId === 'string' && missId.startsWith('p'), String(missId))
+const injected = await page.eval(`window.zhijuan.listProposals('${PID}').then((ps) => { const p = ps.find((x) => x.id === ${JSON.stringify(missId)}); return p ? { st: p.status, before: p.items[0] && p.items[0].before, src: p.source } : null })`)
+ok('缺 before 提案 pending / before 缺失', Boolean(injected && injected.st === 'pending' && injected.before == null), JSON.stringify(injected))
+
+// ⑫ 点提案抽屉「扫描批注」→ onChanged 刷新列表（真实用户路径；防重提示不影响刷新）→ 缺 before 卡可见
+await page.eval(`(() => {
+  const btn = [...document.querySelectorAll('button')].find((b) => (b.innerText || '').includes('扫描批注'))
+  if (btn) btn.click()
+  return !!btn
+})()`)
+await sleep(800)
+ok('抽屉内缺 before 提案卡可见（来自：agent）', await page.eval(bodyHas('来自：agent')), '')
+
+// ⑬ 点击缺 before 提案卡的「接受」→ 应显示「replace-text 缺少 before 文段」（非「请人工确认」）
+const clicked2 = await page.eval(`(() => {
+  const card = [...document.querySelectorAll('div')].find((d) => (d.className || '').includes('mb-2') && (d.innerText || '').includes('来自：agent'))
+  if (!card) return 'NO_CARD'
+  const acc = [...card.querySelectorAll('button')].find((b) => (b.innerText || '').trim() === '接受')
+  if (!acc) return 'NO_BTN'
+  acc.click()
+  return 'CLICKED'
+})()`)
+ok('点击「接受」（缺 before 提案）', clicked2 === 'CLICKED', String(clicked2))
+const errSeen2 = await page.eval(`(async () => {
+  const t0 = Date.now()
+  while (Date.now() - t0 < 5000) {
+    const b = document.body.innerText
+    if (b.includes('replace-text 缺少 before 文段')) return b.includes('提案未应用') ? 'TOAST_OK' : 'ERR_ONLY'
+    await new Promise((r) => setTimeout(r, 150))
+  }
+  return 'NONE'
+})()`)
+ok('缺 before 失败提示「replace-text 缺少 before 文段」可见（区分于请人工确认）', errSeen2 === 'TOAST_OK' || errSeen2 === 'ERR_ONLY', String(errSeen2))
+
+// ⑭ 缺 before 提案状态 rejected（非 accepted）+ 正文未被改写
+const st2 = await page.eval(`window.zhijuan.listProposals('${PID}').then((ps) => { const p = ps.find((x) => x.id === ${JSON.stringify(missId)}); return p ? p.status : 'GONE' })`)
+ok('缺 before 提案状态置 rejected', st2 === 'rejected', String(st2))
+const md2 = await page.eval(`window.zhijuan.readDoc('${PID}', ${JSON.stringify(target)})`)
+ok('正文未被缺 before 提案改写（after 未写入）', typeof md2 === 'string' && !md2.includes(MISS_AFTER), '')
+
+// ⑩ 截图（缺 before 失败提示可见态）
 try {
   const shot = await page.cmd('Page.captureScreenshot', { format: 'png' })
   const { mkdirSync, writeFileSync } = await import('node:fs')
