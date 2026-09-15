@@ -67,7 +67,13 @@ export interface ChatInput {
   quote?: string | null
   /** 最近对话可见历史（角色 + 内容），由渲染层携带 */
   history?: { role: 'user' | 'assistant'; content: string }[]
+  /** 焦点改稿任务（如审读条目「让 agent 改」）：放宽预算到 FOCUS_MAX_MS，防边界截断丢收尾（2026-09-15） */
+  focus?: boolean
 }
+
+/** 常规对话预算 8min；「让 agent 改」类焦点任务放宽到 12min（行业按任务类型分层预算，见档案 09-15 轮调研） */
+const CHAT_MAX_MS = 8 * 60 * 1000
+const FOCUS_MAX_MS = 12 * 60 * 1000
 
 export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void): Promise<void> {
   // 登记本请求——abortRequest 依赖 active 里的条目置位；sid 提前创建供真中断使用（2026-09-14）
@@ -123,7 +129,7 @@ export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void
       sid,
       parts.join('\n\n'),
       {
-        maxMs: 8 * 60 * 1000,
+        maxMs: input.focus ? FOCUS_MAX_MS : CHAT_MAX_MS,
         isAborted: () => run.aborted,
         onEvent: (n) => {
           if (run.aborted) return

@@ -127,12 +127,15 @@ try {
   console.log('\n=== 2. 真模型「让 agent 改」· 场景 B（无意乱换，应统一） ===')
   const rb = collect()
   await mod.runChat(
-    { requestId: 'mx-b', projectId: pid, chapterRel: '正文/第02章_茶馆.md', chapterTitle: '茶馆', prompt: promptB, quote: null },
+    { requestId: 'mx-b', projectId: pid, chapterRel: '正文/第02章_茶馆.md', chapterTitle: '茶馆', prompt: promptB, quote: null, focus: true },
     rb.rec
   )
   const bodyEditB = rb.edits.filter((e) => e.file.includes('正文/'))
   const unifiedB = bodyEditB.some((e) => (e.edits ?? []).some((x) => /陈师傅|老陈/.test(x.find ?? '') && !/陈师傅|老陈/.test(x.replace ?? '')))
   verdict('B：正文出统一修改卡（乱换被修）', unifiedB, '正文修改卡=' + bodyEditB.length + ' 错误=' + (rb.errs[0] ?? '无'))
+  // 2026-09-15 21:00 轮：focus 预算（12min）验收——B 不再被 8min 截断：无驱动超时错误 + 有收尾 final
+  verdict('B：focus 预算下无驱动超时错误', rb.errs.length === 0, rb.errs[0] ?? 'errs 为空')
+  verdict('B：focus 预算下完成收尾（final 存在）', rb.finals.join('').trim().length > 0, 'final 长度=' + rb.finals.join('').length)
 
   await mod.shutdown()
   console.log('\n' + (pass === total ? `MIXFORM-TOAGENT LIVE OK（${pass}/${total}）` : `MIXFORM-TOAGENT LIVE 部分通过（${pass}/${total}）`))

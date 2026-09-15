@@ -397,7 +397,7 @@ function useSender(props: AgentPanelProps) {
   const abortRef = useRef<{ rid: string } | null>(null)
 
   const send = useCallback(
-    async (raw: string, quote: string | null) => {
+    async (raw: string, quote: string | null, focus = false) => {
       const { projectId, chapterRel } = props
       if (streaming || !raw.trim()) return
       const content = quote ? `（引用自《${props.chapterTitle}》选中段落）\n> ${quote.replace(/\n/g, '\n> ')}\n\n${raw}` : raw
@@ -451,7 +451,8 @@ function useSender(props: AgentPanelProps) {
             chapterTitle: props.chapterTitle,
             prompt: raw,
             quote: quote ?? null,
-            history
+            history,
+            focus
           },
           (e) => {
             if (e.type === 'delta') deltaBuf.push(e.text ?? '')
@@ -1230,7 +1231,7 @@ export default function AgentPanel(props: AgentPanelProps) {
         onTab={(t) => setAudit((a) => ({ ...a, tab: t }))}
         onToAgent={(text) => {
           setAudit((a) => ({ ...a, open: false }))
-          void send(text, null)
+          void send(text, null, true)
         }}
         toAgentBusy={sending}
       />

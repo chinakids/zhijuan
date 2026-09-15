@@ -159,7 +159,7 @@ const api = {
   },
 
   // agent（harness 引擎；流式事件按 requestId 认领）
-  agentSend: (input: { requestId: string; projectId: string; chapterRel: string | null; chapterTitle: string; prompt: string; quote?: string | null; history?: { role: 'user' | 'assistant'; content: string }[] }) =>
+  agentSend: (input: { requestId: string; projectId: string; chapterRel: string | null; chapterTitle: string; prompt: string; quote?: string | null; history?: { role: 'user' | 'assistant'; content: string }[]; focus?: boolean }) =>
     ipcRenderer.invoke('agent:send', input) as Promise<{ ok: boolean }>,
   agentCancel: (requestId: string) => ipcRenderer.invoke('agent:cancel', requestId) as Promise<boolean>,
   agentSync: (projectId: string, chapterRel: string) =>

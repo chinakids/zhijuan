@@ -10,6 +10,8 @@ export interface AgentSendInput {
   prompt: string
   quote?: string | null
   history?: { role: 'user' | 'assistant'; content: string }[]
+  /** 焦点改稿任务（「让 agent 改」）放宽预算；默认 false 走常规 8min */
+  focus?: boolean
 }
 
 type Handler = (e: AgentEvent) => void

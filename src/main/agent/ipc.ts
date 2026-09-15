@@ -23,6 +23,8 @@ export interface AgentSendInput {
   prompt: string
   quote?: string | null
   history?: { role: 'user' | 'assistant'; content: string }[]
+  /** 焦点改稿任务：主进程 runChat 放宽预算（12min），见 engine.ts */
+  focus?: boolean
 }
 
 function broadcast(e: AgentOutEvent) {

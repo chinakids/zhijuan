@@ -77,9 +77,20 @@ try {
   await evalUntil(page, `document.body.innerText.includes('Agent') && document.body.innerText.includes('第1章')`, (v) => v === true, 20000, '正文页就绪')
   console.log('OK 正文页就绪')
 
-  // ① 打开一致性巡查抽屉（devShim mock 自动出结果）
-  console.log('打开巡查:', await page.eval(clickByTitle('一致性巡查：按设定档案检查全卷')))
-  await evalUntil(page, `document.body.innerText.includes('全卷读完')`, (v) => v === true, 15000, '巡查出结果')
+  // ① 打开一致性巡查抽屉（devShim mock 自动出结果；检查项已收进「检查 ▾」菜单——Radix 需 pointer 三连，F-20260912-08 后适配）
+  const menuOpen = await page.eval(`(() => {
+    const b = [...document.querySelectorAll('button')].find((x) => (x.title || '').includes('检查阵容'))
+    if (b) { b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' })); b.click() }
+    return !!b
+  })()`)
+  await sleep(350)
+  const opened = await page.eval(`(() => {
+    const b = [...document.querySelectorAll('[role="menuitem"]')].find((x) => (x.title || '').includes('一致性巡查'))
+    if (b) { b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' })); b.click() }
+    return !!b
+  })()`)
+  console.log('打开巡查(检查菜单→一致性巡查):', menuOpen, opened)
+  if (!menuOpen || !opened) throw new Error('检查菜单/一致性巡查项未打开')
   console.log('OK 抽屉出结果')
 
   // ② 存在「让 agent 改」按钮（devShim 演示条目有 target 与无 target 都应有）
@@ -97,6 +108,15 @@ try {
   const hasEditCard = await page.eval(`document.body.innerText.includes('L8 │') && document.body.innerText.includes('采纳')`)
   if (!hasEditCard) throw new Error('未发现修改卡对比/采纳 UI: 已生成正文修改方案 但缺 EditCard 渲染')
   console.log('OK 正文修改卡（zj_edit_doc 通道）到达 agent 区')
+
+  // 截图（主人契约：功能落地确认界面状态）
+  const fs = await import('fs')
+  fs.mkdirSync(process.env.HOME + '/Pictures/zhijuan', { recursive: true })
+  const shot = await page.cmd('Page.captureScreenshot', { format: 'png' })
+  const hhmm = new Date().toTimeString().slice(0, 5).replace(':', '')
+  const shotPath = process.env.HOME + '/Pictures/zhijuan/audit-toagent-' + hhmm + '.png'
+  fs.writeFileSync(shotPath, Buffer.from(shot.data, 'base64'))
+  console.log('SCREENSHOT: ' + shotPath)
 
   console.log('\nPASS: 审读条目「让 agent 改」（打包进对话 + 修改卡回显）链路 OK')
 } finally {
