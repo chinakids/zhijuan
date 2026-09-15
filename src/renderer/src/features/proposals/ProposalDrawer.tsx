@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Check, X, FileText, GitCompare, Inbox, ChevronDown, Trash2, RefreshCw } from 'lucide-react'
 import type { Proposal, SyncIssue } from '../../../../shared/types'
 import { Button } from '../../components/ui/button'
@@ -123,21 +123,22 @@ function toastAfterChapterApply(projectId: string, target: string) {
     })
 }
 
-function ItemCard({ p, projectId, onChanged }: { p: Proposal; projectId: string; onChanged: () => void }) {
+function ItemCard({ p, projectId, onChanged, err, onErr }: { p: Proposal; projectId: string; onChanged: () => void; err?: string; onErr: (id: string, msg: string) => void }) {
   const it = p.items[0]
   const [showDiff, setShowDiff] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
   async function doApply() {
     setBusy(true)
-    setErr('')
+    onErr(p.id, '')
     try {
       const r = await window.zhijuan.applyProposal(projectId, p.id)
       if (!r.ok || r.errors?.length) {
-        // 失败原因（如批注改写 before 漂移「请人工确认」）在卡片状态翻转后易被组间移动重置 →
-        // 除卡片内 err 外补 toast 兜底可见（2026-09-15 15:45 轮实锤：err 未渲染）
-        const msg = (r.errors?.join('；') || '写入失败') + '（可重试或改原地后再接受）'
-        setErr(msg)
+        // 失败原因挂抽屉级 errMap（proposalId→err）：提案 status→rejected 后从 pending 组
+        // 移入 done 组，ItemCard 会卸载重挂（两个 map 调用不共享 fiber），组件本地 state
+        // 在换组后归零——15:45 轮实锤「err 永不进 DOM」的根因；挂抽屉级才换组后仍可见。
+        // toast 仍作兜底（抽屉关闭/长流程中也可见）。
+        const msg = (r.errors?.join('；') || '写入失败') + '（请先核对原文；如需继续请重新扫描批注或再次保存）'
+        onErr(p.id, msg)
         toast.add({ kind: 'warning', title: '提案未应用', description: msg })
       } else {
         // 正文为源、设定为流：正文类提案（批注改写）接受后触发切片同步（跳过则刷新列表）
@@ -145,7 +146,7 @@ function ItemCard({ p, projectId, onChanged }: { p: Proposal; projectId: string;
         if (isChapterTarget(t) && t) toastAfterChapterApply(projectId, t)
       }
     } catch (e) {
-      setErr(String((e as Error).message || e))
+      onErr(p.id, String((e as Error).message || e))
     } finally {
       setBusy(false)
     }
@@ -211,6 +212,20 @@ function ItemCard({ p, projectId, onChanged }: { p: Proposal; projectId: string;
 }
 
 export default function ProposalDrawer({ projectId, list, onChanged, onClose }: Props) {
+  // 提案级错误（proposalId→err）：ItemCard 在 pending→done 换组时会卸载重挂，组件本地错误态
+  // 会丢失（15:45 轮实锤）——挂抽屉级 Map，换组后卡片内红字仍可见；关闭抽屉归零（toast 兜底）。
+  const [errMap, setErrMap] = useState<Record<string, string>>({})
+  const reportErr = useCallback((id: string, msg: string) => {
+    setErrMap((m) => {
+      if (!msg) {
+        if (!(id in m)) return m
+        const n = { ...m }
+        delete n[id]
+        return n
+      }
+      return { ...m, [id]: msg }
+    })
+  }, [])
   const pending = useMemo(() => list.filter((p) => p.status === 'pending'), [list])
   const done = useMemo(() => list.filter((p) => p.status === 'accepted' || p.status === 'rejected'), [list])
   const stale = useMemo(() => list.filter((p) => p.status === 'stale'), [list])
@@ -266,12 +281,12 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose }: 
               <p className="text-xs">还没有提案。保存正文后，切片同步会在这里提出设定更新。</p>
             </div>
           )}
-          {pending.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} />)}
-          {done.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} />)}
+          {pending.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} />)}
+          {done.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} />)}
           {stale.length > 0 && (
             <div className="mt-3 border-t border-hair pt-2">
               <p className="mb-2 text-[11px] text-ink-3">已过期 {stale.length} 条（章节被删除或再次保存，不可接受，可查看后清除）</p>
-              {stale.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} />)}
+              {stale.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} />)}
             </div>
           )}
         </ScrollArea>

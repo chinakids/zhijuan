@@ -154,6 +154,21 @@ const errSeen = await page.eval(`(async () => {
 })()`)
 ok('接受失败提示「请人工确认」可见（toast 兜底）', errSeen === 'TOAST_OK' || errSeen === 'ERR_ONLY', String(errSeen))
 
+// ⑥b 卡片内红字可见（2026-09-15 21:45 轮：err 改挂抽屉级 errMap——此前 err 在 pending→done
+// 换组时随 ItemCard 卸载丢失，只靠 toast；p.bg-danger-soft 精确命中卡片内 err（toast description
+// 是 div 无此 class，不会误命中），getComputedStyle 证实 danger 色真实渲染
+const redText = await page.eval(`(async () => {
+  const t0 = Date.now()
+  while (Date.now() - t0 < 5000) {
+    const els = [...document.querySelectorAll('p')]
+    const el = els.find((p) => (p.className || '').includes('bg-danger-soft') && (p.innerText || '').includes('请人工确认'))
+    if (el) return getComputedStyle(el).color
+    await new Promise((r) => setTimeout(r, 150))
+  }
+  return 'NO_RED'
+})()`)
+ok('卡片内红字可见（errMap 换组保留，非仅 toast 兜底）', redText.startsWith('rgb') || redText.startsWith('oklab'), String(redText))
+
 // ⑦ 正文未被改写：作者手动版本保留、批注 after 未写入
 const md = await page.eval(`window.zhijuan.readDoc('${PID}', ${JSON.stringify(target)})`)
 ok('正文未被改写（作者手动文本保留）', typeof md === 'string' && md.includes(MUT), '')
@@ -205,6 +220,19 @@ const errSeen2 = await page.eval(`(async () => {
   return 'NONE'
 })()`)
 ok('缺 before 失败提示「replace-text 缺少 before 文段」可见（区分于请人工确认）', errSeen2 === 'TOAST_OK' || errSeen2 === 'ERR_ONLY', String(errSeen2))
+
+// ⑬b 缺 before 分支卡片内红字同样换组保留（同一 errMap 机制，双分支齐验）
+const redText2 = await page.eval(`(async () => {
+  const t0 = Date.now()
+  while (Date.now() - t0 < 5000) {
+    const els = [...document.querySelectorAll('p')]
+    const el = els.find((p) => (p.className || '').includes('bg-danger-soft') && (p.innerText || '').includes('replace-text 缺少 before 文段'))
+    if (el) return getComputedStyle(el).color
+    await new Promise((r) => setTimeout(r, 150))
+  }
+  return 'NO_RED'
+})()`)
+ok('缺 before 卡片内红字可见（同 errMap 机制）', redText2.startsWith('rgb') || redText2.startsWith('oklab'), String(redText2))
 
 // ⑭ 缺 before 提案状态 rejected（非 accepted）+ 正文未被改写
 const st2 = await page.eval(`window.zhijuan.listProposals('${PID}').then((ps) => { const p = ps.find((x) => x.id === ${JSON.stringify(missId)}); return p ? p.status : 'GONE' })`)
