@@ -12,7 +12,30 @@
 // 三字人名恰好为「姓+单字后缀+名」时可能误报（如「陈叔同」→「陈叔」），low 级提示、方向安全，作者一扫即知。
 import { extractFrontMatter } from './fmatter'
 import { conflictedAliases, type PresenceChapter } from './presence'
-import type { AuditItem, AuditResult } from './types'
+import { aliasEditFor } from './aliasEdit'
+import type { AuditItem, AuditResult, ProposalItem } from './types'
+
+/** 称谓类条目 → 可执行「别名登记」提案（kind=replace-text，before/after=约定头精确改法）；
+ *  人物档原文缺失或定位不到数组风格「别名:」/「姓名:」行时返回 undefined（调用方回退旧「建议追加」行为）。 */
+function aliasProposal(
+  rawChars: Record<string, string> | undefined,
+  name: string,
+  candidates: string[]
+): ProposalItem | undefined {
+  if (!rawChars || !candidates.length) return undefined
+  const raw = rawChars[name]
+  if (!raw) return undefined
+  const edit = aliasEditFor(raw, candidates)
+  if (!edit) return undefined
+  return {
+    target: `人物/${name}.md`,
+    anchor: '',
+    kind: 'replace-text',
+    before: edit.before,
+    after: edit.after,
+    reason: '巡查建议 · 登记称谓别名'
+  }
+}
 
 /** 常见复姓（优先于单姓匹配） */
 const COMPOUND_SURNAMES = [
@@ -111,6 +134,8 @@ export function nameFormCheck(opts: {
   knownChars: string[]
   aliasMap?: Record<string, string[]>
   chapters: PresenceChapter[]
+  /** 人物档原文（按人物名）——提供时称谓类条目构造「可执行别名登记提案」 */
+  rawChars?: Record<string, string>
 }): AuditResult {
   const aliasMap = opts.aliasMap ?? {}
   const persons: PersonInfo[] = []
@@ -197,7 +222,9 @@ export function nameFormCheck(opts: {
         where: `${titleOf(fm, ch.file)}（${ch.file}）`,
         what: `正文出现了「${v}」——「${owner.name}」档案未登记这一称谓（按创作规范，同一人物的称呼应克制且前后一致）。首次出现处：「…${ctx}…」。`,
         suggest: `若「${v}」确实指「${owner.name}」：在 人物/${owner.name}.md 约定头「别名: [...]」登记它，称谓核查与 agent 引用即可识别；若指未建档的另一人：忽略此条即可，或为 TA 建档。`,
-        target: `人物/${owner.name}.md`
+        target: `人物/${owner.name}.md`,
+        aliasCandidates: [v],
+        proposal: aliasProposal(opts.rawChars, owner.name, [v])
       })
       itemsDesc.push(v)
     }
@@ -252,6 +279,8 @@ export function nameMixCheck(opts: {
   knownChars: string[]
   aliasMap?: Record<string, string[]>
   chapters: PresenceChapter[]
+  /** 人物档原文（按人物名）——提供时称谓类条目构造「可执行别名登记提案」 */
+  rawChars?: Record<string, string>
 }): AuditResult {
   const aliasMap = opts.aliasMap ?? {}
   const persons: PersonInfo[] = []
@@ -333,6 +362,7 @@ export function nameMixCheck(opts: {
       }
       if (switches < 3 || firstSwitch < 0) continue
       const shown = [...new Set(refs.map((r) => r.v))]
+      const candidates = shown.filter((v) => v !== p.name && !(aliasMap[p.name] ?? []).includes(v))
       const ctx = clipCtx(text, refs[firstSwitch].pos, refs[firstSwitch].v.length)
       items.push({
         severity: 'low',
@@ -340,7 +370,9 @@ export function nameMixCheck(opts: {
         where: `${titleOf(fm, ch.file)}（${ch.file}）`,
         what: `本章叙述层交替使用了「${shown.join('」「')}」等 ${shown.length} 种称呼指「${p.name}」（共 ${refs.length} 处、交替 ${switches} 次）——若并非刻意（如人物关系变化、视角切换，自由间接引语下的异称有叙事语义），多个称呼混用容易让读者出戏。交替处：「…${ctx}…」。`,
         suggest: `确认「${p.name}」在本章的称呼：若几种称呼都有叙事用意可保留；否则把叙述层统一为一两种，有意使用的其他称呼可登记到 人物/${p.name}.md 约定头「别名: [...]」，使称谓检查与 agent 引用识别它们。`,
-        target: `人物/${p.name}.md`
+        target: `人物/${p.name}.md`,
+        aliasCandidates: candidates,
+        proposal: aliasProposal(opts.rawChars, p.name, candidates)
       })
     }
   }

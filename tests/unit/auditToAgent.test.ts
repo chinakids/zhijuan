@@ -20,6 +20,7 @@ describe('auditItemToAgentPrompt（审计条目 → agent 指令文本）', () =
     expect(t).toContain('人物/顾岸.md')
     expect(t).toContain('zj_edit_doc')
     expect(t).toContain('不要整篇替换')
+    expect(t).toContain('只处理这一条发现')
   })
 
   it('无 target：不出现关联档案行', () => {

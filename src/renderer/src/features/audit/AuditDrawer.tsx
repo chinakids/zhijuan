@@ -108,13 +108,21 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
     setMadeDiff(new Set())
   }, [tab])
 
-  /** 建提案公共体：有 target 才建，命中返回 true（清单/对比两视图共用同一规则） */
+  /** 建提案公共体：有 target 才建，命中返回 true（清单/对比两视图共用同一规则）。
+   *  称谓类条目走已构造的可执行变更（it.proposal：把别名并入约定头），其余回退旧「建议文本追加」。 */
   const createProposalFor = async (it: AuditItem): Promise<boolean> => {
     if (!it.target) return false
     try {
-      await window.zhijuan.createProposals(projectId, 'agent-chat', '', '', [
-        { target: it.target, anchor: '', kind: 'append', before: '', after: it.suggest + '\n\n> 依据：' + it.what, reason: '巡查建议 · ' + (TYPE_TXT[it.type] ?? it.type) }
-      ])
+      const item =
+        it.proposal ?? {
+          target: it.target,
+          anchor: '',
+          kind: 'append' as const,
+          before: '',
+          after: it.suggest + '\n\n> 依据：' + it.what,
+          reason: '巡查建议 · ' + (TYPE_TXT[it.type] ?? it.type)
+        }
+      await window.zhijuan.createProposals(projectId, 'agent-chat', '', '', [item])
       return true
     } catch {
       return false

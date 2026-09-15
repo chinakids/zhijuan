@@ -1215,38 +1215,44 @@ const mock = {
         ? (() => {
             // 与主进程同语义：复用共享纯函数 + devShim 内存文档真实计算（演示项目仅沈藏（已有登记别名，正文用「沈爷」已登记不报）→ 零命中空态；命中路径由单测/数据层冒烟覆盖）
             const aliasMap: Record<string, string[]> = {}
+            const rawChars: Record<string, string> = {}
             const names: string[] = []
             for (const { file, name } of docsOf(projectId + '/人物')) {
               const n = name.replace(/\.md$/i, '').trim()
               if (n && !['总览', '索引'].includes(n)) {
                 names.push(n)
-                const al = parseAliases(extractFrontMatter(docs.get(projectId + '/人物/' + file) ?? '').fm)
+                const raw = docs.get(projectId + '/人物/' + file) ?? ''
+                const al = parseAliases(extractFrontMatter(raw).fm)
                 if (al.length) aliasMap[n] = al
+                rawChars[n] = raw
               }
             }
             const chapters = docsOf(projectId + '/正文')
               .map(({ file }) => ({ file: '正文/' + file, raw: docs.get(projectId + '/正文/' + file) ?? '' }))
               .filter((c) => c.raw.trim())
-            return { ok: true as const, result: nameFormCheck({ knownChars: names, aliasMap, chapters }) }
+            return { ok: true as const, result: nameFormCheck({ knownChars: names, aliasMap, chapters, rawChars }) }
           })()
         : kind === 'mixform'
         ? (() => {
             // 与主进程同语义：复用共享纯函数 + devShim 内存文档真实计算（演示项目第03章「沈藏/沈爷」叙述层交替 3 次 → 命中 1 条）
             const aliasMap: Record<string, string[]> = {}
+            const rawChars: Record<string, string> = {}
             const names: string[] = []
             for (const { file, name } of docsOf(projectId + '/人物')) {
               const n = name.replace(/\.md$/i, '').trim()
               if (n && !['总览', '索引'].includes(n)) {
                 names.push(n)
-                const fm = extractFrontMatter(docs.get(projectId + '/人物/' + file) ?? '').fm
+                const raw = docs.get(projectId + '/人物/' + file) ?? ''
+                const fm = extractFrontMatter(raw).fm
                 const al = parseAliases(fm)
                 if (al.length) aliasMap[n] = al
+                rawChars[n] = raw
               }
             }
             const chapters = docsOf(projectId + '/正文')
               .map(({ file }) => ({ file: '正文/' + file, raw: docs.get(projectId + '/正文/' + file) ?? '' }))
               .filter((c) => c.raw.trim())
-            return { ok: true as const, result: nameMixCheck({ knownChars: names, aliasMap, chapters }) }
+            return { ok: true as const, result: nameMixCheck({ knownChars: names, aliasMap, chapters, rawChars }) }
           })()
         : kind === 'consistency'
         ? {

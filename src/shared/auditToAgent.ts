@@ -17,6 +17,9 @@ export function auditItemToAgentPrompt(it: AuditItem): string {
   ]
   const ref = it.refFile ?? it.target
   if (ref) lines.push(`关联档案：${ref}（处置前先 zj_read_doc 读它核实）`)
+  // 2026-09-15 体检：真模型实测「方向对但过度探查」——读完全部章节/跑 bash → 8 分钟引擎超时无产出；
+  // 加范围约束：只处理本条、快速给方案（引导准确度与完成度双修）
+  lines.push('只处理这一条发现：读完与此条相关的文件后直接给出修改方案；不要全面核查本项目，不要反复探查无关章节。')
   lines.push('定位先用 zj_read_doc 读相关文件；改动文件（正文或档案）一律用 zj_edit_doc 生成修改卡，不要整篇替换。')
   return lines.join('\n')
 }

@@ -299,6 +299,10 @@ export interface AuditItem {
   target?: string
   /** 关联档案路径（仅指路：如别名的登记处 人物/<名>.md）；不做转提案目标 */
   refFile?: string
+  /** 称谓类（nameform/mixform）：本条建议拟登记的别名（转提案专用，构造可执行变更） */
+  aliasCandidates?: string[]
+  /** 已构造好的可执行变更提案（称谓类：把别名并入约定头「别名: [...]」）；抽屉据此建提案，无则回退旧「建议文本追加」 */
+  proposal?: ProposalItem
 }
 export interface AuditResult {
   summary: string

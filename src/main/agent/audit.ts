@@ -49,10 +49,15 @@ export function auditReportRel(kind: AuditKind): string {
 
 // ===== 人物在场核查（本地规则层，零模型、秒级） =====
 // 读全卷正文 + 人物档案题名 → presenceCheck → AuditResult（与审计抽屉同构展示，不落盘）。
-/** 读全部人物档案：题名（knownChars，滤总览/索引）+ 登记别名（aliasMap） */
-export function readCharIndex(projectId: string): { knownChars: string[]; aliasMap: Record<string, string[]> } {
+/** 读全部人物档案：题名（knownChars，滤总览/索引）+ 登记别名（aliasMap）+ 原文（rawChars，称谓类提案构造用） */
+export function readCharIndex(projectId: string): {
+  knownChars: string[]
+  aliasMap: Record<string, string[]>
+  rawChars: Record<string, string>
+} {
   const knownChars: string[] = []
   const aliasMap: Record<string, string[]> = {}
+  const rawChars: Record<string, string> = {}
   for (const d of listDocs(projectId, '人物')) {
     // 文件可能带子目录（人物/某组/角色.md），取末段；过滤总览/索引类
     const base = d.file.split('/').pop() ?? d.file
@@ -62,9 +67,10 @@ export function readCharIndex(projectId: string): { knownChars: string[]; aliasM
       const raw = readDoc(projectId, '人物/' + d.file) ?? ''
       const al = parseAliases(extractFrontMatter(raw).fm)
       if (al.length) aliasMap[name] = al
+      rawChars[name] = raw
     }
   }
-  return { knownChars, aliasMap }
+  return { knownChars, aliasMap, rawChars }
 }
 
 /** 读全部正文章节 raw（跳过空文件） */
@@ -201,8 +207,8 @@ export function runNameForms(
   projectId: string
 ): { ok: true; result: AuditResult } | { ok: false; error: string } {
   try {
-    const { knownChars, aliasMap } = readCharIndex(projectId)
-    return { ok: true, result: nameFormCheck({ knownChars, aliasMap, chapters: readVolumeChapters(projectId) }) }
+    const { knownChars, aliasMap, rawChars } = readCharIndex(projectId)
+    return { ok: true, result: nameFormCheck({ knownChars, aliasMap, chapters: readVolumeChapters(projectId), rawChars }) }
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e) }
   }
@@ -215,8 +221,8 @@ export function runNameMix(
   projectId: string
 ): { ok: true; result: AuditResult } | { ok: false; error: string } {
   try {
-    const { knownChars, aliasMap } = readCharIndex(projectId)
-    return { ok: true, result: nameMixCheck({ knownChars, aliasMap, chapters: readVolumeChapters(projectId) }) }
+    const { knownChars, aliasMap, rawChars } = readCharIndex(projectId)
+    return { ok: true, result: nameMixCheck({ knownChars, aliasMap, chapters: readVolumeChapters(projectId), rawChars }) }
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e) }
   }
