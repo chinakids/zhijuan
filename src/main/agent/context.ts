@@ -250,12 +250,46 @@ export async function buildProjectContext(projectId: string): Promise<WritingCon
   const lines = ['【文档清单】']
   for (const dir of ['正文', '人物', '世界观', '素材库']) {
     const docs = listDocs(projectId, dir)
-    const names = docs.slice(0, LIST_CAP).map((d) => d.name)
-    const suffix = docs.length > LIST_CAP ? ` 等 ${docs.length} 篇` : ''
-    lines.push(`- ${dir}/：${docs.length} 篇${names.length ? '：' + names.join('、') + suffix : ''}`)
+    // 路标排序必须稳定可预测（2026-09-16 项目级探针审计实锤：旧实现全部按 mtime 降序，
+    // 每次保存/编辑文档清单顺序就漂移，模型无法形成稳定的文档结构心智；
+    // 且正文只看最近修改的 12 篇，老章会从路标消失）。修复：正文按章号升序=叙事结构序
+    // （章名短，全量列出成本低；>40 章截断并注明），其他目录按名称升序（与 mtime 无关）。
+    if (dir === '正文') {
+      const sorted = sortDocsByChapterNo(projectId, docs)
+      const names = sorted.slice(0, 40).map((d) => d.name)
+      const suffix = sorted.length > 40 ? ` 等 ${sorted.length} 篇` : ''
+      lines.push(`- ${dir}/：${sorted.length} 篇${names.length ? '：' + names.join('、') + suffix : ''}`)
+    } else {
+      const names = docs
+        .slice(0, LIST_CAP)
+        .map((d) => d.name)
+        .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+      const suffix = docs.length > LIST_CAP ? ` 等 ${docs.length} 篇` : ''
+      lines.push(`- ${dir}/：${docs.length} 篇${names.length ? '：' + names.join('、') + suffix : ''}`)
+    }
   }
   blocks.push(lines.join('\n'))
   return { blocks, sources }
+}
+
+/** 正文路标按章号升序（叙事结构序）；无/坏约定头章号排最后（1e9，稳定兜底）。2026-09-16 探针审计新增。 */
+function sortDocsByChapterNo(
+  projectId: string,
+  docs: { file: string; name: string; mtime: number }[]
+): { file: string; name: string; mtime: number }[] {
+  const noOf = (file: string): number => {
+    try {
+      const fm = extractFrontMatter(readDoc(projectId, '正文/' + file) ?? '').fm as Record<string, unknown>
+      const n = Number(fm?.['章号'])
+      return Number.isFinite(n) ? n : 1e9
+    } catch {
+      return 1e9
+    }
+  }
+  return [...docs]
+    .map((d) => ({ d, no: noOf(d.file) }))
+    .sort((a, b) => a.no - b.no || (a.d.name < b.d.name ? -1 : a.d.name > b.d.name ? 1 : 0))
+    .map((x) => x.d)
 }
 
 function stripFrontMatter(raw: string): string {

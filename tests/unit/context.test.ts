@@ -597,4 +597,49 @@ describe('预算截断可见性（2026-09-13 上下文审计第二轮收口）',
     expect(doclist).toContain('正文/：1 篇')
     expect(doclist).toContain('人物/：1 篇')
   })
+
+  it('buildProjectContext：文档清单路标排序稳定——正文按章号升序全量，其他目录按码位升序（与 mtime 无关）', async () => {
+    const fmOf = (no: number) =>
+      ['---', `章号: ${no}`, '题名: x', '切片: 第一幕', '涉及人物: []', '---'].join('\n') + '\n'
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      if (rel.startsWith('正文/')) {
+        const no = Number(rel.match(/第(\d+)章/)?.[1])
+        return fmOf(no)
+      }
+      if (rel === 'project.md') return '# 总纲'
+      return null
+    })
+    // listDocs 返回乱序（模拟最近编辑漂移：第03章 mtime 最新却应排最后；人物/素材乱序）
+    listDocsMock.mockImplementation((_id: string, dir: string) => {
+      const table: Record<string, { file: string; name: string }[]> = {
+        正文: [
+          { file: '正文/第03章_c.md', name: '第03章_c' },
+          { file: '正文/第01章_a.md', name: '第01章_a' },
+          { file: '正文/第02章_b.md', name: '第02章_b' }
+        ],
+        人物: [
+          { file: '人物/周守.md', name: '周守' },
+          { file: '人物/陈默.md', name: '陈默' }
+        ],
+        素材库: [
+          { file: '素材库/b.md', name: '桥段_b' },
+          { file: '素材库/a.md', name: '场景_a' }
+        ],
+        世界观: []
+      }
+      return (table[dir] ?? []) as never
+    })
+    const { blocks } = await buildProjectContext('p')
+    const doclist = blocks.find((b) => b.includes('文档清单'))!
+    // 正文：章号升序（01 < 02 < 03），与 mtime 顺序无关
+    const i1 = doclist.indexOf('第01章_a')
+    const i2 = doclist.indexOf('第02章_b')
+    const i3 = doclist.indexOf('第03章_c')
+    expect(i1).toBeGreaterThan(0)
+    expect(i2).toBeGreaterThan(i1)
+    expect(i3).toBeGreaterThan(i2)
+    // 其他目录：码位升序（周 U+5468 < 陈 U+9648；场 U+573A < 桥 U+6865）——确定性、跨平台一致
+    expect(doclist.indexOf('周守')).toBeLessThan(doclist.indexOf('陈默'))
+    expect(doclist.indexOf('场景_a')).toBeLessThan(doclist.indexOf('桥段_b'))
+  })
 })
