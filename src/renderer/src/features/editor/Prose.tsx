@@ -59,6 +59,8 @@ interface ProseProps {
   className?: string
   /** 本章批注（显示 UI：定位后的 loc/note/before；before 为可在正文匹配的文段，空则跳过） */
   annotations?: AnnotationRow[]
+  /** 批注入口（划词浮层「批注」钮 + 右键「写入批注」）是否可用——批注管道只作用 `正文/**`，非正文语境传 false 隐藏（HIG：隐藏不可用项）。默认 true（正文场景）。 */
+  anno?: boolean
 }
 
 interface WinWithEditors {
@@ -99,7 +101,7 @@ function testUnregister(api: ProseApi) {
   if (i >= 0) a.splice(i, 1)
 }
 
-export default function Prose({ value, onEdit, apiRef, className, annotations }: ProseProps) {
+export default function Prose({ value, onEdit, apiRef, className, annotations, anno = true }: ProseProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const initialRef = useRef<string>(value)
   const onEditRef = useRef(onEdit)
@@ -255,14 +257,17 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
     setBubble(null)
     focusEditor()
   }
-  // 划词「批注」（主人 2026-09-12）：带选中原文（before）与尽力而为的行列 loc → Novel 弹层填写意图
+  // 批注发起（2026-09-15 体验层：浮层/右键双入口单源化）——loc 留空：编辑器只见剥了 front matter 的正文
+  // （DocEditor splitFm），这里算出的行号是「正文内行号」而非 md 文件行号，写入 csv 会误导外部审计——
+  // 定位以 before 原文兜底（findAnnotationTargets 优先级：csv 第 3 列原文 > loc 行列区间），loc 不作为依赖。
+  const annCompose = (text: string) => {
+    const loc = ''
+    window.dispatchEvent(new CustomEvent('zj:anno-compose', { detail: { loc, before: text } }))
+  }
+  // 划词浮层「批注」（主人 2026-09-12）：带选中原文 → Novel 弹层填写意图
   const dispatchAnno = () => {
     if (!bubble) return
-    // loc 留空：编辑器只见剥了 front matter 的正文（DocEditor splitFm），这里算出的行号
-    // 是「正文内行号」而非 md 文件行号，写入 csv 会误导外部审计——定位以 before 原文兜底
-    // （findAnnotationTargets 优先级：csv 第 3 列原文 > loc 行列区间），loc 不作为依赖。
-    const loc = ''
-    window.dispatchEvent(new CustomEvent('zj:anno-compose', { detail: { loc, before: bubble.text } }))
+    annCompose(bubble.text)
     setBubble(null)
   }
 
@@ -529,6 +534,11 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
   const doSelectAll = () => runEdit((v) => selectAll(v.state, v.dispatch))
   const doQuote = () => {
     if (menuSel) window.dispatchEvent(new CustomEvent('zj:quote-text', { detail: menuSel }))
+  }
+  // 右键「写入批注」（2026-09-15 体验层）：与划词浮层批注同链路（zj:anno-compose → Novel 弹层），
+  // 文本取右键时快照的 menuSel；HIG Context menus「一致性」——主界面（划词浮层）有的写作域动作右键也应有。
+  const doAnno = () => {
+    if (menuSel) annCompose(menuSel)
   }
   const copyBubble = () => {
     if (!bubble) return
@@ -980,6 +990,12 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
             {menuSel && (
               <>
                 <ContextMenuSeparator />
+                {anno && (
+                  <ContextMenuItem onSelect={doAnno}>
+                    <MessageSquareText className="mr-0.5 h-3.5 w-3.5" />
+                    写入批注
+                  </ContextMenuItem>
+                )}
                 <ContextMenuItem onSelect={doQuote}>
                   <MessageSquarePlus className="mr-0.5 h-3.5 w-3.5" />
                   添加到对话
@@ -1025,10 +1041,12 @@ export default function Prose({ value, onEdit, apiRef, className, annotations }:
             <MessageSquarePlus className="h-3.5 w-3.5" />
             对话
           </button>
-          <button onClick={dispatchAnno} title="给选中文字添加批注（供批注优化生成修改提案）" aria-label="添加批注">
-            <MessageSquareText className="h-3.5 w-3.5" />
-            批注
-          </button>
+          {anno && (
+            <button onClick={dispatchAnno} title="给选中文字添加批注（供批注优化生成修改提案）" aria-label="添加批注">
+              <MessageSquareText className="h-3.5 w-3.5" />
+              批注
+            </button>
+          )}
         </div>
       )}
       {annoPop && annoPopRow && annoPopPos && (

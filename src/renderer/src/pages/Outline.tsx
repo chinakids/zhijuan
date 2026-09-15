@@ -609,7 +609,7 @@ export default function Outline() {
         )}
         <div className="min-h-0 flex-1">
           {sel ? (
-            <DocEditor projectId={id} rel={sel} extVersion={extVersion} onSave={() => void refresh()} />
+            <DocEditor projectId={id} rel={sel} extVersion={extVersion} onSave={() => void refresh()} anno={false} />
           ) : loadErr ? null : (
             <EmptyState
               art="outline"

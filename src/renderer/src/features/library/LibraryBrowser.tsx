@@ -411,7 +411,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
               <span className="shrink-0 text-[11px] text-ink-3">素材为整理后草稿，可编辑可删 · ⌘S 保存</span>
             </div>
             <div className="min-h-0 flex-1">
-              <DocEditor projectId={id} rel={editorRel} extVersion={extVersion} onSave={() => void refresh()} />
+              <DocEditor projectId={id} rel={editorRel} extVersion={extVersion} onSave={() => void refresh()} anno={false} />
             </div>
           </>
         )}

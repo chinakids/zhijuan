@@ -142,7 +142,7 @@ const selRes = await page.eval(selExpr(SEL))
 ok('选中独特文本', selRes === SEL, String(selRes))
 await evalUntil(page, `!!document.querySelector('.zj-sel-bubble')`, (v) => v === true, 10000, '浮层出现')
 const bubbleBtns = await page.eval(`[...document.querySelectorAll('.zj-sel-bubble button')].map((b) => b.textContent.trim())`)
-ok('浮层含「复制」「添加到对话」', bubbleBtns.includes('复制') && bubbleBtns.includes('添加到对话'), JSON.stringify(bubbleBtns))
+ok('浮层含「复制」「添加到对话」', bubbleBtns.includes('复制') && bubbleBtns.includes('对话'), JSON.stringify(bubbleBtns))
 
 // —— A1. 浮层「复制」→ 剪贴板真读到选中文字 ——
 console.log('CLIP DEBUG:', JSON.stringify(await page.eval(`(async () => {
@@ -159,7 +159,7 @@ ok('浮层复制写入剪贴板', clip1 === SEL, String(clip1).slice(0, 60))
 // —— A2. 浮层「添加到对话」→ agent 引用条出现选中文字 ——
 await page.eval(selExpr(SEL))
 await evalUntil(page, `!!document.querySelector('.zj-sel-bubble')`, (v) => v === true, 8000, '浮层再现')
-await page.eval(`[...document.querySelectorAll('.zj-sel-bubble button')].find((b) => b.textContent.includes('添加到对话')).click()`)
+await page.eval(`[...document.querySelectorAll('.zj-sel-bubble button')].find((b) => b.textContent.includes('对话')).click()`)
 const quoteShown = await evalUntil(
   page,
   `(() => { const s = [...document.querySelectorAll('span')].find((x) => (x.className || '').includes('line-clamp-2')); return s ? s.textContent : null })()`,

@@ -26,9 +26,11 @@ interface DocEditorProps {
   className?: string
   /** 本章批注（仅章节正文页传入）：正文中被批注片段高亮 + 底部「批注 N」徽标跳转 */
   annotations?: AnnotationRow[]
+  /** 批注入口（划词浮层/右键「写入批注」）可用性；批注管道只作用 `正文/**`，非正文语境传 false 隐藏（HIG：隐藏不可用项）。默认 true。 */
+  anno?: boolean
 }
 
-export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty, onSave, className, editorApiRef, annotations }: DocEditorProps) {
+export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty, onSave, className, editorApiRef, annotations, anno }: DocEditorProps) {
   const innerApi = useRef<ProseApi | null>(null)
   const apiRef = editorApiRef ?? innerApi
   const rawRef = useRef('') // 磁盘上的原文（含约定头）
@@ -203,6 +205,7 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
           onEdit={(md) => setStatus(md === savedMdRef.current ? 'idle' : 'dirty')}
           className="h-full w-full"
           annotations={annotations}
+          anno={anno}
         />
       </div>
       <div className="flex h-7 items-center gap-2 border-t border-hair px-4 text-xs">

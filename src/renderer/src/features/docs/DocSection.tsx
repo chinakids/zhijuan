@@ -135,7 +135,7 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
               <span className="text-[11px] text-ink-3">设定由正文保存时的切片同步维护（S4） · ⌘S 保存</span>
             </div>
             <div className="min-h-0 flex-1">
-              <DocEditor projectId={id} rel={sel} withFm={withFm} extVersion={extVersion} onSave={() => void refresh()} />
+              <DocEditor projectId={id} rel={sel} withFm={withFm} extVersion={extVersion} onSave={() => void refresh()} anno={false} />
             </div>
           </>
         ) : (
