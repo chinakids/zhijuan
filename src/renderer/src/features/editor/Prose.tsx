@@ -186,6 +186,24 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
     []
   )
 
+  /* —— 正文字档空占位（HIG Text Fields「placeholder 描述预期输入」；2026-09-16 体验层）——
+   * 正文全空（仅空段）时给编辑器根挂 .zj-empty，milkdown.css 用 ::before 显示「开始写作…」；
+   * 出现任何文字即摘除（与 input placeholder 习惯一致：聚焦仍在、输入首字符后消失）。
+   * ProseMirror 无内建 empty 态，用 PluginView.update 逐 dispatch 判 textBetween 即可；
+   * 零依赖（不引 @milkdown/plugin-placeholder），与 annoPlugin/selPlugin 同走 prosePluginsCtx。 */
+  const emptyHintPlugin = useMemo(
+    () =>
+      new Plugin({
+        view: (v) => {
+          const apply = () =>
+            v.dom.classList.toggle('zj-empty', v.state.doc.textBetween(0, v.state.doc.content.size, '\n') === '')
+          apply()
+          return { update: apply, destroy: () => {} }
+        }
+      }),
+    []
+  )
+
   /* —— 划词浮层：选中文本 → 送进对话引用（全局事件 zj:quote-text）——
    * 位置口径（2026-09-15 体验层：贴边翻转）：state 存锚点视口矩形（cx/top/bottom）与初始方位意图；
    * 渲染与测量 effect 共同经 computeFloatingPos（floatingPos.ts 纯函数，可单测）得出最终坐标——
@@ -779,7 +797,7 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
       .config((ctx) => {
         ctx.set(rootCtx, hostRef.current!)
         ctx.set(defaultValueCtx, initialRef.current)
-        ctx.set(prosePluginsCtx, [annoPlugin, selPlugin])
+        ctx.set(prosePluginsCtx, [annoPlugin, selPlugin, emptyHintPlugin])
         ctx.get(listenerCtx).markdownUpdated((_, md) => {
           if (!liveRef.current) return
           onEditRef.current?.(md)

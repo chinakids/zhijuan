@@ -15,6 +15,8 @@
   caret-color: var(--accent);
   padding: 1rem 1.4rem;
   min-height: 100%;
+  /* 空文档占位的定位父级（::before 绝对定位；无子层叠冲突——批注/查找均不在本层定位） */
+  position: relative;
   /* 正文书写字排（Apple HIG Typography：层级清晰 + 长文宽松行距；与 .paper-canvas 同一口径 16px/1.85） */
   font-family: var(--font-serif);
   font-size: 16px;
@@ -23,6 +25,19 @@
 }
 .zj-md .ProseMirror:focus { outline: none; }
 .zj-md .ProseMirror::selection { background: var(--selection); }
+
+/* 空文档占位（HIG Text Fields「placeholder 描述预期输入」；2026-09-16 体验层）：
+ * 仅 .zj-empty（正文全空）时显示，与首行书写位置对齐（padding 1rem/1.4rem），
+ * 只占首行视觉、pointer-events:none 不挡光标点击；随输入首字符即被插件摘除。 */
+.zj-md .ProseMirror.zj-empty::before {
+  content: '开始写作…';
+  position: absolute;
+  top: 1rem;
+  left: 1.4rem;
+  color: var(--ink-3);
+  pointer-events: none;
+  user-select: none;
+}
 
 /* 标题层级（Apple HIG Typography：用字号/权重表达层级，不用过细字重） */
 .zj-md .ProseMirror h1,
