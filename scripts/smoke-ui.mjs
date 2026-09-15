@@ -89,7 +89,7 @@ if (!all && names.length === 0) {
 
 // ---------- 脚本收集 ----------
 const allFiles = readdirSync(SCRIPTS_DIR).filter((f) => f.endsWith('.mjs')).sort()
-const isSmoke = (f) => /smoke/i.test(f) && f !== 'smoke-ui.mjs' // 入口自排除：本文件也含 smoke，不排除则 --all 把它自己排进去（无参运行恒 exit 2）
+const isSmoke = (f) => /smoke/i.test(f) && f !== 'smoke-ui.mjs' && f !== 'smoke-gate-check.mjs' // 入口自排除：本文件也含 smoke，不排除则 --all 把它自己排进去（无参运行恒 exit 2）；门禁自检=元测试（2026-09-16，跑在 --all 之前单独执行），不属页面冒烟集合
 const isLive = (f) => /-live\.mjs$/.test(f)
 
 function resolveName(param) {
