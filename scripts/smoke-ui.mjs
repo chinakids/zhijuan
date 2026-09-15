@@ -34,6 +34,7 @@ import { spawn } from 'node:child_process'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { MODEL_SCRIPTS, MODEL_SKIP_REASON } from './model-scripts.mjs' // 名单单源（2026-09-16 平台层轮抽取；判据与维护契约看该文件头注）
 
 const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url)) // scripts/（fileURLToPath 避免中文路径被 URL 编码）
 const repoRoot = resolve(SCRIPTS_DIR, '..')
@@ -43,27 +44,8 @@ const PING_TIMEOUT_MS = 2000
 // 缺失标 SKIP 不计 FAIL（否则 --all 恒红 2 个）；8123/8899/CDP 为必选，缺失标 FAIL。
 const OPTIONAL_PORTS = new Set(['8810'])
 
-// 模型类冒烟显式名单（2026-09-15 16:30 收口，判定依据逐条核对过调用面，见档案本轮迭代日志）：
-//   共同特征=走真实边车/真模型（runChat/runSync/runSubtask/runDirector/runActs/引擎聊天 或 zj-bridge 桥注入），
-//   与 8810 可选环境无关——即使桥起着，--all 门禁也不应包含（依赖算力池忙闲，非代码判据）。
-//   判据核对备注：sync-produce-loop-smoke 注释自证「无模型调用」故不在名单；context-cast/context-char-tail
-//   无 LLM_KEY 字面量但注释明示「真模型 runChat 走查」（走默认 local 配置）；engine-sync 无字面量但基线
-//   13:30 实锤真模型（runSync 出真实提案）。
-const MODEL_SCRIPTS = new Set([
-  'acts-smoke.mjs',
-  'agent-cancel-live-smoke.mjs',
-  'agent-cancel-live-ui-smoke.mjs',
-  'context-cast-smoke.mjs',
-  'context-char-tail-smoke.mjs',
-  'context-realmodel-smoke.mjs',
-  'director-check-smoke.mjs',
-  'director-smoke.mjs',
-  'engine-smoke.mjs',
-  'engine-sync-smoke.mjs',
-  'subtasks-smoke.mjs',
-  'zj-edit-smoke.mjs',
-])
-const MODEL_SKIP_REASON = '模型类：真模型驱动（依赖 vLLM 算力池），--all 门禁不包含——--live 或单独跑'
+// 模型类冒烟显式名单取自 scripts/model-scripts.mjs（单源，2026-09-16 抽取——原名单与判据备注已迁入，
+// 维护契约见该文件头注：新增真模型冒烟必须登记；漏网守卫=scripts/smoke-model-audit.mjs）
 
 // ---------- 参数解析 ----------
 const args = process.argv.slice(2)
