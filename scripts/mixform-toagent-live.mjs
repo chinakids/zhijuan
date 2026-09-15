@@ -64,7 +64,9 @@ await esbuild({
 const mod = await import(pathToFileURL(out).href)
 
 let pass = 0
+let total = 0
 const verdict = (name, ok, extra = '') => {
+  total++
   console.log((ok ? '  ✓' : '  ✗') + ' ' + name + (extra ? ' —— ' + extra : ''))
   if (ok) pass++
 }
@@ -133,8 +135,8 @@ try {
   verdict('B：正文出统一修改卡（乱换被修）', unifiedB, '正文修改卡=' + bodyEditB.length + ' 错误=' + (rb.errs[0] ?? '无'))
 
   await mod.shutdown()
-  console.log('\n' + (pass >= 4 ? `MIXFORM-TOAGENT LIVE OK（${pass}/5）` : `MIXFORM-TOAGENT LIVE 部分通过（${pass}/5）`))
-  process.exit(pass >= 4 ? 0 : 1)
+  console.log('\n' + (pass === total ? `MIXFORM-TOAGENT LIVE OK（${pass}/${total}）` : `MIXFORM-TOAGENT LIVE 部分通过（${pass}/${total}）`))
+  process.exit(pass === total ? 0 : 1)
 } finally {
   rmSync(tmp, { recursive: true, force: true })
 }
