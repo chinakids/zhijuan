@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Rea
 import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, Users, UserCheck, ListOrdered, FileWarning, FileQuestion, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, Rows3, Tags, Waypoints, Repeat } from 'lucide-react'
+import { Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, Users, UserCheck, ListOrdered, FileWarning, FileQuestion, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, Rows3, Tags, Waypoints, Repeat, RefreshCw } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import type { ProseApi } from '../editor/Prose'
@@ -304,6 +304,33 @@ function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
         </div>
       )}
       {st === 'error' && error && <p className="mt-2 rounded-md bg-danger-soft px-2 py-1 text-[11px] text-danger">{error}</p>}
+      {/* 采纳失败出口（2026-09-15 智能层）：失败非终态——可重试采纳（原文可能已被作者改动，重跑 find）或拒绝放弃；
+          与切片同步「失败可感知可重试」同口径，避免 error 态卡死无按钮、只能清空对话重来 */}
+      {st === 'error' && (
+        <div className="mt-2.5 flex items-center gap-2">
+          <Button
+            size="sm"
+            className="h-7 px-2.5 text-[11px] [&_svg]:size-3"
+            data-testid="zj-edit-retry"
+            onClick={() => void accept()}
+            disabled={busy || !edits.length}
+          >
+            {busy ? <LoadingIndicator size={12} className="mr-1" /> : <RefreshCw className="mr-1" />}
+            重试采纳
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-2.5 text-[11px] [&_svg]:size-3"
+            data-testid="zj-edit-reject"
+            onClick={() => useAgentStore.getState().setEditState(id, 'rejected')}
+            disabled={busy}
+          >
+            <X className="mr-1" /> 拒绝
+          </Button>
+          <span className="text-[10px] text-ink-3">原文可能已变化：重试重新比对，或拒绝放弃</span>
+        </div>
+      )}
       {sync && (
         <div className="mt-2 flex items-center gap-2">
           <p className={cn('min-w-0 flex-1 text-[11px]', sync.text.startsWith('✗') ? 'text-danger' : 'text-ink-2')}>{sync.text}</p>
