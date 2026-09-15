@@ -769,6 +769,7 @@ export default function Novel() {
       <Dialog open={!!annoTarget} onOpenChange={(o) => !o && setAnnoTarget(null)}>
         <DialogContent
           className="sm:max-w-md"
+          outsideDismiss={false}
           onCloseAutoFocus={(e) => {
             // 划词「批注」入口在编辑器浮层（无 DialogTrigger）：Radix 关闭时找不到 trigger 会
             // preventDefault 原生焦点恢复，焦点落 body——显式还给编辑器（HIG：对话关闭后焦点回触发上下文）。
@@ -803,7 +804,7 @@ export default function Novel() {
       </Dialog>
 
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" outsideDismiss={false}>
           <DialogHeader>
             <DialogTitle>新建章节</DialogTitle>
             <DialogDescription>一章 = 一个时间切片。约定头会写进正文文件顶部，保存正文时按它做切片同步。</DialogDescription>
@@ -852,7 +853,7 @@ export default function Novel() {
 
       {/* 章节重命名（§6.2）：改约定头题名 + 文件名；大纲副产物与版本历史随同改名 */}
       <Dialog open={!!renaming} onOpenChange={(o) => !o && setRenaming(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" outsideDismiss={false}>
           <DialogHeader>
             <DialogTitle>重命名章节</DialogTitle>
             <DialogDescription>只改这一章的题名与文件名；大纲章卡/导演板等副产物和版本历史会随同改名。</DialogDescription>
@@ -884,7 +885,7 @@ export default function Novel() {
 
       {/* 章节切片名修改（约定头字段编辑收口）：正文约定头 + 大纲副产物 fm 同步；旧切片提案置 stale；旧设定文件保留为历史 */}
       <Dialog open={!!sliceEditing} onOpenChange={(o) => !o && setSliceEditing(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" outsideDismiss={false}>
           <DialogHeader>
             <DialogTitle>修改切片名</DialogTitle>
             <DialogDescription>

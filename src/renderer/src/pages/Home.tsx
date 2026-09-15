@@ -380,7 +380,7 @@ export default function Home() {
 
       {/* 新建项目 */}
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" outsideDismiss={false}>
           <DialogHeader>
             <DialogTitle>新建项目</DialogTitle>
             <DialogDescription>每个项目一部作品，完全独立，纯文档维护。</DialogDescription>
@@ -425,7 +425,7 @@ export default function Home() {
 
       {/* 导入已有目录 */}
       <Dialog open={importing} onOpenChange={setImporting}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" outsideDismiss={false}>
           <DialogHeader>
             <DialogTitle>导入已有目录</DialogTitle>
             <DialogDescription>选择一个已有作品文件夹，织卷会把它复制进项目库并补全骨架（生成 project.md），不覆盖已有内容；原目录保留不动。</DialogDescription>

@@ -213,7 +213,7 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" outsideDismiss={false}>
           <DialogHeader>
             <DialogTitle>发起采集</DialogTitle>
           </DialogHeader>

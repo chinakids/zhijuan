@@ -144,13 +144,21 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
       </main>
 
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-sm" outsideDismiss={false}>
           <DialogHeader>
             <DialogTitle>新建{addLabel}</DialogTitle>
           </DialogHeader>
           <div className="space-y-1.5 py-2">
             <Label>名字 *</Label>
-            <Input autoFocus placeholder="如：夏晚晴" value={name} onChange={(e) => setName(e.target.value)} />
+            <Input
+              autoFocus
+              placeholder="如：夏晚晴"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && name.trim()) void createDoc()
+              }}
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreating(false)}>取消</Button>

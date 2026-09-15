@@ -450,7 +450,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
 
       {/* 新建类别 */}
       <Dialog open={newCatOpen} onOpenChange={setNewCatOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-sm" outsideDismiss={false}>
           <DialogHeader>
             <DialogTitle>新建类别</DialogTitle>
           </DialogHeader>
@@ -479,7 +479,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
 
       {/* 新建素材 */}
       <Dialog open={newMatOpen} onOpenChange={setNewMatOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-sm" outsideDismiss={false}>
           <DialogHeader>
             <DialogTitle>新建素材卡{selCat ? `（类别：${selCat}）` : ''}</DialogTitle>
           </DialogHeader>

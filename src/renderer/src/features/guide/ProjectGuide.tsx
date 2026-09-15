@@ -90,7 +90,7 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
 
   return (
     <Dialog open onOpenChange={(v) => !v && !changed && onClose('guide-done')}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" outsideDismiss={false}>
         <DialogHeader>
           <DialogTitle>开始《{projectName}》</DialogTitle>
           {/* 步骤指示 */}
