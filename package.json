@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify": "npm run typecheck"
+    "verify": "npm run typecheck",
+    "smoke:ui": "node scripts/smoke-ui.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
