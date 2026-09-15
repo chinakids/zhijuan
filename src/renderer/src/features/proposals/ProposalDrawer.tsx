@@ -232,16 +232,44 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose }: 
   // 模态无障碍：焦点圈闭 / Esc 关闭 / 滚动锁 / 关闭回焦（Apple HIG Keyboards；条件渲染组件 open 恒真）
   const panelRef = useRef<HTMLDivElement>(null)
   useModalA11y(true, panelRef, onClose)
+  const [allBusy, setAllBusy] = useState(false)
   async function allApply() {
+    // 批量动作失败可见性（2026-09-16 00:45 轮；21:45 观察③）：旧实现 `if (r.ok)` 静默吞失败——
+    // 与单卡 doApply（toast 兜底 + errMap 卡片红字）不对齐。SAP Fiori「Processing Multiple Items」：
+    // 部分处理 = 汇总（成功 N / 失败 M + 首条原因）+ 逐条明细；NN/g：错误须可诊断、可恢复。
+    setAllBusy(true)
     const targets = new Set<string>()
-    for (const p of pending) {
-      const r = await window.zhijuan.applyProposal(projectId, p.id)
-      if (r.ok) {
-        const t = p.items[0]?.target ?? ''
-        if (isChapterTarget(t) && t) targets.add(t)
+    const fails: { id: string; msg: string }[] = []
+    try {
+      for (const p of pending) {
+        let r: { ok: boolean; errors: string[] }
+        try {
+          r = await window.zhijuan.applyProposal(projectId, p.id)
+        } catch (e) {
+          r = { ok: false, errors: [String((e as Error).message || e)] }
+        }
+        if (r.ok) {
+          const t = p.items[0]?.target ?? ''
+          if (isChapterTarget(t) && t) targets.add(t)
+        } else {
+          const msg = (r.errors?.join('；') || '写入失败') + '（请先核对原文；如需继续请重新扫描批注或再次保存）'
+          fails.push({ id: p.id, msg })
+          reportErr(p.id, msg)
+        }
       }
+    } finally {
+      setAllBusy(false)
     }
     onChanged()
+    if (fails.length > 0) {
+      const rest = pending.length - fails.length
+      // 与单卡同款文案（含指路）；逐条 errMap 已让失败卡换组后红字仍可见（同 doApply 机制）
+      toast.add({
+        kind: 'warning',
+        title: `${fails.length} 条提案未应用`,
+        description: `${rest > 0 ? `其余 ${rest} 条已接受，` : '全部未应用，'}${fails[0].msg}`
+      })
+    }
     for (const t of targets) toastAfterChapterApply(projectId, t)
   }
   async function doScan() {
@@ -272,7 +300,7 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose }: 
             <div className="mb-2 flex items-center gap-2">
               <span className="text-xs font-medium text-warn">待确认 {pending.length}</span>
               <span className="flex-1" />
-              <Button size="sm" className="h-7 px-2 text-[11px]" onClick={() => void allApply()}>全部接受</Button>
+              <Button size="sm" className="h-7 px-2 text-[11px]" onClick={() => void allApply()} disabled={allBusy}>全部接受</Button>
             </div>
           )}
           {pending.length === 0 && done.length === 0 && stale.length === 0 && (
