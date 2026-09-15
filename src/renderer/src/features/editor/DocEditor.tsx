@@ -206,6 +206,7 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
           className="h-full w-full"
           annotations={annotations}
           anno={anno}
+          memoryKey={`${projectId}:${rel}`}
         />
       </div>
       <div className="flex h-7 items-center gap-2 border-t border-hair px-4 text-xs">

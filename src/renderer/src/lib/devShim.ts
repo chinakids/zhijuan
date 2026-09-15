@@ -18,6 +18,7 @@ import { sliceSectionOrderCheck } from '../../../shared/sliceorder'
 import { findAnchorLine, normalizeAnchor } from '../../../shared/anchor'
 import { auditDocMarkdown } from '../../../shared/auditDoc'
 import { parseAnnotationCsv, segmentFromText, escapeCsvField } from '../../../shared/annotations'
+import { scrollMemorySnapshot } from '../features/editor/scrollMemory'
 import { isVersionedRel } from '../../../shared/versionedRel'
 import type { RecentEntry } from '../../../shared/projects'
 import { toast } from '../store/toasts'
@@ -1731,9 +1732,17 @@ function buildEmptyProbe(base: typeof window.zhijuan): typeof window.zhijuan {
   return probe as unknown as typeof window.zhijuan
 }
 
+/** 无头冒烟用：暴露滚动记忆调试面（与 __ZJ_TOAST 同级；仅 devShim 存在） */
+export function exposeScrollMemoryDebug() {
+  ;(window as unknown as Record<string, unknown>).__ZJ_SCROLL_MEMORY = {
+    entries: () => scrollMemorySnapshot()
+  }
+}
+
 export function ensureDevShim() {
   if (window.zhijuan) return
   ;(window as unknown as { __ZJ_TEST: boolean }).__ZJ_TEST = true
+  exposeScrollMemoryDebug()
   window.zhijuan = buildEmptyProbe(buildFailProbe(mock as unknown as typeof window.zhijuan))
   // 无头冒烟用：暴露全局 Toast API（与 __ZJ_EDITORS 同级的测试面，仅 devShim 存在）
   ;(window as unknown as { __ZJ_TOAST: typeof toast }).__ZJ_TOAST = toast

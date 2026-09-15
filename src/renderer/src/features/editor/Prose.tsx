@@ -17,6 +17,7 @@ import { cn } from '../../lib/utils'
 import EditorToolbar from './EditorToolbar'
 import FindBar from './FindBar'
 import { findInDoc, type FindPos } from './finder'
+import { saveScroll, takeScroll } from './scrollMemory'
 import { EMPTY_ACTIVE, activeEq, readToolbarActive, type ActiveState } from './toolbarActive'
 import {
   computeFloatingPos,
@@ -61,6 +62,9 @@ interface ProseProps {
   annotations?: AnnotationRow[]
   /** 批注入口（划词浮层「批注」钮 + 右键「写入批注」）是否可用——批注管道只作用 `正文/**`，非正文语境传 false 隐藏（HIG：隐藏不可用项）。默认 true（正文场景）。 */
   anno?: boolean
+  /** 滚动位置记忆键（`项目id:相对路径`）。提供时在卸载/重建时保存 scrollTop，
+   * 重新挂载后恢复（会话内、不落盘）；缺省不启用。 */
+  memoryKey?: string
 }
 
 interface WinWithEditors {
@@ -101,13 +105,16 @@ function testUnregister(api: ProseApi) {
   if (i >= 0) a.splice(i, 1)
 }
 
-export default function Prose({ value, onEdit, apiRef, className, annotations, anno = true }: ProseProps) {
+export default function Prose({ value, onEdit, apiRef, className, annotations, anno = true, memoryKey }: ProseProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const initialRef = useRef<string>(value)
   const onEditRef = useRef(onEdit)
   onEditRef.current = onEdit
   const liveRef = useRef(true)
   const edRef = useRef<any>(null) // Milkdown Editor 实例（工具栏用）
+  /** 滚动位置记忆键：挂载时快照（不随 prop 更新）——切章时同一 Prose 实例会先被 render 注入新 rel 的
+   * memoryKey 再卸载，若随 prop 更新会把位置存到错误 key（2026-09-16 实锤：1200 存进「灯塔」、雾港得 0） */
+  const memoryKeyRef = useRef<string | undefined>(memoryKey)
   /** 文档变更信号：markdownUpdated 时递增，EditorToolbar 据此重读撤销/重做可用态（HIG：不可用置灰示态） */
   const [histTick, setHistTick] = useState(0)
   /** 光标处格式激活快照（selection 级：加粗/标题/列表等 toggle 工具的 toggled 态；
@@ -427,11 +434,20 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
   const scheduleGutterRef = useRef(scheduleGutter)
   scheduleGutterRef.current = scheduleGutter
   // host 滚动 / 根尺寸（窗口缩放、agent 面板拖拽）→ 重算侧标位置
+  // 顺带把最新 scrollTop 记入 ref：卸载时 DOM 已 detach（scrollTop 读回 0），
+  // 滚动记忆必须用最后已知值（2026-09-16 冒烟实锤：cleanup 里直接读 host.scrollTop 得 0）。
+  const lastScrollRef = useRef(0)
   useEffect(() => {
     const host = hostRef.current
     const root = host?.parentElement
     if (!host || !root) return
-    const onScroll = () => scheduleGutterRef.current?.()
+    const onScroll = () => {
+      lastScrollRef.current = host.scrollTop
+      // 滚动即保存（记忆键为挂载快照，不受卸载前 props 污染影响）；卸载兜底保存见 create effect cleanup
+      const mk = memoryKeyRef.current
+      if (mk) saveScroll(mk, host.scrollTop)
+      scheduleGutterRef.current?.()
+    }
     host.addEventListener('scroll', onScroll)
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => scheduleGutterRef.current?.()) : null
     ro?.observe(root)
@@ -823,6 +839,24 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
         e.destroy()
         return
       }
+      // —— 会话内滚动位置恢复（scrollMemory.ts；vscode#329625 同口径：切回文档回到上次位置）——
+      // 恢复即消费；内容未变时 scrollHeight 相同可直接恢复，异步布局（字体/图片）完成后二次 clamp（幂等）。
+      const mk = memoryKeyRef.current
+      if (mk) {
+        const saved = takeScroll(mk)
+        if (saved !== undefined && saved > 0 && hostRef.current) {
+          const host = hostRef.current
+          const clamp = () => {
+            host.scrollTop = Math.min(saved, Math.max(0, host.scrollHeight - host.clientHeight))
+          }
+          requestAnimationFrame(clamp)
+          window.setTimeout(() => {
+            if (hostRef.current === host) {
+              host.scrollTop = Math.min(saved, Math.max(0, host.scrollHeight - host.clientHeight))
+            }
+          }, 600)
+        }
+      }
       api = {
         getMarkdown: () => e.action((ctx) => ctx.get(serializerCtx)(ctx.get(editorViewCtx).state.doc)),
         getSelected: () =>
@@ -952,6 +986,9 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
     })
     return () => {
       liveRef.current = false
+      // 卸载/重建前兜底保存（滚动监听已实时保存；此处在 DOM detach 前用最后已知值兜底）
+      const mk = memoryKeyRef.current
+      if (mk) saveScroll(mk, lastScrollRef.current)
       if (api) {
         if (apiRef) apiRef.current = null
         testUnregister(api)
