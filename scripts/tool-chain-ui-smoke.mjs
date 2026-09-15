@@ -123,7 +123,7 @@ try {
   )
   await sleep(400)
 
-  // ② 断言：工具链容器 + 步序号 + 续读徽标 + offset 参数
+  // ② 断言：工具链容器默认折叠（合并同工具：1 行 + ×3 展开钮），展开后序号/徽标/参数齐全
   const chainInfo = await page.eval(`(() => {
     const chain = document.querySelector('[data-testid="zj-tool-chain"]')
     if (!chain) return { found: false }
@@ -131,18 +131,34 @@ try {
       found: true,
       count: chain.querySelector('[data-testid="zj-chain-count"]')?.innerText ?? '',
       steps: [...chain.querySelectorAll('[data-testid="zj-step"]')].map((e) => e.innerText.trim()),
+      hasExpand: [...chain.querySelectorAll('button')].some((b) => (b.innerText || '').includes('展开')),
       continued: chain.querySelectorAll('[data-testid="zj-continued"]').length,
       args: [...chain.querySelectorAll('span')].filter((e) => (e.innerText || '').includes('第01章_雾港.md')).map((e) => e.innerText.trim()),
       text: chain.innerText
     }
   })()`)
-  console.log('CHAIN:', JSON.stringify(chainInfo).slice(0, 600))
   ok('工具链容器出现', chainInfo.found === true)
   ok('链头计数显示 3 步', (chainInfo.count || '').includes('3 步'), chainInfo.count)
-  ok('步序号 1/3 2/3 3/3', JSON.stringify(chainInfo.steps) === JSON.stringify(['1/3', '2/3', '3/3']), JSON.stringify(chainInfo.steps))
-  ok('续读徽标 2 个（第 2/3 步）', chainInfo.continued === 2, String(chainInfo.continued))
-  ok('offset 参数在卡片上可追溯', (chainInfo.args || []).some((a) => a.includes('(offset=6000)')) && (chainInfo.args || []).some((a) => a.includes('(offset=12000)')), JSON.stringify(chainInfo.args))
-  ok('链内无「失败」态', !chainInfo.text.includes('失败'))
+  ok('默认合并为一批（步骤仅 1/3 + ×3 展开钮）', chainInfo.steps.length === 1 && chainInfo.hasExpand === true && (chainInfo.steps[0] || '').includes('1/3'), JSON.stringify(chainInfo.steps))
+
+  // 展开全部步骤
+  await page.eval(`(() => { const b = [...document.querySelectorAll('[data-testid="zj-tool-chain"] button')].find((x) => (x.innerText || '').includes('展开')); if (b) b.click(); return !!b })()`)
+  await sleep(350)
+  const chainExpanded = await page.eval(`(() => {
+    const chain = document.querySelector('[data-testid="zj-tool-chain"]')
+    if (!chain) return { found: false }
+    return {
+      found: true,
+      steps: [...chain.querySelectorAll('[data-testid="zj-step"]')].map((e) => e.innerText.trim()),
+      continued: chain.querySelectorAll('[data-testid="zj-continued"]').length,
+      args: [...chain.querySelectorAll('span')].filter((e) => (e.innerText || '').includes('第01章_雾港.md')).map((e) => e.innerText.trim()),
+      text: chain.innerText
+    }
+  })()`)
+  ok('展开后步序号 1/3 2/3 3/3', JSON.stringify(chainExpanded.steps) === JSON.stringify(['1/3', '2/3', '3/3']), JSON.stringify(chainExpanded.steps))
+  ok('续读徽标 2 个（第 2/3 步）', chainExpanded.continued === 2, String(chainExpanded.continued))
+  ok('offset 参数在卡片上可追溯', (chainExpanded.args || []).some((a) => a.includes('(offset=6000)')) && (chainExpanded.args || []).some((a) => a.includes('(offset=12000)')), JSON.stringify(chainExpanded.args))
+  ok('链内无「失败」态', !chainExpanded.text.includes('失败'))
 
   // ③ demo 全文完整（链未破坏流；末句在最后一条 assistant 气泡）
   const asst = await page.eval(`(() => {

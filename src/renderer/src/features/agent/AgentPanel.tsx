@@ -130,7 +130,7 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
         {args && <span className="min-w-0 flex-1 truncate font-mono text-[10px] leading-4 text-ink-3" title={args}>{args}</span>}
         {failed && <span className="shrink-0 rounded-full bg-danger-soft px-2 py-0.5 text-[10px] text-danger">失败</span>}
         {done && summary && (
-          <span className={cn('shrink-0 whitespace-nowrap', failed ? 'text-danger' : 'text-ink-3')}>{summary}</span>
+          <span className={cn('max-w-[45%] shrink-0 truncate', failed ? 'text-danger' : 'text-ink-3')} title={summary}>{summary}</span>
         )}
         {live != null && (
           <span className="shrink-0 whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-[10px] text-accent">已 {fmtDur(live)}</span>
@@ -175,32 +175,81 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
 }
 
 /** 工具链容器（智能层 2026-09-15）：把同一轮里连续的工具调用连成一条可追溯轨迹——
- * 左缘竖线 + 步序号 + 续读徽标，多步「读文档→续读→搜索」顺序与次数一目了然。 */
+ * 左缘竖线 + 步序号 + 续读徽标，多步「读文档→续读→搜索」顺序与次数一目了然。
+ * 主人 2026-09-14 反馈（F-20260914-01）：连续同工具默认合并为一行 ×N（防卡片堆叠溢出），
+ * 可展开看全逐步序号/徽标/参数。 */
 function ToolChain({ msgs }: { msgs: AgentMsg[] }) {
+  const [opened, setOpened] = useState<Record<number, boolean>>({})
+  const groups: AgentMsg[][] = []
+  for (const m of msgs) {
+    const last = groups[groups.length - 1]
+    if (last && last[0].tool === m.tool) last.push(m)
+    else groups.push([m])
+  }
+  const idxOf = (m: AgentMsg) => msgs.indexOf(m)
   return (
     <div data-testid="zj-tool-chain" className="w-full rounded-lg border border-hair bg-surface p-2">
       <div className="mb-1.5 flex items-center gap-1 px-0.5 text-[10px] text-ink-3">
         <Waypoints className="h-3 w-3 shrink-0" />
         <span>工具链</span>
         <span data-testid="zj-chain-count">· {msgs.length} 步</span>
+        {groups.length > 1 && <span className="opacity-60">· {groups.length} 段</span>}
       </div>
       <div className="ml-1.5 space-y-1.5 border-l-2 border-accent/30 pl-2.5">
-        {msgs.map((m, i) => (
-          <ToolActivity
-            key={m.id}
-            tool={m.tool ?? ''}
-            args={m.toolArgs}
-            done={m.done}
-            toolOk={m.toolOk}
-            summary={m.content}
-            startedAt={m.startedAt}
-            elapsedMs={m.elapsedMs}
-            step={{ no: i + 1, total: msgs.length }}
-            continued={isContinuedRead(msgs, i)}
-            argsJson={m.toolArgsJson}
-            result={m.toolResult}
-          />
-        ))}
+        {groups.map((g, gi) => {
+          const head = g[0]
+          const isOpen = !!opened[gi]
+          return (
+            <div key={gi}>
+              <div className="flex items-center gap-1">
+                <div className="min-w-0 flex-1">
+                  <ToolActivity
+                    tool={head.tool ?? ''}
+                    args={head.toolArgs}
+                    done={head.done}
+                    toolOk={head.toolOk}
+                    summary={head.content}
+                    startedAt={head.startedAt}
+                    elapsedMs={head.elapsedMs}
+                    step={{ no: gi + 1, total: groups.length }}
+                    continued={isContinuedRead(msgs, idxOf(head))}
+                    argsJson={head.toolArgsJson}
+                    result={head.toolResult}
+                  />
+                </div>
+                {g.length > 1 && (
+                  <button
+                    onClick={() => setOpened((s) => ({ ...s, [gi]: !isOpen }))}
+                    title={isOpen ? '收起其余步骤' : '展开该工具的每一步'}
+                    className="shrink-0 rounded-full border border-hair px-1.5 py-0.5 text-[10px] text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
+                  >
+                    ×{g.length} {isOpen ? '收起' : '展开'}
+                  </button>
+                )}
+              </div>
+              {isOpen && (
+                <div className="ml-2 mt-1.5 space-y-1.5 border-l border-hair pl-2">
+                  {g.slice(1).map((m, si) => (
+                    <ToolActivity
+                      key={m.id}
+                      tool={m.tool ?? ''}
+                      args={m.toolArgs}
+                      done={m.done}
+                      toolOk={m.toolOk}
+                      summary={m.content}
+                      startedAt={m.startedAt}
+                      elapsedMs={m.elapsedMs}
+                      step={{ no: gi + si + 2, total: msgs.length }}
+                      continued={isContinuedRead(msgs, idxOf(m))}
+                      argsJson={m.toolArgsJson}
+                      result={m.toolResult}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -1198,8 +1247,8 @@ export default function AgentPanel(props: AgentPanelProps) {
             </div>
           )}
           <div className="flex items-center gap-2">
-            {/* 快捷指令 chips（点击插入 /命令；窄窗口横向滚动不换行） */}
-            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5" role="toolbar" aria-label="快捷指令">
+            {/* 快捷指令 chips（点击插入 /命令；宽面板逐行排布，F-20260914-01 不再一行硬塞） */}
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 py-0.5" role="toolbar" aria-label="快捷指令">
               {QUICK_CMDS.map((c) => (
                 <button
                   key={c.id}
