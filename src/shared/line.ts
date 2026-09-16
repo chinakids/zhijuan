@@ -3,13 +3,14 @@
 // 章头「时间线」字段（可选）→ 线名；缺省=「主线」（老项目/老章节零迁移）。
 // 单一权威源：平台层透传（SliceEntry.line）、智能层审计线内判定、体验层线徽标都从这里取，
 // 避免各层口径漂移（contextCaps 先例）。
-import type { FrontMatter } from './fmatter'
-
 /** 缺省时间线名（未写「时间线」字段的章 = 主线；老项目自然全部落主线） */
 export const DEFAULT_LINE = '主线'
 
+/** chapterLine 只读「时间线」键——参数用最小结构接口，兼容 FrontMatter（index signature）与 ChapterFrontMatter（具名属性）双方调用 */
+type Lineable = { 时间线?: unknown }
+
 /** 约定头「时间线」→ 线名：trim 后为空 → 主线（设计文档 §4.2：缺省=主线） */
-export function chapterLine(fm: FrontMatter | null): string {
+export function chapterLine(fm: Lineable | null): string {
   const v = fm?.['时间线']
   const s = typeof v === 'string' ? v.trim() : ''
   return s || DEFAULT_LINE

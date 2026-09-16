@@ -4,6 +4,7 @@ import { Plus, BookOpen, PanelLeftOpen, X } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import type { ChapterEntry, ChapterCheckKind, UnlistedHit, MissingHit } from '../../../shared/types'
 import { serializeFrontMatter, addFrontMatterListItem, removeFrontMatterListItem } from '../../../shared/fmatter'
+import { chapterLine } from '../../../shared/line'
 import { shouldCollapseChapterList, AGENT_PANEL_DEFAULT_WIDTH } from '../../../shared/uiPrefs'
 import { Button } from '../components/ui/button'
 import { EmptyState } from '../components/EmptyState'
@@ -32,6 +33,12 @@ export default function Novel() {
   const { id = '' } = useParams()
   const [chapters, setChapters] = useState<ChapterEntry[]>([])
   const [sel, setSel] = useState<string | null>(null)
+  // 多线项目章项线徽标（多时间线叙事 2026-09-16）：线数 >1 才显示（单线零打扰）；章节线名权威口径 shared/line.chapterLine
+  const multiLine = useMemo(() => {
+    const s = new Set<string>()
+    for (const c of chapters) if (c.fm) s.add(chapterLine(c.fm))
+    return s.size > 1
+  }, [chapters])
   // 划词批注弹层（主人 2026-09-12：编辑器划词 → 填写批注意图 → 写入 *_批注.csv）
   const [annoTarget, setAnnoTarget] = useState<{ loc: string; before: string } | null>(null)
   const [annoNote, setAnnoNote] = useState('')
@@ -545,8 +552,11 @@ export default function Novel() {
             {c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}
           </p>
           <p className="mt-0.5 flex items-center gap-1 text-[11px] text-ink-3">
-            <BookOpen className="h-3 w-3" />
-            {c.fm?.['切片'] ?? '未设切片'} · {c.wordCount} 字
+            {multiLine && c.fm && (
+              <span className="shrink-0 rounded bg-well px-1 py-px text-[10px] text-ink-3">{chapterLine(c.fm)}</span>
+            )}
+            <BookOpen className="h-3 w-3 shrink-0" />
+            <span className="min-w-0 truncate">{c.fm?.['切片'] ?? '未设切片'} · {c.wordCount} 字</span>
           </p>
         </button>
       ))}
