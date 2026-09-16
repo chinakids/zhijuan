@@ -8,6 +8,15 @@
 const CDP = 'http://127.0.0.1:9224'
 const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+import { writeFileSync } from 'node:fs'
+
+async function shot(page, name) {
+  const r = await page.cmd('Page.captureScreenshot', { format: 'png' })
+  const dir = process.env.ZJ_SHOT_DIR || '/Users/USER/Pictures/zhijuan'
+  writeFileSync(dir + '/' + name, Buffer.from(r.data, 'base64'))
+  console.log('SHOT ' + dir + '/' + name)
+}
+const ts = new Date().toTimeString().slice(0, 5).replace(':', '')
 
 async function openTab(url) {
   const r = await fetch(CDP + '/json/new?' + encodeURIComponent(url), { method: 'PUT' })
@@ -98,6 +107,14 @@ try {
   )
   console.log('OK msg:', msg)
   if (!msg.includes('无设定变化') && !msg.includes('条切片提案')) throw new Error('msg 未包含同步成功结果: ' + msg)
+
+  // ③.5 结果提示口径（2026-09-17 创作层）：成功 msg=短确认，6s 后自动清（Outline 页头 pill 与 Novel 浮条同口径）
+  await shot(page, 'outline-msg-visible-' + ts + '.png')
+  await sleep(7000)
+  const gone = await page.eval(`!document.body.innerText.includes('已替换正文')`)
+  if (!gone) throw new Error('成功 msg 未在 6s 后自动消失（应短确认而非常驻）')
+  console.log('OK 成功 msg 6s 后自动消失（短确认口径）')
+  await shot(page, 'outline-msg-dismissed-' + ts + '.png')
 
   // ④ 读回正文验证
   const body = await page.eval(`window.zhijuan.readDoc('demo-aseya', '正文/第01章_雾港.md')`)

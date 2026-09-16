@@ -299,6 +299,9 @@ export default function Outline() {
               setMsg(`✓ 已替换正文；切片同步：无设定变化${describeSyncEvidence(s.evidence)}`)
               toast.update(tid, { kind: 'success', title: '切片同步完成', description: `正文替换完成，无设定变化${describeSyncEvidence(s.evidence)}` })
             }
+            // 结果提示口径（2026-09-17 创作层）：成功=「短确认」6s 自动清（与 Novel 保存浮条同口径），
+            // 期间被换成非成功态（✗ 失败/重试中）不误清（✓ 前缀守卫）；失败留驻+toast action 由下方分支负责
+            window.setTimeout(() => setMsg((m) => (m.startsWith('✓') ? '' : m)), 6000)
           } else {
             setGuardIssues([])
             setMsg(`✗ 正文已替换，但切片同步失败：${s.error ?? '未知原因'}`)
