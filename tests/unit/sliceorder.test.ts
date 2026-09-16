@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { sliceSectionOrderCheck } from '../../src/shared/sliceorder'
 
-const ch = (file: string, slice: string, no?: number): { file: string; raw: string } => ({
+const ch = (file: string, slice: string, no?: number, line?: string): { file: string; raw: string } => ({
   file,
-  raw: `---\n章号: ${no}\n切片: ${slice}\n题名: 测试\n---\n正文。`
+  raw: `---\n章号: ${no}\n切片: ${slice}\n题名: 测试\n${line ? `时间线: ${line}\n` : ''}---\n正文。`
 })
 
 const person = (file: string, secs: string[]): { file: string; raw: string } => ({
@@ -103,5 +103,34 @@ describe('sliceSectionOrderCheck（档案切片核查纯函数）', () => {
     })
     expect(r.items).toEqual([])
     expect(r.summary).toContain('都没有「切片」小节')
+  })
+
+  it('跨线同名切片不参与顺序比较（不误报倒挂；跨线重名本身由 chapterorder R7 提示）', () => {
+    // 旧全局口径：旧夜 minNo=6 → 人物档 [旧夜(6), 第三夜(3)] 会误报倒挂；线内判定后旧夜跨线 → 跳过
+    const r = sliceSectionOrderCheck({
+      characters: [person('人物/林西.md', ['旧夜', '第三夜'])],
+      chapters: [
+        ch('正文/第03章_主线.md', '第三夜', 3, '主线'),
+        ch('正文/第06章_过去线.md', '旧夜', 6, '过去线'),
+        ch('正文/第09章_主线.md', '旧夜', 9, '主线')
+      ]
+    })
+    expect(r.items.filter((i) => i.type === 'timeline')).toEqual([])
+    // 残留判定不受影响：旧夜/第三夜都在全集，无 setting 命中
+    expect(r.items.filter((i) => i.type === 'setting')).toEqual([])
+  })
+
+  it('多线项目：切片唯一归属线时仍按线内章号比较（倒挂命中）', () => {
+    const r = sliceSectionOrderCheck({
+      characters: [person('人物/林西.md', ['第五夜', '第二夜'])],
+      chapters: [
+        ch('正文/第02章_主线.md', '第二夜', 2, '主线'),
+        ch('正文/第05章_过去线.md', '第五夜', 5, '过去线')
+      ]
+    })
+    const order = r.items.filter((i) => i.type === 'timeline')
+    expect(order.length).toBe(1)
+    expect(order[0].what).toContain('切片：第五夜')
+    expect(order[0].what).toContain('第 5 章')
   })
 })

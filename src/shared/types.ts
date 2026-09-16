@@ -51,6 +51,7 @@ export interface ChapterFrontMatter {
   题名?: string
   切片?: string
   时间?: string
+  时间线?: string
   涉及人物?: string[]
 }
 

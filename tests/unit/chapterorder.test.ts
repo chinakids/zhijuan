@@ -3,12 +3,13 @@ import { chapterOrderCheck, cnToInt, sliceOrdinal } from '../../src/shared/chapt
 
 const body = '正文内容。\n'
 
-const ch = (file: string, no: number | null, slice: string, time?: string): { file: string; raw: string } => {
+const ch = (file: string, no: number | null, slice: string, time?: string, line?: string): { file: string; raw: string } => {
   const head: string[] = []
   if (file) head.push(`题名: ${file.replace(/\.md$/, '')}`)
   if (no !== null) head.push(`章号: ${no}`)
   if (slice !== null) head.push(`切片: ${slice}`)
   if (time !== undefined) head.push(`时间: ${time}`)
+  if (line !== undefined) head.push(`时间线: ${line}`)
   return { file, raw: `---\n${head.join('\n')}\n---\n` + body }
 }
 
@@ -148,5 +149,68 @@ describe('chapterOrderCheck（切片时序核查纯函数）', () => {
     const r = chapterOrderCheck({ chapters: [] })
     expect(r.items).toEqual([])
     expect(r.summary).toContain('还没有正文章节')
+  })
+
+  it('多线交错不误报：各线内切片序号各自升序（全局看会误报倒流 → 线内零命中）', () => {
+    const r = chapterOrderCheck({
+      chapters: [
+        ch('正文/第01章_主线.md', 1, '第一幕_夜', undefined, '主线'),
+        ch('正文/第02章_主线.md', 2, '第四幕_灯火', undefined, '主线'),
+        ch('正文/第03章_过去线.md', 3, '第二幕_旧港', undefined, '过去线'),
+        ch('正文/第04章_过去线.md', 4, '第三幕_渔火', undefined, '过去线')
+      ]
+    })
+    expect(r.items.filter((i) => i.what.includes('倒流'))).toEqual([])
+    expect(r.items.filter((i) => i.where.includes('共用'))).toEqual([])
+  })
+
+  it('线内倒流仍报：过去线 第三幕(3)→第二幕(2) 命中 1 条', () => {
+    const r = chapterOrderCheck({
+      chapters: [
+        ch('正文/第01章_主线.md', 1, '第一幕_夜', undefined, '主线'),
+        ch('正文/第02章_主线.md', 2, '第四幕_灯', undefined, '主线'),
+        ch('正文/第03章_过去线.md', 3, '第三幕_港', undefined, '过去线'),
+        ch('正文/第04章_过去线.md', 4, '第二幕_雨', undefined, '过去线')
+      ]
+    })
+    const flow = r.items.filter((i) => i.what.includes('倒流'))
+    expect(flow.length).toBe(1)
+    expect(flow[0].where).toContain('第03章_过去线.md')
+    expect(flow[0].where).toContain('第04章_过去线.md')
+    expect(flow[0].severity).toBe('medium')
+  })
+
+  it('R6 同线内不连续共用才报；跨线同名不算 R6（R7 提示）', () => {
+    const r = chapterOrderCheck({
+      chapters: [
+        ch('正文/第01章_主线.md', 1, '晨雾', undefined, '主线'),
+        ch('正文/第03章_主线.md', 3, '晨雾', undefined, '主线'),
+        ch('正文/第02章_过去线.md', 2, '晨雾', undefined, '过去线')
+      ]
+    })
+    const shared = r.items.filter((i) => i.where.includes('共用'))
+    expect(shared.length).toBe(1) // 仅主线 1、3 章不连续 → 一条 R6
+    expect(shared[0].where).toContain('第 1、3 章')
+    const cross = r.items.filter((i) => i.where.includes('条时间线'))
+    expect(cross.length).toBe(1) // R7：切片「晨雾」出现在 2 条时间线
+    expect(cross[0].severity).toBe('low')
+    expect(cross[0].what).toContain('全局唯一')
+  })
+
+  it('R7 跨线同名提示列出各线与章号；单线项目零 R7', () => {
+    const multi = chapterOrderCheck({
+      chapters: [
+        ch('正文/第01章_主线.md', 1, '末幕_归途', undefined, '主线'),
+        ch('正文/第06章_过去线.md', 6, '末幕_归途', undefined, '过去线')
+      ]
+    })
+    const cross = multi.items.filter((i) => i.where.includes('条时间线'))
+    expect(cross.length).toBe(1)
+    expect(cross[0].where).toContain('「主线」')
+    expect(cross[0].where).toContain('「过去线」')
+    const single = chapterOrderCheck({
+      chapters: [ch('正文/第01章_甲.md', 1, '末幕_归途'), ch('正文/第02章_乙.md', 2, '末幕_归途')]
+    })
+    expect(single.items.filter((i) => i.where.includes('条时间线'))).toEqual([])
   })
 })

@@ -5,12 +5,16 @@
 //   R2 约定头章号 ≠ 文件名第N章（medium）
 //   R3 章号重复（medium）
 //   R4 章号跳号（low：草稿常见，可能是未写/已删章）
-//   R5 切片序号倒流（medium：带「第X」的切片名按章号顺序递减，可能是写反或有意的插叙）
-//   R6 同一「切片」名被不连续的章号共用（low：闪回/双线常见，也可能是标错切片）
+//   R5 切片序号倒流（medium：带「第X」的切片名按章号顺序递减，可能是写反或有意的插叙）——按线内判定
+//   R6 同一「切片」名在**同一条线内**被不连续的章号共用（low：闪回常见，也可能是标错切片）
+//   R7 同一切片名被多条时间线共用（low：约定建议切片名全局唯一，跨线加线前缀；系统不拦截只提示）
 // 口径（机械层承认局限）：切片名里带「第X」（中文/阿拉伯）序号才参与 R5 顺序比较；
-// 无序号的切片名跳过顺序检查但按名字参与 R6 分组；单字名/简称不参与（同 presence 哲学）。
+// 无序号的切片名跳过顺序检查但按名字参与 R6/R7 分组；单字名/简称不参与（同 presence 哲学）。
+// 线内判定（2026-09-16 多时间线叙事）：R5/R6 只在**同一条线内**比较——多线交错时全局比较会把
+// 有意的跨线切换误报成倒流/滥用（设计文档 §4.4「审计切片序号倒流/同名切片共用改为线内判定」）。
 // 与 presenceCheck 同构：纯函数、不读盘，输出 AuditResult（审计抽屉渲染）。
 import { extractFrontMatter } from './fmatter'
+import { chapterLine } from './line'
 import type { AuditItem, AuditResult } from './types'
 
 export interface OrderChapter {
@@ -90,6 +94,8 @@ interface Row {
   headNo: number | null
   fNo: number | null
   slice: string
+  /** 所属时间线（章头「时间线」，缺省=主线） */
+  line: string
 }
 
 /**
@@ -124,7 +130,7 @@ export function chapterOrderCheck(opts: { chapters: OrderChapter[] }): AuditResu
         suggest: '把约定头「章号」改成与文件名编号一致（涉及人物清单与切片索引都按章号工作）。'
       })
     }
-    rows.push({ file: ch.file, title, sortNo: headNo ?? fNo ?? Number.POSITIVE_INFINITY, headNo, fNo, slice })
+    rows.push({ file: ch.file, title, sortNo: headNo ?? fNo ?? Number.POSITIVE_INFINITY, headNo, fNo, slice, line: chapterLine(fm) })
   }
 
   const n = rows.length
@@ -164,37 +170,47 @@ export function chapterOrderCheck(opts: { chapters: OrderChapter[] }): AuditResu
     })
   }
 
-  // R5 切片序号倒流（medium）：按章号升序，相邻可解析序号的切片不得递减
-  const sorted = [...rows].sort((a, b) => a.sortNo - b.sortNo)
-  let prev: Row | null = null
-  for (const r of sorted) {
+  // R5 切片序号倒流（medium）：**线内**按章号升序，同线相邻可解析序号的切片不得递减
+  // （多线交错时全局比较会把跨线切换误报成倒流；线内比较只报真问题）
+  const lineRows = new Map<string, Row[]>()
+  for (const r of rows) {
     if (r.sortNo === Number.POSITIVE_INFINITY) continue // 章号完全无法解析的章不参与顺序比较
-    const so = r.slice ? sliceOrdinal(r.slice) : null
-    if (so === null) continue
-    if (prev) {
-      const po = sliceOrdinal(prev.slice)
-      if (po !== null && so < po) {
-        items.push({
-          severity: 'medium',
-          type: 'timeline',
-          where: `${prev.title}（${prev.file}）→ ${r.title}（${r.file}）`,
-          what: `切片序号倒流：前序章的切片「${prev.slice}」（第 ${po}）晚于本章的「${r.slice}」（第 ${so}），按章号顺序时间线向后跳了。`,
-          suggest: '若为有意的插叙/倒叙可忽略；否则检查这两章约定头「切片」是否写反，或章节顺序需要调整。'
-        })
+    const arr = lineRows.get(r.line) ?? []
+    arr.push(r)
+    lineRows.set(r.line, arr)
+  }
+  for (const rs of lineRows.values()) {
+    const sorted = [...rs].sort((a, b) => a.sortNo - b.sortNo)
+    let prev: Row | null = null
+    for (const r of sorted) {
+      const so = r.slice ? sliceOrdinal(r.slice) : null
+      if (so === null) continue
+      if (prev) {
+        const po = sliceOrdinal(prev.slice)
+        if (po !== null && so < po) {
+          items.push({
+            severity: 'medium',
+            type: 'timeline',
+            where: `${prev.title}（${prev.file}）→ ${r.title}（${r.file}）`,
+            what: `切片序号倒流：前序章的切片「${prev.slice}」（第 ${po}）晚于本章的「${r.slice}」（第 ${so}），按章号顺序时间线向后跳了。`,
+            suggest: '若为有意的插叙/倒叙可忽略；否则检查这两章约定头「切片」是否写反，或章节顺序需要调整。'
+          })
+        }
       }
+      prev = r
     }
-    prev = r
   }
 
-  // R6 同一「切片」名被不连续的章号共用（low）
-  const bySlice = new Map<string, number[]>()
+  // R6 同一「切片」名在**同一条线内**被不连续的章号共用（low）——线内判定，跨线同名不视为 R6
+  const bySlice = new Map<string, { slice: string; line: string; nos: number[] }>()
   for (const r of rows) {
     if (!r.slice || r.sortNo === Number.POSITIVE_INFINITY) continue
-    const arr = bySlice.get(r.slice) ?? []
-    arr.push(r.sortNo)
-    bySlice.set(r.slice, arr)
+    const key = r.line + '\u0000' + r.slice
+    const cur = bySlice.get(key) ?? { slice: r.slice, line: r.line, nos: [] }
+    cur.nos.push(r.sortNo)
+    bySlice.set(key, cur)
   }
-  for (const [slice, nos] of bySlice) {
+  for (const { slice, nos } of bySlice.values()) {
     const sortedNos = [...new Set(nos)].sort((a, b) => a - b)
     if (sortedNos.length <= 1) continue
     let ok = true
@@ -209,10 +225,39 @@ export function chapterOrderCheck(opts: { chapters: OrderChapter[] }): AuditResu
         severity: 'low',
         type: 'timeline',
         where: `切片「${slice}」被 第 ${sortedNos.join('、')} 章共用。`,
-        what: '同一切片名出现在不连续的章节里，中间隔着其他切片——可能是跨章倒叙/双线，也可能是切片标错。',
-        suggest: '若为有意的闪回/双线可忽略；否则请把同一时间段的连续章节统一到同一切片名，或修正标错的约定头。'
+        what: '同一切片名出现在不连续的章节里，中间隔着其他切片——可能是跨章倒叙，也可能是切片标错。',
+        suggest: '若为有意的闪回可忽略；否则请把同一时间段的连续章节统一到同一切片名，或修正标错的约定头。'
       })
     }
+  }
+
+  // R7 同一切片名被多条时间线共用（low）——约定建议全局唯一（跨线加线前缀），系统不拦截只提示
+  const sliceLines = new Map<string, Set<string>>()
+  const sliceNos = new Map<string, Map<string, number[]>>() // slice → line → nos
+  for (const r of rows) {
+    if (!r.slice || r.sortNo === Number.POSITIVE_INFINITY) continue
+    const lines = sliceLines.get(r.slice) ?? new Set<string>()
+    lines.add(r.line)
+    sliceLines.set(r.slice, lines)
+    const byLine = sliceNos.get(r.slice) ?? new Map<string, number[]>()
+    const lns = byLine.get(r.line) ?? []
+    lns.push(r.sortNo)
+    byLine.set(r.line, lns)
+    sliceNos.set(r.slice, byLine)
+  }
+  for (const [slice, lines] of sliceLines) {
+    if (lines.size < 2) continue
+    const parts = [...lines].map((l) => {
+      const lns = [...new Set(sliceNos.get(slice)?.get(l) ?? [])].sort((a, b) => a - b)
+      return lns.length ? `「${l}」（第 ${lns.join('、')} 章）` : `「${l}」`
+    })
+    items.push({
+      severity: 'low',
+      type: 'timeline',
+      where: `切片「${slice}」出现在 ${lines.size} 条时间线：${parts.join('、')}。`,
+      what: `同一切片名被多条时间线使用——约定建议切片名全局唯一，人物/世界状态小节按切片名分档，跨线重名会让「按线分叉」的判定失去依据。`,
+      suggest: `给其中一条线的切片名加线前缀（如「过去·${slice}」）保持全局唯一；确需共用时在切片名注明所属线以便区分。`
+    })
   }
 
   const summaryHead = n

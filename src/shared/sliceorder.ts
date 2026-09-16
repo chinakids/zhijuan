@@ -6,7 +6,11 @@
 // 注入（buildWritingContext），小节倒序会让模型读到的状态流与故事时间相反，作者逐字读档案
 // 也难以沿时间追踪人物变化；异形锚点时代还曾堆积「近重复切片小节」（syncAnchor 注释）。
 // 与 presence / order / unused / actgaps 同构：纯函数、不读盘，输出 AuditResult（审计抽屉渲染）。
+// 线内判定（2026-09-16 多时间线叙事）：切片 → 章号按**所属时间线内**的最小章号（章节声明了
+// 「时间线」字段；缺省=主线）；同一切片名被多条线共用时（跨线重名，约定不推荐、chapterorder R7
+// 会提示）顺序比较失去确定性 → 跳过比较（不误报），残留判定仍按全卷切片名集合。
 import { extractFrontMatter } from './fmatter'
+import { chapterLine } from './line'
 import type { AuditItem, AuditResult } from './types'
 
 export interface SliceOrderChar {
@@ -58,8 +62,9 @@ function scanSections(raw: string): CharSec[] {
  * - 顺序倒挂（medium）：相邻小节都有可解析章号、但后一小节章号更早——同步追加顺序 ≠ 故事顺序；
  * - 同名小节重复（medium）：同一档案内「切片：<名>」出现 ≥2 次——锚点只替换首个命中，多余是残留；
  * - 全集不存在（low）：小节切片名在全卷章节约定头里找不到——切片改名/章节删除后的残留。
- * 口径：切片→章号取「全卷出现该切片的章节的最小章号（约定头优先，其次文件名编号）」，都无则跳过比较；
- * 同一切片被多章共用（闪回/双线）不会误报，因为按最小章号只参与一次。
+ * 口径：切片→章号取「**该切片所属时间线内**出现该切片的章节的最小章号（约定头优先，其次文件名编号）」，
+ * 都无则跳过比较；同一线内切片被多章共用（闪回）不会误报，因为按最小章号只参与一次；
+ * 同一切片名被多条线共用（跨线重名）时不参与顺序比较（顺序失去确定性，避免误报）。
  */
 export function sliceSectionOrderCheck(opts: {
   characters: SliceOrderChar[]
@@ -67,18 +72,31 @@ export function sliceSectionOrderCheck(opts: {
 }): AuditResult {
   const items: AuditItem[] = []
 
-  // 切片 → 全集切片名集合（含无法解析章号的，供「残留」判定）；切片 → 最小章号（同一切片多章共用时取最小）
+  // 切片名集合（含无法解析章号的，供「残留」判定）；切片 → 所属线 → 线内最小章号（同线内多章共用取最小）
   const sliceNames = new Set<string>()
-  const sliceNo = new Map<string, number>()
+  const sliceLinesOf = new Map<string, Set<string>>() // 切片名 → 出现过的线
+  const sliceNoByLine = new Map<string, Map<string, number>>() // 线 → (切片名 → 最小章号)
   for (const ch of opts.chapters) {
     const { fm } = extractFrontMatter(ch.raw)
     const name = String(fm?.['切片'] ?? '').trim()
     if (!name) continue
     sliceNames.add(name)
+    const line = chapterLine(fm)
+    let lines = sliceLinesOf.get(name)
+    if (!lines) {
+      lines = new Set<string>()
+      sliceLinesOf.set(name, lines)
+    }
+    lines.add(line)
     const no = fmNo(fm) ?? fileNo(ch.file)
     if (no === null) continue
-    const cur = sliceNo.get(name)
-    if (cur === undefined || no < cur) sliceNo.set(name, no)
+    let m = sliceNoByLine.get(line)
+    if (!m) {
+      m = new Map<string, number>()
+      sliceNoByLine.set(line, m)
+    }
+    const cur = m.get(name)
+    if (cur === undefined || no < cur) m.set(name, no)
   }
 
   let charCount = 0
@@ -86,8 +104,13 @@ export function sliceSectionOrderCheck(opts: {
     const secs = scanSections(c.raw)
     if (!secs.length) continue
     charCount++
-    // 回声填 no（切片在全集但章号不可解析 → no 保持 null；全集不存在 → 残留）
-    for (const s of secs) s.no = sliceNo.get(s.name) ?? null
+    // 回声填 no（切片所在线内最小章号；跨线重名或章号不可解析 → no=null 跳过比较；全集不存在 → 残留）
+    for (const s of secs) {
+      const lines = sliceLinesOf.get(s.name)
+      if (lines && lines.size > 1) continue // 跨线重名：顺序比较失去确定性，跳过（误报风险 > 漏报价值）
+      const line = lines ? [...lines][0] : null
+      s.no = (line ? sliceNoByLine.get(line)?.get(s.name) : undefined) ?? null
+    }
 
     // 同名小节重复（同步残留：锚点只命中第一个）
     const seen = new Map<string, number>()
