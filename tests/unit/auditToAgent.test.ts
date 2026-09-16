@@ -21,6 +21,8 @@ describe('auditItemToAgentPrompt（审计条目 → agent 指令文本）', () =
     expect(t).toContain('zj_edit_doc')
     expect(t).toContain('不要整篇替换')
     expect(t).toContain('只处理这一条发现')
+    expect(t).toContain('不需要 zj_search 全库搜索')
+    expect(t).toContain('一次给出修改方案')
   })
 
   it('无 target：不出现关联档案行', () => {

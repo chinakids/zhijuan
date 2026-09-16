@@ -20,6 +20,8 @@ export function auditItemToAgentPrompt(it: AuditItem): string {
   // 2026-09-15 体检：真模型实测「方向对但过度探查」——读完全部章节/跑 bash → 8 分钟引擎超时无产出；
   // 加范围约束：只处理本条、快速给方案（引导准确度与完成度双修）
   lines.push('只处理这一条发现：读完与此条相关的文件后直接给出修改方案；不要全面核查本项目，不要反复探查无关章节。')
-  lines.push('定位先用 zj_read_doc 读相关文件；改动文件（正文或档案）一律用 zj_edit_doc 生成修改卡，不要整篇替换。')
+  // 2026-09-16 21:00 轮：B 场景实录仍含 2 次 zj_search 全库搜索（focus 预算下才收尾）——收紧：已给路径直接精读、不做全库搜索
+  lines.push('相关文件路径已给出：用 zj_read_doc 精读核实即可，不需要 zj_search 全库搜索；核实后一次给出修改方案。')
+  lines.push('改动文件（正文或档案）一律用 zj_edit_doc 生成修改卡，不要整篇替换。')
   return lines.join('\n')
 }
