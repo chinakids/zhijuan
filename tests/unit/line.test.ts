@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chapterLine, linePredecessor, listLinesFromEntries, DEFAULT_LINE, type LineEntryNode } from '../../src/shared/line'
+import { chapterLine, linePredecessor, listLinesFromEntries, lineSliceNames, filterCharDocByLine, DEFAULT_LINE, type LineEntryNode } from '../../src/shared/line'
 
 describe('chapterLine（约定头「时间线」字段提取）', () => {
   it('缺省=主线（无字段/无 fm）', () => {
@@ -109,5 +109,89 @@ describe('linePredecessor（线内前驱 = 同线、章号严格小于当前、�
       ['第02章.md', 2, '主线']
     ])
     expect(linePredecessor(entries, '第02章.md')?.file).toBe('第01章_b.md')
+  })
+})
+
+describe('lineSliceNames（线 → 切片名集合，正文为源）', () => {
+  const entries = [
+    { line: '主线', slice: '幕1A' },
+    { line: '过去线', slice: '幕0B' },
+    { line: '主线', slice: ' 幕1C ' },
+    { line: '过去线', slice: '' },
+    { line: '主线', slice: undefined },
+    { line: '未来线', slice: '幕2D' }
+  ]
+  it('只收指定线的非空切片名，trim 后入集合', () => {
+    expect([...lineSliceNames(entries, '主线')].sort()).toEqual(['幕1A', '幕1C'])
+    expect([...lineSliceNames(entries, '过去线')]).toEqual(['幕0B'])
+    expect([...lineSliceNames(entries, '未来线')]).toEqual(['幕2D'])
+  })
+  it('空输入/未知线 → 空集合', () => {
+    expect(lineSliceNames([], '主线').size).toBe(0)
+    expect(lineSliceNames(entries, '不存在的线').size).toBe(0)
+  })
+})
+
+describe('filterCharDocByLine（人物档案按线过滤，设计文档 §4.4）', () => {
+  const doc = (sections: string) =>
+    '---\n姓名: 林晚\n---\n林晚，设定。\n## 基础档案\n- 年龄：17\n' + sections
+
+  it('多线档案：本线小节保留、他线小节整节剥除（含标题行），omitted 列名', () => {
+    const raw = doc('## 切片：幕1A\n主线状态：A。\n## 切片：幕0B\n过去状态：B。\n## 切片：幕1C\n主线状态：C。\n')
+    const r = filterCharDocByLine(raw, new Set(['幕1A', '幕1C']))
+    expect(r.text).toContain('## 切片：幕1A')
+    expect(r.text).toContain('主线状态：A。')
+    expect(r.text).toContain('## 切片：幕1C')
+    expect(r.text).toContain('主线状态：C。')
+    expect(r.text).not.toContain('切片：幕0B')
+    expect(r.text).not.toContain('过去状态：B。')
+    expect(r.text).toContain('## 基础档案')
+    expect(r.text).toContain('- 年龄：17')
+    expect(r.text).toContain('---') // front matter 保留
+    expect(r.omitted).toEqual(['幕0B'])
+  })
+
+  it('只有他线小节 → 剥到剩基础档案；omitted 含全部', () => {
+    const raw = doc('## 切片：幕0B\n过去状态：B。\n')
+    const r = filterCharDocByLine(raw, new Set(['幕1A']))
+    expect(r.text).not.toContain('切片：幕0B')
+    expect(r.text).toContain('## 基础档案')
+    expect(r.omitted).toEqual(['幕0B'])
+  })
+
+  it('单线项目（keep=全部切片名）→ 全保留，零回归', () => {
+    const raw = doc('## 切片：幕一\n一。\n## 切片：幕二\n二。\n')
+    const r = filterCharDocByLine(raw, new Set(['幕一', '幕二']))
+    expect(r.text).toBe(raw)
+    expect(r.omitted).toEqual([])
+  })
+
+  it('无「## 切片：」小节（旧格式/手工档）→ 原样返回', () => {
+    const raw = doc('## 成长轨迹\n- 初三…\n')
+    const r = filterCharDocByLine(raw, new Set(['幕一']))
+    expect(r.text).toBe(raw)
+    expect(r.omitted).toEqual([])
+  })
+
+  it('H3~H6 级「切片：」不算 H2 小节，不碰（旧格式保守保留）', () => {
+    const raw = doc('### 切片：幕一\n一。\n')
+    const r = filterCharDocByLine(raw, new Set(['幕二']))
+    expect(r.text).toBe(raw)
+    expect(r.omitted).toEqual([])
+  })
+
+  it('切片名精确匹配（「幕一」不误命中「幕一X」）；跨线重名有本线引用则保留', () => {
+    const raw = doc('## 切片：幕一\n一。\n## 切片：幕一X\n一X。\n')
+    expect(filterCharDocByLine(raw, new Set(['幕一X'])).omitted).toEqual(['幕一'])
+    expect(filterCharDocByLine(raw, new Set(['幕一', '幕一X'])).text).toBe(raw)
+  })
+
+  it('交错小节：他线小节多次出现全部剥除（含重复同名），顺序保真', () => {
+    const raw = doc('## 切片：幕1A\nA1。\n## 切片：幕0B\nB1。\n## 切片：幕1A\nA2。\n')
+    const r = filterCharDocByLine(raw, new Set(['幕1A']))
+    expect(r.text).toContain('A1。')
+    expect(r.text).toContain('A2。')
+    expect(r.text).not.toContain('B1。')
+    expect(r.omitted).toEqual(['幕0B'])
   })
 })

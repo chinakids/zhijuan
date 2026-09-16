@@ -11,7 +11,7 @@ import { worldSliceFile } from '../../shared/paths'
 import { stripHtmlComments } from '../../shared/comments'
 import { matchActPlaceholders } from '../../shared/actsSeg'
 import { WCTX_CAPS as CAP } from '../../shared/contextCaps'
-import { chapterLine, linePredecessor, DEFAULT_LINE, type LineEntryNode } from '../../shared/line'
+import { chapterLine, linePredecessor, lineSliceNames, filterCharDocByLine, DEFAULT_LINE } from '../../shared/line'
 
 export interface WritingContext {
   blocks: string[]
@@ -130,11 +130,20 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
   for (const c of cast) {
     const t = read(`人物/${c}.md`)
     if (t.trim()) {
-      const over = t.length - CAP.char
+      // 2026-09-17 多时间线叙事补 §4.4（设计文档：「装配时按本章所属线取该线的状态下文」）：
+      // 人物档「## 切片：<名>」小节按写入顺序追加、切片名→章→线可判归属，多线项目他线小节
+      // 混入会让模型读到本线之外的状态（C 形态同人两线状态不同时直接误导）。
+      // 过滤仅剥「## 切片：」小节中不属于本线的；基础档案/长期小节/旧格式不碰；单线=全保留零回归。
+      const ft = filterCharDocByLine(t, prevInfo.lineSlices)
+      const lineNote =
+        ft.omitted.length > 0
+          ? `（人物档案已按本章时间线「${prevInfo.line}」装配：略去其他线切片小节 ${ft.omitted.length} 个（${ft.omitted.join('、')}）；要看完整档案请用 zj_read_doc 读取本文件）\n`
+          : ''
+      const over = ft.text.length - CAP.char
       const body =
         over > 0
-          ? `（人物档案已超 ${CAP.char} 字符预算：装配的是**结尾**（最近切片状态）部分，开头 ${over} 字符已省略；要看基础档案请用 zj_read_doc 读取本文件）\n…\n${t.slice(-CAP.char)}`
-          : t
+          ? `${lineNote}（人物档案已超 ${CAP.char} 字符预算：装配的是**结尾**（最近切片状态）部分，开头 ${over} 字符已省略；要看基础档案请用 zj_read_doc 读取本文件）\n…\n${ft.text.slice(-CAP.char)}`
+          : lineNote + ft.text
       blocks.push(`【人物档案：${c}】\n${body}`)
       sources.push(`人物/${c}.md`)
       attachedNames.push(c)
@@ -325,25 +334,45 @@ function chapterNoOf(fm: FrontMatter | null): number | null {
 }
 
 /**
- * 线内前驱信息（2026-09-16 多时间线叙事，F-20260916-02）：
- * rel=同线前驱章路径（无则 null）；line=本章线名；multi=项目多线或本章显式非主线（此时装配需注明线）；
- * predNo=前驱章号（解析不出=null）。
+ * 线内前驱信息 + 本线切片名集合（2026-09-16 多时间线叙事，F-20260916-02；
+ * 2026-09-17 人物装配按线过滤补 §4.4）：rel=同线前驱章路径（无则 null）；line=本章线名；
+ * multi=项目多线或本章显式非主线（此时装配需注明线）；predNo=前驱章号（解析不出=null）；
+ * lineSlices=本线章节的切片名集合（供人物档案 filterCharDocByLine 按线取状态）。
  * 实现：listChapters 一次取全（ingest 已解析 fm），shared/line.linePredecessor 纯函数选同线前驱——
  * 单线老项目退化为全局按章号前驱（与旧 previousChapter 同行为，零回归）。
  */
 function previousChapterInfo(
   projectId: string,
   chapterRel: string
-): { rel: string | null; line: string; multi: boolean; predNo: number | null } {
+): {
+  rel: string | null
+  line: string
+  multi: boolean
+  predNo: number | null
+  lineSlices: Set<string>
+} {
   const cur = chapterRel.replace(/^正文\//, '')
-  const entries: LineEntryNode[] = listChapters(projectId).map((c) => ({
-    file: c.file,
-    no: chapterNoOf(c.fm as unknown as FrontMatter | null),
-    line: chapterLine(c.fm as unknown as FrontMatter | null)
-  }))
+  const entries = listChapters(projectId).map((c) => {
+    const fm = c.fm as unknown as FrontMatter | null
+    return {
+      file: c.file,
+      no: chapterNoOf(fm),
+      line: chapterLine(fm),
+      slice: String(fm?.['切片'] ?? '')
+    }
+  })
   const curEntry = entries.find((e) => e.file === cur)
   const line = curEntry?.line ?? DEFAULT_LINE
   const multi = new Set(entries.map((e) => e.line)).size > 1 || line !== DEFAULT_LINE
-  const pred = linePredecessor(entries, cur)
-  return { rel: pred ? '正文/' + pred.file : null, line, multi, predNo: pred?.no ?? null }
+  const pred = linePredecessor(
+    entries.map((e) => ({ file: e.file, no: e.no, line: e.line })),
+    cur
+  )
+  return {
+    rel: pred ? '正文/' + pred.file : null,
+    line,
+    multi,
+    predNo: pred?.no ?? null,
+    lineSlices: lineSliceNames(entries, line)
+  }
 }

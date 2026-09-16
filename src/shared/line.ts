@@ -42,6 +42,64 @@ export function linePredecessor(entries: LineEntryNode[], curFile: string): Line
   return cands.length ? cands[cands.length - 1] : null
 }
 
+/** 切片小节标题行识别（与 shared/sliceorder.ts scanSections 同口径：H2~H6 + 中英文冒号） */
+const CHAR_SEC_RE = /^#{2,6}\s+切片\s*[:：]\s*(.+)$/
+
+/**
+ * 线 → 切片名集合（正文为源：entries 由 listChapters 产出且已解析约定头；设计文档 §4.4）。
+ * 只收「时间线 === line 且切片名非空」章的切片名；供人物档案装配按线过滤（filterCharDocByLine）。
+ * 切片名 trim 后入集合（与 audit/sliceorder 同口径）；跨线重名（R7）时同名自然出现在多条线的集合里。
+ */
+export function lineSliceNames(
+  entries: { line: string; slice?: unknown }[],
+  line: string
+): Set<string> {
+  const out = new Set<string>()
+  for (const e of entries) {
+    if (e.line !== line) continue
+    const s = typeof e.slice === 'string' ? e.slice.trim() : ''
+    if (s) out.add(s)
+  }
+  return out
+}
+
+export interface CharFilterResult {
+  /** 过滤后的档案全文（保留行级原样拼接） */
+  text: string
+  /** 被剥除的切片小节名（仅属于其他线/无本线引用的小节） */
+  omitted: string[]
+}
+
+/**
+ * 人物档案按线过滤（设计文档 §4.4：「装配时按本章所属线取该线的状态下文」）。
+ * 人物档结构：front matter + 长期小节（## 基础档案 等，作者手动维护，不随线分叉）+「## 切片：<名>」
+ * 状态小节（syncAnchor 按写入顺序追加；切片名 → 章 → 线 可判归属；跨线重名按「有本线引用即保留」保守处理）。
+ * 过滤只针对「## 切片：」小节：名 ∉ keepSlices 的整节剥除（含标题行）；H3~H6 视为小节内容不单独判界；
+ * 其他 H1/H2 标题 = 切片小节边界（恢复保留）。无任何「## 切片：」小节 → 原样返回（旧格式/手工档不误伤）。
+ */
+export function filterCharDocByLine(text: string, keepSlices: ReadonlySet<string>): CharFilterResult {
+  // 快速路径必须逐行判定（无 m 标志时 ^ 只匹配串首，文件以 front matter 开头会漏判）
+  if (!text.split('\n').some((l) => CHAR_SEC_RE.test(l))) return { text, omitted: [] }
+  const lines = text.split('\n')
+  const out: string[] = []
+  const omitted: string[] = []
+  let keep = true
+  for (const line of lines) {
+    const sec = /^##\s+切片\s*[:：]\s*(.+)$/.exec(line)
+    if (sec) {
+      const name = sec[1].trim()
+      keep = keepSlices.has(name)
+      if (!keep) omitted.push(name)
+      // 标题行随节保留/剥除（keep=false 时不入 out，即整节剥除）
+      if (keep) out.push(line)
+      continue
+    }
+    if (/^#{1,2}\s+/.test(line)) keep = true
+    if (keep) out.push(line)
+  }
+  return { text: out.join('\n'), omitted }
+}
+
 /** 线枚举条目（.zhijuan/lines.json 与 slices.json 同构；正文为源，可重建） */
 export interface LineInfo {
   /** 线名（chapterLine 归一后） */
