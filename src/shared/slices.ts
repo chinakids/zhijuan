@@ -2,6 +2,7 @@
 // 正文是切片唯一源（模块设计 §14 之 / 评审 D2）；main/slices（真机）与 devShim（浏览器 mock）
 // 共用同一枚举口径，避免两侧解析分叉（此前 mock 用正则手写、缺「时间」字段，与真机不一致）。
 import { extractFrontMatter } from './fmatter'
+import { chapterLine } from './line'
 import type { SliceEntry } from './types'
 
 export interface SliceSource {
@@ -39,6 +40,7 @@ export function listSliceEntries(sources: SliceSource[]): SliceEntry[] {
     out.push({
       name,
       chapter: s.file.replace(/\.md$/, ''),
+      line: chapterLine(fm),
       time: String(fm?.['时间'] ?? '').trim() || undefined,
       chars: chapterChars(fm),
       updatedAt: s.updatedAt

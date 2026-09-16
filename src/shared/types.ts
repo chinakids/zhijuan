@@ -59,6 +59,8 @@ export interface ChapterFrontMatter {
 export interface SliceEntry {
   name: string
   chapter: string
+  /** 所属时间线（章头「时间线」字段；缺省=「主线」；权威口径 shared/line.ts，多时间线叙事 2026-09-16） */
+  line: string
   time?: string
   chars?: string[]
   updatedAt: number

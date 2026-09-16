@@ -4,6 +4,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { listSliceEntries } from '../shared/slices'
+import { listLinesFromEntries, type LineInfo } from '../shared/line'
 import { DOT_DIR } from '../shared/paths'
 import type { SliceEntry } from '../shared/types'
 
@@ -36,5 +37,18 @@ export function writeSliceRegistry(projectDir: string, entries: SliceEntry[]): s
   const f = join(projectDir, DOT_DIR, 'slices.json')
   mkdirSync(dirname(f), { recursive: true })
   writeFileSync(f, JSON.stringify({ updatedAt: Date.now(), slices: entries }, null, 2), 'utf-8')
+  return f
+}
+
+/** 枚举项目内全部时间线（口径在 shared/line.listLinesFromEntries；正文为源，与 listSlices 同一扫描） */
+export function listLines(projectDir: string): LineInfo[] {
+  return listLinesFromEntries(listSlices(projectDir))
+}
+
+/** 把线清单登记为 .zhijuan/lines.json（索引；正文为源，可随时重建；与 slices.json 同构） */
+export function writeLinesRegistry(projectDir: string, lines: LineInfo[]): string {
+  const f = join(projectDir, DOT_DIR, 'lines.json')
+  mkdirSync(dirname(f), { recursive: true })
+  writeFileSync(f, JSON.stringify({ updatedAt: Date.now(), lines }, null, 2), 'utf-8')
   return f
 }

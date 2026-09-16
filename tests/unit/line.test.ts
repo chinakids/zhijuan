@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chapterLine, linePredecessor, DEFAULT_LINE, type LineEntryNode } from '../../src/shared/line'
+import { chapterLine, linePredecessor, listLinesFromEntries, DEFAULT_LINE, type LineEntryNode } from '../../src/shared/line'
 
 describe('chapterLine（约定头「时间线」字段提取）', () => {
   it('缺省=主线（无字段/无 fm）', () => {
@@ -18,6 +18,24 @@ describe('chapterLine（约定头「时间线」字段提取）', () => {
 
   it('非字符串值按主线兜底', () => {
     expect(chapterLine({ '时间线': 42 } as never)).toBe(DEFAULT_LINE)
+  })
+})
+
+describe('listLinesFromEntries（线枚举：正文为源、按出现序）', () => {
+  it('按线名出现序返回 {name, chapters}；主线（缺省线）若存在自然在最前', () => {
+    const entries = [{ line: '主线' }, { line: '过去线' }, { line: '主线' }, { line: '林晚线' }]
+    expect(listLinesFromEntries(entries)).toEqual([
+      { name: '主线', chapters: 2 },
+      { name: '过去线', chapters: 1 },
+      { name: '林晚线', chapters: 1 }
+    ])
+  })
+
+  it('空输入 → 空列表；同一线全缺省单线项目 → 只有主线', () => {
+    expect(listLinesFromEntries([])).toEqual([])
+    expect(listLinesFromEntries([{ line: DEFAULT_LINE }, { line: DEFAULT_LINE }])).toEqual([
+      { name: DEFAULT_LINE, chapters: 2 }
+    ])
   })
 })
 

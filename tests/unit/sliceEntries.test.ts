@@ -8,15 +8,23 @@ const src = (file: string, text: string, updatedAt = 2000): SliceSource => ({ fi
 const FM1 = ['---', '章号: 2', '题名: 灯塔', '切片: 第二幕_灯塔', '时间: 雾夜', '涉及人物: [阿七]', '---', '', '正文。'].join('\n')
 
 describe('listSliceEntries（与真机 listSlices 同口径）', () => {
-  it('解析切片/时间/涉及人物；updatedAt 透传', () => {
+  it('解析切片/时间/涉及人物；updatedAt 透传；line 缺省=主线', () => {
     const [s] = listSliceEntries([src('第02章_灯塔.md', FM1, 3000)])
     expect(s).toEqual({
       name: '第二幕_灯塔',
       chapter: '第02章_灯塔',
+      line: '主线',
       time: '雾夜',
       chars: ['阿七'],
       updatedAt: 3000
     })
+  })
+
+  it('「时间线」字段透传；空白/缺失归一为主线（与 line.chapterLine 同口径）', () => {
+    const past = ['---', '章号: 1', '切片: 过去·第三幕', '时间线: 过去线', '---', '', '正文。'].join('\n')
+    const blank = ['---', '章号: 2', '切片: 主线幕', '时间线:    ', '---', '', '正文。'].join('\n')
+    let out = listSliceEntries([src('第01章_忆.md', past), src('第02章_b.md', blank)])
+    expect(out.map((s) => s.line)).toEqual(['过去线', '主线'])
   })
 
   it('无「时间」字段 → time undefined；无约定头或无可读的切片字段 → 跳过', () => {

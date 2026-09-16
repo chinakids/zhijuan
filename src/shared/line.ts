@@ -40,3 +40,21 @@ export function linePredecessor(entries: LineEntryNode[], curFile: string): Line
     .sort((a, b) => (a.no as number) - (b.no as number) || a.file.localeCompare(b.file, 'zh'))
   return cands.length ? cands[cands.length - 1] : null
 }
+
+/** 线枚举条目（.zhijuan/lines.json 与 slices.json 同构；正文为源，可重建） */
+export interface LineInfo {
+  /** 线名（chapterLine 归一后） */
+  name: string
+  /** 该线章节（切片）数 */
+  chapters: number
+}
+
+/**
+ * 从切片枚举提取线清单（正文为源：entries 由 listSliceEntries 产出，已按章号排序）。
+ * 返回顺序=线在正文中的首次出现序（缺省「主线」若存在自然排最前）；只统计带切片的章（与枚举同口径）。
+ */
+export function listLinesFromEntries(entries: { line: string }[]): LineInfo[] {
+  const count = new Map<string, number>()
+  for (const e of entries) count.set(e.line, (count.get(e.line) ?? 0) + 1)
+  return [...count.entries()].map(([name, chapters]) => ({ name, chapters }))
+}
