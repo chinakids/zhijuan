@@ -53,6 +53,10 @@ export const REVIEWED_NON_MODEL = new Set([
   'sync-produce-loop-smoke.mjs',
   'project-ctx-smoke.mjs',
   'sync-log-ui-smoke.mjs',
+  // 2026-09-17 01:30 平台层轮核对：smoke-userdata-check.mjs 是数据层 userData 契约静态审计（CLI 元工具，
+  // 无引擎/边车/模型调用）；强特征 zj-bridge 与弱特征「真模型」均来自其头注背景描述（mention zj-bridge.mjs
+  // 白名单依据与「真模型冒烟假绿」动机说明），非实际调用——头注措辞若收缩弱特征可再评估。
+  'smoke-userdata-check.mjs',
 ])
 
 export const MODEL_SKIP_REASON = '模型类：真模型驱动（依赖 vLLM 算力池），--all 门禁不包含——--live 或单独跑'

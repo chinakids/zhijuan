@@ -50,6 +50,8 @@
 //   --all 跳过计 SKIP，--live 或单独指名运行。名单启动自检（防脚本删除后名单腐化）。
 //   漏网守卫（2026-09-16 07:30 接入）：--all 主流程自动跑 scripts/smoke-model-audit.mjs 的审计（非 strict，
 //     健康显示一行、疑似漏网提示清单——默认不阻断；CI 阻断=node scripts/smoke-model-audit.mjs --strict）。
+//   userData 契约守卫（2026-09-17 01:30 接入）：--all 主流程自动跑 scripts/smoke-userdata-check.mjs 的审计
+//     （引用 electron-stub 的冒烟必须带独立 clean userData——共享默认目录残留 settings 会假绿；默认不阻断）。
 // 退出码 = FAIL 数（0=全绿）。
 // 参考：npm-run-all 生态缺口（api.github.com/repos/mysticatea/npm-run-all/contents/README.md）、
 //       Playwright test-cli --list/-x（playwright.dev/docs/test-cli）、
@@ -61,6 +63,7 @@ import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { MODEL_SCRIPTS, MODEL_SKIP_REASON } from './model-scripts.mjs' // 名单单源（2026-09-16 平台层轮抽取；判据与维护契约看该文件头注）
 import { analyze, report as auditReport } from './smoke-model-audit.mjs' // 门禁自动审计（2026-09-16 07:30 平台层轮接入——同进程复用 analyze/report，免子进程文本解析）
+import { analyze as udAnalyze, report as udAuditReport } from './smoke-userdata-check.mjs' // 数据层 userData 契约审计（2026-09-17 01:30 平台层轮接入——同进程复用，单名调试不跑审计=设计如此）
 
 const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url)) // scripts/（fileURLToPath 避免中文路径被 URL 编码）
 const repoRoot = resolve(SCRIPTS_DIR, '..')
@@ -97,7 +100,7 @@ if (!all && names.length === 0) {
 
 // ---------- 脚本收集 ----------
 const allFiles = readdirSync(SCRIPTS_DIR).filter((f) => f.endsWith('.mjs')).sort()
-const isSmoke = (f) => /smoke/i.test(f) && f !== 'smoke-ui.mjs' && f !== 'smoke-gate-check.mjs' && f !== 'smoke-model-audit.mjs' // 入口自排除：本文件也含 smoke，不排除则 --all 把它自己排进去（无参运行恒 exit 2）；门禁自检=元测试（2026-09-16，跑在 --all 之前单独执行），模型类审计=元审计（2026-09-16 07:30，门禁主流程自动跑），均不属页面冒烟集合
+const isSmoke = (f) => /smoke/i.test(f) && f !== 'smoke-ui.mjs' && f !== 'smoke-gate-check.mjs' && f !== 'smoke-model-audit.mjs' && f !== 'smoke-userdata-check.mjs' // 入口自排除：本文件也含 smoke，不排除则 --all 把它自己排进去（无参运行恒 exit 2）；门禁自检=元测试（2026-09-16，跑在 --all 之前单独执行），模型类审计=元审计（2026-09-16 07:30，门禁主流程自动跑），userData 契约审计=元审计（2026-09-17 01:30，同前），均不属页面冒烟集合
 const isLive = (f) => /-live\.mjs$/.test(f)
 
 function resolveName(param) {
@@ -396,6 +399,14 @@ if (all) {
   if (!auditReport(analyze())) {
     auditNote = '模型类审计不健康（疑似漏网/名单腐化，清单见上）——默认不阻断；CI 阻断用 node scripts/smoke-model-audit.mjs --strict'
     console.error(`⚠️  ${auditNote}`)
+  }
+  // 数据层 userData 契约审计（2026-09-17 01:30 接入，候选 2 资产化）：引用 electron-stub 的冒烟必须带
+  //   独立 clean userData（共享默认目录残留 settings → libraryRoot 空路径/readDoc null=假绿，9-11 实踩）；
+  //   默认只提示不阻断（continue-on-error 语义同模型审计）；CI 阻断用 node scripts/smoke-userdata-check.mjs --strict。
+  if (!udAuditReport(udAnalyze())) {
+    const udNote = '数据层 userData 契约审计不健康（硬缺口清单见上）——默认不阻断；CI 阻断用 node scripts/smoke-userdata-check.mjs --strict'
+    auditNote = auditNote ? `${auditNote}；${udNote}` : udNote
+    console.error(`⚠️  ${udNote}`)
   }
 }
 
