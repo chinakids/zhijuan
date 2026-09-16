@@ -28,9 +28,21 @@
 //   浏览器回收）；16yun 博客（100 个未关闭 tab ≈ 300-500 进程）；chrome-devtools-mcp #1921（30~400
 //   tab 起 CPU/内存暴涨、2000 tab 直接崩溃）。官方 legacy HTTP 端点 `PUT /json/close/<id>` 实证
 //   可用（404=目标已不存在，容错）。
-//   处置（零侵入，不改 101 个脚本本身）：① 起点清理——织卷本地页 tab 超过 CDP_TAB_HIGH 先回收一批
+//   处置（零侵入，不改 101 个脚本本身）：① 起点清理——织卷本地页 tab 数超过 CDP_TAB_HIGH 先回收一批
 //   （治跨轮残留）；② 跑后收尾——关闭每个使用 CDP 的脚本运行期间新增的 page target（治长跑累积，
 //   tab 数全程恒定）；③ 观测——每脚本前后 tab 数与清理数落行，汇总报尾态。
+// CDP 协议面看护（2026-09-16 22:30 平台层轮，观察项㉜收口）：
+//   背景：tab 治理（19:30 轮）后全量 157 全程无 tab 累积失联，但全量结束约 2-3 分钟后 9224 协议面
+//   挂死（Chrome 主进程活、DevTools HTTP 不响应；float-kbd 因此 TIMEOUT，agent_browser 重启后 3/3
+//   PASS 定非回归）——与 16:30「[148/155] 后失联」、9-13 22:30「9 天钙化」疑同根因＝高频 target
+//   创建/关闭后内部泄漏（进程级，tab 治理管不到）。
+//   处置＝活性探测 + 自动重启 + 有界重试（Playwright test-retries 先例：间歇失败自动重跑、可配置；
+//   playwright.dev/docs/test-retries；背景另见 19:30 轮归档 codeables/16yun/chrome-devtools-mcp #1921）：
+//   ① 主动探测——每 CDP_WATCH_EVERY 个脚本 ping 一次 /json/version，挂了立即重启（提前恢复，后续
+//   useCdp 脚本不白跑）；② 预检恢复——useCdp 脚本预检发现「CDP 未起」不直接标 FAIL，先自动重启一次
+//   再重预检；③ 失败重试——脚本失败且协议面已死（挂死典型症状）→ 自动重启 + 重跑 1 次（有界，不无限
+//   循环；重试通过计 PASS 并统计）。重启＝agent_browser.sh stop+start（幂等，进程级挂死/死亡都覆盖），
+//   就绪轮询 ≤60s；重启失败才按环境 FAIL 计。
 // 模型类口径（2026-09-15 16:30 收口）：真模型驱动的 smoke 依赖算力池 vLLM（127.0.0.1）忙闲，
 //   非织卷代码红/绿判据——门禁（--all）若包含它们会因模型侧波动恒红，违背「改动后一切如常」的
 //   确定性（基线 2026-09-15 13:30 实锤：acts/engine-sync 全量 300s 被杀=误杀）。
@@ -43,7 +55,7 @@
 //       Playwright test-cli --list/-x（playwright.dev/docs/test-cli）、
 //       Playwright Annotations test.slow/fixme/@fast/@slow + --grep（playwright.dev/docs/test-annotations）
 
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -309,6 +321,32 @@ async function cdpReap(beforeIds) {
   return { cleaned: added.length, before: beforeIds.size, after: after.length }
 }
 
+// ---------- CDP 协议面看护（2026-09-16 22:30 平台层轮；动机与依据见头注释） ----------
+const CDP_WATCH_EVERY = 10 // 主动探测频率：每 N 个脚本 ping 一次 /json/version（提前发现协议面挂死）
+const CDP_PING_MS = 3000
+const CDP_RESTART_TIMEOUT_MS = 60000
+const AGENT_BROWSER_SH = join(process.env.HOME || '', '.hermes', 'scripts', 'agent_browser.sh') // 本机专用无头浏览器启动器（幂等 start/stop）
+
+async function cdpAlive(timeoutMs = CDP_PING_MS) {
+  try {
+    const r = await fetch(CDP + '/json/version', { signal: AbortSignal.timeout(timeoutMs) })
+    return r.ok
+  } catch {
+    return false
+  }
+}
+// 重启＝stop+start（start 幂等自带 5s 就绪探测）；本函数再轮询到 ≤60s；返回就绪耗时（秒），失败 null
+async function cdpRestart() {
+  const t0 = Date.now()
+  spawnSync('sh', [AGENT_BROWSER_SH, 'stop'], { stdio: 'ignore' })
+  spawnSync('sh', [AGENT_BROWSER_SH, 'start'], { stdio: 'ignore' })
+  while (Date.now() - t0 < CDP_RESTART_TIMEOUT_MS) {
+    if (await cdpAlive(2000)) return (Date.now() - t0) / 1000
+    await new Promise((res) => setTimeout(res, 1500))
+  }
+  return null
+}
+
 const serveHint = (issues) => {
   for (const it of issues) {
     const pm = it.match(/(?:localhost|127\.0\.0\.1):(\d+)/)
@@ -371,11 +409,40 @@ if (all && !list) {
 }
 let cdCleanedTotal = 0
 let cdObsLines = 0
+// CDP 看护统计（2026-09-16 22:30 接入）
+let watchRestarts = 0
+let watchRetried = []
 for (let i = 0; i < targets.length; i++) {
   const file = targets[i]
   const label = `[${i + 1}/${targets.length}] ${file}`
   if (list || all) process.stdout.write(`${label} ...`)
-  const { issues, skipped, useCdp } = await precheck(file)
+  // 主动探测：协议面挂死早期发现、提前恢复（不打断当前脚本；挂死=进程活/DevTools HTTP 死）
+  if (!list && i > 0 && i % CDP_WATCH_EVERY === 0 && !(await cdpAlive())) {
+    console.log('      🩺 CDP 看护：主动探测发现协议面未响应 → 自动重启浏览器…')
+    const secs = await cdpRestart()
+    if (secs !== null) {
+      watchRestarts++
+      console.log(`      🩺 CDP 看护：重启就绪（${secs.toFixed(1)}s）`)
+    } else {
+      console.log('      🩺 CDP 看护：重启失败（60s 未就绪），后续预检会再尝试')
+    }
+  }
+  let { issues, skipped, useCdp } = await precheck(file)
+  // 预检发现 CDP 未起（该脚本用 9224）：环境型可恢复——先自动重启一次再重预检，而非直接标 FAIL
+  if (!list && useCdp && issues.some((s) => s.startsWith('CDP 未起'))) {
+    console.log('      🩺 CDP 看护：预检发现协议面未起 → 自动重启浏览器…')
+    const secs = await cdpRestart()
+    if (secs !== null) {
+      watchRestarts++
+      console.log(`      🩺 CDP 看护：重启就绪（${secs.toFixed(1)}s）→ 重新预检`)
+      const again = await precheck(file)
+      issues = again.issues
+      skipped = again.skipped
+      useCdp = again.useCdp
+    } else {
+      console.log('      🩺 CDP 看护：重启失败（60s 内未就绪）→ 按环境失败计')
+    }
+  }
   if (issues.length > 0) {
     results.push({ file, ok: false, env: true, reason: issues.join('；') })
     if (!list) console.log(` ✗ 环境：${issues.join('；')}`)
@@ -394,8 +461,30 @@ for (let i = 0; i < targets.length; i++) {
   // CDP 观测/跑后收尾：使用 9224 的脚本在运行前后各拍一次 tab 快照，跑后关闭新增 target
   const cdpBefore = useCdp ? await cdpPages() : null
   const cdpBeforeIds = cdpBefore ? new Set(cdpBefore.map((t) => t.id)) : null
-  const { code, killed, out } = await runScript(file, timeoutSec * 1000)
-  const ok = code === 0 && !killed
+  let { code, killed, out } = await runScript(file, timeoutSec * 1000)
+  let ok = code === 0 && !killed
+  // 失败且协议面已死（挂死典型症状）→ 环境型：自动重启 + 有界重试 1 次（Playwright retries 先例）
+  if (!ok && useCdp && !(await cdpAlive())) {
+    console.log('      🩺 CDP 看护：脚本失败且协议面未响应 → 自动重启浏览器并重试 1 次（有界）')
+    const secs = await cdpRestart()
+    if (secs !== null) {
+      watchRestarts++
+      console.log(`      🩺 CDP 看护：重启就绪（${secs.toFixed(1)}s）→ 重试 ${file}`)
+      const r2 = await runScript(file, timeoutSec * 1000)
+      code = r2.code
+      killed = r2.killed
+      out = r2.out
+      ok = code === 0 && !killed
+      if (ok) {
+        watchRetried.push(file)
+        console.log('      🩺 CDP 看护：重试通过（原失败=协议面挂死，非产品回归）')
+      } else {
+        console.log('      🩺 CDP 看护：重试仍失败，按原结果计')
+      }
+    } else {
+      console.log('      🩺 CDP 看护：重启失败（60s 内未就绪），按原结果计')
+    }
+  }
   results.push({ file, ok, reason: killed ? `超时（>${timeoutSec}s，已杀）` : code !== 0 ? `退出码 ${code}` : '' })
   console.log(`    → ${ok ? 'PASS' : 'FAIL'} ${killed ? `(超时 ${timeoutSec}s)` : code !== 0 ? `(exit ${code})` : ''} ${((Date.now() - t0) / 1000).toFixed(1)}s`)
   if (cdpBeforeIds) {
@@ -422,6 +511,9 @@ console.log('========== 汇总 ==========')
 console.log(`PASS ${pass.length} · SKIP ${skip.length} · FAIL ${fail.length} · 共 ${results.length}（${((Date.now() - t0) / 1000).toFixed(1)}s）`)
 if (sweepInfo.closed > 0 || cdCleanedTotal > 0) {
   console.log(`CDP tab 治理：起点回收 ${sweepInfo.closed} · 跑后清理累计 ${cdCleanedTotal} · 观测行 ${cdObsLines}（尾态 ${(await cdpPagesLocal()).length} 个织卷页，阈值 ${CDP_TAB_HIGH}）`)
+}
+if (watchRestarts > 0 || watchRetried.length > 0) {
+  console.log(`🩺 CDP 协议面看护：自动重启 ${watchRestarts} 次 · 重试后通过 ${watchRetried.length} 个${watchRetried.length > 0 ? '（' + watchRetried.join('、') + '）' : ''}`)
 }
 if (modelSkipped.length > 0) console.log(`（另：模型类门禁跳过 ${modelSkipped.length} 个——--live 或单独跑：${modelSkipped.join('、')}）`)
 if (auditNote) console.log(`（另：${auditNote}）`)

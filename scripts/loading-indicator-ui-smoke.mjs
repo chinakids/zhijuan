@@ -5,7 +5,12 @@
 const PORT = 8123
 const BASE = process.env.ZJ_SMOKE_BASE || `http://localhost:${PORT}`
 const list = await (await fetch('http://127.0.0.1:9224/json')).json()
-const page = list.find((t) => t.type === 'page' && new RegExp(`:${PORT}`).test(t.url))
+let page = list.find((t) => t.type === 'page' && new RegExp(`:${PORT}`).test(t.url))
+if (!page) {
+  // 兜底：宿主=任意 8123 页（脚本自会 Page.navigate 到 novel 路由）——全量 tab 治理后可能无页（2026-09-16 22:30 实踩 NO PAGE）
+  const r = await fetch('http://127.0.0.1:9224/json/new?' + encodeURIComponent(`${BASE}/?cb=${Date.now()}`), { method: 'PUT' })
+  page = await r.json()
+}
 if (!page) { console.error('NO PAGE'); process.exit(1) }
 const ws = new WebSocket(page.webSocketDebuggerUrl)
 let seq = 0
