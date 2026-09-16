@@ -1122,7 +1122,7 @@ const mock = {
         type: 'todo',
         items: [
           { content: '读取当前章节与人物设定', status: 'in_progress' },
-          { content: '给出续写建议', status: 'pending' },
+          { content: '给出续写建议', status: 'completed' },
           { content: '等待确认后应用到正文', status: 'pending' }
         ]
       })

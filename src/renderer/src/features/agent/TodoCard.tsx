@@ -6,7 +6,7 @@ import { cn } from '../../lib/utils'
 const statusMeta: Record<TodoItem['status'], { label: string; icon: React.ReactNode; cls: string }> = {
   pending: { label: '待办', icon: <Circle className="h-3.5 w-3.5 text-ink-3" />, cls: 'text-ink-2' },
   in_progress: { label: '进行中', icon: <LoadingIndicator size={14} className="text-accent" />, cls: 'text-ink' },
-  completed: { label: '完成', icon: <CheckCircle2 className="h-3.5 w-3.5 text-success" />, cls: 'text-ink-3 line-through' }
+  completed: { label: '完成', icon: <CheckCircle2 className="h-3.5 w-3.5 text-success" />, cls: 'text-ink-3' }
 }
 
 export default function TodoCard({ items }: { items: TodoItem[] }) {
