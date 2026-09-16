@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, Fragment
 import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, Users, UserCheck, ListOrdered, FileWarning, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, ListChecks, FileQuestion, Rows3, Tags, Waypoints, Repeat, RefreshCw } from 'lucide-react'
+import { Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, Users, UserCheck, ListOrdered, FileWarning, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, ListChecks, FileQuestion, Rows3, Tags, Waypoints, Repeat, RefreshCw, CircleSlash } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import type { ProseApi } from '../editor/Prose'
@@ -66,7 +66,7 @@ function fmtDur(ms: number): string {
   return m + 'm' + Math.round(s - m * 60) + 's'
 }
 
-function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs, step, continued, argsJson, result }: {
+function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs, step, continued, argsJson, result, cancelled }: {
   tool: string; args?: string; done?: boolean; toolOk?: boolean; summary?: string; startedAt?: number; elapsedMs?: number
   /** 工具链内序号（如 2/3）——多轮连续工具调用可追溯顺序 */
   step?: { no: number; total: number }
@@ -75,16 +75,18 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
   /** 完整参数 JSON / 完整结果正文：「细节展开」（默认折叠，零噪音；对照 Claude Code 工具调用默认折叠+可展开详细执行） */
   argsJson?: string
   result?: string
+  /** 轮次以停止/错误终了时工具未返回结果（中性「已取消」终态；失败=工具自己报错，取消=人被中止，语义分层） */
+  cancelled?: boolean
 }) {
   const failed = done === true && toolOk === false
   // 进行中态：每秒刷新「已 Ns」；完成后不再刷新（meta-done 事件里已带最终耗时）
   const [, tick] = useReducer((x: number) => x + 1, 0)
   useEffect(() => {
-    if (done || startedAt == null) return
+    if (done || cancelled || startedAt == null) return
     const h = window.setInterval(tick, 1000)
     return () => window.clearInterval(h)
-  }, [done, startedAt])
-  const live = !done && startedAt != null ? Math.max(0, performance.now() - startedAt) : undefined
+  }, [done, cancelled, startedAt])
+  const live = !done && !cancelled && startedAt != null ? Math.max(0, performance.now() - startedAt) : undefined
   // 「细节展开」：仅有可查看的完整参数/结果时给入口（old 事件无新字段 → 不显示，视觉零回归）
   const hasDetail = !!(argsJson || result)
   const [open, setOpen] = useState(false)
@@ -861,12 +863,6 @@ export default function AgentPanel(props: AgentPanelProps) {
   const atRefs = useMemo(() => parseAtRefs(input), [input])
   const injectBudget = Math.min(atRefs.length * REF_CAP.each, REF_CAP.total)
 
-  function grabQuote() {
-    const api = props.editorApi()
-    const sel = api?.getSelected()
-    if (sel) useAgentStore.getState().setQuote(sel)
-  }
-
   /** 固定逻辑命令（/巡查 /导演）：直连既有入口执行，结果注入对话流（结论落资产），不经模型 */
   async function runFixed(raw: string, cmd: ZjCommand, args: string) {
     const st = useAgentStore.getState()
@@ -1154,7 +1150,7 @@ export default function AgentPanel(props: AgentPanelProps) {
             <p className="px-2 py-10 text-center text-xs leading-5 text-ink-3">
               在右侧和 agent 边聊边生成。
               <br />
-              先选中正文某段 → 「引用选中」，或直接输入指令。
+              先选中正文某段 → 点浮层「添加到对话」，或直接输入指令。
               <br />
               <span className="mt-1 inline-block text-[10px] text-ink-3">要改正文时 agent 会直接给出修改方案，采纳即写入，无需复制粘贴。</span>
             </p>
@@ -1270,16 +1266,6 @@ export default function AgentPanel(props: AgentPanelProps) {
                 </button>
               ))}
             </div>
-            <button
-              type="button"
-              onClick={grabQuote}
-              title="把编辑器里选中的段落作为引用"
-              aria-label="把编辑器里选中的段落作为引用"
-              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-hair bg-surface px-1.5 py-1 text-[11px] text-ink-2 transition-colors hover:bg-well hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
-            >
-              <Paperclip className="h-3 w-3" />
-              <span>引用选中</span>
-            </button>
           </div>
           <div className="mt-2">
             {engineOff && (

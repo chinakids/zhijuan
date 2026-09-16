@@ -36,14 +36,9 @@ await sleep(3500)
 ok(/novel/.test(await ev('location.hash')), '页面已载入 novel 路由')
 ok(!!(await ev(`!!document.querySelector('textarea[placeholder*="让 agent"]')`)), 'agent 输入框存在')
 
-// 2. 「引用选中」按钮（与快捷指令 chips 同权重，2026-09-16 主人：文本引用与其他功能无不同）图标应为 12px
-const clip = await ev(`(() => {
-  const btn = [...document.querySelectorAll('button')].find((b) => b.textContent.includes('引用选中'))
-  if (!btn) return null
-  const svg = btn.querySelector('svg')
-  return svg ? [svg.getBoundingClientRect().width, svg.getBoundingClientRect().height] : null
-})()`)
-ok(!!clip && Math.abs(clip[0] - 12) < 0.5 && Math.abs(clip[1] - 12) < 0.5, `引用选中 图标 12px（实际 ${clip && clip[0]}px）`)
+// 2. 「引用选中」按钮已移除（2026-09-16 主人：已有划词浮层「添加到对话」，按钮冗余）——输入区不应再有它
+const quoteBtn = await ev(`(() => [...document.querySelectorAll('button')].find((b) => b.textContent.includes('引用选中')) ?? null)()`)
+ok(!quoteBtn, `「引用选中」按钮已移除（划词浮层唯一入口）`)
 
 // 3. 发送「帮我改」→ devShim 出 EditCard（采纳并写入 / 拒绝）
 await ev(`(() => {
