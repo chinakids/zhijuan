@@ -107,6 +107,7 @@ function ok(name, cond, extra = '') {
     ok('A④ 最新在前：首条为第03章', items[0]?.includes('第03章') && items[0]?.includes('切片「雾港夜」'), items[0])
     ok('A⑤ 次条含「提案 2」（i=2 种子）', (items[1] || '').includes('提案 2'), items[1])
     ok('A⑥ 末条为失败态（第01章 ok=false 显示「失败」）', (items[2] || '').includes('第01章') && (items[2] || '').includes('失败'), items[2])
+    ok('A⑬ 失败条目带错误摘要（种子 error 渲染「失败：…」）', (items[2] || '').includes('失败：') && (items[2] || '').includes('模型回复未能解析为设定 JSON 数组'), items[2])
     ok('A⑦ 守卫徽标在含守卫的条目（第03章 guard=1）', (items[0] || '').includes('守卫 1'), items[0])
     ok('A⑧ 头注「最近 3 条」', await page.eval(bodyHas('最近 3 条')))
 
@@ -153,6 +154,37 @@ function ok(name, cond, extra = '') {
     await evalUntil(page, `document.querySelector('[role="dialog"][aria-label="同步记录"]') !== null`, Boolean, 10000, '抽屉打开（B）')
     await evalUntil(page, bodyHas('还没有同步记录'), Boolean, 10000, '空态文案')
     ok('B① 无记录时显示「还没有同步记录」空态', true)
+  } finally {
+    page.close()
+  }
+}
+
+// ---------- Tab C：真实同步失败 → 日志失败条目（与真机 runSync 失败路径同口径） + 一次性恢复 ----------
+{
+  const tab = await openTab(BASE + '/?cb=' + Date.now() + '&zj-fail=agentSync#/project/demo-aseya/timeline')
+  const page = await attach(tab.webSocketDebuggerUrl)
+  try {
+    await evalUntil(page, bodyHas('项目时间线'), Boolean, 20000, '时间线页载入（C）')
+    // 数据层：失败调用先记日志再抛（mock 内部路径，与真机异常路径 append 同口径）
+    const before = await page.eval(`window.zhijuan.syncLogList('demo-aseya').then((l) => l.length)`)
+    ok('C① 无预置时日志为空', before === 0, 'n=' + before)
+    const r1 = await page.eval(`window.zhijuan.agentSync('demo-aseya', '正文/第01章_雾港.md').then(() => 'OK').catch((e) => 'ERR:' + e.message)`)
+    ok('C② 首次调用抛错（一次性失败注入）', String(r1).startsWith('ERR:'), String(r1))
+    const log1 = await page.eval(`window.zhijuan.syncLogList('demo-aseya').then((l) => l.map((e) => ({ ok: e.ok, err: e.error || '' })))`)
+    ok('C③ 失败也落日志：新增 1 条 ok=false', log1.length === 1 && log1[0].ok === false, JSON.stringify(log1))
+    ok('C④ 日志失败条目带错误摘要（clipLogError 口径）', (log1[0].err || '').includes('模型回复未能解析为设定 JSON 数组'), log1[0].err)
+    // UI 层：抽屉展示失败摘要
+    await page.eval(`document.querySelector('[data-testid="sync-log-open"]').click()`)
+    await evalUntil(page, `document.querySelector('[role="dialog"][aria-label="同步记录"]') !== null`, Boolean, 10000, '抽屉打开（C）')
+    await evalUntil(page, `${qSel('[data-testid="sync-log-item"]')}.length`, (n) => n >= 1, 10000, '失败条目出现')
+    const itemsC = await page.eval(`[...document.querySelectorAll('[data-testid="sync-log-item"]')].map((d) => (d.dataset.ok + '::' + d.innerText.replace(/\\s+/g, ' ').trim()))`)
+    ok('C⑤ 抽屉显示失败条目（红点 data-ok=0 + 「失败：」摘要）', (itemsC[0] || '').startsWith('0::') && (itemsC[0] || '').includes('失败：') && (itemsC[0] || '').includes('模型回复未能解析为设定 JSON 数组'), itemsC[0])
+    await page.shot('sync-log-fail-' + new Date().toTimeString().slice(0, 5).replace(':', '') + '.png')
+    // 一次性语义：再次调用恢复成功（zjSyncFailOnceUsed 已置位）
+    const r2 = await page.eval(`window.zhijuan.agentSync('demo-aseya', '正文/第01章_雾港.md').then(() => 'OK').catch((e) => 'ERR:' + e.message)`)
+    ok('C⑥ 第二次调用成功（一次性注入恢复）', String(r2) === 'OK', String(r2))
+    const log2 = await page.eval(`window.zhijuan.syncLogList('demo-aseya').then((l) => l.map((e) => ({ ok: e.ok, err: e.error || '' })))`)
+    ok('C⑦ 恢复后新增成功条目（最新在前 ok=true）', log2.length === 2 && log2[0].ok === true && log2[0].err === '', JSON.stringify(log2))
   } finally {
     page.close()
   }

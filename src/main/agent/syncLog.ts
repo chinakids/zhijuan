@@ -53,8 +53,5 @@ export function listSyncLog(projectId: string): SyncLogEntry[] {
   }
 }
 
-/** 错误摘要截断（与引擎侧错误文案同口径截断 120 字） */
-export function clipLogError(s: string): string {
-  const t = s.trim()
-  return t.length > 120 ? t.slice(0, 120) + '…' : t
-}
+/** 错误摘要截断（单一源已迁 shared/syncLogShared.ts，main 与 devShim 共用同口径；re-export 保持 import 图稳定） */
+export { clipLogError } from '../../shared/syncLogShared'

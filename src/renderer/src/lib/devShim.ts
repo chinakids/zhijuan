@@ -7,6 +7,7 @@ import { listSliceEntries } from '../../../shared/slices'
 import { resolveLibraryRoot } from '../../../shared/settingsLogic'
 import { AGENT_PANEL_DEFAULT_WIDTH } from '../../../shared/uiPrefs'
 import { sanitizeFile } from '../../../shared/paths'
+import { clipLogError } from '../../../shared/syncLogShared'
 import { nextProjectId } from '../../../shared/projects'
 import { extractFrontMatter, setFrontMatterField } from '../../../shared/fmatter'
 import { adoptActsChapter } from '../../../shared/actsAdopt'
@@ -82,7 +83,10 @@ if (Number.isFinite(syncLogSeed) && syncLogSeed > 0) {
       fileCount: 5,
       itemCount: i % 2 === 0 ? 2 : 0,
       guardCount: i % 3 === 0 ? 1 : 0,
-      ok: i !== 1
+      ok: i !== 1,
+      ...(i === 1
+        ? { error: '模型回复未能解析为设定 JSON 数组（已重试一次仍失败）——原文节选：[{"target":"人物/沈藏.md","fields":[{"name":"身份","value":"机场值夜"}]}]' }
+        : {})
     })
   }
 }
@@ -91,6 +95,18 @@ function devAppendSyncLog(id: string, chapterRel: string, slice: string, extra?:
   void id
   syncLogMem.unshift({ time: Date.now(), chapter: chapterRel, slice, castCount: 3, fileCount: 5, itemCount: 0, guardCount: 0, ok: true, ...extra })
   if (syncLogMem.length > 500) syncLogMem.length = 500
+}
+
+// 失败注入（?zj-fail=agentSync 一次性 / ?zj-fail-x=agentSync 持续）：由 agentSync mock 自身消费并**先记失败日志再抛**，
+// 与真机 runSync 三处返回同口径（成功/解析失败/异常均 appendSyncLog，失败带 clipLogError 摘要）。用在 buildFailProbe 里会被外层
+// 探针先 throw、mock 内部记不了日志——所以 agentSync 不在探针名单（buildFailProbe 已排除）。
+let zjSyncFailOnceUsed = false
+function parseFailFlag(key: string, name: string): boolean {
+  return (new URLSearchParams(location.search).get(key) ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .includes(name)
 }
 
 /** 与真机 store.writeDoc 同口径的写盘：内容变化时对版本化 rel 先留旧版快照；任务 mock（回建/导演/分幕）落盘也走这里，
@@ -1381,6 +1397,16 @@ const mock = {
       if (v === '__empty__') return ''
       return v || '雾港夜'
     })()
+    // 失败注入（?zj-fail=agentSync 一次性 / ?zj-fail-x=agentSync 持续）：与真机 runSync 三处返回同口径——
+    // 失败路径也先 appendSyncLog（ok:false + clipLogError 摘要）再让调用方收到失败，使「真实同步失败 → 日志失败条目 → 抽屉失败摘要」可断言
+    const failAlways = parseFailFlag('zj-fail-x', 'agentSync')
+    const failOnce = parseFailFlag('zj-fail', 'agentSync')
+    if (failAlways || (failOnce && !zjSyncFailOnceUsed)) {
+      zjSyncFailOnceUsed = true
+      const err = '模型回复未能解析为设定 JSON 数组（已重试一次仍失败）——原文节选：[{"target":"人物/沈藏.md"}]'
+      devAppendSyncLog(id, rel, sliceName, { itemCount: 0, guardCount: 0, ok: false, error: clipLogError(err) })
+      throw new Error(err)
+    }
     if (n > 0) {
       // 与真机 guardPersonTargets 同口径：已快速建档（docs 已存在该人物档）的 target 不再拦截；
       // 未建档 dropped 带 unfiled 标记（UI「建档案」动作的语义判据）
@@ -1682,6 +1708,9 @@ function buildFailProbe(base: typeof window.zhijuan): typeof window.zhijuan {
   const probe = { ...(base as unknown as Record<string, unknown>) }
   for (const name of new Set([...once, ...always])) {
     if (typeof src[name] !== 'function') continue
+    // agentSync 的失败注入由 mock 内部处理（先记失败日志再抛，与真机 runSync 失败路径同口径）；
+    // 若在此外层包装，探针先 throw、mock 内部 devAppendSyncLog 不会执行，失败条目就测不到。
+    if (name === 'agentSync') continue
     probe[name] = async (...args: unknown[]) => {
       if (always.has(name)) throw new Error('模拟失败：' + name)
       if (once.has(name)) {
