@@ -4,6 +4,8 @@ import type { EditItem } from '../../../shared/types'
 import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterSliceInDoc } from '../../../shared/outline'
 import { listChapterEntries } from '../../../shared/chapters'
 import { listSliceEntries } from '../../../shared/slices'
+import { listLinesFromEntries } from '../../../shared/line'
+import type { LineInfo } from '../../../shared/line'
 import { resolveLibraryRoot } from '../../../shared/settingsLogic'
 import { AGENT_PANEL_DEFAULT_WIDTH } from '../../../shared/uiPrefs'
 import { sanitizeFile } from '../../../shared/paths'
@@ -872,6 +874,10 @@ const mock = {
         updatedAt: mtime
       }))
     )
+  },
+  listLines: async (id: string): Promise<LineInfo[]> => {
+    // 与真机同口径（shared/line.listLinesFromEntries 单一权威源）：从切片枚举提线（正文为源，只统计带切片名的章）
+    return listLinesFromEntries(await mock.listSlices(id))
   },
   onFsEvent: (cb: (e: FsEvent) => void) => {
     fsListeners.add(cb)

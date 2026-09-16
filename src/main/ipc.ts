@@ -7,7 +7,7 @@ import { adoptActsChapter } from '../shared/actsAdopt'
 import { countWords } from '../shared/count'
 import { extractFrontMatter } from '../shared/fmatter'
 import { listProposals, createProposals, applyProposal, rejectProposal, discardProposal } from './proposals'
-import { listSlices } from './slices'
+import { listLines, listSlices } from './slices'
 import { listSnapshots, readSnapshot } from './history'
 import { registerAgentIpc } from './agent/ipc'
 import { runChapterUnlisted, runChapterMissing } from './agent/audit'
@@ -195,6 +195,8 @@ export function registerIpc() {
 
   // 时间线（切片清单，E4）
   ipcMain.handle('slices:list', (_e, projectId: string) => listSlices(projectDir(projectId)))
+  // 时间线（线枚举，2026-09-16 多时间线叙事）：正文为源现扫章头（与 listSlices 同扫描），建章向导/线徽标共用
+  ipcMain.handle('lines:list', (_e, projectId: string) => listLines(projectDir(projectId)))
 
   // 保存正文前置快检（本地规则，与 presence 同口径）：单章「名单外出场」命中（零模型）
   ipcMain.handle('presence:chapterUnlisted', (_e, id: string, chapterRel: string) => runChapterUnlisted(id, chapterRel))

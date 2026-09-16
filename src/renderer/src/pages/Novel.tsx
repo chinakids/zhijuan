@@ -4,7 +4,8 @@ import { Plus, BookOpen, PanelLeftOpen, X } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import type { ChapterEntry, ChapterCheckKind, UnlistedHit, MissingHit } from '../../../shared/types'
 import { serializeFrontMatter, addFrontMatterListItem, removeFrontMatterListItem } from '../../../shared/fmatter'
-import { chapterLine } from '../../../shared/line'
+import { chapterLine, DEFAULT_LINE } from '../../../shared/line'
+import type { LineInfo } from '../../../shared/line'
 import { shouldCollapseChapterList, AGENT_PANEL_DEFAULT_WIDTH } from '../../../shared/uiPrefs'
 import { Button } from '../components/ui/button'
 import { EmptyState } from '../components/EmptyState'
@@ -82,6 +83,9 @@ export default function Novel() {
   const [title, setTitle] = useState('')
   const [slice, setSlice] = useState('')
   const [cast, setCast] = useState('')
+  // 建章向导「时间线」（多时间线叙事 2026-09-16，周增量任务 #3）：预填上一章线；可手输新线；已有线快捷 chips（线数>1 才显示）
+  const [timeLine, setTimeLine] = useState('')
+  const [lineOpts, setLineOpts] = useState<LineInfo[]>([])
   const [goal, setGoal] = useState('') // 本章目标
   const [conflict, setConflict] = useState('')
   const [plot, setPlot] = useState('') // 关键事件
@@ -182,13 +186,19 @@ export default function Novel() {
     return best
   }, [chapters])
 
-  // 打开建章对话框：有上一章时预填切片名与涉及人物（都在同一输入框里可改）
+  // 打开建章对话框：有上一章时预填切片名、时间线与涉及人物（都在各自输入框里可改）
   const openCreate = useCallback(() => {
     const pf = prevChapter?.fm
     setSlice(typeof pf?.['切片'] === 'string' ? pf['切片'] : '')
     setCast(Array.isArray(pf?.['涉及人物']) ? pf['涉及人物'].join('，') : '')
+    // 预填上一章线（chapterLine 归一：未写字段=主线；与切片/人物同一「上一章」口径=约定头章号最大章）
+    setTimeLine(prevChapter ? chapterLine(prevChapter.fm) : '')
     setCreating(true)
-  }, [prevChapter])
+    // 已有线枚举（正文为源现扫；失败静默——手输兜底，枚举只是快捷选择，不挡建章）
+    if (id) {
+      window.zhijuan.listLines(id).then(setLineOpts).catch(() => setLineOpts([]))
+    }
+  }, [prevChapter, id])
 
   // 项目引导「现在新建第一章」：经 Outlet context 发信号（递增计数），打开建章对话框（无上一章则空开）
   useEffect(() => {
@@ -355,12 +365,16 @@ export default function Novel() {
   async function createChapter() {
     if (!id || !title.trim()) return
     const num = chapters.reduce((max, c) => Math.max(max, c.fm?.['章号'] ?? 0), 0) + 1
-    const fm = serializeFrontMatter({
+    const fmObj: Record<string, unknown> = {
       章号: num,
       题名: title.trim(),
       切片: slice.trim() || String(num),
       涉及人物: cast.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
-    })
+    }
+    // 时间线：空/主线省略字段（缺省=主线，设计文档 §4.2 零迁移零冗余）；非主线写入约定头
+    const lineTrim = timeLine.trim()
+    if (lineTrim && lineTrim !== DEFAULT_LINE) fmObj['时间线'] = lineTrim
+    const fm = serializeFrontMatter(fmObj)
     const name = `第${String(num).padStart(2, '0')}章_${title.trim()}.md`
     // 故事要素：有任何一项就写入文首指引块（随正文进入切片同步与 agent 上下文）
     const eles = [
@@ -386,6 +400,7 @@ export default function Novel() {
     setTitle('')
     setSlice('')
     setCast('')
+    setTimeLine('')
     setGoal('')
     setConflict('')
     setPlot('')
@@ -820,7 +835,7 @@ export default function Novel() {
             <DialogDescription>一章 = 一个时间切片。约定头会写进正文文件顶部，保存正文时按它做切片同步。</DialogDescription>
             {prevChapter && (
               <p className="text-[11px] text-ink-3">
-                已沿用上一章《{prevChapter.fm?.['题名'] ?? prevChapter.name}》的切片名与涉及人物，可直接修改。
+                已沿用上一章《{prevChapter.fm?.['题名'] ?? prevChapter.name}》的切片名、时间线与涉及人物，可直接修改。
               </p>
             )}
           </DialogHeader>
@@ -832,6 +847,36 @@ export default function Novel() {
             <div className="space-y-1.5">
               <Label>时间切片名</Label>
               <Input placeholder="如：第二幕_台风夜（留空则用章号）" value={slice} onChange={(e) => setSlice(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>时间线</Label>
+              <Input
+                data-testid="line-input"
+                placeholder={`如：过去线（留空默认${DEFAULT_LINE}）`}
+                value={timeLine}
+                onChange={(e) => setTimeLine(e.target.value)}
+              />
+              {lineOpts.length > 1 && (
+                <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="已有时间线">
+                  {lineOpts.map((l, i) => (
+                    <button
+                      key={l.name}
+                      type="button"
+                      data-testid={`line-chip-${i}`}
+                      onClick={() => setTimeLine(l.name)}
+                      title={`${l.name}（${l.chapters} 章）`}
+                      className={cn(
+                        'inline-flex shrink-0 items-center whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60',
+                        timeLine === l.name
+                          ? 'border-accent/50 bg-accent-soft text-accent'
+                          : 'border-hair bg-surface text-ink-2 hover:bg-well hover:text-ink'
+                      )}
+                    >
+                      {l.name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>涉及人物（逗号分隔）</Label>

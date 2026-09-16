@@ -32,6 +32,7 @@ import type {
   MenuStateReport
 } from '../shared/types'
 import type { RecentEntry } from '../shared/projects'
+import type { LineInfo } from '../shared/line'
 
 const api = {
   // 平台（renderer 据此做平台差异 UI，如自定义标题栏）
@@ -93,6 +94,7 @@ const api = {
   listDocs: (id: string, relDir: string) => ipcRenderer.invoke('doc:list', id, relDir) as Promise<{ file: string; name: string; mtime: number }[]>,
   listChapters: (id: string) => ipcRenderer.invoke('chapter:list', id) as Promise<ChapterEntry[]>,
   listSlices: (projectId: string) => ipcRenderer.invoke('slices:list', projectId) as Promise<SliceEntry[]>,
+  listLines: (projectId: string) => ipcRenderer.invoke('lines:list', projectId) as Promise<LineInfo[]>,
   // 素材库域（类别树 / 新建类别 / 文件名+全文搜索）
   listLibraryCategories: (id: string) => ipcRenderer.invoke('library:categories', id) as Promise<LibraryCategory[]>,
   createLibraryCategory: (id: string, name: string) =>
