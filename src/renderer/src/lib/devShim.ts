@@ -16,6 +16,7 @@ import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceChe
 import { nameFormCheck, nameMixCheck } from '../../../shared/nameform'
 import { actGapsCheck } from '../../../shared/actGaps'
 import { sliceSectionOrderCheck } from '../../../shared/sliceorder'
+import { chapterOrderCheck } from '../../../shared/chapterorder'
 import { findAnchorLine, normalizeAnchor } from '../../../shared/anchor'
 import { auditDocMarkdown } from '../../../shared/auditDoc'
 import { parseAnnotationCsv, segmentFromText, escapeCsvField } from '../../../shared/annotations'
@@ -248,6 +249,34 @@ docs.set(
   'demo-multiline/人物/周晚.md',
   ['---', '姓名: 周晚', '身份: 邮差', '---', '', '# 周晚', '', '- 外貌：眉眼弯弯，爱穿墨绿制服', '- 性格：话多，喜欢在值夜时读旧信', ''].join('\n')
 )
+// ===== 切片时序核查演示项目（周交付增量#6 智能层：devShim 真算化 + 多线异常种子） =====
+// 专供「切片时序核查」真算演示：双线交错 + 跨线重名（R7）+ 线内倒流（R5）+ 线内同名不连续（R6）。
+// 语义：过去线是回闪线——第02/06章都回到「第一幕_潮起」，与主线第01章共用切片名（约定建议全局唯一）。
+// 健康的多线演示见 demo-multiline（切片名带线前缀全局唯一，零命中）。
+docs.set(
+  'demo-order/正文/第01章_晨港.md',
+  ['---', '章号: 1', '题名: 晨港', '切片: 第一幕_潮起', '涉及人物: [苏晚]', '---', '', '# 晨港', '', '苏晚提着旧帆布包走下渡轮，港口的雾还没散。', ''].join('\n')
+)
+docs.set(
+  'demo-order/正文/第02章_旧港.md',
+  ['---', '章号: 2', '题名: 旧港', '时间线: 过去线', '切片: 第一幕_潮起', '涉及人物: [苏晚]', '---', '', '# 旧港', '', '三十年前的今天，苏晚第一次站在这个码头。', ''].join('\n')
+)
+docs.set(
+  'demo-order/正文/第03章_灯塔.md',
+  ['---', '章号: 3', '题名: 灯塔', '切片: 第三幕_风浪', '涉及人物: [苏晚, 老周]', '---', '', '# 灯塔', '', '风浪拍上灯塔基座，老周把缆绳又绕了一圈。', ''].join('\n')
+)
+docs.set(
+  'demo-order/正文/第04章_长堤.md',
+  ['---', '章号: 4', '题名: 长堤', '时间线: 过去线', '切片: 第二幕_雨夜', '涉及人物: [苏晚]', '---', '', '# 长堤', '', '雨夜的长堤空无一人，只有她踩水的脚步声。', ''].join('\n')
+)
+docs.set(
+  'demo-order/正文/第05章_归航.md',
+  ['---', '章号: 5', '题名: 归航', '切片: 第五幕_灯灭', '涉及人物: [苏晚, 老周]', '---', '', '# 归航', '', '灯灭的那一刻，她终于看清了船的航线。', ''].join('\n')
+)
+docs.set(
+  'demo-order/正文/第06章_旧港之二.md',
+  ['---', '章号: 6', '题名: 旧港之二', '时间线: 过去线', '切片: 第一幕_潮起', '涉及人物: [苏晚]', '---', '', '# 旧港之二', '', '回闪结束前，她又想起登船那天的潮水。', ''].join('\n')
+)
 docs.set(
   'demo-aseya/素材库/桥段/追忆型开头.md',
   ['---', '标签: [桥段, 开头, 失忆]', '---', '', '# 追忆型开头', '', '以一件旧物切入，牵出角色“忘了的事”，用于开篇营造悬念。', ''].join('\n')
@@ -432,6 +461,15 @@ const projects: ProjectSummary[] = [
     lastChapter: '第05章_破晓'
   },
   {
+    id: 'demo-order',
+    name: '潮汐的岔路',
+    description: '示例：双线交错 + 切片名跨线共用（切片时序核查演示）',
+    createdAt: now - 86400_000 * 2,
+    updatedAt: now - 3600_000,
+    stats: { chapters: 6, characters: 2, worldviewFiles: 0, materials: 0 },
+    lastChapter: '第06章_旧港之二'
+  },
+  {
     id: 'demo-blank',
     name: '空白示例',
     description: '示例：尚未写正文的项目（空态演示）',
@@ -451,6 +489,14 @@ function docsOf(prefix: string): { file: string; name: string; mtime: number }[]
       const file = k.slice(prefix.length + 1)
       return { file, name: file.split('/').pop()!, mtime: devMtime(prefix, file) }
     })
+}
+
+/** 审计用正文章收集：与真机 readVolumeChapters（main/agent/audit.ts）同口径——只收 .md（批注 csv 等不算章），raw 非空才纳入 */
+function volumeChaptersOf(projectId: string): { file: string; raw: string }[] {
+  return docsOf(projectId + '/正文')
+    .filter((d) => d.name.endsWith('.md'))
+    .map(({ file }) => ({ file: '正文/' + file, raw: docs.get(projectId + '/正文/' + file) ?? '' }))
+    .filter((c) => c.raw.trim())
 }
 
 /** mtime 模拟（真机=文件系统 mtime；dev 内存无盘，用稳定模拟以便演示/冒烟断言）：
@@ -1276,22 +1322,17 @@ const mock = {
                 if (al.length) aliasMap[n] = al
               }
             }
-            const chapters = docsOf(projectId + '/正文')
-              .map(({ file }) => ({ file: '正文/' + file, raw: docs.get(projectId + '/正文/' + file) ?? '' }))
-              .filter((c) => c.raw.trim())
+            const chapters = volumeChaptersOf(projectId)
             return { ok: true as const, result: presenceCheck({ knownChars: names, chapters, aliasMap }) }
           })()
         : kind === 'order'
-        ? {
-            ok: true as const,
-            result: {
-              summary: '（演示）切片时序核查：共 4 章，2 条需复核（章号结构 / 切片顺序）。',
-              items: [
-                { severity: 'medium' as const, type: 'timeline', where: '灯塔夜访（正文/第02章_灯塔夜访.md）→ 无人码头（正文/第03章_无人码头.md）', what: '切片序号倒流：前序章的切片「第二幕_风起」（第 2）晚于本章的「第一幕_夜」（第 1），按章号顺序时间线向后跳了。', suggest: '若为有意的插叙/倒叙可忽略；否则检查这两章约定头「切片」是否写反，或章节顺序需要调整。' },
-                { severity: 'low' as const, type: 'timeline', where: '全卷共 4 章，章号不连续：1→3。', what: '相邻章号之间存在空缺（可能还有未写的章节，或已删章节未重新编号）。', suggest: '草稿阶段常见，可忽略；若作品已成型，请在补齐或删除后统一重排章号。' }
-              ]
-            }
-          }
+        ? (() => {
+            // 与主进程同语义：复用共享纯函数 + devShim 内存文档真实计算（2026-09-16 真算化，弃旧写死 mock）。
+            // 演示项目 demo-order 含跨线重名（R7）/线内倒流（R5）/线内同名不连续（R6）案例 → 抽屉可见 3 条；
+            // demo-aseya/demo-multiline 健康数据 → 零命中（与真机同一实现，不再各写一套）。
+            const chapters = volumeChaptersOf(projectId)
+            return { ok: true as const, result: chapterOrderCheck({ chapters }) }
+          })()
         : kind === 'unused'
         ? (() => {
             // 与主进程同语义：复用共享纯函数 + devShim 内存文档真实计算（演示项目沈藏登记了未出现的「沈老爹」）
@@ -1303,17 +1344,13 @@ const mock = {
                 if (al.length) aliasMap[n] = al
               }
             }
-            const chapters = docsOf(projectId + '/正文')
-              .map(({ file }) => ({ file: '正文/' + file, raw: docs.get(projectId + '/正文/' + file) ?? '' }))
-              .filter((c) => c.raw.trim())
+            const chapters = volumeChaptersOf(projectId)
             return { ok: true as const, result: unusedAliasCheck({ aliasMap, chapters }) }
           })()
         : kind === 'actgaps'
         ? (() => {
             // 与主进程同语义：复用共享纯函数 + devShim 内存文档真实计算（演示项目正文无占位注释 → 零命中空态；命中路径由单测/数据层冒烟覆盖）
-            const chapters = docsOf(projectId + '/正文')
-              .map(({ file }) => ({ file: '正文/' + file, raw: docs.get(projectId + '/正文/' + file) ?? '' }))
-              .filter((c) => c.raw.trim())
+            const chapters = volumeChaptersOf(projectId)
             return { ok: true as const, result: actGapsCheck({ chapters }) }
           })()
         : kind === 'sliceord'
@@ -1326,9 +1363,7 @@ const mock = {
                 const n = base.replace(/\.md$/i, '').trim()
                 return n && !['总览', '索引'].includes(n) && d.raw.trim()
               })
-            const chapters = docsOf(projectId + '/正文')
-              .map(({ file }) => ({ file: '正文/' + file, raw: docs.get(projectId + '/正文/' + file) ?? '' }))
-              .filter((c) => c.raw.trim())
+            const chapters = volumeChaptersOf(projectId)
             return { ok: true as const, result: sliceSectionOrderCheck({ characters, chapters }) }
           })()
         : kind === 'nameform'
@@ -1347,9 +1382,7 @@ const mock = {
                 rawChars[n] = raw
               }
             }
-            const chapters = docsOf(projectId + '/正文')
-              .map(({ file }) => ({ file: '正文/' + file, raw: docs.get(projectId + '/正文/' + file) ?? '' }))
-              .filter((c) => c.raw.trim())
+            const chapters = volumeChaptersOf(projectId)
             return { ok: true as const, result: nameFormCheck({ knownChars: names, aliasMap, chapters, rawChars }) }
           })()
         : kind === 'mixform'
@@ -1369,9 +1402,7 @@ const mock = {
                 rawChars[n] = raw
               }
             }
-            const chapters = docsOf(projectId + '/正文')
-              .map(({ file }) => ({ file: '正文/' + file, raw: docs.get(projectId + '/正文/' + file) ?? '' }))
-              .filter((c) => c.raw.trim())
+            const chapters = volumeChaptersOf(projectId)
             return { ok: true as const, result: nameMixCheck({ knownChars: names, aliasMap, chapters, rawChars }) }
           })()
         : kind === 'consistency'
