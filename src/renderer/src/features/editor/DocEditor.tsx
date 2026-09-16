@@ -140,15 +140,21 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
   statusRef.current = status
   useEffect(() => {
     if (extVersion === undefined || extVersion === 0) return
-    const api = apiRef.current
-    if (!api) return
     if (statusRef.current === 'dirty') {
       setStatus('external')
       setNote('磁盘有更新且本页有未保存改动 — 请重新保存或另存')
       return
     }
+    let cancelled = false
     void (async () => {
       const raw = (await window.zhijuan.readDoc(projectId, rel)) ?? ''
+      if (cancelled) return
+      // await 期间编辑器可能已随换文件重建（epoch 驱动）：旧实例已被 destroy，
+      // 若继续用 effect 开头捕获的旧 api 会抛 MilkdownError contextNotFound（2026-09-16 修，
+      // 建章/切章后 console 报 headingAttr 错误即此）。重读 apiRef 且重查 dirty
+      // （await 期间用户可能已开始编辑，不覆盖用户输入）。
+      const api = apiRef.current
+      if (!api || statusRef.current === 'dirty') return
       rawRef.current = raw
       const body = withFm ? splitFm(raw).body : raw
       savedMdRef.current = body
@@ -156,6 +162,9 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
       setStatus('idle')
       setNote('')
     })()
+    return () => {
+      cancelled = true
+    }
   }, [extVersion, projectId, rel, withFm])
 
   const dirty = status === 'dirty'
