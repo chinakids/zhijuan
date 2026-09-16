@@ -226,6 +226,20 @@
   color: var(--ink-3);
 }
 
+/* 工具栏按压态 + More 触发器打开态（HIG Buttons「Always include a press state for a custom button」+
+ * Toolbars「系统为符号控件定义 hover 与 selection 态」；2026-09-16 工具栏矩阵走查实锤 zj-tb-item 漏 press 态——
+ * 仅颜色通道（背景加深一档，无 transform，ui-ux-pro-max Stable Interaction States 同款；:active 特异度 0,5,0，
+ * 高于 zj-tb-on(0,3,0)，按下瞬间按压色优先、松开回激活色；disabled 豁免不响应）。
+ * 打开态：Radix Trigger asChild 会把 data-state=open 放到按钮上——菜单打开时保持 hover 同款高亮，
+ * 与 macOS 菜单栏「打开=按钮保持选中」惯例一致（键盘打开时焦点环 + 高亮双通道可辨）。 */
+.zj-md-toolbar .zj-tb-item:active:not(:disabled):not(.zj-tb-off) {
+  background: color-mix(in srgb, var(--well) 80%, var(--ink-3) 20%);
+}
+.zj-md-toolbar .zj-tb-item[data-state='open'] {
+  background: var(--well);
+  color: var(--ink);
+}
+
 /* 工具栏激活态（HIG Buttons：macOS 方形符号按钮可配置为 toggle 行为，系统保留专门视觉传达 toggled 状态；
  * Toolbars：系统为符号控件定义 hover 与 selection 态；Pages/TextEdit 先例=光标在本格式内时按钮呈激活态。
  * 视觉与全站选中态口径一致：accent-soft 底 + accent 图标（tree/list 选中同款）。

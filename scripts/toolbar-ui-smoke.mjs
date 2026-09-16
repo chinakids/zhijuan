@@ -103,16 +103,25 @@ console.log('NARROW:', JSON.stringify(v1))
 ok('窄窗出现 More 按钮', v1.more === true)
 ok('窄窗可见按钮减少', v1.items.length < 12, String(v1.items.length))
 
-// 中窄（980；原 900 口径因平台层 d95ddb3 Agent 面板宽拖拽后失效——编辑器列不足，900 时只剩「正文段落」）——
-// 先恢复宽窗再逐步收窄：应先出现部分可见+More（recompute 需完成后才满足）
+// 中窄窗：逐级试探视口（03deec5 窄窗正文保护后，章列折叠会让正文变宽→断言不锁固定视口数字），
+// 找到「More 出现 + 部分保留」的状态，断言语义= HIG「变窄时按既定优先级移入溢出菜单」：
+// 低频（行内代码）先藏、核心（一级标题）保留、菜单内容=可见缺失集
 await page.cmd('Emulation.clearDeviceMetricsOverride')
-await sleep(300)
-await page.cmd('Emulation.setDeviceMetricsOverride', { width: 980, height: 800, deviceScaleFactor: 1, mobile: false })
-const v1b = await evalUntil(page, TB_STATE, (x) => x && x.ready && x.more === true && x.items.includes('一级标题'), 15000, '中窄窗 部分保留 + More')
+await sleep(400)
+let v1b = null
+for (const w of [1160, 1040, 960, 880, 800, 720, 640]) {
+  await page.cmd('Emulation.setDeviceMetricsOverride', { width: w, height: 800, deviceScaleFactor: 1, mobile: false })
+  await sleep(700)
+  const v = await page.eval(TB_STATE)
+  console.log(`TRIAL ${w}: more=${v.more} n=${v.items.length}`)
+  if (v && v.ready && v.more === true && v.items.includes('一级标题') && !v.items.includes('有序列表')) { v1b = { ...v, at: w }; break }
+}
 console.log('MID:', JSON.stringify(v1b))
+if (!v1b) throw new Error('未找到「More 出现+一级标题保留」的视口')
 ok('中窄窗 More 出现', v1b.more === true)
 ok('中窄窗保留核心项（一级标题）', v1b.items.includes('一级标题'), JSON.stringify(v1b.items))
 ok('中窄窗低频项收进菜单', v1b.items.length < 12, String(v1b.items.length))
+ok('中窄窗低频「行内代码」先被收纳', !v1b.items.includes('行内代码'), JSON.stringify(v1b.items))
 
 // ③ 打开 More 菜单并点击「有序列表」（Radix 菜单对 pointer 事件敏感，用 CDP 真实鼠标；菜单项在 portal 中）
 async function clickXY(page, x, y) {
