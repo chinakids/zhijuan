@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeHideCount, SEP_W, GAP, MORE_W, type ToolGroup, type ToolItem } from '../../src/renderer/src/features/editor/toolbarLayout'
+import { computeHideCount, EDITOR_SHORTCUTS, SEP_W, GAP, MORE_W, type ToolGroup, type ToolItem } from '../../src/renderer/src/features/editor/toolbarLayout'
 
 /** 与 EditorToolbar 同构的最小工具集（宽度模拟实测）：
  * 组序 = [h1 h2 h3 para] [bold italic code quote ul ol] [undo redo]，共 12 项。
@@ -78,5 +78,27 @@ describe('computeHideCount（编辑器工具栏窄窗溢出）', () => {
     // 该宽度下组2 全隐可容纳，但多 1px 则需隐组1 的项
     expect(computeHideCount(W(), PRIORITY, groups, width)).toBeGreaterThanOrEqual(6) // 先收组2
     expect(computeHideCount(W(), PRIORITY, groups, width - 1)).toBeGreaterThan(6) // 收完组2 还不够
+  })
+})
+
+describe('EDITOR_SHORTCUTS（菜单键位提示权威表）', () => {
+  it('每个键位提示的 key 都必须对应真实工具栏工具（防悬空提示）', () => {
+    const keys = new Set(flatKeys)
+    for (const k of Object.keys(EDITOR_SHORTCUTS)) expect(keys.has(k)).toBe(true)
+  })
+
+  it('行内代码 code 不列提示：⌘E 被「用选区设置查找词」占用（2026-09-17 实锤）', () => {
+    expect(EDITOR_SHORTCUTS.code).toBeUndefined()
+  })
+
+  it('提示文本是 mac 符号形式（专有 ⌥⌘⇧ 与键名组合，无英文 Mod- 字样）', () => {
+    for (const v of Object.values(EDITOR_SHORTCUTS)) {
+      expect(v).toMatch(/^[⌥⇧⌘]*⌘[0-9A-Z]$/)
+    }
+  })
+
+  it('撤销/重做按 mac 惯例显示 ⇧⌘Z（Mod-y 亦绑定但以 Shift-Cmd-Z 展示）', () => {
+    expect(EDITOR_SHORTCUTS.undo).toBe('⌘Z')
+    expect(EDITOR_SHORTCUTS.redo).toBe('⇧⌘Z')
   })
 })

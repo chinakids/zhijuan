@@ -63,6 +63,15 @@ const DropdownMenuSeparator = React.forwardRef<
 ))
 DropdownMenuSeparator.displayName = DropdownMenuPrimitive.Separator.displayName
 
+/** 菜单项右侧键盘等价键提示（HIG Menus：menu items may show the keyboard equivalent）。
+ * 样式＝小号灰字、无边框（mac 系统菜单惯例；不用 web kbd 框），靠 ml-auto 推到最右。 */
+const DropdownMenuShortcut = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(
+  ({ className, ...props }, ref) => (
+    <span ref={ref} className={cn('zj-menu-shortcut ml-auto pl-4 text-[11px] leading-none text-ink-3', className)} {...props} />
+  )
+)
+DropdownMenuShortcut.displayName = 'DropdownMenuShortcut'
+
 export {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -72,5 +81,6 @@ export {
   DropdownMenuSeparator,
   DropdownMenuGroup,
   DropdownMenuPortal,
-  DropdownMenuSub
+  DropdownMenuSub,
+  DropdownMenuShortcut
 }

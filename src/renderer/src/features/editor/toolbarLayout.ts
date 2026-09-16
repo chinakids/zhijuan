@@ -11,6 +11,10 @@ export interface ToolItem {
   disabled?: (state: { canUndo: boolean; canRedo: boolean }) => boolean
   /** 激活态谓词（HIG Buttons/Toolbars：符号按钮须表达 toggled 状态；定义即视为 toggle 按钮——render 时按结果加 aria-pressed 与激活视觉；布局纯逻辑只透传） */
   active?: (s: ActiveState) => boolean
+  /** 键位提示（HIG Menus「may include the keyboard equivalent」）：菜单项右侧显示的键盘等价键，mac 符号文本。
+   * 只填**真实绑定**的组合——绑定来源=prosemirror-keymap 读取（Milkdown preset-commonmark 默认 keymap，Prose.tsx 无覆盖），
+   * 无头页面实测 + w3c-keyname mac 归一化逻辑双重核实（2026-09-17 体验层）；未绑定/被产品键占用的项**不填**（提示不得说谎）。 */
+  shortcut?: string
 }
 /** 一个工具组：组内按钮相邻，组与组之间渲染分隔线（组全隐则 sep 也隐） */
 export interface ToolGroup { key: string; items: ToolItem[] }
@@ -18,6 +22,27 @@ export interface ToolGroup { key: string; items: ToolItem[] }
 export const SEP_W = 9 // css .sep width 1px + margin 0 4px
 export const GAP = 2 // flex gap
 export const MORE_W = 28 // More 按钮宽（icon 按钮 24px + 余量）
+
+/** 编辑器工具键位提示权威表（key → mac 符号文本）。**只列真实绑定**：
+ * - ⌘B 加粗 / ⌘I 斜体 / ⇧⌘B 引用块 / ⌥⌘0-3 段落与标题 / ⌥⌘7 有序 / ⌥⌘8 无序 = Milkdown preset-commonmark 默认 keymap
+ *   （Prose.tsx `.use(commonmark)` 无覆盖；无头页面 dispatch 实测均真实生效，2026-09-17）。
+ * - ⌘Z / ⇧⌘Z 撤销重做 = @milkdown/plugin-history（Mod-z / Shift-Mod-z；Mac 惯例显示 ⇧⌘Z，Mod-y 亦绑定不展示）。
+ * - **行内代码 code 不列**：Milkdown 默认 Mod-e（⌘E）被织卷「用选区设置查找词」占用（Prose 全局键 +
+ *   系统菜单 accelerator CmdOrCtrl+E，实锤 2026-09-17 体验层）——菜单提示不显示不存在的快捷键（HIG：只显示 keyboard equivalent 真实栏位）。
+ * - 修改绑定/新增键位必须先更新本表，再改 EditorToolbar 渲染（单一权威源，EditorToolbar 只消费）。 */
+export const EDITOR_SHORTCUTS: Record<string, string> = {
+  h1: '⌥⌘1',
+  h2: '⌥⌘2',
+  h3: '⌥⌘3',
+  para: '⌥⌘0',
+  bold: '⌘B',
+  italic: '⌘I',
+  quote: '⇧⌘B',
+  ol: '⌥⌘7',
+  ul: '⌥⌘8',
+  undo: '⌘Z',
+  redo: '⇧⌘Z'
+}
 
 /**
  * 计算需隐藏的「最次要」项数 k（hidePriority 前 k 个进入 More 菜单）。

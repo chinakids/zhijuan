@@ -8,12 +8,13 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger
 } from '../../components/ui/dropdown-menu'
 import { setBlockType, toggleMark } from 'prosemirror-commands'
 import { wrapInList } from 'prosemirror-schema-list'
 import { undo, redo, undoDepth, redoDepth } from 'prosemirror-history'
-import { computeHideCount, MORE_W, type ToolGroup, type ToolItem } from './toolbarLayout'
+import { computeHideCount, EDITOR_SHORTCUTS, MORE_W, type ToolGroup, type ToolItem } from './toolbarLayout'
 import { EMPTY_ACTIVE, type ActiveState } from './toolbarActive'
 
 /** 撤销/重做可用态（HIG Menus/Toolbars：不可用项置灰示态、不响应交互，但不隐藏） */
@@ -81,6 +82,13 @@ export default function EditorToolbar({
         ]
       }
     ]
+    // 键位提示注入（EDITOR_SHORTCUTS 单一权威源：只填真实绑定，见 toolbarLayout.ts 头注释）
+    for (const g of groupsRef.current) {
+      for (const it of g.items) {
+        const sc = EDITOR_SHORTCUTS[it.key]
+        if (sc) it.shortcut = sc
+      }
+    }
     // 隐藏顺序（低频→高频）：行内代码/引用/列表 → 斜体/加粗 → 撤销/重做 → 标题/段落
     const flat = groupsRef.current.flatMap((g) => g.items)
     hidePriorityRef.current = ['code', 'quote', 'ol', 'ul', 'italic', 'bold', 'redo', 'undo', 'h3', 'h2', 'h1', 'para']
@@ -228,6 +236,7 @@ export default function EditorToolbar({
                   >
                     <t.icon className={`mr-2 h-3.5 w-3.5 ${act && !dis ? 'text-accent' : 'text-ink-3'}`} />
                     <span>{t.name}</span>
+                    {t.shortcut && <DropdownMenuShortcut>{t.shortcut}</DropdownMenuShortcut>}
                   </DropdownMenuItem>
                 </div>
               )
