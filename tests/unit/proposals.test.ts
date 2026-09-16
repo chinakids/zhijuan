@@ -188,15 +188,25 @@ describe('applyProposal', () => {
     expect(existsSync(join(root, 'p', '人物/新人.md'))).toBe(true)
   })
 
-  it('有一个文件写入失败 → 整体 rejected 且带 errors，成功的文件也回滚记录', () => {
-    // 把 人物 建为普通文件，让其下任何路径都写不进（ENOTDIR）
+  it('系统/IO 失败（ENOTDIR 类）→ 保持 pending 可重试；修复后重试成功 accepted（2026-09-16 候选1 语义）', () => {
+    // 把 人物 建为普通文件，让其下任何路径都写不进（ENOTDIR：系统错误带 code → ioFail）
     mkdirSync(join(root, 'p'), { recursive: true })
     writeFileSync(join(root, 'p', '人物'), '我是文件不是目录')
     const [p] = createProposals(root, 'p', 'agent-chat', '第1章', 's', [item({})])
     const r = applyProposal(root, 'p', p.id)
     expect(r.ok).toBe(false)
     expect(r.errors.length).toBeGreaterThan(0)
-    expect(listProposals(root, 'p')[0].status).toBe('rejected')
+    expect(r.retryable).toBe(true)
+    // 关键：IO/瞬态失败**不改状态**，卡仍在 pending 组、接受按钮可用，作者就地重试
+    expect(listProposals(root, 'p')[0].status).toBe('pending')
+    // 修复：还原 人物/ 目录与目标文件后，重试同一载荷成功（无需重新扫描/重新生成）
+    rmSync(join(root, 'p', '人物'), { force: true })
+    mkdirSync(join(root, 'p', '人物'), { recursive: true })
+    writeFileSync(join(root, 'p', '人物/林晚.md'), '# 人物\n\n## 现时状态\n\n旧')
+    const r2 = applyProposal(root, 'p', p.id)
+    expect(r2.ok).toBe(true)
+    expect(readFileSync(join(root, 'p', '人物/林晚.md'), 'utf-8')).toContain('新状态')
+    expect(listProposals(root, 'p')[0].status).toBe('accepted')
   })
 
   it('已应用的提案再次 apply → ok:false', () => {

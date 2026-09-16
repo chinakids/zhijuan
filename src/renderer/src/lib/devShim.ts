@@ -20,12 +20,14 @@ import { actGapsCheck } from '../../../shared/actGaps'
 import { sliceSectionOrderCheck } from '../../../shared/sliceorder'
 import { chapterOrderCheck } from '../../../shared/chapterorder'
 import { findAnchorLine, normalizeAnchor } from '../../../shared/anchor'
+import { isIoFailure } from '../../../shared/proposalApply'
 import { auditDocMarkdown } from '../../../shared/auditDoc'
 import { parseAnnotationCsv, segmentFromText, escapeCsvField } from '../../../shared/annotations'
 import { scrollMemorySnapshot } from '../features/editor/scrollMemory'
 import { isVersionedRel } from '../../../shared/versionedRel'
 import type { RecentEntry } from '../../../shared/projects'
 import { toast } from '../store/toasts'
+import { useProposalStore } from '../store/proposals'
 
 const now = Date.now()
 
@@ -104,6 +106,10 @@ function devAppendSyncLog(id: string, chapterRel: string, slice: string, extra?:
 // 与真机 runSync 三处返回同口径（成功/解析失败/异常均 appendSyncLog，失败带 clipLogError 摘要）。用在 buildFailProbe 里会被外层
 // 探针先 throw、mock 内部记不了日志——所以 agentSync 不在探针名单（buildFailProbe 已排除）。
 let zjSyncFailOnceUsed = false
+// 提案 IO 失败注入（?zj-iofail=applyProposal 一次性）：模拟系统/IO 错误（返回 ok:false 但不改状态），
+// 验证「失败后仍 pending、可就地重试」链路（真机对应 proposals.ts ioFail 分支；内容漂移失败走 reject 不在此）。
+let zjIoFailOnceUsed = (new URLSearchParams(location.search).get('zj-iofail') ?? '').split(',').map((s) => s.trim()).filter(Boolean).includes('applyProposal')
+
 function parseFailFlag(key: string, name: string): boolean {
   return (new URLSearchParams(location.search).get(key) ?? '')
     .split(',')
@@ -968,12 +974,21 @@ const mock = {
       mock.proposals.push(p)
       return p
     })
+    // 与真机「创建后调用方刷新」拉平（真机由保存/扫描路径 bump；冒烟无调用方，直接 bump 让 Workspace 顶栏入口出现）
+    useProposalStore.getState().bump()
     return created
   },
   applyProposal: async (_id: string, pid: string) => {
     const p = mock.proposals.find((x) => x.id === pid)
     if (!p || p.status !== 'pending') return { ok: false, applied: [], errors: ['未找到待处理的提案'] }
+    // 无头冒烟注入 ?zj-iofail=applyProposal（一次性）：模拟系统/IO 失败——返回失败但**不改状态**
+    // （与真机 applyProposal 的 ioFail 分支同口径：IO 失败保持 pending 可就地重试），断言「失败卡仍可重试」链路
+    if (zjIoFailOnceUsed) {
+      zjIoFailOnceUsed = false // 一次性：仅第一次 apply 失败，重试即恢复（模拟瞬态）
+      return { ok: false, applied: [], errors: ['人物写入被占用（模拟系统错误）'], retryable: true }
+    }
     const errs: string[] = []
+    let ioFail = false
     for (const it of p.items) {
       const key = _id + '/' + it.target
       const cur = docs.get(key) ?? ''
@@ -983,13 +998,15 @@ const mock = {
         fsEmit(_id, it.target)
       } catch (e) {
         errs.push(it?.target + ': ' + String((e as Error).message || e))
+        // 与真机 proposals.ts catch 同口径：带 code 的才是 IO/系统错误（保持 pending 可重试）
+        if (isIoFailure(e)) ioFail = true
       }
     }
     // 与真机同口径（ipc.ts:208-210 / proposals.ts:136）：有错误 → 整体不标记成功、不删批注行（保留重扫机会）
     const ok = errs.length === 0
-    p.status = ok ? 'accepted' : 'rejected'
+    p.status = ok ? 'accepted' : ioFail ? 'pending' : 'rejected'
     if (ok && p.meta?.annotations) devAnnoResolve(_id, p.meta.annotations)
-    return { ok, applied: ok ? p.items.map((i) => i.target) : [], errors: errs }
+    return { ok, applied: ok ? p.items.map((i) => i.target) : [], errors: errs, retryable: ioFail || undefined }
   },
   rejectProposal: async (_id: string, pid: string) => {
     const p = mock.proposals.find((x) => x.id === pid)

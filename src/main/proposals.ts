@@ -5,6 +5,7 @@ import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync, rmSync
 import type { Proposal, ProposalItem } from '../shared/types'
 import { DOT_DIR } from '../shared/paths'
 import { findAnchorLine, normalizeAnchor } from '../shared/anchor'
+import { isIoFailure } from '../shared/proposalApply'
 
 function dir(root: string, projectId: string): string {
   return join(root, projectId, DOT_DIR, 'proposals')
@@ -104,12 +105,14 @@ export function invalidateChapter(root: string, projectId: string, rel: string):
 }
 
 /** 接受：把 each item 的 after 按锚点写入对应文件 */
-export function applyProposal(root: string, projectId: string, id: string): { ok: boolean; applied: string[]; errors: string[] } {
+export function applyProposal(root: string, projectId: string, id: string): { ok: boolean; applied: string[]; errors: string[]; retryable?: boolean } {
   const p = findStatus(root, projectId, id)
   if (!p) return { ok: false, applied: [], errors: ['提案不存在'] }
   if (p.status !== 'pending') return { ok: false, applied: [], errors: ['提案状态为 ' + p.status] }
   const applied: string[] = []
   const errors: string[] = []
+  // 2026-09-16 候选1：失败分两类的判定（shared/proposalApply，devShim 同口径）——IO/系统失败保持 pending 可重试
+  let ioFail = false
   const byFile = new Map<string, ProposalItem[]>()
   for (const it of p.items) {
     const arr = byFile.get(it.target) ?? []
@@ -131,11 +134,15 @@ export function applyProposal(root: string, projectId: string, id: string): { ok
       applied.push(file)
     } catch (e) {
       errors.push(file + ': ' + String((e as Error).message || e))
+      // IO/系统错误（带 code，如 EISDIR/EACCES/ENOSPC）＝瞬态可重试；内容校验错误（无 code）＝确定性失败
+      if (isIoFailure(e)) ioFail = true
     }
   }
-  p.status = applied.length ? 'accepted' : 'rejected'
+  // 内容校验失败（漂移/缺 before）→ rejected 不可重试（重放必然再败，正确处置=重扫/再保存重新生成）；
+  // IO/系统失败 → 保持 pending，作者可就地重试（pending 卡「接受」按钮天然可用，无需 failed 状态）
+  p.status = applied.length ? 'accepted' : ioFail ? 'pending' : 'rejected'
   write(root, projectId, p)
-  return { ok: applied.length > 0, applied, errors }
+  return { ok: applied.length > 0, applied, errors, retryable: ioFail || undefined }
 }
 
 export function rejectProposal(root: string, projectId: string, id: string): boolean {

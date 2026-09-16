@@ -123,7 +123,7 @@ const api = {
   createProposals: (id: string, source: 'slice-sync' | 'agent-chat' | 'annotation-sync', chapter: string, slice: string, items: ProposalItem[], meta?: { annotations?: { file: string; rows: number[] }[]; note?: string }, metas?: { annotations?: { file: string; rows: number[] }[]; note?: string }[]) =>
     ipcRenderer.invoke('proposal:create', id, source, chapter, slice, items, meta, metas) as Promise<Proposal[]>,
   applyProposal: (id: string, pid: string) =>
-    ipcRenderer.invoke('proposal:apply', id, pid) as Promise<{ ok: boolean; applied: string[]; errors: string[] }>,
+    ipcRenderer.invoke('proposal:apply', id, pid) as Promise<{ ok: boolean; applied: string[]; errors: string[]; retryable?: boolean }>,
   rejectProposal: (id: string, pid: string) => ipcRenderer.invoke('proposal:reject', id, pid) as Promise<boolean>,
   discardProposal: (id: string, pid: string) => ipcRenderer.invoke('proposal:discard', id, pid) as Promise<boolean>,
 

@@ -137,7 +137,8 @@ function ItemCard({ p, projectId, onChanged, err, onErr }: { p: Proposal; projec
         // 移入 done 组，ItemCard 会卸载重挂（两个 map 调用不共享 fiber），组件本地 state
         // 在换组后归零——15:45 轮实锤「err 永不进 DOM」的根因；挂抽屉级才换组后仍可见。
         // toast 仍作兜底（抽屉关闭/长流程中也可见）。
-        const msg = (r.errors?.join('；') || '写入失败') + '（请先核对原文；如需继续请重新扫描批注或再次保存）'
+        // 2026-09-16：IO/系统失败（retryable）保持 pending 可重试，文案改指路「可直接重试」而非核对原文
+        const msg = (r.errors?.join('；') || '写入失败') + (r.retryable ? '（系统写入失败，可直接重试）' : '（请先核对原文；如需继续请重新扫描批注或再次保存）')
         onErr(p.id, msg)
         toast.add({ kind: 'warning', title: '提案未应用', description: msg })
       } else {
@@ -242,7 +243,7 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose }: 
     const fails: { id: string; msg: string }[] = []
     try {
       for (const p of pending) {
-        let r: { ok: boolean; errors: string[] }
+        let r: { ok: boolean; errors: string[]; retryable?: boolean }
         try {
           r = await window.zhijuan.applyProposal(projectId, p.id)
         } catch (e) {
@@ -252,7 +253,7 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose }: 
           const t = p.items[0]?.target ?? ''
           if (isChapterTarget(t) && t) targets.add(t)
         } else {
-          const msg = (r.errors?.join('；') || '写入失败') + '（请先核对原文；如需继续请重新扫描批注或再次保存）'
+          const msg = (r.errors?.join('；') || '写入失败') + (r.retryable ? '（系统写入失败，可直接重试）' : '（请先核对原文；如需继续请重新扫描批注或再次保存）')
           fails.push({ id: p.id, msg })
           reportErr(p.id, msg)
         }
