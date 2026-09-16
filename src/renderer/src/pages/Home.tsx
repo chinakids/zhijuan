@@ -404,7 +404,8 @@ export default function Home() {
                   <SelectItem value="">空白（仅目录骨架）</SelectItem>
                   {templates.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
-                      {t.builtin ? `示例（${t.name}）` : t.name}
+                      {/* 显示名去重：内建模板名恰为「示例」时不再叠「示例（示例）」（与 src/main/templates.ts BUILTIN_SAMPLE 对齐） */}
+                      {t.builtin && t.name !== '示例' ? `示例（${t.name}）` : t.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
