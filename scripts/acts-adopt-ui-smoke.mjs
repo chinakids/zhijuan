@@ -147,21 +147,37 @@ try {
   console.log('OK 正文含缺段占位注释：<!-- 分幕草稿缺第 2 段… -->')
   // 编辑器可见性：切到正文页，先点选第1章，ProseMirror 内应能看到占位注释原文（html 节点 textContent）
   await page.eval(`location.hash = '#/project/demo-aseya/novel'`)
-  await evalUntil(page, `document.body.innerText.includes('第1章 · 雾港')`, (v) => v === true, 15000, '正文页章节列表就绪')
-  console.log('点击:', await page.eval(`(() => {
-    const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').includes('第1章') && (x.textContent || '').includes('雾港'))
-    if (!b) return 'NOT_FOUND'
-    b.click()
-    return 'CLICKED:第1章 雾港'
-  })()`))
-  await evalUntil(page, `document.querySelector('.ProseMirror') !== null`, (v) => v === true, 15000, '正文页编辑器就绪')
-  await evalUntil(
-    page,
-    `(document.querySelector('.ProseMirror')?.innerText ?? '').includes('分幕草稿缺第 2 段')`,
-    (v) => v === true,
-    10000,
-    '编辑器可见占位注释'
-  )
+  // 坑（2026-09-16 平台层轮实锤，三连）：① 路由过渡期旧 DOM（大纲页）含同文本，innerText 判据
+  // 立即通过→点击落空→正解=等待/点击用目标按钮本身；② 「检查」「点击」两次 eval 竞态（re-render
+  // 间隙按钮瞬灭）→正解=find→click 原子合一；③ 点击落在未绑定事件的「幽灵按钮」上（hydration 竞态，
+  // 选中从未生效）——DBG-DUMP 实抓 `pm:false, empty:true`；且 `.ProseMirror` 存在≠内容就绪（未选章
+  // 可能挂空壳实例，实抓内容断言超时 11.2s）。最终正解＝成功判据直接用**编辑器内容出现**（占位注释
+  // 文本），未就绪且空态时按 2s 间隔补点（真实用户也不会在 hydration 前点击——对初始化时序的脚本
+  // 韧性，非掩盖产品回归）。
+  const contentReady = () => page.eval(`((document.querySelector('.ProseMirror')?.innerText ?? '').includes('分幕草稿缺第 2 段'))`)
+  const tStart = Date.now()
+  let lastClickAt = -Infinity
+  for (;;) {
+    if (await contentReady()) break
+    const empty = await page.eval(`(document.body.innerText||'').includes('选择左侧一个章节开始')`)
+    // 空态（未选中）且距上一点击 ≥2s → 补点（每次点击前确认按钮属于当前渲染批次）
+    if (empty && Date.now() - lastClickAt > 2000) {
+      const r = await page.eval(`(() => {
+        const b = [...document.querySelectorAll('button')].find((x) => (x.textContent || '').includes('第1章') && (x.textContent || '').includes('雾港'))
+        if (!b) return false
+        b.click()
+        return true
+      })()`)
+      if (r) lastClickAt = Date.now()
+    }
+    if (Date.now() - tStart > 25000) {
+      const s = await page.eval(`(() => ({ pm: !!document.querySelector('.ProseMirror'), empty: (document.body.innerText||'').includes('选择左侧一个章节开始'), content: (document.querySelector('.ProseMirror')?.innerText ?? '').slice(0, 60) }))()`)
+      console.log('DBG-DUMP:', JSON.stringify(s))
+      throw new Error('TIMEOUT waiting: 编辑器可见占位注释')
+    }
+    await sleep(500)
+  }
+  console.log('点击: CLICKED:第1章 雾港（编辑器内容就绪）')
   console.log('OK 编辑器内可见缺段占位注释（span[data-type=html] 原文显示）')
 
   console.log('\nPASS: 采纳分幕→自动切片同步 链路 OK')

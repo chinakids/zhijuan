@@ -20,6 +20,17 @@
 //       out/renderer/index.html 比对引用面（拦截服务指向旧构建/别的目录=整轮假绿）；全局另做构建
 //       新鲜度检查（src 晚于产物=改了没 build）。详见函数注释与 docs/模块推进/03-平台层.md。
 // 可选环境：8810（zj-bridge 真引擎桥）缺失标 SKIP 不计失败（--live 才可能全绿）。
+// CDP tab 治理（2026-09-16 19:30 平台层轮，候选 1 观察项收口）：
+//   背景：~101/138 个引用 9224 的冒烟脚本开 tab 从不关闭（跨轮残留实态 32 个），--all 长跑持续
+//   累积——9-15 22:30 / 9-16 16:30 两轮全量实踩：约 [148/155] 后 CDP 失联（9 项环境失败，重启
+//   agent_browser 即恢复，与 tab 累积强相关）。
+//   调研依据：codeables（headless Chrome 长跑内存增长：tab 不关=renderer 进程累积，处置=用完即关+
+//   浏览器回收）；16yun 博客（100 个未关闭 tab ≈ 300-500 进程）；chrome-devtools-mcp #1921（30~400
+//   tab 起 CPU/内存暴涨、2000 tab 直接崩溃）。官方 legacy HTTP 端点 `PUT /json/close/<id>` 实证
+//   可用（404=目标已不存在，容错）。
+//   处置（零侵入，不改 101 个脚本本身）：① 起点清理——织卷本地页 tab 超过 CDP_TAB_HIGH 先回收一批
+//   （治跨轮残留）；② 跑后收尾——关闭每个使用 CDP 的脚本运行期间新增的 page target（治长跑累积，
+//   tab 数全程恒定）；③ 观测——每脚本前后 tab 数与清理数落行，汇总报尾态。
 // 模型类口径（2026-09-15 16:30 收口）：真模型驱动的 smoke 依赖算力池 vLLM（127.0.0.1）忙闲，
 //   非织卷代码红/绿判据——门禁（--all）若包含它们会因模型侧波动恒红，违背「改动后一切如常」的
 //   确定性（基线 2026-09-15 13:30 实锤：acts/engine-sync 全量 300s 被杀=误杀）。
@@ -253,7 +264,49 @@ async function precheck(file) {
   if (/:9224/.test(content) && !(await pingUrl(CDP + '/json/version'))) {
     issues.push(`CDP 未起：${CDP}（本机专用无头 Chrome）`)
   }
-  return { issues, skipped }
+  return { issues, skipped, useCdp: /:9224/.test(content) }
+}
+
+// ---------- CDP tab 治理（2026-09-16 19:30 平台层轮）----------
+// 官方 legacy HTTP 端点：PUT /json/close/<targetId>（实证 200 "Target is closing"；404=已不存在，容错）
+const CDP_TAB_HIGH = 40 // 织卷本地页 tab 阈值：超过即起点清理（常态 ≤5-10；40 留足并发余量）
+// 本地页判据（host ∈ localhost/127.0.0.1）：织卷冒烟只开本机服务页；外部抓取（主人调研等）开的是
+// 外域 URL，不会被误清。专用隔离浏览器无用户数据，清理安全。
+const isLocalPage = (t) => /^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?\//i.test(t.url)
+
+async function cdpPages() {
+  try {
+    const r = await fetch(CDP + '/json/list', { signal: AbortSignal.timeout(3000) })
+    if (!r.ok) return []
+    const list = await r.json()
+    return Array.isArray(list) ? list.filter((t) => t.type === 'page') : []
+  } catch {
+    return []
+  }
+}
+async function cdpPagesLocal() {
+  return (await cdpPages()).filter(isLocalPage)
+}
+async function cdpClose(id) {
+  try {
+    await fetch(CDP + '/json/close/' + id, { method: 'PUT', signal: AbortSignal.timeout(3000) })
+  } catch { /* 已关闭/网络抖动：容错，不影响主流程 */ }
+}
+// 起点清理：织卷本地页 tab 数超过阈值 → 全部回收（治跨轮残留；服务性动作，不标 FAIL）
+async function sweepStaleTabs() {
+  const local = await cdpPagesLocal()
+  if (local.length <= CDP_TAB_HIGH) return { closed: 0, left: local.length }
+  let closed = 0
+  for (const t of local) await cdpClose(t.id)
+  closed = local.length
+  return { closed, left: 0 }
+}
+// 跑后收尾：关闭「快照之后新增」的 page target（治长跑累积；脚本自关的已不在新增集，重复关 404 容错）
+async function cdpReap(beforeIds) {
+  const after = await cdpPages()
+  const added = after.filter((t) => !beforeIds.has(t.id))
+  for (const t of added) await cdpClose(t.id)
+  return { cleaned: added.length, before: beforeIds.size, after: after.length }
 }
 
 const serveHint = (issues) => {
@@ -310,11 +363,19 @@ if (all) {
 
 const results = []
 const t0 = Date.now()
+// CDP 起点清理（仅实跑模式）：跨轮残留的织卷本地页 tab 超过阈值即回收（2026-09-16 治理接入）
+let sweepInfo = { closed: 0, left: 0 }
+if (all && !list) {
+  sweepInfo = await sweepStaleTabs()
+  if (sweepInfo.closed > 0) console.log(`🧹 CDP 起点清理：回收 ${sweepInfo.closed} 个残留织卷 tab（阈值 ${CDP_TAB_HIGH}，现余 ${sweepInfo.left}）`)
+}
+let cdCleanedTotal = 0
+let cdObsLines = 0
 for (let i = 0; i < targets.length; i++) {
   const file = targets[i]
   const label = `[${i + 1}/${targets.length}] ${file}`
   if (list || all) process.stdout.write(`${label} ...`)
-  const { issues, skipped } = await precheck(file)
+  const { issues, skipped, useCdp } = await precheck(file)
   if (issues.length > 0) {
     results.push({ file, ok: false, env: true, reason: issues.join('；') })
     if (!list) console.log(` ✗ 环境：${issues.join('；')}`)
@@ -330,10 +391,21 @@ for (let i = 0; i < targets.length; i++) {
   }
   if (list) { console.log(' ✓'); results.push({ file, ok: true }); continue }
   console.log(' ✓ 预检通过')
+  // CDP 观测/跑后收尾：使用 9224 的脚本在运行前后各拍一次 tab 快照，跑后关闭新增 target
+  const cdpBefore = useCdp ? await cdpPages() : null
+  const cdpBeforeIds = cdpBefore ? new Set(cdpBefore.map((t) => t.id)) : null
   const { code, killed, out } = await runScript(file, timeoutSec * 1000)
   const ok = code === 0 && !killed
   results.push({ file, ok, reason: killed ? `超时（>${timeoutSec}s，已杀）` : code !== 0 ? `退出码 ${code}` : '' })
   console.log(`    → ${ok ? 'PASS' : 'FAIL'} ${killed ? `(超时 ${timeoutSec}s)` : code !== 0 ? `(exit ${code})` : ''} ${((Date.now() - t0) / 1000).toFixed(1)}s`)
+  if (cdpBeforeIds) {
+    const reap = await cdpReap(cdpBeforeIds)
+    cdCleanedTotal += reap.cleaned
+    if (reap.cleaned > 0 || reap.after > CDP_TAB_HIGH) {
+      console.log(`      CDP 观测：tab ${reap.before} → ${reap.after}（清理 ${reap.cleaned}）`)
+      cdObsLines++
+    }
+  }
   if (!ok && out) console.log(out.slice(-2500))
   if (failFast && !ok) { console.log('    -x：首个失败，停止。'); break }
 }
@@ -346,8 +418,11 @@ if (!freshness.ok) {
 const fail = results.filter((r) => !r.ok)
 const skip = results.filter((r) => r.ok && r.skip)
 const pass = results.filter((r) => r.ok && !r.skip)
-console.log('\n========== 汇总 ==========')
+console.log('========== 汇总 ==========')
 console.log(`PASS ${pass.length} · SKIP ${skip.length} · FAIL ${fail.length} · 共 ${results.length}（${((Date.now() - t0) / 1000).toFixed(1)}s）`)
+if (sweepInfo.closed > 0 || cdCleanedTotal > 0) {
+  console.log(`CDP tab 治理：起点回收 ${sweepInfo.closed} · 跑后清理累计 ${cdCleanedTotal} · 观测行 ${cdObsLines}（尾态 ${(await cdpPagesLocal()).length} 个织卷页，阈值 ${CDP_TAB_HIGH}）`)
+}
 if (modelSkipped.length > 0) console.log(`（另：模型类门禁跳过 ${modelSkipped.length} 个——--live 或单独跑：${modelSkipped.join('、')}）`)
 if (auditNote) console.log(`（另：${auditNote}）`)
 for (const r of fail) console.log(`✗ ${r.file}${r.env ? ' [环境]' : ''} — ${r.reason}`)
