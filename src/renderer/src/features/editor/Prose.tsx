@@ -18,6 +18,7 @@ import EditorToolbar from './EditorToolbar'
 import FindBar from './FindBar'
 import { findInDoc, type FindPos } from './finder'
 import { saveScroll, takeScroll } from './scrollMemory'
+import { anchorFromPos, restoreCursorSelection, saveCursor, takeCursor } from './cursorMemory'
 import { EMPTY_ACTIVE, activeEq, readToolbarActive, type ActiveState } from './toolbarActive'
 import {
   computeFloatingPos,
@@ -70,6 +71,10 @@ interface ProseProps {
 interface WinWithEditors {
   __ZJ_TEST?: boolean
   __ZJ_EDITORS?: ProseApi[]
+  __ZJ_SEL?: {
+    /** 无头冒烟接口：读当前 PM selection（from/to/empty） */
+    get: () => { from: number; to: number; empty: boolean } | null
+  }
   __ZJ_FIND?: {
     open: (q?: string) => void
     close: () => void
@@ -455,6 +460,28 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
       host.removeEventListener('scroll', onScroll)
       ro?.disconnect()
     }
+  }, [])
+
+  // —— 光标记忆：PM selection 变更即保存（cursorMemory.ts；与滚动记忆同 key）——
+  // 只读 PM state 而非 DOM selection：编辑器外点击（切章按钮/Agent 面板）不会清 PM state，
+  // 不会把「空选区」误存覆盖掉刚才的正确锚；保存键为挂载快照 memoryKey（与滚动同坑防 props 污染）。
+  useEffect(() => {
+    if (!memoryKeyRef.current) return
+    const onSel = () => {
+      const e = edRef.current
+      if (!e || !liveRef.current) return
+      e.action((ctx: any) => {
+        const view = ctx.get(editorViewCtx)
+        const sel = view.state.selection
+        const a = anchorFromPos(view.state.doc, sel.from, sel.to)
+        if (a && memoryKeyRef.current) saveCursor(memoryKeyRef.current, a)
+      })
+    }
+    document.addEventListener('selectionchange', onSel)
+    return () => {
+      document.removeEventListener('selectionchange', onSel)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const gotoGutterRow = (row: number) => {
     try {
@@ -857,6 +884,22 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
           }, 600)
         }
       }
+      // —— 会话内光标/选区恢复（cursorMemory.ts；Pages/TextEdit 惯例「回到上次写/读处」）——
+      // 恢复即消费；文本已改→容错降级（见 restoreCursorSelection 注释），找不到不动不打扰。
+      // 重建路径 focus 编辑器：作者点章即编辑的意图（与滚动恢复次序无关，文本锚不依赖布局）。
+      if (mk) {
+        const saved = takeCursor(mk)
+        if (saved) {
+          e.action((ctx: any) => {
+            const view = ctx.get(editorViewCtx)
+            const pos = restoreCursorSelection(view.state.doc, saved)
+            if (pos) {
+              view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos.from, pos.to)))
+              view.focus()
+            }
+          })
+        }
+      }
       api = {
         getMarkdown: () => e.action((ctx) => ctx.get(serializerCtx)(ctx.get(editorViewCtx).state.doc)),
         getSelected: () =>
@@ -884,6 +927,16 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
             const parser = ctx.get(parserCtx)
             const doc = parser(md)
             view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, doc))
+            // 静默重载（外部写入磁盘→extVersion→灌回）：恢复记忆光标，但不抢焦点
+            // （用户此刻可能正在 Agent 面板/别处；回到编辑器时自然落在记忆位置）
+            const mk = memoryKeyRef.current
+            if (mk) {
+              const saved = takeCursor(mk)
+              if (saved) {
+                const pos = restoreCursorSelection(view.state.doc, saved)
+                if (pos) view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos.from, pos.to)))
+              }
+            }
           }),
         setCursor: (needle) =>
           e.action((ctx) => {
@@ -945,6 +998,18 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
       // 编辑器就绪：初次计算批注侧标位置
       scheduleGutterRef.current?.()
       if (win.__ZJ_TEST) {
+        // 无头冒烟接口：读当前 PM selection（光标记忆冒烟用；单编辑器实例窗口下挂载）
+        win.__ZJ_SEL = {
+          get: () => {
+            let out: { from: number; to: number; empty: boolean } | null = null
+            e.action((ctx: any) => {
+              const view = ctx.get(editorViewCtx)
+              const sel = view.state.selection
+              out = { from: sel.from, to: sel.to, empty: sel.empty }
+            })
+            return out
+          }
+        }
         // 无头冒烟接口：真实驱动查找条（open/next/prev/close/goTo + 状态读取）。单编辑器实例窗口下挂载（当前文档页仅一个 Prose）。
         win.__ZJ_FIND = {
           open: (q?: string) => {
