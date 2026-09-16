@@ -135,6 +135,7 @@ async function toolCardState(page, toolNameZh) {
     ok('A.无「失败」徽标（非工具执行错误）', !st.hasFailBadge)
     ok('A.无 spinner 转圈', st.spinnerCount === 0, 'spinner=' + st.spinnerCount)
     ok('A.无进行中「已 Ns」耗时徽标', !st.hasElapsedLive)
+    ok('A.取消态显示冻结耗时（跑了多久才停）', /\d+\.\ds/.test(st.text || ''), 'text=' + JSON.stringify(st.text))
   } catch (e) {
     console.error('FATAL A', e.message)
     fail++
@@ -162,6 +163,7 @@ async function toolCardState(page, toolNameZh) {
     ok('B.无「失败」徽标（非工具执行错误）', !st.hasFailBadge)
     ok('B.无 spinner 转圈', st.spinnerCount === 0, 'spinner=' + st.spinnerCount)
     ok('B.无进行中「已 Ns」耗时徽标', !st.hasElapsedLive)
+    ok('B.取消态显示冻结耗时（跑了多久才停）', /\d+\.\ds/.test(st.text || ''), 'text=' + JSON.stringify(st.text))
     const body = await page.eval(`document.body.innerText`)
     ok('B.assistant 气泡「（已停止）」', body.includes('（已停止）'))
     // 截图（场景 B 完整界面）

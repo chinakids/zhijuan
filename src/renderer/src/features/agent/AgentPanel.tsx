@@ -148,7 +148,8 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
         {!done && !cancelled && live == null && elapsedMs != null && (
           <span className="shrink-0 whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-[10px] text-accent">已 {fmtDur(elapsedMs)}</span>
         )}
-        {done && elapsedMs != null && (
+        {/* 终态统一显示耗时：完成/失败/已取消（取消=settleTrailingTools 冻结的真实耗时——作者可见「跑了多久才被停」的等待成本） */}
+        {(done || cancelled) && elapsedMs != null && (
           <span className="shrink-0 whitespace-nowrap rounded-full bg-surface px-2 py-0.5 text-[10px] text-ink-3">{fmtDur(elapsedMs)}</span>
         )}
         {hasDetail && (
