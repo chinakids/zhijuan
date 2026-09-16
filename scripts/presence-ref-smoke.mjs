@@ -54,9 +54,23 @@ async function evalUntil(page, expr, pred, timeoutMs = 15000, label = expr) {
 }
 
 const clickByTitle = (title) => `(() => {
-  const btns = [...document.querySelectorAll('button')]
-  const hit = btns.find((b) => b.title === ${JSON.stringify(title)})
+  const els = [...document.querySelectorAll('button, [role="menuitem"]')]
+  const hit = els.find((b) => b.title === ${JSON.stringify(title)})
   if (!hit) return 'NOT_FOUND'
+  // Radix 菜单 trigger/menuitem 需要 pointer 事件序列（程序化 click 不打开）——F-20260912-08 检查菜单（3e0ec55）
+  hit.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+  hit.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
+  hit.click()
+  return 'CLICKED'
+})()`
+
+// 次级检查项已收进「检查」折叠菜单（3e0ec55）：先开菜单再点项
+const openCheckMenu = () => `(() => {
+  const els = [...document.querySelectorAll('button')]
+  const hit = els.find((b) => b.title === '检查阵容：一致性/冷读/多视角/本地核查')
+  if (!hit) return 'NOT_FOUND'
+  hit.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+  hit.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
   hit.click()
   return 'CLICKED'
 })()`
@@ -77,10 +91,12 @@ try {
   await evalUntil(page, `document.body.innerText.includes('Agent') && document.body.innerText.includes('第1章')`, (v) => v === true, 20000, '正文页就绪')
   console.log('OK 正文页就绪')
 
-  // ① 打开「人物在场核查」抽屉（入口按钮 title 含「人物在场与称谓核查」）
-  const entry = await page.eval(`[...document.querySelectorAll('button')].find((b) => (b.title || '').includes('人物在场与称谓核查'))?.title ?? 'NONE'`)
+  // ① 打开「人物在场核查」抽屉（检查项已收进「检查」折叠菜单 3e0ec55：先开菜单再点项）
+  console.log('打开检查菜单:', await page.eval(openCheckMenu()))
+  await sleep(350)
+  const entry = await page.eval(`[...document.querySelectorAll('[role="menuitem"]')].find((b) => (b.title || '').includes('人物在场与称谓核查'))?.title ?? 'NONE'`)
   console.log('入口:', entry)
-  await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.title || '').includes('人物在场与称谓核查')); if (b) b.click(); return !!b })()`)
+  console.log('点击菜单项:', await page.eval(clickByTitle('人物在场与称谓核查（本地规则·秒级）')))
   await evalUntil(page, `document.body.innerText.includes('人物在场与称谓核查')`, (v) => v === true, 10000, '在场抽屉打开')
   console.log('OK 在场抽屉打开')
 

@@ -54,9 +54,23 @@ async function evalUntil(page, expr, pred, timeoutMs = 15000, label = expr) {
 }
 
 const clickByTitle = (title) => `(() => {
-  const btns = [...document.querySelectorAll('button')]
-  const hit = btns.find((b) => b.title === ${JSON.stringify(title)})
+  const els = [...document.querySelectorAll('button, [role="menuitem"]')]
+  const hit = els.find((b) => b.title === ${JSON.stringify(title)})
   if (!hit) return 'NOT_FOUND'
+  // Radix 菜单 trigger/menuitem 需要 pointer 事件序列（程序化 click 不打开）——F-20260912-08 检查菜单（3e0ec55）
+  hit.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+  hit.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
+  hit.click()
+  return 'CLICKED'
+})()`
+
+// 次级检查项已收进「检查」折叠菜单（3e0ec55）：先开菜单再点项
+const openCheckMenu = () => `(() => {
+  const els = [...document.querySelectorAll('button')]
+  const hit = els.find((b) => b.title === '检查阵容：一致性/冷读/多视角/本地核查')
+  if (!hit) return 'NOT_FOUND'
+  hit.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+  hit.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
   hit.click()
   return 'CLICKED'
 })()`
@@ -77,13 +91,15 @@ try {
   await evalUntil(page, `document.body.innerText.includes('Agent') && document.body.innerText.includes('第1章')`, (v) => v === true, 20000, '正文页就绪')
   console.log('OK 正文页就绪')
 
-  // ① Agent 面板有「切片时序核查」入口（title 含「切片时序核查」）
-  const hasEntry = await page.eval(`[...document.querySelectorAll('button')].some((b) => (b.title || '').includes('切片时序核查'))`)
-  if (!hasEntry) throw new Error('未找到「切片时序核查」入口按钮')
-  console.log('OK 「切片时序核查」入口按钮存在')
+  // ① 次级检查项已收进「检查」折叠菜单（3e0ec55）：先开菜单，断言菜单项存在（title 含「切片时序核查」）
+  console.log('打开检查菜单:', await page.eval(openCheckMenu()))
+  await sleep(350)
+  const hasEntry = await page.eval(`[...document.querySelectorAll('[role="menuitem"]')].some((b) => (b.title || '').includes('切片时序核查'))`)
+  if (!hasEntry) throw new Error('未找到「切片时序核查」菜单项')
+  console.log('OK 「切片时序核查」菜单项存在')
 
-  // ② 点击入口 → 抽屉出现（标题 = 切片时序核查）
-  console.log('点击入口:', await page.eval(clickByTitle('切片时序核查：章号结构 + 切片顺序（本地规则·秒级·零模型）')))
+  // ② 点击菜单项 → 抽屉出现（标题 = 切片时序核查）
+  console.log('点击菜单项:', await page.eval(clickByTitle('切片时序核查（本地规则·秒级）')))
   await evalUntil(page, `document.body.innerText.includes('切片时序核查')`, (v) => v === true, 10000, '抽屉标题出现')
   console.log('OK 抽屉打开（标题=切片时序核查）')
 

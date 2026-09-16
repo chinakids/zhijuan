@@ -52,9 +52,23 @@ async function evalUntil(page, expr, pred, timeoutMs = 15000, label = expr) {
 }
 
 const clickByTitle = (title) => `(() => {
-  const btns = [...document.querySelectorAll('button')]
-  const hit = btns.find((b) => b.title === ${JSON.stringify(title)})
+  const els = [...document.querySelectorAll('button, [role="menuitem"]')]
+  const hit = els.find((b) => b.title === ${JSON.stringify(title)})
   if (!hit) return 'NOT_FOUND'
+  // Radix 菜单 trigger/menuitem 需要 pointer 事件序列（程序化 click 不打开）——F-20260912-08 检查菜单（3e0ec55）
+  hit.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+  hit.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
+  hit.click()
+  return 'CLICKED'
+})()`
+
+// 次级检查项已收进「检查」折叠菜单（3e0ec55）：先开菜单再点项
+const openCheckMenu = () => `(() => {
+  const els = [...document.querySelectorAll('button')]
+  const hit = els.find((b) => b.title === '检查阵容：一致性/冷读/多视角/本地核查')
+  if (!hit) return 'NOT_FOUND'
+  hit.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+  hit.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
   hit.click()
   return 'CLICKED'
 })()`
@@ -75,15 +89,17 @@ try {
   await evalUntil(page, `document.body.innerText.includes('Agent') && document.body.innerText.includes('第1章')`, (v) => v === true, 20000, '正文页就绪')
   console.log('OK 正文页就绪')
 
-  // ① 按钮存在且可点击（title 命中的新按钮）
+  // ① 次级检查项已收进「检查」折叠菜单（3e0ec55）：先开菜单，断言菜单项存在（title=label）
+  console.log('打开检查菜单:', await page.eval(openCheckMenu()))
+  await sleep(350)
   const btn = await page.eval(`(() => {
-    const b = [...document.querySelectorAll('button')].find((x) => x.title === '档案切片核查：人物档「切片」小节顺序/重复/残留（本地规则·秒级·零模型）')
-    return b ? { title: b.title, label: b.getAttribute('aria-label') } : null
+    const b = [...document.querySelectorAll('[role="menuitem"]')].find((x) => (x.title || '').startsWith('档案切片核查'))
+    return b ? { title: b.title } : null
   })()`)
-  check('新按钮存在（title + aria-label）', btn && btn.label === '档案切片核查')
+  check('菜单项存在（title=「档案切片核查…」）', !!btn)
 
-  // ② 点击 → 抽屉打开并出现标题（K_TITLE 接线）
-  console.log('点击按钮:', await page.eval(clickByTitle('档案切片核查：人物档「切片」小节顺序/重复/残留（本地规则·秒级·零模型）')))
+  // ② 点击菜单项 → 抽屉打开并出现标题（K_TITLE 接线）
+  console.log('点击菜单项:', await page.eval(clickByTitle('档案切片核查（本地规则·秒级）')))
   await evalUntil(page, `document.body.innerText.includes('档案切片核查')`, (v) => v === true, 8000, '抽屉标题出现')
   // 演示项目人物档无「## 切片：」小节 → 空态 summary
   await evalUntil(page, `document.body.innerText.includes('都没有「切片」小节')`, (v) => v === true, 15000, '结果 summary 渲染')

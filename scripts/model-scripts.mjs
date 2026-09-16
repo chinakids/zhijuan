@@ -44,13 +44,15 @@ export const WEAK_MARKERS = ['runChat', 'runSync', '真模型', 'driveSession']
 //   sync-anchor-smoke：数据层「无 GUI / 无模型」（锚点归一化纯文件逻辑）；
 //   sync-guard-smoke：数据层「无 GUI / 无模型调用」（guard 纯函数防线）；
 //   sync-produce-loop-smoke：「无 GUI / 无模型调用」（注释里「真模型」是描述 engine-sync 产物来源）；
-//   project-ctx-smoke：「真读盘，不依赖模型」（runChat 只是注入块函数名）。
+//   project-ctx-smoke：「真读盘，不依赖模型」（runChat 只是注入块函数名）；
+//   sync-log-ui-smoke：无头 UI 冒烟（devShim），agentSync 是页面 mock 调用（runSync 只出现在注释/口径说明，无引擎/边车/模型）。
 export const REVIEWED_NON_MODEL = new Set([
   'guard-issues-3entry-ui-smoke.mjs',
   'sync-anchor-smoke.mjs',
   'sync-guard-smoke.mjs',
   'sync-produce-loop-smoke.mjs',
   'project-ctx-smoke.mjs',
+  'sync-log-ui-smoke.mjs',
 ])
 
 export const MODEL_SKIP_REASON = '模型类：真模型驱动（依赖 vLLM 算力池），--all 门禁不包含——--live 或单独跑'

@@ -79,7 +79,7 @@ check('对话框说明含「原目录保留不动」', dlgInfo.hint)
 
 // ② 输入路径并导入（成功路径）
 await page.eval(`(() => {
-  const inp = [...document.querySelectorAll('input')].find((x) => !x.type || x.type === 'text')
+  const inp = [...document.querySelectorAll('input[placeholder*="已有作品目录"]')][0] ?? [...document.querySelectorAll('[role="dialog"] input')].find((x) => !x.type || x.type === 'text')
   if (!inp) throw new Error('no input')
   const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
   setter.call(inp, '/Users/me/旧稿')
@@ -102,7 +102,7 @@ await evalUntil(page2, `document.body.innerText.includes('织卷')`, (v) => v ==
 await page2.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.innerText.includes('导入目录')); if (!b) throw new Error('no btn'); b.click(); return true })()`)
 await evalUntil(page2, `document.body.innerText.includes('导入已有目录')`, (v) => v === true, 8000, '对话框2')
 await page2.eval(`(() => {
-  const inp = [...document.querySelectorAll('input')].find((x) => !x.type || x.type === 'text')
+  const inp = [...document.querySelectorAll('input[placeholder*="已有作品目录"]')][0] ?? [...document.querySelectorAll('[role="dialog"] input')].find((x) => !x.type || x.type === 'text')
   const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
   setter.call(inp, '/Users/me/旧稿')
   inp.dispatchEvent(new Event('input', { bubbles: true }))

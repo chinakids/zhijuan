@@ -52,9 +52,23 @@ async function evalUntil(page, expr, pred, timeoutMs = 15000, label = expr) {
 }
 
 const clickByTitle = (title) => `(() => {
-  const btns = [...document.querySelectorAll('button')]
-  const hit = btns.find((b) => b.title === ${JSON.stringify(title)})
+  const els = [...document.querySelectorAll('button, [role="menuitem"]')]
+  const hit = els.find((b) => b.title === ${JSON.stringify(title)})
   if (!hit) return 'NOT_FOUND'
+  // Radix 菜单 trigger/menuitem 需要 pointer 事件序列（程序化 click 不打开）——F-20260912-08 检查菜单（3e0ec55）
+  hit.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+  hit.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
+  hit.click()
+  return 'CLICKED'
+})()`
+
+// 次级检查项已收进「检查」折叠菜单（3e0ec55）：先开菜单再点项
+const openCheckMenu = () => `(() => {
+  const els = [...document.querySelectorAll('button')]
+  const hit = els.find((b) => b.title === '检查阵容：一致性/冷读/多视角/本地核查')
+  if (!hit) return 'NOT_FOUND'
+  hit.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+  hit.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
   hit.click()
   return 'CLICKED'
 })()`
@@ -75,15 +89,17 @@ try {
   await evalUntil(page, `document.body.innerText.includes('Agent') && document.body.innerText.includes('第1章')`, (v) => v === true, 20000, '正文页就绪')
   console.log('OK 正文页就绪')
 
-  // ① 新按钮存在（title + aria-label）
+  // ① 次级检查项已收进「检查」折叠菜单（3e0ec55）：先开菜单，断言菜单项存在（title=label）
+  console.log('打开检查菜单:', await page.eval(openCheckMenu()))
+  await sleep(350)
   const btn = await page.eval(`(() => {
-    const b = [...document.querySelectorAll('button')].find((x) => x.title && x.title.startsWith('称谓发现核查'))
-    return b ? { title: b.title, label: b.getAttribute('aria-label') } : null
+    const b = [...document.querySelectorAll('[role="menuitem"]')].find((x) => (x.title || '').startsWith('称谓发现核查'))
+    return b ? { title: b.title } : null
   })()`)
-  check('新按钮存在（title + aria-label）', btn && btn.label === '称谓发现核查')
+  check('菜单项存在（title=「称谓发现核查…」）', !!btn)
 
-  // ② 点击 → 抽屉打开并出现标题（K_TITLE 接线）
-  console.log('点击按钮:', await page.eval(clickByTitle('称谓发现核查：正文出现「姓+称谓 / 老小阿大+姓」但档案未登记（本地规则·秒级·零模型）')))
+  // ② 点击菜单项 → 抽屉打开并出现标题（K_TITLE 接线）
+  console.log('点击菜单项:', await page.eval(clickByTitle('称谓发现核查（本地规则·秒级）')))
   await evalUntil(page, `document.body.innerText.includes('称谓发现核查')`, (v) => v === true, 8000, '抽屉标题出现')
 
   // ③ 结果 summary 渲染（演示项目：仅沈藏且正文用其登记别名「沈爷」→ 零命中空态）
