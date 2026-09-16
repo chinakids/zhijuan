@@ -107,8 +107,9 @@ try {
   console.log('OK 别名命中条目带「关联档案：人物/沈藏.md」')
 
   // ③ 点该条「让 agent 改」→ 对话区出现含路径的用户消息
+  // （定位「别名命中」卡片本身：第04章 missing 条目提示里也含「沈爷」，须按「这是「沈藏」档案登记的别名」唯一标记筛）
   const clicked = await page.eval(`(() => {
-    const card = [...document.querySelectorAll('div.rounded-lg')].find((d) => (d.textContent || '').includes('沈爷'))
+    const card = [...document.querySelectorAll('div.rounded-lg')].find((d) => (d.textContent || '').includes('这是「沈藏」档案登记的别名'))
     if (!card) return 'NO_CARD'
     const btn = [...card.querySelectorAll('button')].find((b) => (b.textContent || '').includes('让 agent 改'))
     if (!btn) return 'NO_BTN'
@@ -121,8 +122,10 @@ try {
   if (!agentMsg) throw new Error('agent 指令未包含关联档案路径')
   console.log('OK 「让 agent 改」指令含「关联档案：人物/沈藏.md」')
 
-  // ④ 「档案」Tab：unused 条目（沈老爹）带 target → 出现「转提案」按钮（重新打开抽屉）
-  await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.title || '').includes('人物档案腐坏核查')); if (b) b.click(); return !!b })()`)
+  // ④ 「档案」Tab：unused 条目（沈老爹）带 target → 出现「转提案」按钮（抽屉已被「让 agent 改」关闭，须重新开检查菜单点项）
+  console.log('打开检查菜单:', await page.eval(openCheckMenu()))
+  await sleep(350)
+  console.log('点击菜单项:', await page.eval(clickByTitle('人物档案腐坏核查（本地规则·秒级）')))
   await evalUntil(page, `document.body.innerText.includes('人物档案腐坏核查')`, (v) => v === true, 10000, '档案抽屉打开')
   await evalUntil(page, `document.body.innerText.includes('沈老爹')`, (v) => v === true, 10000, '沈老爹条目')
   const hasProposal = await page.eval(`document.body.innerText.includes('转提案')`)

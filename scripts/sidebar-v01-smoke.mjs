@@ -1,5 +1,6 @@
-// V-01 侧栏/内容区分隔收尾 · 无头冒烟：纸卡去框（border/radius=0）+ 正文页台面留白（main p-3）
-// 断言：① .zj-md 容器 borderWidth=0 ② main padding=12px ③ 面板与纸卡之间露出 body 纸色台面 ④ 明/暗两主题一致
+// V-01 侧栏/内容区分隔收尾 · 无头冒烟：纸卡去框（border/radius=0）+ 页面容器零 padding（2026-09-14 3424210 口径）
+// 断言：① .zj-md 容器 borderWidth=0 ② main padding=0（页面容器零 padding）③ 纸卡与 Agent 面板贴合（无台缝，gap≈0）
+//        ④ 文本区留白由 .ProseMirror padding 提供（≥1rem） ⑤ 明/暗两主题下编辑器纸面≠台面
 // 用法：node scripts/sidebar-v01-smoke.mjs   （先 npm run build + node scripts/serve-renderer.mjs 8123 + CDP 9224）
 const PORT = 8123
 const BASE = process.env.ZJ_SMOKE_BASE || `http://localhost:${PORT}`
@@ -62,9 +63,10 @@ const check = async (label) => {
   console.log(label, JSON.stringify(p))
   ok(p.zjBorderW === '0px', `${label}: 纸卡容器 border=0（实际 ${p.zjBorderW}）`)
   ok(p.zjRadius === '0px', `${label}: 纸卡无圆角（实际 ${p.zjRadius}）`)
-  ok(p.mainPad && Math.abs(parseFloat(p.mainPad[0]) - 12) < 0.5 && Math.abs(parseFloat(p.mainPad[1]) - 12) < 0.5, `${label}: main 台面留白 12px（实际 ${p.mainPad}）`)
-  ok(p.gap !== null && p.gap >= 11 && p.gap <= 13, `${label}: 面板→纸卡台缝 ~12px（实际 ${p.gap}）`)
-  ok(p.coveredByZj === false, `${label}: 台缝未被纸卡覆盖（透出 body 纸色，纸卡占位 ${p.coveredByZj}）`)
+  ok(p.mainPad && Math.abs(parseFloat(p.mainPad[0])) < 0.5 && Math.abs(parseFloat(p.mainPad[1])) < 0.5, `${label}: main 台面零 padding（3424210 口径，实际 ${p.mainPad}）`)
+  ok(p.gap !== null && Math.abs(p.gap) <= 2, `${label}: 纸卡与面板贴合无台缝（3424210 口径，实际 gap=${p.gap}）`)
+  const pmPad = await ev(`(() => { const pm = document.querySelector('.zj-md .ProseMirror'); return pm ? [getComputedStyle(pm).paddingLeft, getComputedStyle(pm).paddingTop] : null })()`)
+  ok(pmPad && parseFloat(pmPad[0]) >= 12 && parseFloat(pmPad[1]) >= 16, `${label}: 文本区留白由 .ProseMirror 提供（实际 ${pmPad}）`)
   ok(p.zjBg !== p.body, `${label}: 编辑器纸面≠台面，背景差通道成立（${p.zjBg} vs ${p.body}）`)
 }
 await check('LIGHT')

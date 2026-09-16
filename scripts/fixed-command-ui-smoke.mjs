@@ -98,6 +98,21 @@ async function pressEnter(page) {
   })()`)
 }
 
+// 等 agent 本轮真正收尾（streaming/fxBusy 归零）——devShim 演示首段 delta 即含目标文案，
+// evalUntil 放行时本轮可能仍在流式（done 未到），下一个发送会撞 doSend 的 `if (sending) return` 静默丢输入。
+// 判据=发送按钮从「停止生成/停止导演任务」回到「发送」。
+async function waitAgentIdle(page, timeoutMs = 20000) {
+  const t0 = Date.now()
+  for (;;) {
+    const busy = await page.eval(
+      `!!document.querySelector('button[title="停止生成"]') || !!document.querySelector('button[title^="停止导演任务"]')`
+    )
+    if (!busy) return
+    if (Date.now() - t0 > timeoutMs) throw new Error('TIMEOUT waiting: agent 本轮收尾（停止按钮未消失）')
+    await sleep(250)
+  }
+}
+
 const tab = await openTab(BASE + '/?cb=' + Date.now() + '#/project/demo-aseya/novel?ch=' + encodeURIComponent('第02章_灯塔.md'))
 console.log('TAB:', tab.id, tab.url)
 const page = await attach(tab.webSocketDebuggerUrl)
@@ -192,6 +207,8 @@ try {
     '/续写 模板展开'
   )
   console.log('OK ⑥ 回归 /续写 模板展开正常（未误入固定逻辑）' )
+  // ⑥ 走真流式轮：等本轮 done（停止按钮消失）再继续，否则 ⑦ 的 Enter 会被 doSend 的 `if (sending) return` 静默丢弃
+  await waitAgentIdle(page)
 
   // ⑦ /巡查 未知参数 → 就地提示合法枚举，不静默降级（2026-09-12）
   await clearText(page)
