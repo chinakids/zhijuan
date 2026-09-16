@@ -6,11 +6,12 @@
 // 装配口径（2026-09-11）：所有块注入前统一剥离 HTML 注释（`<!-- … -->`＝元信息/说明，非故事事实，
 // 见 shared/comments.ts）；不占预算；注释原文模型可 zj_read_doc 现读。
 import { readDoc, listChapters, listDocs } from '../store'
-import { extractFrontMatter } from '../../shared/fmatter'
+import { extractFrontMatter, type FrontMatter } from '../../shared/fmatter'
 import { worldSliceFile } from '../../shared/paths'
 import { stripHtmlComments } from '../../shared/comments'
 import { matchActPlaceholders } from '../../shared/actsSeg'
 import { WCTX_CAPS as CAP } from '../../shared/contextCaps'
+import { chapterLine, linePredecessor, DEFAULT_LINE, type LineEntryNode } from '../../shared/line'
 
 export interface WritingContext {
   blocks: string[]
@@ -52,6 +53,10 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
     }
   }
 
+  // 0b. 线信息（2026-09-16 多时间线叙事）：本章时间线 + 同线前驱（多线项目才注明，单线零打扰）
+  const prevInfo = previousChapterInfo(projectId, chapterRel)
+  const lineNote = prevInfo.multi ? `（本章时间线「${prevInfo.line}」）` : ''
+
   // 1. 当前章节正文（去 front matter；章首「本章故事要素」块随正文一起带上）
   //    预算硬控边：超长时装配**结尾**（续写/巡查最需要的是刚写到的部分；开头可用 zj_read_doc 现读），
   //    而非默认从头截断——从头截会把「刚写到哪里」裁掉（2026-09-10 上下文审计修复）。
@@ -79,7 +84,7 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
     const gapWarn = actGaps.length
       ? `（⚠️ 本章正文含分幕缺段占位：第 ${actGaps.join('、')} 段未写成（正文断链）——续写/润色请正视此缺口，勿当正常衔接，可建议作者先补齐）\n`
       : ''
-    blocks.push(`【当前章节：${chapterRel}】\n${gapWarn}${body}`)
+    blocks.push(`【当前章节：${chapterRel}】${lineNote}\n${gapWarn}${body}`)
     sources.push(chapterRel)
   }
 
@@ -88,7 +93,9 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
   //    上一章存在缺段时提示行随「上一章尾部」块注入（承接方模型感知「上一章没写完」；
   //    否则上一章尾部看起来是完整衔接，续写/承接会把断链当正常剧情接续——同「被剥掉
   //    的信息=模型视角的不存在」口径，缺段提示已是上下文第四处省略/缺口明示）。
-  const prev = previousChapter(projectId, chapterRel)
+  //    2026-09-16 多时间线叙事（F-20260916-02）：「上一章」= 同线内前驱（linePredecessor），
+  //    过去线/现在线交错时不得跨线误承接；多线项目在块头注明本章线与同线前章（设计文档 §4.5）。
+  const prev = prevInfo.rel
   if (prev) {
     let prevRaw = ''
     let prevGaps: number[] = []
@@ -103,7 +110,10 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
       ? `（⚠️ 上一章正文含分幕缺段占位：第 ${prevGaps.join('、')} 段未写成（正文断链）——承接续写请正视此缺口，勿当正常衔接，可建议作者先补齐）\n`
       : ''
     if (tail.trim() || prevGaps.length > 0) {
-      blocks.push(`【上一章尾部：${firstLineName(prev)}】（前文略，以下为上一章结尾，用于承接）\n${gapWarn}${tail}`)
+      const predNote = prevInfo.multi
+        ? `（此前略；注：同线前章=${prevInfo.predNo ? '第' + prevInfo.predNo + '章' : '上一同线章'}，装配按线内前驱，非全局上一章）`
+        : '（前文略，以下为上一章结尾，用于承接）'
+      blocks.push(`【上一章尾部：${firstLineName(prev)}】${predNote}\n${gapWarn}${tail}`)
       sources.push(prev)
     }
   }
@@ -308,25 +318,32 @@ function capHead(text: string, cap: number, what: string, rel: string): string {
   return `（${what}已超 ${cap} 字符预算：装配的是**开头**部分，末尾 ${over} 字符已省略；要看完整${what}请用 zj_read_doc 读取 ${rel}）\n…\n${text.slice(0, cap)}`
 }
 
-/** 按章号顺序找上一章；当前章不在列表或已是第一章时返回 null */
-function previousChapter(projectId: string, chapterRel: string): string | null {
-  const cur = chapterRel.replace(/^正文\//, '')
-  const all = listChapters(projectId)
-    .map((c) => c.file)
-    .sort(byChapterNo(projectId))
-  const i = all.indexOf(cur)
-  return i > 0 ? '正文/' + all[i - 1] : null
+/** 章头「章号」安全取数值；解析不出=null（不参与前驱选择，排最后） */
+function chapterNoOf(fm: FrontMatter | null): number | null {
+  const n = Number(fm?.['章号'])
+  return Number.isFinite(n) ? n : null
 }
 
-function byChapterNo(projectId: string) {
-  const noOf = (file: string): number => {
-    try {
-      const fm = extractFrontMatter(readDoc(projectId, '正文/' + file) ?? '').fm as Record<string, unknown>
-      const n = Number(fm?.['章号'])
-      return Number.isFinite(n) ? n : 1e9
-    } catch {
-      return 1e9
-    }
-  }
-  return (a: string, b: string) => noOf(a) - noOf(b)
+/**
+ * 线内前驱信息（2026-09-16 多时间线叙事，F-20260916-02）：
+ * rel=同线前驱章路径（无则 null）；line=本章线名；multi=项目多线或本章显式非主线（此时装配需注明线）；
+ * predNo=前驱章号（解析不出=null）。
+ * 实现：listChapters 一次取全（ingest 已解析 fm），shared/line.linePredecessor 纯函数选同线前驱——
+ * 单线老项目退化为全局按章号前驱（与旧 previousChapter 同行为，零回归）。
+ */
+function previousChapterInfo(
+  projectId: string,
+  chapterRel: string
+): { rel: string | null; line: string; multi: boolean; predNo: number | null } {
+  const cur = chapterRel.replace(/^正文\//, '')
+  const entries: LineEntryNode[] = listChapters(projectId).map((c) => ({
+    file: c.file,
+    no: chapterNoOf(c.fm as unknown as FrontMatter | null),
+    line: chapterLine(c.fm as unknown as FrontMatter | null)
+  }))
+  const curEntry = entries.find((e) => e.file === cur)
+  const line = curEntry?.line ?? DEFAULT_LINE
+  const multi = new Set(entries.map((e) => e.line)).size > 1 || line !== DEFAULT_LINE
+  const pred = linePredecessor(entries, cur)
+  return { rel: pred ? '正文/' + pred.file : null, line, multi, predNo: pred?.no ?? null }
 }

@@ -17,14 +17,17 @@ const FM_2 = ['---', '章号: 2', '题名: 第二章', '切片: 第二幕', '涉
 // 3 位涉及人物（≤maxChars 4，不触发预算截断——旧代码此时完全静默，部分无档无从知晓）
 const FM_3 = ['---', '章号: 1', '题名: 第一章', '切片: 第一幕', '涉及人物: [林晚, 周守, 顾知远]', '---'].join('\n') + '\n'
 
-const chEntry = (file: string) => ({
+const chEntry = (file: string, fm: Record<string, unknown> | null = null) => ({
   file,
   name: file.replace(/\.md$/, ''),
-  fm: null,
+  fm,
   wordCount: 0,
   mtime: 0,
   hasPendingProposal: false
 })
+// 与真机 store.listChapters 同口径：ChapterEntry.fm 是已解析的约定头（2026-09-16 线内前驱依赖它）
+const FM_OBJ_1 = { '章号': 1, '题名': '第一章', '切片': '第一幕', '涉及人物': ['林晚'] }
+const FM_OBJ_2 = { '章号': 2, '题名': '第二章', '切片': '第二幕', '涉及人物': ['林晚', '周守', '顾知远', '苏禾', '第五'] }
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -46,7 +49,7 @@ describe('buildWritingContext（写作上下文装配）', () => {
       }
       return table[rel] ?? null
     })
-    listChaptersMock.mockReturnValue([chEntry('第1章_云.md'), chEntry('第2章_雾.md')] as never)
+    listChaptersMock.mockReturnValue([chEntry('第1章_云.md', FM_OBJ_1), chEntry('第2章_雾.md', FM_OBJ_2)] as never)
 
     const { blocks, sources } = await buildWritingContext('p', '正文/第2章_雾.md')
 
@@ -176,7 +179,7 @@ describe('buildWritingContext（写作上下文装配）', () => {
       }
       return table[rel] ?? null
     })
-    listChaptersMock.mockReturnValue([chEntry('第1章_云.md'), chEntry('第2章_雾.md')] as never)
+    listChaptersMock.mockReturnValue([chEntry('第1章_云.md', FM_OBJ_1), chEntry('第2章_雾.md', FM_OBJ_2)] as never)
 
     const { blocks, sources } = await buildWritingContext('p', '正文/第2章_雾.md')
     const prev = blocks.find((b) => b.includes('上一章尾部'))
@@ -199,7 +202,7 @@ describe('buildWritingContext（写作上下文装配）', () => {
       }
       return table[rel] ?? null
     })
-    listChaptersMock.mockReturnValue([chEntry('第1章_云.md'), chEntry('第2章_雾.md')] as never)
+    listChaptersMock.mockReturnValue([chEntry('第1章_云.md', FM_OBJ_1), chEntry('第2章_雾.md', FM_OBJ_2)] as never)
 
     const { blocks } = await buildWritingContext('p', '正文/第2章_雾.md')
     const prev = blocks.find((b) => b.includes('上一章尾部'))
@@ -278,7 +281,7 @@ describe('buildWritingContext（写作上下文装配）', () => {
       }
       return table[rel] ?? null
     })
-    listChaptersMock.mockReturnValue([chEntry('第1章_a.md'), chEntry('第2章_b.md')] as never)
+    listChaptersMock.mockReturnValue([chEntry('第1章_a.md', FM_OBJ_1), chEntry('第2章_b.md', FM_OBJ_2)] as never)
 
     const first = await buildWritingContext('p', '正文/第1章_a.md')
     expect(first.sources).toEqual(['正文/第1章_a.md'])
@@ -337,7 +340,7 @@ describe('buildWritingContext（写作上下文装配）', () => {
       }
       return table[rel] ?? null
     })
-    listChaptersMock.mockReturnValue([chEntry('第1章_云.md'), chEntry('第2章_雾.md')] as never)
+    listChaptersMock.mockReturnValue([chEntry('第1章_云.md', FM_OBJ_1), chEntry('第2章_雾.md', FM_OBJ_2)] as never)
 
     const { blocks, sources } = await buildWritingContext('p', '正文/第2章_雾.md')
     const sl = blocks.find((b) => b.includes('上一切片设定'))
@@ -375,7 +378,7 @@ describe('buildWritingContext（写作上下文装配）', () => {
       }
       return table[rel] ?? null
     })
-    listChaptersMock.mockReturnValue([chEntry('第1章_云.md'), chEntry('第2章_雾.md')] as never)
+    listChaptersMock.mockReturnValue([chEntry('第1章_云.md', FM_OBJ_1), chEntry('第2章_雾.md', FM_OBJ_2)] as never)
 
     const { blocks, sources } = await buildWritingContext('p', '正文/第2章_雾.md')
     // 本切片空壳 → 回看旧名有事实 → 以「上一切片设定」标签进入（本切片无有效设定）
