@@ -110,30 +110,39 @@ try {
   )
   console.log('OK 正文页就绪')
 
-  // ① 链演示 → 请求正常结束（链完成 + demo 尾句）
+  // ① 链演示 → 请求正常结束（折叠态组头可见的确定性信号：×3 展开钮 + demo 尾句；
+  // 「已读到末尾」是第 3 步摘要折叠态不展示——原等待条件永不满（与 tool-chain 冒烟同根因））
   await typeText(page, '链演示工具链')
   await pressEnter(page)
   await evalUntil(
     page,
-    `document.body.innerText.includes('已读到末尾') && document.body.innerText.includes('把这一段写出来')`,
+    `document.body.innerText.includes('×3 展开') && document.body.innerText.includes('把这一段写出来')`,
     (v) => v === true,
     25000,
     '续读链结束'
   )
   await sleep(400)
 
-  // ② 链内卡片：均有详情入口；默认折叠（无展开体）
+  // ② 链内卡片：折叠态组头有详情入口；默认折叠（无展开体）
   const chainGui = await page.eval(`(() => {
     const chain = document.querySelector('[data-testid="zj-tool-chain"]')
     if (!chain) return { found: false }
     const toggles = chain.querySelectorAll('[data-testid="zj-tool-detail-toggle"]')
     const bodies = chain.querySelectorAll('[data-testid="zj-tool-detail-body"]').length
-    const innerText = chain.innerText
-    return { found: true, toggles: toggles.length, bodies, text: innerText }
+    return { found: true, toggles: toggles.length, bodies }
   })()`)
   console.log('CHAIN GUI:', JSON.stringify(chainGui).slice(0, 400))
-  ok('链内 3 张卡均有详情入口', chainGui.found === true && chainGui.toggles === 3, String(chainGui.toggles))
+  ok('折叠组头有详情入口', chainGui.found === true && chainGui.toggles >= 1, String(chainGui.toggles))
   ok('默认折叠（无展开体）', chainGui.bodies === 0, String(chainGui.bodies))
+
+  // ②b 展开链后 3 张卡均有详情入口（dc9045c 折叠化后原「toggles===3」断言在折叠态永不满足——改为展开态验证）
+  await page.eval(`(() => { const b = [...document.querySelectorAll('[data-testid="zj-tool-chain"] button')].find((x) => (x.innerText || '').includes('展开')); if (b) b.click(); return !!b })()`)
+  await sleep(300)
+  const togglesExpanded = await page.eval(`document.querySelectorAll('[data-testid="zj-tool-detail-toggle"]').length`)
+  ok('展开后 3 张卡均有详情入口', togglesExpanded === 3, String(togglesExpanded))
+  // 收起链，回到折叠态继续后续步骤（③ 从组头 toggle 开始）
+  await page.eval(`(() => { const b = [...document.querySelectorAll('[data-testid="zj-tool-chain"] button')].find((x) => (x.innerText || '').includes('收起')); if (b) b.click(); return !!b })()`)
+  await sleep(300)
 
   // ③ 点击第 1 个 toggle → 展开：参数 JSON（含 file）+ 结果全文
   await page.eval(`(() => {

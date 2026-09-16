@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupToolMeta, isContinuedRead, parseToolFile } from '../../src/renderer/src/features/agent/toolChain'
+import { groupToolMeta, isContinuedRead, parseToolFile, summarizeGroup } from '../../src/renderer/src/features/agent/toolChain'
 
 const meta = (id: string, tool: string, toolArgs?: string) => ({ id, kind: 'meta' as const, tool, toolArgs })
 
@@ -87,5 +87,51 @@ describe('isContinuedRead（续读判据）', () => {
   it('越界/空/缺失参数安全返回 false', () => {
     expect(isContinuedRead([], 0)).toBe(false)
     expect(isContinuedRead([meta('m1', 'zj_read_doc')], 0)).toBe(false)
+  })
+})
+
+describe('summarizeGroup（链组聚合摘要）', () => {
+  const doneOk = (id: string, elapsedMs?: number, content?: string) => ({ id, tool: 'zj_read_doc', done: true, toolOk: true, elapsedMs, content })
+  const doneFail = (id: string, elapsedMs?: number, content?: string) => ({ id, tool: 'zj_read_doc', done: true, toolOk: false, elapsedMs, content })
+
+  it('少于 2 步返回 undefined（单卡无聚合语义）', () => {
+    expect(summarizeGroup([doneOk('m1')])).toBeUndefined()
+    expect(summarizeGroup([])).toBeUndefined()
+  })
+
+  it('全成功：无失败无取消，耗时=合计', () => {
+    const agg = summarizeGroup([doneOk('m1', 100, 'a'), doneOk('m2', 250, 'b'), doneOk('m3', 50, 'c')])
+    expect(agg).toEqual({ hasFailed: false, hasCancelled: false, summary: undefined, elapsedMs: 400, count: 3 })
+  })
+
+  it('组内尾步失败：hasFailed=true 且摘要取首个失败步内容', () => {
+    const agg = summarizeGroup([doneOk('m1', 100, 'a'), doneOk('m2', 200, 'b'), doneFail('m3', 300, '读取失败：文件已被外部修改')])
+    expect(agg?.hasFailed).toBe(true)
+    expect(agg?.hasCancelled).toBe(false)
+    expect(agg?.summary).toBe('读取失败：文件已被外部修改')
+    expect(agg?.elapsedMs).toBe(600)
+  })
+
+  it('组内首步失败：摘要取首步内容', () => {
+    const agg = summarizeGroup([doneFail('m1', 100, 'ENOENT'), doneOk('m2', 200, 'b')])
+    expect(agg?.hasFailed).toBe(true)
+    expect(agg?.summary).toBe('ENOENT')
+  })
+
+  it('组内任一步取消且无失败：hasCancelled=true；有失败则失败优先', () => {
+    const cancelled = { id: 'm2', tool: 'zj_read_doc', cancelled: true }
+    expect(summarizeGroup([doneOk('m1', 100, 'a'), cancelled])?.hasCancelled).toBe(true)
+    expect(summarizeGroup([doneOk('m1', 100, 'a'), doneFail('m2', 100, 'err'), cancelled])?.hasCancelled).toBe(false)
+    expect(summarizeGroup([doneOk('m1', 100, 'a'), doneFail('m2', 100, 'err'), cancelled])?.hasFailed).toBe(true)
+  })
+
+  it('无任何耗时数据：elapsedMs=undefined（旧事件无字段不误显示 0）', () => {
+    const agg = summarizeGroup([doneOk('m1'), doneOk('m2')])
+    expect(agg?.elapsedMs).toBeUndefined()
+  })
+
+  it('部分步骤有耗时：只累计有值部分', () => {
+    const agg = summarizeGroup([doneOk('m1', 100, 'a'), doneOk('m2'), { id: 'm3', tool: 'zj_read_doc', done: true, toolOk: true, elapsedMs: 50, content: 'c' }])
+    expect(agg?.elapsedMs).toBe(150)
   })
 })

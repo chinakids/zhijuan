@@ -22,7 +22,7 @@ import { createStreamBuffer } from '../../../../shared/streamBuffer'
 import { trimHistoryMessage } from '../../../../shared/historyTrim'
 import { useAgentStore, type AgentMsg } from './store'
 import ErrorNotice from './ErrorNotice'
-import { groupToolMeta, isContinuedRead } from './toolChain'
+import { groupToolMeta, isContinuedRead, summarizeGroup } from './toolChain'
 import { useUiStore } from '../../store/ui'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
 import TodoCard from './TodoCard'
@@ -66,7 +66,7 @@ function fmtDur(ms: number): string {
   return m + 'm' + Math.round(s - m * 60) + 's'
 }
 
-function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs, step, continued, argsJson, result, cancelled }: {
+function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs, step, continued, argsJson, result, cancelled, aggFailed, aggSummary, aggCancelled, aggElapsedMs, aggCount }: {
   tool: string; args?: string; done?: boolean; toolOk?: boolean; summary?: string; startedAt?: number; elapsedMs?: number
   /** 工具链内序号（如 2/3）——多轮连续工具调用可追溯顺序 */
   step?: { no: number; total: number }
@@ -77,8 +77,22 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
   result?: string
   /** 轮次以停止/错误终了时工具未返回结果（中性「已取消」终态；失败=工具自己报错，取消=人被中止，语义分层） */
   cancelled?: boolean
+  /* 链组头聚合覆盖（智能层 2026-09-17）：折叠态组头须把组内步骤的结果状态带到一行——
+   * 组内任一步失败/取消时组头不得只显示首条成功（失败被折叠吞掉，违背聚合视图状态可见基线） */
+  aggFailed?: boolean
+  /** 聚合失败摘要（首个失败步的结果文本） */
+  aggSummary?: string
+  aggCancelled?: boolean
+  /** 组内耗时合计（ms；>1 步时组头显示总成本，title 注明 N 步合计） */
+  aggElapsedMs?: number
+  aggCount?: number
 }) {
-  const failed = done === true && toolOk === false
+  const failed = (done === true && toolOk === false) || aggFailed === true
+  const anyCancelled = cancelled === true || aggCancelled === true
+  // 聚合失败时摘要改用首个失败步的内容（组头成功但组内失败——失败信号优先）
+  const failedSummary = (failed && aggSummary) ? aggSummary : summary
+  // 终态耗时：链组头用聚合合计（组级信息），单卡用自身耗时；title 注明 N 步合计
+  const shownElapsed = aggElapsedMs ?? ((done || anyCancelled) ? elapsedMs : undefined)
   // 进行中态：每秒刷新「已 Ns」；完成后不再刷新（meta-done 事件里已带最终耗时）
   const [, tick] = useReducer((x: number) => x + 1, 0)
   useEffect(() => {
@@ -102,14 +116,14 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
     <div
       className={cn(
         'rounded-lg border text-[11px]',
-        failed ? 'border-danger/40 bg-surface' : cancelled ? 'border-hair bg-surface' : done ? 'border-hair bg-surface' : 'border-accent/30 bg-surface'
+        failed ? 'border-danger/40 bg-surface' : anyCancelled ? 'border-hair bg-surface' : done ? 'border-hair bg-surface' : 'border-accent/30 bg-surface'
       )}
       data-testid={hasDetail ? 'zj-tool-detail' : undefined}
     >
       <div className="flex items-center gap-2 px-2.5 py-1.5">
         {failed ? (
           <CircleX className="h-3 w-3 shrink-0 text-danger" />
-        ) : cancelled ? (
+        ) : anyCancelled ? (
           <CircleSlash className="h-3 w-3 shrink-0 text-ink-3" data-testid="zj-tool-cancelled-icon" />
         ) : done ? (
           <Check className="h-3 w-3 shrink-0 text-success" />
@@ -133,24 +147,30 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
         )}
         {/* 参数行：truncate 单行 + title 全量（原 break-all 会把 CJK 文件名逐字竖排——F-20260912-06 修复） */}
         {args && <span className="min-w-0 flex-1 truncate font-mono text-[10px] leading-4 text-ink-3" title={args}>{args}</span>}
-        {cancelled && (
+        {anyCancelled && !failed && (
           <span data-testid="zj-tool-cancelled" className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-[10px] text-ink-3">
             已取消
           </span>
         )}
         {failed && <span className="shrink-0 rounded-full bg-danger-soft px-2 py-0.5 text-[10px] text-danger">失败</span>}
-        {done && summary && (
-          <span className={cn('max-w-[45%] shrink-0 truncate', failed ? 'text-danger' : 'text-ink-3')} title={summary}>{summary}</span>
+        {done && failedSummary && (
+          <span className={cn('max-w-[45%] shrink-0 truncate', failed ? 'text-danger' : 'text-ink-3')} title={failedSummary}>{failedSummary}</span>
         )}
         {live != null && (
           <span className="shrink-0 whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-[10px] text-accent">已 {fmtDur(live)}</span>
         )}
-        {!done && !cancelled && live == null && elapsedMs != null && (
+        {!done && !anyCancelled && live == null && elapsedMs != null && (
           <span className="shrink-0 whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-[10px] text-accent">已 {fmtDur(elapsedMs)}</span>
         )}
-        {/* 终态统一显示耗时：完成/失败/已取消（取消=settleTrailingTools 冻结的真实耗时——作者可见「跑了多久才被停」的等待成本） */}
-        {(done || cancelled) && elapsedMs != null && (
-          <span className="shrink-0 whitespace-nowrap rounded-full bg-surface px-2 py-0.5 text-[10px] text-ink-3">{fmtDur(elapsedMs)}</span>
+        {/* 终态统一显示耗时：完成/失败/已取消（取消=settleTrailingTools 冻结的真实耗时——作者可见「跑了多久才被停」的等待成本）；
+            链组头显示组内合计（aggElapsedMs，title 注明 N 步合计） */}
+        {shownElapsed != null && (done || anyCancelled || aggElapsedMs != null) && (
+          <span
+            className="shrink-0 whitespace-nowrap rounded-full bg-surface px-2 py-0.5 text-[10px] text-ink-3"
+            title={aggElapsedMs != null && aggCount != null && aggCount > 1 ? `本组 ${aggCount} 步工具调用合计耗时` : undefined}
+          >
+            {fmtDur(shownElapsed)}
+          </span>
         )}
         {hasDetail && (
           <button
@@ -210,6 +230,9 @@ function ToolChain({ msgs }: { msgs: AgentMsg[] }) {
         {groups.map((g, gi) => {
           const head = g[0]
           const isOpen = !!opened[gi]
+          // 链组聚合（智能层 2026-09-17）：折叠态组头带组内结果状态与合计耗时——
+          // 组内任一步失败/取消时组头不得只显示首条成功（失败被折叠吞掉）
+          const agg = summarizeGroup(g)
           return (
             <div key={gi}>
               <div className="flex items-center gap-1">
@@ -222,11 +245,16 @@ function ToolChain({ msgs }: { msgs: AgentMsg[] }) {
                     summary={head.content}
                     startedAt={head.startedAt}
                     elapsedMs={head.elapsedMs}
-                    step={{ no: gi + 1, total: groups.length }}
+                    step={{ no: idxOf(head) + 1, total: msgs.length }}
                     continued={isContinuedRead(msgs, idxOf(head))}
                     argsJson={head.toolArgsJson}
                     result={head.toolResult}
                     cancelled={head.cancelled}
+                    aggFailed={agg?.hasFailed}
+                    aggSummary={agg?.summary}
+                    aggCancelled={agg?.hasCancelled}
+                    aggElapsedMs={agg?.elapsedMs}
+                    aggCount={agg?.count}
                   />
                 </div>
                 {g.length > 1 && (
@@ -251,7 +279,7 @@ function ToolChain({ msgs }: { msgs: AgentMsg[] }) {
                       summary={m.content}
                       startedAt={m.startedAt}
                       elapsedMs={m.elapsedMs}
-                      step={{ no: gi + si + 2, total: msgs.length }}
+                      step={{ no: idxOf(m) + 1, total: msgs.length }}
                       continued={isContinuedRead(msgs, idxOf(m))}
                       argsJson={m.toolArgsJson}
                       result={m.toolResult}

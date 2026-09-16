@@ -113,10 +113,11 @@ try {
   // ① 链演示：发送含「链」的消息 → 3 步续读链
   await typeText(page, '链演示工具链')
   await pressEnter(page)
-  // 等待链完成（meta-done 全部到达：出现末步摘要「已读到末尾」）且 demo 尾句落定
+  // 等待链完成（折叠态组头可见的确定性信号：×3 展开钮 + demo 尾句；「已读到末尾」是第 3 步摘要，
+  // 折叠态不展示——原等待条件在此实现下永不满足（dc9045c 折叠化后既有的脚本 bug，档案已登记超时））
   await evalUntil(
     page,
-    `document.body.innerText.includes('已读到末尾') && document.body.innerText.includes('把这一段写出来')`,
+    `document.body.innerText.includes('×3 展开') && document.body.innerText.includes('把这一段写出来')`,
     (v) => v === true,
     25000,
     '续读链结束'
@@ -140,6 +141,11 @@ try {
   ok('工具链容器出现', chainInfo.found === true)
   ok('链头计数显示 3 步', (chainInfo.count || '').includes('3 步'), chainInfo.count)
   ok('默认合并为一批（步骤仅 1/3 + ×3 展开钮）', chainInfo.steps.length === 1 && chainInfo.hasExpand === true && (chainInfo.steps[0] || '').includes('1/3'), JSON.stringify(chainInfo.steps))
+  const aggElapsedTitle = await page.eval(`(() => {
+    const chain = document.querySelector('[data-testid="zj-tool-chain"]')
+    return [...chain.querySelectorAll('span')].some((e) => (e.getAttribute('title') || '').startsWith('本组 3 步工具调用合计耗时'))
+  })()`)
+  ok('折叠组头显示聚合耗时（title 注明 3 步合计）', aggElapsedTitle === true)
 
   // 展开全部步骤
   await page.eval(`(() => { const b = [...document.querySelectorAll('[data-testid="zj-tool-chain"] button')].find((x) => (x.innerText || '').includes('展开')); if (b) b.click(); return !!b })()`)
@@ -168,7 +174,37 @@ try {
   })()`)
   ok('assistant 回复完整（demo 尾句存在）', asst.includes('把这一段写出来'), asst.slice(-60))
 
-  // ④ 截图留档（链演示后界面状态）
+  // ④ 链内失败场景：发送「链失败演示」→ 折叠态组头必须显示聚合失败态（不被「绿勾+×N」吞掉）
+  await typeText(page, '链失败演示')
+  await pressEnter(page)
+  await evalUntil(
+    page,
+    `document.body.innerText.includes('你可以让我重试或改用修改卡')`,
+    (v) => v === true,
+    25000,
+    '链失败演示结束'
+  )
+  await sleep(400)
+  const failHead = await page.eval(`(() => {
+    const chains = [...document.querySelectorAll('[data-testid="zj-tool-chain"]')]
+    const chain = chains[chains.length - 1]
+    if (!chain) return { found: false }
+    const text = chain.innerText || ''
+    return {
+      found: true,
+      hasFailBadge: text.includes('失败'),
+      hasFailSummary: text.includes('读取失败：文件已被外部修改'),
+      hasSuccessIcon: !!chain.querySelector('svg.lucide-circle-x, [class*="lucide-circle-x"]') ||
+        [...chain.querySelectorAll('svg')].some((s) => (s.getAttribute('class') || '').includes('lucide-circle-x')),
+      collapseInfo: [...chain.querySelectorAll('[data-testid="zj-step"]')].map((e) => e.innerText.trim())
+    }
+  })()`)
+  ok('链失败：折叠组头显示「失败」徽标', failHead.found === true && failHead.hasFailBadge === true, JSON.stringify(failHead))
+  ok('链失败：组头摘要为首个失败步内容（红色失败信号）', failHead.hasFailSummary === true)
+  ok('链失败：折叠态无成功绿勾（CircleX 替代）', failHead.hasSuccessIcon === true)
+  ok('链失败：默认折叠（步骤仅 1/3）', JSON.stringify(failHead.collapseInfo) === JSON.stringify(['1/3']), JSON.stringify(failHead.collapseInfo))
+
+  // ⑤ 截图留档（链失败折叠态界面：组头失败徽标+摘要+聚合耗时）
   try {
     const shot = await page.cmd('Page.captureScreenshot', { format: 'png' })
     const name = 'tool-chain-' + new Date().toTimeString().slice(0, 5).replace(':', '') + '.png'
@@ -179,7 +215,8 @@ try {
     console.log('SHOT FAIL', e.message)
   }
 
-  // ⑤ 回归：普通消息（不含链词）仍是独立工具卡、无链容器
+  // ⑤ 回归：普通消息（不含链词）仍是独立工具卡、不新增链容器
+  const chainsBefore = await page.eval(`document.querySelectorAll('[data-testid="zj-tool-chain"]').length`)
   await typeText(page, '看看当前章节')
   await pressEnter(page)
   await evalUntil(
@@ -195,7 +232,7 @@ try {
     const reads = [...document.querySelectorAll('*')].filter((e) => e.className && String(e.className).includes('rounded') && (e.innerText || '').includes('zj_read_doc') === false && (e.innerText || '').includes('读文档')).length
     return { chains, reads }
   })()`)
-  ok('普通消息无新链容器（单卡零回归）', single.chains === 1, JSON.stringify(single))
+  ok('普通消息未新增链容器（链数不变=' + chainsBefore + '）', single.chains === chainsBefore, JSON.stringify(single))
   ok('普通消息仍渲染读文档卡', single.reads >= 1, JSON.stringify(single))
 
   console.log('ALL OK ✅ (' + pass + '/' + (pass + fail) + ')')

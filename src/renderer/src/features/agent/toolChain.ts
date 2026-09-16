@@ -58,3 +58,48 @@ export function isContinuedRead(msgs: readonly MetaMsgLike[], idx: number): bool
   }
   return false
 }
+
+/** 链组聚合摘要（智能层 2026-09-17）：折叠态组头只渲染首条会吞掉组内后续步骤的结果状态——
+ * 同工具连续 N 步里第 K 步失败时组头仍是「绿勾+×N」，作者误以为全部成功（业界基线=聚合视图结果
+ * 状态始终可见，GitHub Actions run 摘要 success/failure/canceled/neutral 永不折叠）。 */
+export interface GroupAgg {
+  /** 组内任一步失败（done 且 toolOk=false） */
+  hasFailed: boolean
+  /** 组内任一步被取消且无失败（失败优先语义） */
+  hasCancelled: boolean
+  /** 首个失败步的结果摘要（组头失败态展示用） */
+  summary: string | undefined
+  /** 组内全部已终态步骤耗时合计（ms）；无任何耗时数据时 undefined */
+  elapsedMs: number | undefined
+  /** 组内步数 */
+  count: number
+}
+
+export interface GroupAggMsgLike extends MetaMsgLike {
+  done?: boolean
+  toolOk?: boolean
+  cancelled?: boolean
+  elapsedMs?: number
+  content?: string
+}
+
+/** 仅对 ≥2 步的链组生效（单卡/单组无聚合语义，保持既有视觉零回归）。 */
+export function summarizeGroup(msgs: readonly GroupAggMsgLike[]): GroupAgg | undefined {
+  if (msgs.length < 2) return undefined
+  const failed = msgs.find((m) => m.done === true && m.toolOk === false)
+  let sum = 0
+  let any = false
+  for (const m of msgs) {
+    if (typeof m.elapsedMs === 'number') {
+      sum += m.elapsedMs
+      any = true
+    }
+  }
+  return {
+    hasFailed: !!failed,
+    hasCancelled: msgs.some((m) => m.cancelled) && !failed,
+    summary: failed?.content || undefined,
+    elapsedMs: any ? Math.round(sum * 10) / 10 : undefined,
+    count: msgs.length
+  }
+}
