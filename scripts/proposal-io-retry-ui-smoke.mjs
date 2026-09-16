@@ -101,6 +101,29 @@ ok('① IO 失败后卡仍「待确认」（状态未被误置已拒绝）', s1.
 ok('② IO 失败后「接受」按钮仍可用（disabled=false）', s1.acceptDisabled === false, JSON.stringify(s1))
 ok('③ 卡片红字含「系统写入失败，可直接重试」指路', s1.hasErr === true, JSON.stringify(s1))
 
+// ③.5 跨开合保留（2026-09-17 创作层：errMap 迁 useProposalStore）——收起抽屉重开，失败红字不能丢
+await page.eval(clickBtn('收起', true))
+await evalUntil(page, `!document.body.innerText.includes('全部接受')`, (v) => v === true, 10000, '抽屉收起')
+await page.eval(clickBtn('待确认提案 1'))
+await evalUntil(page, `document.body.innerText.includes('提案') && document.body.innerText.includes('待确认')`, (v) => v === true, 10000, '抽屉重开')
+await sleep(300)
+const s15 = await page.eval(`(() => {
+  const card = [...document.querySelectorAll('[class*=rounded-xl]')].find((d) => d.innerText.includes('人物/冒烟测试.md'))
+  return { hasErr: card?.innerText.includes('系统写入失败，可直接重试') ?? false, badge: card?.innerText.includes('待确认') ?? false }
+})()`)
+ok('③.5 关抽屉重开后失败红字仍在（store 级 errMap 跨开合保留）', s15.hasErr === true && s15.badge === true, JSON.stringify(s15))
+
+// ③.6 取证截图：重开抽屉后「失败红字仍可见」态（跨开合保留最有说服力的画面）
+mkdirSync(OUT, { recursive: true })
+{
+  const hh = String(new Date().getHours()).padStart(2, '0')
+  const mm = String(new Date().getMinutes()).padStart(2, '0')
+  const s = await page.cmd('Page.captureScreenshot', { format: 'png' })
+  const shotPath = OUT + '/proposal-err-persist-' + hh + mm + '.png'
+  writeFileSync(shotPath, Buffer.from(s.data, 'base64'))
+  console.log('SCREENSHOT:', shotPath)
+}
+
 // ④ 第二次「接受」→ 注入已消费 → 真正写入 → 已接受
 await page.eval(clickBtn('接受', true))
 await evalUntil(page, `document.body.innerText.includes('已接受')`, (v) => v === true, 10000, '重试成功 accepted')

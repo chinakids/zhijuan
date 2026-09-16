@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Check, X, FileText, GitCompare, Inbox, ChevronDown, Trash2, RefreshCw } from 'lucide-react'
 import type { Proposal, SyncIssue } from '../../../../shared/types'
 import { Button } from '../../components/ui/button'
@@ -11,6 +11,7 @@ import { formatGuardIssuesText } from '../sync/guardText'
 import { isUnfiledIssue } from '../sync/guardCreate'
 import { bulkQuickCreate } from '../sync/guardBulk'
 import { describeSyncEvidence } from '../../../../shared/syncEvidence'
+import { useProposalStore } from '../../store/proposals'
 import { isChapterTarget } from '../../../../shared/editSyncGate'
 import type { SliceSyncResult } from '../sync/sliceSync'
 
@@ -133,9 +134,10 @@ function ItemCard({ p, projectId, onChanged, err, onErr }: { p: Proposal; projec
     try {
       const r = await window.zhijuan.applyProposal(projectId, p.id)
       if (!r.ok || r.errors?.length) {
-        // 失败原因挂抽屉级 errMap（proposalId→err）：提案 status→rejected 后从 pending 组
+        // 失败原因挂 store 级 errMap（proposalId→err）：提案 status→rejected 后从 pending 组
         // 移入 done 组，ItemCard 会卸载重挂（两个 map 调用不共享 fiber），组件本地 state
-        // 在换组后归零——15:45 轮实锤「err 永不进 DOM」的根因；挂抽屉级才换组后仍可见。
+        // 在换组后归零——15:45 轮实锤「err 永不进 DOM」的根因；挂 store 级才换组后仍可见，
+        // 且关抽屉重开/跨页保留（2026-09-17；成功/拒绝/过期/列表消失时清除）。
         // toast 仍作兜底（抽屉关闭/长流程中也可见）。
         // 2026-09-16：IO/系统失败（retryable）保持 pending 可重试，文案改指路「可直接重试」而非核对原文
         const msg = (r.errors?.join('；') || '写入失败') + (r.retryable ? '（系统写入失败，可直接重试）' : '（请先核对原文；如需继续请重新扫描批注或再次保存）')
@@ -155,10 +157,12 @@ function ItemCard({ p, projectId, onChanged, err, onErr }: { p: Proposal; projec
   }
   async function doReject() {
     await window.zhijuan.rejectProposal(projectId, p.id)
+    onErr(p.id, '')
     onChanged()
   }
   async function doDiscard() {
     await window.zhijuan.discardProposal(projectId, p.id)
+    onErr(p.id, '')
     onChanged()
   }
   const st = STATUS[p.status] ?? STATUS.pending
@@ -214,19 +218,12 @@ function ItemCard({ p, projectId, onChanged, err, onErr }: { p: Proposal; projec
 
 export default function ProposalDrawer({ projectId, list, onChanged, onClose }: Props) {
   // 提案级错误（proposalId→err）：ItemCard 在 pending→done 换组时会卸载重挂，组件本地错误态
-  // 会丢失（15:45 轮实锤）——挂抽屉级 Map，换组后卡片内红字仍可见；关闭抽屉归零（toast 兜底）。
-  const [errMap, setErrMap] = useState<Record<string, string>>({})
-  const reportErr = useCallback((id: string, msg: string) => {
-    setErrMap((m) => {
-      if (!msg) {
-        if (!(id in m)) return m
-        const n = { ...m }
-        delete n[id]
-        return n
-      }
-      return { ...m, [id]: msg }
-    })
-  }, [])
+  // 会丢失（15:45 轮实锤）——挂抽屉级 Map，换组后卡片内红字仍可见；2026-09-17 再迁 store：
+  // IO 失败保持 pending 后失败卡是「可恢复资源」，关抽屉重开红字不能丢（只靠 toast 记忆作者
+  // 无从知道「这条为什么还在待确认」）——挂 useProposalStore，跨开合/跨页保留，
+  // 成功/拒绝/过期/提案从列表消失时清除（refresh 收敛）。
+  const errMap = useProposalStore((s) => s.errMap)
+  const reportErr = useProposalStore((s) => s.setErr)
   const pending = useMemo(() => list.filter((p) => p.status === 'pending'), [list])
   const done = useMemo(() => list.filter((p) => p.status === 'accepted' || p.status === 'rejected'), [list])
   const stale = useMemo(() => list.filter((p) => p.status === 'stale'), [list])
@@ -250,6 +247,7 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose }: 
           r = { ok: false, errors: [String((e as Error).message || e)] }
         }
         if (r.ok) {
+          reportErr(p.id, '')
           const t = p.items[0]?.target ?? ''
           if (isChapterTarget(t) && t) targets.add(t)
         } else {
