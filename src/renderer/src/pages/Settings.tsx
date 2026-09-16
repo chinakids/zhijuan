@@ -331,14 +331,30 @@ export default function Settings() {
               <Label>任务清单（todo_write）</Label>
               <p className="text-xs text-ink-3">模型会把执行步骤画成清单卡片，随进度更新。</p>
             </div>
-            <Switch checked={tools.todo} onCheckedChange={(v) => setTools((t) => ({ ...t, todo: v }))} />
+            <Switch
+              aria-label="任务清单（todo_write）"
+              checked={tools.todo}
+              onCheckedChange={(v) => {
+                const next = { ...tools, todo: v }
+                setTools(next)
+                void updateSettings({ agentTools: next })
+              }}
+            />
           </div>
           <div className="flex items-center justify-between">
             <div>
               <Label>需要你确认（ask_user）</Label>
               <p className="text-xs text-ink-3">需要选择时模型会停下，用提问卡等你回答。</p>
             </div>
-            <Switch checked={tools.askUser} onCheckedChange={(v) => setTools((t) => ({ ...t, askUser: v }))} />
+            <Switch
+              aria-label="需要你确认（ask_user）"
+              checked={tools.askUser}
+              onCheckedChange={(v) => {
+                const next = { ...tools, askUser: v }
+                setTools(next)
+                void updateSettings({ agentTools: next })
+              }}
+            />
           </div>
         </div>
         <Separator className="my-5" />
@@ -352,7 +368,7 @@ export default function Settings() {
                   <Label>{c.title}</Label>
                   <p className="text-xs text-ink-3">{c.description ?? '…'}</p>
                 </div>
-                <Switch checked={caps[c.id] !== false} onCheckedChange={(v) => toggleCap(c.id, v)} />
+                <Switch aria-label={c.title} checked={caps[c.id] !== false} onCheckedChange={(v) => toggleCap(c.id, v)} />
               </div>
             ))
           ) : (
@@ -387,14 +403,28 @@ export default function Settings() {
                     <Label>联网采集管道</Label>
                     <p className="text-xs text-ink-3">开启后，采集池的任务会由本机管道后台处理（S5）。</p>
                   </div>
-                  <Switch checked={collection} onCheckedChange={setCollection} />
+                  <Switch
+                    aria-label="联网采集管道"
+                    checked={collection}
+                    onCheckedChange={(v) => {
+                      setCollection(v)
+                      void updateSettings({ collectionEnabled: v })
+                    }}
+                  />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>批注定时优化</Label>
                     <p className="text-xs text-ink-3">开启后，打开项目 10 秒后及每 30 分钟自动扫描批注并生成提案；关闭后仅在提案抽屉手动「扫描批注」。</p>
                   </div>
-                  <Switch checked={annotations} onCheckedChange={setAnnotations} />
+                  <Switch
+                    aria-label="批注定时优化"
+                    checked={annotations}
+                    onCheckedChange={(v) => {
+                      setAnnotations(v)
+                      void updateSettings({ annotationsEnabled: v })
+                    }}
+                  />
                 </div>
               </Card>
             </>
