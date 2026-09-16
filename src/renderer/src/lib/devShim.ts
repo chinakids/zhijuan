@@ -1160,11 +1160,24 @@ const mock = {
         ]
       })
       await demoDelay()
-      emit({ requestId: rid, type: 'meta-done', tool: 'zj_edit_doc', message: '已生成正文修改方案（1 处），采纳后写入', result: '★ZJ_EDIT★\n{"file":"正文/第01章_雾港.md","edits":[{"find":"…","replace":"…"}]}\n★ZJ_END★' })
-      await demoDelay()
+      // 2026-09-16 智能层候选2：不再补 zj_edit_doc 的 meta-done——超时落在工具执行期（更贴近真实引擎场景），
+      // 进行中工具卡由渲染层 settle 落「已取消」中性终态（本演示即「error 终了+工具未返回」种子）
       emit({ requestId: rid, type: 'delta', text: '已读完当前章节，定位到灯语伏笔处——' })
       await demoDelay()
       emit({ requestId: rid, type: 'error', message: '写作引擎驱动超时（已中止引擎本轮）' })
+      return { ok: true }
+    }
+    // 工具进行中被停止演示（2026-09-16 智能层候选2）：prompt 含「模拟中断」时——发出工具开始事件后
+    // 不发 meta-done 直接补发 aborted（=停止时工具还没返回），用于验证「已取消」工具卡终态渲染；
+    // 真机的 aborted 由 agentCancel 补发（见下），这里直接发同一事件（渲染层只认事件）
+    if (/模拟中断/.test(input.prompt)) {
+      emit({ requestId: rid, type: 'think', text: '查一下这一段的前文铺垫，再决定怎么改…' })
+      await demoDelay()
+      emit({ requestId: rid, type: 'meta', tool: 'zj_search', args: '灯语', argsJson: JSON.stringify({ query: '灯语', limit: 10 }) })
+      await demoDelay()
+      emit({ requestId: rid, type: 'delta', text: '正在检索灯语相关段落——' })
+      await demoDelay()
+      emit({ requestId: rid, type: 'aborted' })
       return { ok: true }
     }
     // 思考过程演示

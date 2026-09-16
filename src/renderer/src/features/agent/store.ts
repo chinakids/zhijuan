@@ -27,6 +27,8 @@ export interface AgentMsg {
   /** meta 卡：工具开始时刻（performance.now）与耗时（meta-done 时计算，ms） */
   startedAt?: number
   elapsedMs?: number
+  /** meta 卡：轮次以停止/错误终了时该工具仍未返回结果（渲染「已取消」中性终态，停转圈） */
+  cancelled?: boolean
   /** edit 卡：目标文件与修改条目 */
   file?: string
   edits?: EditItem[]

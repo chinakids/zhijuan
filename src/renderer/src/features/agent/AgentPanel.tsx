@@ -102,13 +102,15 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
     <div
       className={cn(
         'rounded-lg border text-[11px]',
-        failed ? 'border-danger/40 bg-surface' : done ? 'border-hair bg-surface' : 'border-accent/30 bg-surface'
+        failed ? 'border-danger/40 bg-surface' : cancelled ? 'border-hair bg-surface' : done ? 'border-hair bg-surface' : 'border-accent/30 bg-surface'
       )}
       data-testid={hasDetail ? 'zj-tool-detail' : undefined}
     >
       <div className="flex items-center gap-2 px-2.5 py-1.5">
         {failed ? (
           <CircleX className="h-3 w-3 shrink-0 text-danger" />
+        ) : cancelled ? (
+          <CircleSlash className="h-3 w-3 shrink-0 text-ink-3" data-testid="zj-tool-cancelled-icon" />
         ) : done ? (
           <Check className="h-3 w-3 shrink-0 text-success" />
         ) : (
@@ -131,6 +133,11 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
         )}
         {/* 参数行：truncate 单行 + title 全量（原 break-all 会把 CJK 文件名逐字竖排——F-20260912-06 修复） */}
         {args && <span className="min-w-0 flex-1 truncate font-mono text-[10px] leading-4 text-ink-3" title={args}>{args}</span>}
+        {cancelled && (
+          <span data-testid="zj-tool-cancelled" className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-[10px] text-ink-3">
+            已取消
+          </span>
+        )}
         {failed && <span className="shrink-0 rounded-full bg-danger-soft px-2 py-0.5 text-[10px] text-danger">失败</span>}
         {done && summary && (
           <span className={cn('max-w-[45%] shrink-0 truncate', failed ? 'text-danger' : 'text-ink-3')} title={summary}>{summary}</span>
@@ -138,7 +145,7 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
         {live != null && (
           <span className="shrink-0 whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-[10px] text-accent">已 {fmtDur(live)}</span>
         )}
-        {!done && live == null && elapsedMs != null && (
+        {!done && !cancelled && live == null && elapsedMs != null && (
           <span className="shrink-0 whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-[10px] text-accent">已 {fmtDur(elapsedMs)}</span>
         )}
         {done && elapsedMs != null && (
@@ -218,6 +225,7 @@ function ToolChain({ msgs }: { msgs: AgentMsg[] }) {
                     continued={isContinuedRead(msgs, idxOf(head))}
                     argsJson={head.toolArgsJson}
                     result={head.toolResult}
+                    cancelled={head.cancelled}
                   />
                 </div>
                 {g.length > 1 && (
@@ -246,6 +254,7 @@ function ToolChain({ msgs }: { msgs: AgentMsg[] }) {
                       continued={isContinuedRead(msgs, idxOf(m))}
                       argsJson={m.toolArgsJson}
                       result={m.toolResult}
+                      cancelled={m.cancelled}
                     />
                   ))}
                 </div>
@@ -479,6 +488,25 @@ function useSender(props: AgentPanelProps) {
         const last = lastAsst()
         if (last) useAgentStore.getState().setError(last.id, txt, { prompt: raw, quote, focus })
       }
+      // 工具卡终态兜底（2026-09-16 智能层候选2）：轮次以 done/aborted/error 收尾时，已发出但未收到
+      // meta-done 的工具卡若一直悬置会永久转圈（作者无法判断工具是没返回还是卡死）——统一落「已取消」
+      // 中性终态并冻结耗时。真机取消路径 dsh 会补发合成失败结果（ABORTED_BEFORE_DISPATCH→失败态），
+      // 此处兜底的是 error 终了（驱动超时/引擎异常）与事件缺失场景，幂等（已 done/cancelled 不重复标）。
+      const settleTrailingTools = () => {
+        const now = performance.now()
+        for (const m of useAgentStore.getState().messages) {
+          if (m.id.startsWith(rid + '-m') && m.kind === 'meta' && !m.done && !m.cancelled) {
+            useAgentStore
+              .getState()
+              .upsertTool({
+                id: m.id,
+                kind: 'meta',
+                cancelled: true,
+                elapsedMs: m.startedAt != null ? Math.max(0, now - m.startedAt) : m.elapsedMs
+              })
+          }
+        }
+      }
       try {
         attachAgentBridge()
         abortRef.current = { rid }
@@ -550,6 +578,7 @@ function useSender(props: AgentPanelProps) {
       } catch (e) {
         fail(String((e as Error).message || e))
       } finally {
+        settleTrailingTools()
         setStreaming(false)
         abortRef.current = null
         useAgentStore.getState().setQuote(null)
@@ -1197,7 +1226,7 @@ export default function AgentPanel(props: AgentPanelProps) {
                 }
                 return (
                   <div key={m.id} className="w-full">
-                    <ToolActivity tool={m.tool ?? ''} args={m.toolArgs} done={m.done} toolOk={m.toolOk} summary={m.content} startedAt={m.startedAt} elapsedMs={m.elapsedMs} argsJson={m.toolArgsJson} result={m.toolResult} />
+                    <ToolActivity tool={m.tool ?? ''} args={m.toolArgs} done={m.done} toolOk={m.toolOk} summary={m.content} startedAt={m.startedAt} elapsedMs={m.elapsedMs} argsJson={m.toolArgsJson} result={m.toolResult} cancelled={m.cancelled} />
                   </div>
                 )
               }
