@@ -69,7 +69,7 @@ const TB_STATE = `(() => {
   const chromeTitle = document.querySelector('.window-chrome')?.textContent?.replace(/\\s+/g, ' ').trim() ?? ''
   return {
     ready: !!root,
-    items: items.map((b) => b.getAttribute('title')),
+    items: items.map((b) => b.getAttribute('aria-label')), // 纯名（title 已含键位提示「名（⌘B）」→ 断言用 aria-label）
     more: !!more,
     moreBtn: more ? more.getBoundingClientRect().width : 0,
     barW: root ? root.getBoundingClientRect().width : 0,

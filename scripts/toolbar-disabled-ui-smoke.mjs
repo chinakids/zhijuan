@@ -78,7 +78,7 @@ async function mouseAway(page) {
 // 工具栏状态快照：撤销/重做（排除测量层 data-zj-tb-measure）的 disabled/class/computed 色 + 文档 md
 const TB = `(() => {
   const bar = [...document.querySelectorAll('.zj-md-toolbar')].find((b) => !b.hasAttribute('data-zj-tb-measure'))
-  const pick = (title) => [...(bar?.querySelectorAll('.zj-tb-item') ?? [])].find((b) => b.getAttribute('title') === title)
+  const pick = (title) => [...(bar?.querySelectorAll('.zj-tb-item') ?? [])].find((b) => b.getAttribute('title')?.startsWith(title))
   const u = pick('撤销'); const r = pick('重做'); const bold = pick('加粗')
   const st = (b) => b ? {
     disabled: b.disabled === true,
@@ -114,7 +114,7 @@ ok('置灰色 = ink-3 且透明度 <1（区别于 enabled）', v0.undo.color !==
 // ② 禁用按钮点击无效果（真实鼠标点中心）
 const uRect0 = await page.eval(`(() => {
   const bar = [...document.querySelectorAll('.zj-md-toolbar')].find((b) => !b.hasAttribute('data-zj-tb-measure'))
-  const b = [...bar.querySelectorAll('.zj-tb-item')].find((x) => x.getAttribute('title') === '撤销')
+  const b = [...bar.querySelectorAll('.zj-tb-item')].find((x) => x.getAttribute('title')?.startsWith('撤销'))
   const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
 })()`)
 await clickXY(page, uRect0.x, uRect0.y)
@@ -141,7 +141,7 @@ ok('编辑后：透明度恢复 1', parseFloat(v1s.undo.opacity) === 1)
 // ④ 真点「撤销」→ 内容回退、撤销转置灰、重做可用
 const uRect1 = await page.eval(`(() => {
   const bar = [...document.querySelectorAll('.zj-md-toolbar')].find((b) => !b.hasAttribute('data-zj-tb-measure'))
-  const b = [...bar.querySelectorAll('.zj-tb-item')].find((x) => x.getAttribute('title') === '撤销')
+  const b = [...bar.querySelectorAll('.zj-tb-item')].find((x) => x.getAttribute('title')?.startsWith('撤销'))
   const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
 })()`)
 await clickXY(page, uRect1.x, uRect1.y)
@@ -155,7 +155,7 @@ ok('撤销后：文档回退（非测试正文）', !v2s.mdHead.includes('工具
 // ⑤ 真点「重做」→ 对称翻转
 const rRect = await page.eval(`(() => {
   const bar = [...document.querySelectorAll('.zj-md-toolbar')].find((b) => !b.hasAttribute('data-zj-tb-measure'))
-  const b = [...bar.querySelectorAll('.zj-tb-item')].find((x) => x.getAttribute('title') === '重做')
+  const b = [...bar.querySelectorAll('.zj-tb-item')].find((x) => x.getAttribute('title')?.startsWith('重做'))
   const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
 })()`)
 await clickXY(page, rRect.x, rRect.y)

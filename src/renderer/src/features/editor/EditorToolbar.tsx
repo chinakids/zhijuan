@@ -22,6 +22,9 @@ type HistState = { canUndo: boolean; canRedo: boolean }
 
 /** 编辑器工具栏（Apple HIG Toolbars 对齐）：
  *  - 符号优先、无边框、哑光低调；与「暖纸面+精密中性铬」设计语言共存；
+ *  - 宽窗按钮 title 提示含键位（「加粗（⌘B）」；无真实绑定的项不标）——快捷键发现性（HIG Keyboards
+ *    「people appreciate keyboard shortcuts」/ HIG Menus 键盘等价；Pages/TextEdit 惯例 tooltip 含 shortcut）；
+ *    aria-label 保持纯名（屏读不需要键位），键位权威源=EDITOR_SHORTCUTS（toolbarLayout.ts）。
  *  - 窄窗放不下时，低频动作自动收进「⋯」More 菜单（HIG：主区只留最重要项、More 收纳次要项），
  *    容器宽度 ResizeObserver 实测；离屏测量层全量渲染（隐藏项也能量到宽）。
  *  - 格式工具（标题/加粗/列表…）是 toggle 按钮（HIG Buttons：macOS 方形符号按钮可配置为 toggle 行为；
@@ -166,7 +169,7 @@ export default function EditorToolbar({
     return (
       <button
         key={t.key}
-        title={t.name}
+        title={t.shortcut ? `${t.name}（${t.shortcut}）` : t.name}
         aria-label={t.name}
         disabled={dis}
         aria-pressed={t.active ? act : undefined}

@@ -76,7 +76,7 @@ const SELECT_CHAPTER = `(async () => {
   await new Promise((r) => setTimeout(r, 2500))
   return document.querySelector('.zj-md-toolbar') ? 'ok' : 'no toolbar'
 })()`
-const TOOL_GEOM = `document.querySelector('.zj-md-toolbar button[title="加粗"]')`
+const TOOL_GEOM = `document.querySelector('.zj-md-toolbar button[title^="加粗"]')`
 const box = async (page, sel) => {
   return page.eval(`(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height } })()`)
 }
@@ -104,24 +104,24 @@ const struct = await page.eval(`(() => {
 ok('工具栏结构=12 按钮/3 组 2 sep/宽窗无 More（默认不溢出）', struct && struct.btnCount === 12 && struct.sepCount === 2 && !struct.more, JSON.stringify(struct))
 ok('图标 16px（HIG 符号优先/适中）', struct && struct.iconW === 16, String(struct && struct.iconW))
 
-const b = await st(page, '.zj-md-toolbar button[title="加粗"]')
+const b = await st(page, '.zj-md-toolbar button[title^="加粗"]')
 ok('按钮无边框+24px+r6（macOS toolbar 无 bezel）', b && b.border === '0px solid' && b.shadow === 'none' && b.w === 24 && b.h === 24 && b.radius === '6px', JSON.stringify(b))
-ok('按钮 title+aria-label 齐全（可发现性）', b && b.title === '加粗' && b.aria === '加粗', JSON.stringify(b))
+ok('按钮 title 含键位提示+aria-label 纯净（可发现性；HIG Menus 键盘等价）', b && b.title === '加粗（⌘B）' && b.aria === '加粗', JSON.stringify(b))
 
-const d = await st(page, '.zj-md-toolbar button[title="撤销"]')
+const d = await st(page, '.zj-md-toolbar button[title^="撤销"]')
 ok('撤销初始 disabled（历史深度置灰）', d && d.disabled === true, JSON.stringify(d))
 
 // 真鼠标三态（加粗）
-const rB = await box(page, '.zj-md-toolbar button[title="加粗"]')
+const rB = await box(page, '.zj-md-toolbar button[title^="加粗"]')
 await mouse(page, 'mouseMoved', MOUSE_OFF.x, MOUSE_OFF.y); await sleep(250)
-const rest = await st(page, '.zj-md-toolbar button[title="加粗"]')
+const rest = await st(page, '.zj-md-toolbar button[title^="加粗"]')
 await mouse(page, 'mouseMoved', rB.x, rB.y); await sleep(250)
-const hover = await st(page, '.zj-md-toolbar button[title="加粗"]')
+const hover = await st(page, '.zj-md-toolbar button[title^="加粗"]')
 await mouse(page, 'mousePressed', rB.x, rB.y); await sleep(250)
-const active = await st(page, '.zj-md-toolbar button[title="加粗"]')
+const active = await st(page, '.zj-md-toolbar button[title^="加粗"]')
 await mouse(page, 'mouseReleased', rB.x, rB.y); await sleep(80)
 await mouse(page, 'mouseMoved', MOUSE_OFF.x, MOUSE_OFF.y); await sleep(250)
-const rest2 = await st(page, '.zj-md-toolbar button[title="加粗"]')
+const rest2 = await st(page, '.zj-md-toolbar button[title^="加粗"]')
 console.log('bold rest/hover/active/rest2:', rest.bg, '/', hover.bg, '/', active.bg, '/', rest2.bg)
 ok('rest→hover 有反馈', rest.bg !== hover.bg, `${rest.bg} → ${hover.bg}`)
 ok('press 态存在（hover→active 加深，可辨）', hover.bg !== active.bg, `${hover.bg} → ${active.bg}`)
@@ -130,11 +130,11 @@ ok('释放后无按压残留', rest2.bg !== active.bg, rest2.bg)
 ok('点击后按钮与编辑器状态联动（激活态=accent-soft）', rest2.pressed === 'true' && rest2.bg === 'rgb(227, 240, 238)', JSON.stringify({ pressed: rest2.pressed, bg: rest2.bg }))
 
 // disabled 按下无按压反馈（撤销置灰）
-const rD = await box(page, '.zj-md-toolbar button[title="撤销"]')
+const rD = await box(page, '.zj-md-toolbar button[title^="撤销"]')
 await mouse(page, 'mouseMoved', rD.x, rD.y); await sleep(250)
-const dHover = await st(page, '.zj-md-toolbar button[title="撤销"]')
+const dHover = await st(page, '.zj-md-toolbar button[title^="撤销"]')
 await mouse(page, 'mousePressed', rD.x, rD.y); await sleep(200)
-const dActive = await st(page, '.zj-md-toolbar button[title="撤销"]')
+const dActive = await st(page, '.zj-md-toolbar button[title^="撤销"]')
 await mouse(page, 'mouseReleased', rD.x, rD.y); await sleep(80)
 ok('disabled 按下无按压反馈（不响应）', dHover.bg === dActive.bg, `${dHover.bg} → ${dActive.bg}`)
 
@@ -142,11 +142,11 @@ ok('disabled 按下无按压反馈（不响应）', dHover.bg === dActive.bg, `$
 await page.eval(`document.documentElement.classList.add('dark')`); await sleep(300)
 await mouse(page, 'mouseMoved', MOUSE_OFF.x, MOUSE_OFF.y); await sleep(250)
 const dBg = await page.eval(`getComputedStyle(document.querySelector('.zj-md-toolbar')).backgroundColor`)
-const darkRest = await st(page, '.zj-md-toolbar button[title="加粗"]')
+const darkRest = await st(page, '.zj-md-toolbar button[title^="加粗"]')
 await mouse(page, 'mouseMoved', rB.x, rB.y); await sleep(250)
-const darkHover = await st(page, '.zj-md-toolbar button[title="加粗"]')
+const darkHover = await st(page, '.zj-md-toolbar button[title^="加粗"]')
 await mouse(page, 'mousePressed', rB.x, rB.y); await sleep(250)
-const darkActive = await st(page, '.zj-md-toolbar button[title="加粗"]')
+const darkActive = await st(page, '.zj-md-toolbar button[title^="加粗"]')
 await mouse(page, 'mouseReleased', rB.x, rB.y); await sleep(80)
 ok('dark press 态可辨（state parity）', darkHover.bg !== darkActive.bg && darkActive.bg !== 'rgba(0, 0, 0, 0)', `${darkHover.bg} → ${darkActive.bg}`)
 ok('dark 工具栏背景=surface-2', dBg === 'rgb(32, 31, 29)', dBg)
@@ -183,7 +183,7 @@ await mouse(pageM, 'mouseReleased', rM.x, rM.y); await sleep(400)
 const openState = await st(pageM, '.zj-md-toolbar button[title="更多格式"]')
 const items = await pageM.eval(`[...document.querySelectorAll('[role="menuitem"]')].map((it) => it.innerText.trim().slice(0, 12))`)
 ok('More 打开后触发器 data-state=open 且高亮保持（菜单打开=保持选中）', openState.ds === 'open' && openState.bg === 'rgb(241, 238, 231)', JSON.stringify(openState))
-ok('More 菜单项=icon+文案且与隐藏集一致', items.length === 5 && items.includes('斜体') && items.includes('有序列表'), JSON.stringify(items))
+ok('More 菜单项=icon+文案且与隐藏集一致', items.length === 5 && items.some((x) => x.startsWith('斜体')) && items.some((x) => x.startsWith('有序列表')), JSON.stringify(items))
 const shotM = await pageM.cmd('Page.captureScreenshot', { format: 'png' })
 writeFileSync(outDir + '/toolbar-more-open-' + HHMM + '.png', Buffer.from(shotM.data, 'base64'))
 // Esc 关闭

@@ -88,7 +88,7 @@ const rectExpr = (needleB64) => `(() => {
 // 工具栏按钮状态快照（排除测量层）
 const tbExpr = `(() => {
   const bar = [...document.querySelectorAll('.zj-md-toolbar')].find((b) => !b.hasAttribute('data-zj-tb-measure'))
-  const pick = (title) => [...(bar?.querySelectorAll('.zj-tb-item') ?? [])].find((b) => b.getAttribute('title') === title)
+  const pick = (title) => [...(bar?.querySelectorAll('.zj-tb-item') ?? [])].find((b) => b.getAttribute('title')?.startsWith(title))
   const st = (b) => b ? {
     pressed: b.getAttribute('aria-pressed'),
     on: b.classList.contains('zj-tb-on'),
