@@ -1270,10 +1270,16 @@ export default function AgentPanel(props: AgentPanelProps) {
                 </button>
               ))}
             </div>
-            <Button variant="default" size="sm" className="h-8 shrink-0 px-2" title="把编辑器里选中的段落作为引用" onClick={grabQuote}>
-              <Paperclip />
-              <span className="ml-1">引用选中</span>
-            </Button>
+            <button
+              type="button"
+              onClick={grabQuote}
+              title="把编辑器里选中的段落作为引用"
+              aria-label="把编辑器里选中的段落作为引用"
+              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-hair bg-surface px-1.5 py-1 text-[11px] text-ink-2 transition-colors hover:bg-well hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+            >
+              <Paperclip className="h-3 w-3" />
+              <span>引用选中</span>
+            </button>
           </div>
           <div className="mt-2">
             {engineOff && (
