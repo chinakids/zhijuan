@@ -101,8 +101,11 @@ const homeState = () =>
 
 // ① 初始：无清空按钮 + 全量
 let s = await homeState()
+// 坑（2026-09-16 平台层）：devShim 演示项目数随新 demo 增长（77be4e3 加 demo-multiline/demo-order 后 3→5），
+// 硬编码「3」= 种子漂移假失败——基线计数动态取自初始态，防再漂移。
 if (s.val === '' && !s.hasClear && s.cards >= 1) ok('① 初始：空查询无 clear 按钮，全量 ' + s.cards + ' 卡')
 else bad('① 初始态异常', JSON.stringify(s))
+const baseCards = s.cards
 
 // ② 即时过滤：输入「余烬」→ 命中 + clear 出现
 await setInput('[data-testid="home-search"]', '余烬')
@@ -115,7 +118,7 @@ else bad('② 即时过滤', JSON.stringify(s))
 await evalJs(`document.querySelector('[data-testid="home-search-clear"]').click()`)
 await sleep(400)
 s = await homeState()
-if (s.val === '' && !s.hasClear && s.cards === 3 && s.focused) ok('③ clear 点击：清空/恢复/回焦均达成')
+if (s.val === '' && !s.hasClear && s.cards === baseCards && s.focused) ok('③ clear 点击：清空/恢复/回焦均达成')
 else bad('③ clear 点击', JSON.stringify(s))
 
 // ④ Esc：无命中词 → 空态；Esc → 清空 + 恢复 + 焦点保持
@@ -124,7 +127,7 @@ await evalUntil(`!!document.querySelector('[data-testid="empty-search"]')`, Bool
 const dp4 = await pressEsc()
 await sleep(500)
 s = await homeState()
-if (s.val === '' && !s.hasClear && s.cards === 3 && !s.emptySearch && s.focused)
+if (s.val === '' && !s.hasClear && s.cards === baseCards && !s.emptySearch && s.focused)
   ok('④ Esc：清空查询/恢复全量/焦点保持/空态消失（defaultPrevented=' + dp4 + '）')
 else bad('④ Esc 行为', JSON.stringify(s))
 
@@ -132,7 +135,7 @@ else bad('④ Esc 行为', JSON.stringify(s))
 await pressEsc()
 await sleep(300)
 s = await homeState()
-if (s.val === '' && s.cards === 3) ok('⑤ 无值 Esc：无副作用')
+if (s.val === '' && s.cards === baseCards) ok('⑤ 无值 Esc：无副作用')
 else bad('⑤ 无值 Esc', JSON.stringify(s))
 
 await shot('search-fields-home-1415', 1200, 800)
