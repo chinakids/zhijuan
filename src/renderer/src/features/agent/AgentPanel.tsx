@@ -167,8 +167,9 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
             <CornerUpRight className="h-3 w-3" />
           </button>
         )}
+        {/* 失败摘要：与参数行同为弹性空间、min-w-0 截断 + title 全量（原 max-w-45%+shrink-0 会在窄面板越界压过卡片边缘——F-20260917-03） */}
         {done && failedSummary && (
-          <span className={cn('max-w-[45%] shrink-0 truncate', failed ? 'text-danger' : 'text-ink-3')} title={failedSummary}>{failedSummary}</span>
+          <span className={cn('min-w-0 flex-1 truncate', failed ? 'text-danger' : 'text-ink-3')} title={failedSummary}>{failedSummary}</span>
         )}
         {live != null && (
           <span className="shrink-0 whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-[10px] text-accent">已 {fmtDur(live)}</span>
@@ -1302,7 +1303,7 @@ export default function AgentPanel(props: AgentPanelProps) {
                   )}
                   {m.role === 'assistant' && m.thinking && <ThinkingBlock text={m.thinking} active={streaming} />}
                   {m.role === 'assistant' ? (
-                    <div className="prose">
+                    <div className="prose min-w-0 break-words">
                       {/* 错误语义化（2026-09-16 智能层候选3）：错误时 content=已流式部分（保留），
                           错误文案在 ErrorNotice；旧 append 路径（content 即错误文案）不出 markdown */}
                       {(!m.error || m.errorText) && (
@@ -1311,7 +1312,7 @@ export default function AgentPanel(props: AgentPanelProps) {
                       {m.error && <ErrorNotice messages={messages} idx={idx} onRetry={onErrorRetry} />}
                     </div>
                   ) : (
-                    <span className="whitespace-pre-wrap">{m.content}</span>
+                    <span className="whitespace-pre-wrap break-words">{m.content}</span>
                   )}
                 </div>
               </div>

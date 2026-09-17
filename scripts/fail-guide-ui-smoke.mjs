@@ -151,6 +151,19 @@ try {
   ok('链失败：折叠组头显示「失败」徽标', head.found && head.hasFailBadge === true, JSON.stringify(head))
   ok('链失败：折叠组头提供「让 agent 处理」按钮', head.found && head.hasGuideBtn === true, JSON.stringify(head))
 
+  // ②b 防溢出回归（F-20260917-03 主人：工具链文本溢出）：链内任何可见元素不得越出卡片右边界
+  const overflow = await page.eval(`(() => {
+    const chain = document.querySelector('[data-testid="zj-tool-chain"]')
+    if (!chain) return { ok: false, bad: ['no-chain'] }
+    const cr = chain.getBoundingClientRect()
+    const bad = [...chain.querySelectorAll('*')]
+      .filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.right > cr.right + 1 })
+      .slice(0, 3)
+      .map((el) => (el.tagName + '.' + String(el.className || '').slice(0, 40)))
+    return { ok: bad.length === 0, bad }
+  })()`)
+  ok('工具链卡片内无元素越界溢出', overflow.ok === true, JSON.stringify(overflow.bad))
+
   // ③ 点击组头按钮 → 预写指引填入输入框、不自动发送（消息区无新 user 气泡、无 streaming）
   await clickEl(page, `document.querySelector('[data-testid="zj-tool-chain"] [data-testid="zj-tool-fail-guide"]')`)
   await sleep(400)
