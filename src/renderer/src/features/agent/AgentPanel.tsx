@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState, Fragment, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Quote, Paperclip, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, Users, UserCheck, ListOrdered, FileWarning, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, ListChecks, FileQuestion, Rows3, Tags, Waypoints, Repeat, RefreshCw, CircleSlash } from 'lucide-react'
+import { Quote, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, Users, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, ListChecks, Waypoints, RefreshCw, CircleSlash } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import type { ProseApi } from '../editor/Prose'
@@ -36,7 +36,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '../../components/ui/dropdown-menu'
 import { syncAfterChapterEdit } from '../sync/editSync'
@@ -306,22 +305,12 @@ const QUICK_CMDS: { id: string; name: string; desc: string; icon: LucideIcon }[]
   { id: 'director', name: '导演', desc: '给当前章出导演板并写入大纲', icon: Clapperboard }
 ]
 
-/** 检查阵容菜单（F-20260912-08：原 10 个 icon 平铺会在窄面板溢出，收进「检查」菜单） */
+/** 检查阵容菜单（F-20260912-08 收口；2026-09-16 本地规则 7 项已移入编辑器下方「规则体检」状态栏＝F-20260916-05）——只剩全卷生成型巡读（模型级） */
 const CHECKS: { tab: AuditKind; label: string; icon: LucideIcon }[] = [
-  // 本地规则秒级快查（高频，写作时随时自查）——HIG Menus「高频项在前」+ 同组用分隔线（2026-09-16 体验层菜单走查）
-  { tab: 'presence', label: '人物在场与称谓核查（本地规则·秒级）', icon: UserCheck },
-  { tab: 'order', label: '切片时序核查（本地规则·秒级）', icon: ListOrdered },
-  { tab: 'unused', label: '人物档案腐坏核查（本地规则·秒级）', icon: FileWarning },
-  { tab: 'actgaps', label: '正文缺段核查（本地规则·秒级）', icon: FileQuestion },
-  { tab: 'sliceord', label: '档案切片核查（本地规则·秒级）', icon: Rows3 },
-  { tab: 'nameform', label: '称谓发现核查（本地规则·秒级）', icon: Tags },
-  { tab: 'mixform', label: '称谓混用核查（本地规则·秒级）', icon: Repeat },
-  // 全卷生成型巡读（低频重检查）——本地快查组之后
   { tab: 'consistency', label: '一致性巡查：按设定档案检查全卷', icon: ShieldAlert },
   { tab: 'review', label: '冷读报告：以读者视角通读全卷', icon: BookOpenCheck },
   { tab: 'perspectives', label: '多视角审视：以三种立场读者各通读一遍', icon: Users }
 ]
-const CHECK_GROUPS_SPLIT = 7 // 前 7 项=本地快查组，之后插分隔线（HIG Menus 分组）
 
 function toolLabel(tool: string): string {
   const map: Record<string, string> = {
@@ -1187,14 +1176,11 @@ export default function AgentPanel(props: AgentPanelProps) {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="max-h-[60vh] overflow-y-auto">
-              {CHECKS.map((c, i) => (
-                <Fragment key={c.tab}>
-                  {i === CHECK_GROUPS_SPLIT && <DropdownMenuSeparator />}
-                  <DropdownMenuItem title={c.label} onSelect={() => setAudit({ open: true, tab: c.tab })}>
-                    <c.icon className="h-3.5 w-3.5" />
-                    <span>{c.label}</span>
-                  </DropdownMenuItem>
-                </Fragment>
+              {CHECKS.map((c) => (
+                <DropdownMenuItem key={c.tab} title={c.label} onSelect={() => setAudit({ open: true, tab: c.tab })}>
+                  <c.icon className="h-3.5 w-3.5" />
+                  <span>{c.label}</span>
+                </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
           </DropdownMenu>

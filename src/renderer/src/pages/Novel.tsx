@@ -14,6 +14,7 @@ import { Label } from '../components/ui/label'
 import { Textarea } from '../components/ui/textarea'
 import { cn } from '../lib/utils'
 import DocEditor from '../features/editor/DocEditor'
+import HealthBar from '../features/audit/HealthBar'
 import { runSliceSync } from '../features/sync/sliceSync'
 import { describeSyncEvidence } from '../../../shared/syncEvidence'
 import { GuardIssuesNote } from '../features/sync/GuardIssues'
@@ -686,6 +687,8 @@ export default function Novel() {
             <div className="min-h-0 flex-1">
               <DocEditor projectId={id} rel={chapterRel} withFm extVersion={extVersion} editorApiRef={apiRef} annotations={annotations} onSave={() => { void refresh(); void handleChapterSaved(chapterRel) }} />
             </div>
+            {/* 规则体检状态栏（F-20260916-05）：本地规则常驻实时体检，图标即健康状态，点击看详情 */}
+            <HealthBar projectId={id} refreshSignal={extVersion} />
           </>
         ) : narrow ? (
           <div className="flex h-full items-center justify-center">
