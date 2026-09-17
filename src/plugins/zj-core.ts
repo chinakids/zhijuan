@@ -149,11 +149,11 @@ export const tools: ToolDef[] = [
   {
     name: 'zj_read_doc',
     description:
-      '读取织卷作品的某个文档正文（返回约定头和正文内容片段）。file 为相对作品根目录的路径，如 正文/第03章_晨雾.md、人物/阿七.md、世界观/第一幕_雾港之夜.md、素材库/桥段/追忆型开头.md。默认从开头读 maxChars 个字符；超长时返回里会注明已读到第几字符、全文多长，并把继续读所需的 offset 直接给出（照抄重调即可）；读文件末尾可传 offset=全文长度-目标长度。',
+      '读取织卷作品的某个文档正文片段（返回约定头和正文内容片段）。file 为相对作品根目录的路径，如 正文/第03章_晨雾.md、人物/阿七.md、世界观/第一幕_雾港之夜.md、素材库/桥段/追忆型开头.md。默认从开头读 maxChars 个字符；文档超长时返回里会注明已读到第几字符、全文多长，并给出可照抄的 offset——想读中间或末尾就按提示的 offset 续读（通常先读开头、再续读一两段），不要为一次读全而把 maxChars 调得很大：那会把整篇文档都塞进上下文、白耗 token 且拖慢响应。',
     parameters: {
       base: { type: 'string', required: true, description: '作品根目录（绝对路径）' },
       file: { type: 'string', required: true, description: '相对作品根目录的文档路径' },
-      maxChars: { type: 'number', description: '最多返回的字符数，默认 6000，最大 80000' },
+      maxChars: { type: 'number', description: '最多返回的字符数，默认 6000；仅确需整篇时才调大（最大 80000），超长文档优先按提示的 offset 续读' },
       offset: { type: 'number', description: '从第几个字符开始读（默认 0=开头；续读=上一次返回提示里的 offset 值）' }
     },
     output: { schema: { type: 'string' }, render: (_a, v) => [{ type: 'text', text: String(v) }] },
@@ -173,7 +173,7 @@ export const tools: ToolDef[] = [
   },
   {
     name: 'zj_search',
-    description: '在作品里做全文搜索，返回每个命中文件里最相关的几行。适合查某个设定、台词、人物在哪些地方出现过。dir 可限定目录（如 正文）。',
+    description: '在作品里做全文搜索：按关键词子串匹配，按目录顺序扫描文件、只取前 N 个命中文件（每个文件至多 3 个命中行及上下文，无相关性排序）。适合查某个设定、台词、人物在哪些地方出现过。dir 可限定目录（如 正文）。',
     parameters: {
       base: { type: 'string', required: true, description: '作品根目录（绝对路径）' },
       query: { type: 'string', required: true, description: '要搜索的关键词' },
