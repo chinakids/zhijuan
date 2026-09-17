@@ -880,6 +880,8 @@ export default function AgentPanel(props: AgentPanelProps) {
 
   const onAtKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
+      // IME 组合期按键（Enter 确认候选/↑↓ 翻候选/Esc 取消）交还输入法，不处理浮层选择
+      if ((e.nativeEvent as { isComposing?: boolean }).isComposing) return false
       if (!atTrg) return false
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault()
@@ -926,6 +928,8 @@ export default function AgentPanel(props: AgentPanelProps) {
 
   const onCmdKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
+      // IME 组合期按键交还输入法（与 onAtKeyDown 同口径）
+      if ((e.nativeEvent as { isComposing?: boolean }).isComposing) return false
       if (!cmdTrg) return false
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault()
@@ -1113,6 +1117,11 @@ export default function AgentPanel(props: AgentPanelProps) {
         onSelect={(e) => {
           const el = e.currentTarget
           refreshInput(el.value, el.selectionStart ?? 0)
+        }}
+        onCompositionStart={() => {
+          // IME 组合期收起 @/命令浮层：组合候选窗与浮层同屏=双重菜单打架，且浮层不得在组合期解析/选择
+          setAtTrg(null)
+          setCmdTrg(null)
         }}
         onCompositionEnd={(e) => {
           const el = e.currentTarget

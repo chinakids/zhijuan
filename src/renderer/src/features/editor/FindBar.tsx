@@ -44,6 +44,8 @@ export default function FindBar({ open, query, total, current, onQueryChange, on
         spellCheck={false}
         onChange={(e) => onQueryChange(e.target.value)}
         onKeyDown={(e) => {
+          // IME 组合期按键（Enter 确认候选/Esc 取消）交还输入法，不跳转/不关闭（2026-09-18 体检）
+          if ((e.nativeEvent as { isComposing?: boolean }).isComposing) return
           if (e.key === 'Enter') {
             e.preventDefault()
             if (e.shiftKey) onPrev()
