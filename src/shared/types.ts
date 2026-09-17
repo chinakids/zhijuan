@@ -102,6 +102,8 @@ export interface AppSettings {
   collectionEnabled: boolean
   /** 批注定时优化（主人 2026-09-12 定：默认关；开启=打开项目 10s 后首扫 + 每 30 分钟自动扫描批注生成提案） */
   annotationsEnabled: boolean
+  /** 焦点模式（体验层 2026-09-17：当前段保持、其余段落淡化；默认关，设置页开关） */
+  focusModeEnabled: boolean
   /** Agent 面板宽度（px，模块设计 §十二「面板宽度记忆」；拖拽/方向键调整，越界钳制见 shared/uiPrefs） */
   agentPanelWidth: number
   /** 常用 agent 工具开关（harness 引擎内） */
@@ -117,6 +119,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'paper',
   collectionEnabled: true,
   annotationsEnabled: false,
+  focusModeEnabled: false,
   agentPanelWidth: AGENT_PANEL_DEFAULT_WIDTH,
   agentTools: { todo: true, askUser: true }
 }

@@ -48,6 +48,7 @@ export default function Settings() {
   const [theme, setTheme] = useState<'paper' | 'dark'>('paper')
   const [collection, setCollection] = useState(true)
   const [annotations, setAnnotations] = useState(false)
+  const [focusMode, setFocusMode] = useState(false)
   const [shortcutOpen, setShortcutOpen] = useState(false)
   const [tools, setTools] = useState({ todo: true, askUser: true })
   const [caps, setCaps] = useState<Record<string, boolean>>({})
@@ -90,6 +91,7 @@ export default function Settings() {
     setTheme(settings.theme)
     setCollection(settings.collectionEnabled)
     setAnnotations(settings.annotationsEnabled ?? false)
+    setFocusMode(settings.focusModeEnabled ?? false)
     setTools({ todo: settings.agentTools?.todo ?? true, askUser: settings.agentTools?.askUser ?? true })
     setCaps(settings.capabilities ?? {})
     void window.zhijuan.agentListCapabilities().then(setCapsMeta).catch(() => {})
@@ -129,6 +131,7 @@ export default function Settings() {
       theme,
       collectionEnabled: collection,
       annotationsEnabled: annotations,
+      focusModeEnabled: focusMode,
       agentTools: tools
     })
     setSaved(true)
@@ -423,6 +426,20 @@ export default function Settings() {
                     onCheckedChange={(v) => {
                       setAnnotations(v)
                       void updateSettings({ annotationsEnabled: v })
+                    }}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>焦点模式</Label>
+                    <p className="text-xs text-ink-3">开启后，正文只强调当前段，其余段落淡化（iA Writer / Typora 同类范式）；默认关闭。</p>
+                  </div>
+                  <Switch
+                    aria-label="焦点模式"
+                    checked={focusMode}
+                    onCheckedChange={(v) => {
+                      setFocusMode(v)
+                      void updateSettings({ focusModeEnabled: v })
                     }}
                   />
                 </div>

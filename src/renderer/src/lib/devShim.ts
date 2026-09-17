@@ -435,6 +435,7 @@ const settings: AppSettings = {
   theme: 'paper',
   collectionEnabled: true,
   annotationsEnabled: false,
+  focusModeEnabled: false,
   agentPanelWidth: AGENT_PANEL_DEFAULT_WIDTH,
   agentTools: { todo: true, askUser: true }
 }

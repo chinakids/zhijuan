@@ -14,6 +14,8 @@ import '@milkdown/theme-nord/style.css'
 import '../../styles/milkdown.css'
 import { ClipboardPaste, Copy, MessageSquarePlus, MessageSquareText, Scissors, TextSelect, Trash2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { useAppStore } from '../../store/app'
+import { FOCUS_DIM_CLASS, FOCUS_ON_CLASS, focusBlockRange } from './focusMode'
 import EditorToolbar from './EditorToolbar'
 import FindBar from './FindBar'
 import { findInDoc, type FindPos } from './finder'
@@ -215,6 +217,62 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
       }),
     []
   )
+
+  /* —— 焦点模式（体验层 2026-09-17；iA Writer / Typora Focus Mode 同范式，质感主线候选）——
+   * 设置「焦点模式」开启时：当前顶层块（当前段/列表等）保持，其余顶层块加 .zj-focus-dim 淡化；
+   * 选区跨顶层块 → 不淡化（整体选择时不干扰）；默认关（设置页开关）。实现=PM 无状态 decoration，
+   * 零依赖；开关变化经 useEffect 发 meta 触发重算（与 annoPlugin 同法）；过渡与 reduced-motion 见 milkdown.css。 */
+  const focusOn = useAppStore((s) => s.settings?.focusModeEnabled ?? false)
+  const focusOnRef = useRef(focusOn)
+  focusOnRef.current = focusOn
+  const focusPlugin = useMemo(
+    () =>
+      new Plugin({
+        view: (v) => {
+          let lastOn: boolean | null = null
+          const apply = () => {
+            const next = focusOnRef.current
+            if (lastOn === next) return
+            lastOn = next
+            v.dom.classList.toggle(FOCUS_ON_CLASS, next)
+          }
+          apply()
+          return {
+            update: apply,
+            destroy: () => v.dom.classList.remove(FOCUS_ON_CLASS)
+          }
+        },
+        props: {
+          decorations(state) {
+            if (!focusOnRef.current) return null
+            const r = focusBlockRange(state)
+            if (!r) return null
+            const decos: Decoration[] = []
+            let pos = 0
+            for (let i = 0; i < state.doc.childCount; i++) {
+              const n = state.doc.child(i)
+              const from = pos
+              pos += n.nodeSize
+              if (from === r.from && pos === r.to) continue
+              decos.push(Decoration.node(from, pos, { class: FOCUS_DIM_CLASS }))
+            }
+            return DecorationSet.create(state.doc, decos)
+          }
+        }
+      }),
+    []
+  )
+  // 开关变化：编辑器中点一次空事务让 decorations 重算（未挂编辑器时 no-op，挂载时插件读最新 ref）
+  useEffect(() => {
+    edRef.current?.action((ctx: any) => {
+      try {
+        const view = ctx.get(editorViewCtx)
+        view.dispatch(view.state.tr.setMeta('zj-focus-refresh', true))
+      } catch {
+        /* 编辑器未就绪时忽略 */
+      }
+    })
+  }, [focusOn])
 
   /* —— 划词浮层：选中文本 → 送进对话引用（全局事件 zj:quote-text）——
    * 位置口径（2026-09-15 体验层：贴边翻转）：state 存锚点视口矩形（cx/top/bottom）与初始方位意图；
@@ -840,7 +898,7 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
       .config((ctx) => {
         ctx.set(rootCtx, hostRef.current!)
         ctx.set(defaultValueCtx, initialRef.current)
-        ctx.set(prosePluginsCtx, [annoPlugin, selPlugin, emptyHintPlugin])
+        ctx.set(prosePluginsCtx, [annoPlugin, selPlugin, emptyHintPlugin, focusPlugin])
         ctx.get(listenerCtx).markdownUpdated((_, md) => {
           if (!liveRef.current) return
           onEditRef.current?.(md)

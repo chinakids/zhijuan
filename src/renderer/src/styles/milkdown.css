@@ -39,6 +39,21 @@
   user-select: none;
 }
 
+/* 焦点模式（体验层 2026-09-17；iA Writer / Typora Focus Mode 同范式）：
+ * 设置开关开启时当前顶层块保持、其余淡化；过渡 150ms（HIG Motion），偏好减弱动效时全关；
+ * 淡化走 opacity（主题无关），深浅两主题同效。 */
+.zj-md .ProseMirror > * {
+  transition: opacity 150ms ease;
+}
+.zj-md .ProseMirror.zj-focus-on > .zj-focus-dim {
+  opacity: 0.45;
+}
+@media (prefers-reduced-motion: reduce) {
+  .zj-md .ProseMirror > * {
+    transition: none;
+  }
+}
+
 /* 标题层级（Apple HIG Typography：用字号/权重表达层级，不用过细字重） */
 .zj-md .ProseMirror h1,
 .zj-md .ProseMirror h2,
