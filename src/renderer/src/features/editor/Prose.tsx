@@ -16,6 +16,7 @@ import { ClipboardPaste, Copy, MessageSquarePlus, MessageSquareText, Scissors, T
 import { cn } from '../../lib/utils'
 import { useAppStore } from '../../store/app'
 import { FOCUS_DIM_CLASS, FOCUS_ON_CLASS, focusBlockRange } from './focusMode'
+import { makeTypewriterPlugin } from './typewriter'
 import EditorToolbar from './EditorToolbar'
 import FindBar from './FindBar'
 import { findInDoc, type FindPos } from './finder'
@@ -273,6 +274,33 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
       }
     })
   }, [focusOn])
+
+  /* —— 打字机滚动（体验层 2026-09-17；Typora Typewriter Mode「仅输入时固定」同范式）——
+   * 设置「打字机滚动」开启且用户键入（doc 变化 + 编辑器聚焦）时，把光标行滚回滚动容器
+   * 垂直中线；鼠标点击/方向键移动选区（doc 不变）与程序化 setContent/applyMarkdown
+   * （programmatic 标记）不触发，滚动记忆/光标恢复不受影响；默认关（设置页开关）。
+   * 实现=无状态 PM 插件（零依赖，同 focusPlugin/emptyHintPlugin 走 prosePluginsCtx）。 */
+  const twOn = useAppStore((s) => s.settings?.typewriterEnabled ?? false)
+  const twOnRef = useRef(twOn)
+  twOnRef.current = twOn
+  /** 程序化注入标记：setContent/applyMarkdown 期间为 true（rAF 后复位），
+   * 让 typewriter 跳过，保住切章滚动记忆/静默重载光标恢复（2026-09-17 先验约束）。 */
+  const programmaticRef = useRef(false)
+  const markProgrammatic = () => {
+    programmaticRef.current = true
+    requestAnimationFrame(() => {
+      programmaticRef.current = false
+    })
+  }
+  const typewriterPlugin = useMemo(
+    () =>
+      makeTypewriterPlugin({
+        isEnabled: () => twOnRef.current,
+        getHost: () => hostRef.current,
+        isProgrammatic: () => programmaticRef.current
+      }),
+    []
+  )
 
   /* —— 划词浮层：选中文本 → 送进对话引用（全局事件 zj:quote-text）——
    * 位置口径（2026-09-15 体验层：贴边翻转）：state 存锚点视口矩形（cx/top/bottom）与初始方位意图；
@@ -898,7 +926,7 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
       .config((ctx) => {
         ctx.set(rootCtx, hostRef.current!)
         ctx.set(defaultValueCtx, initialRef.current)
-        ctx.set(prosePluginsCtx, [annoPlugin, selPlugin, emptyHintPlugin, focusPlugin])
+        ctx.set(prosePluginsCtx, [annoPlugin, selPlugin, emptyHintPlugin, focusPlugin, typewriterPlugin])
         ctx.get(listenerCtx).markdownUpdated((_, md) => {
           if (!liveRef.current) return
           onEditRef.current?.(md)
@@ -967,8 +995,9 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
             if (empty) return null
             return view.state.doc.textBetween(from, to, '\n')
           }),
-        applyMarkdown: (md, replaceSel) =>
-          e.action((ctx) => {
+        applyMarkdown: (md, replaceSel) => {
+          markProgrammatic()
+          e.action((ctx: any) => {
             const view = ctx.get(editorViewCtx)
             const parser = ctx.get(parserCtx)
             const doc = parser(md)
@@ -978,9 +1007,12 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
             else tr = tr.insert(from, doc)
             view.dispatch(tr)
             view.focus()
-          }),
-        setContent: (md) =>
-          e.action((ctx) => {
+          })
+        },
+        setContent: (md) => {
+          // 程序化注入：typewriter 跳过本次，保住滚动记忆/光标恢复（2026-09-17）
+          markProgrammatic()
+          e.action((ctx: any) => {
             const view = ctx.get(editorViewCtx)
             const parser = ctx.get(parserCtx)
             const doc = parser(md)
@@ -995,7 +1027,8 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
                 if (pos) view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos.from, pos.to)))
               }
             }
-          }),
+          })
+        },
         setCursor: (needle) =>
           e.action((ctx) => {
             const view = ctx.get(editorViewCtx)

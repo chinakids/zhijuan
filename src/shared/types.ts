@@ -104,6 +104,8 @@ export interface AppSettings {
   annotationsEnabled: boolean
   /** 焦点模式（体验层 2026-09-17：当前段保持、其余段落淡化；默认关，设置页开关） */
   focusModeEnabled: boolean
+  /** 打字机滚动（体验层 2026-09-17：输入时正文自动滚动，光标行保持屏幕中线附近；默认关，设置页开关） */
+  typewriterEnabled: boolean
   /** Agent 面板宽度（px，模块设计 §十二「面板宽度记忆」；拖拽/方向键调整，越界钳制见 shared/uiPrefs） */
   agentPanelWidth: number
   /** 常用 agent 工具开关（harness 引擎内） */
@@ -120,6 +122,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   collectionEnabled: true,
   annotationsEnabled: false,
   focusModeEnabled: false,
+  typewriterEnabled: false,
   agentPanelWidth: AGENT_PANEL_DEFAULT_WIDTH,
   agentTools: { todo: true, askUser: true }
 }

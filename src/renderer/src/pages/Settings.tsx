@@ -49,6 +49,7 @@ export default function Settings() {
   const [collection, setCollection] = useState(true)
   const [annotations, setAnnotations] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
+  const [typewriter, setTypewriter] = useState(false)
   const [shortcutOpen, setShortcutOpen] = useState(false)
   const [tools, setTools] = useState({ todo: true, askUser: true })
   const [caps, setCaps] = useState<Record<string, boolean>>({})
@@ -92,6 +93,7 @@ export default function Settings() {
     setCollection(settings.collectionEnabled)
     setAnnotations(settings.annotationsEnabled ?? false)
     setFocusMode(settings.focusModeEnabled ?? false)
+    setTypewriter(settings.typewriterEnabled ?? false)
     setTools({ todo: settings.agentTools?.todo ?? true, askUser: settings.agentTools?.askUser ?? true })
     setCaps(settings.capabilities ?? {})
     void window.zhijuan.agentListCapabilities().then(setCapsMeta).catch(() => {})
@@ -132,6 +134,7 @@ export default function Settings() {
       collectionEnabled: collection,
       annotationsEnabled: annotations,
       focusModeEnabled: focusMode,
+      typewriterEnabled: typewriter,
       agentTools: tools
     })
     setSaved(true)
@@ -440,6 +443,20 @@ export default function Settings() {
                     onCheckedChange={(v) => {
                       setFocusMode(v)
                       void updateSettings({ focusModeEnabled: v })
+                    }}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>打字机滚动</Label>
+                    <p className="text-xs text-ink-3">开启后，输入时正文自动滚动，让光标保持在屏幕中线附近（Typora 同类范式）；点击定位不强制居中；默认关闭。</p>
+                  </div>
+                  <Switch
+                    aria-label="打字机滚动"
+                    checked={typewriter}
+                    onCheckedChange={(v) => {
+                      setTypewriter(v)
+                      void updateSettings({ typewriterEnabled: v })
                     }}
                   />
                 </div>
