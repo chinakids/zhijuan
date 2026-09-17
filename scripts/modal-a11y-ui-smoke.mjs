@@ -5,8 +5,13 @@
 const PORT = 8123
 const BASE = process.env.ZJ_SMOKE_BASE || `http://localhost:${PORT}`
 const list = await (await fetch('http://127.0.0.1:9224/json')).json()
-const page = list.find((t) => t.type === 'page')
-if (!page) { console.error('NO PAGE'); process.exit(1) }
+// 宿主页=本端口页；无→自开兜底（㉝ 契约：找宿主页的冒烟要么自开要么兜底；原「任意第一个 page」在 tab 治理后可能是 about:blank/外域）
+let page = list.find((t) => t.type === 'page' && (t.url || '').includes(':' + new URL(BASE).port))
+if (!page) {
+  const r = await fetch('http://127.0.0.1:9224/json/new?' + encodeURIComponent(`${BASE}/?cb=${Date.now()}`), { method: 'PUT' })
+  page = await r.json()
+}
+if (!page || !page.webSocketDebuggerUrl) { console.error('NO PAGE'); process.exit(1) }
 const ws = new WebSocket(page.webSocketDebuggerUrl)
 let seq = 0
 const pending = new Map()
@@ -46,7 +51,8 @@ ok(!!cc, `Agent 头部「本章小环」按钮 aria-label 存在`)
 
 // 2b. Novel 页默认不挂载编辑器 → 先选中章节（devShim 预设首章），等待编辑器挂载后再查工具栏
 if (cc && cc.disabled) {
-  await ev(`(() => { const el = [...document.querySelectorAll('li,button')].find((b) => (b.textContent||'').includes('第1章')); if (el) el.click(); return !!el })()`)
+  // 限定 button：章节列表项为分行结构，li 也含「第1章」文本且 li.click() 对 React onClick 无效（2026-09-18 实踩）
+  await ev(`(() => { const el = [...document.querySelectorAll('button')].find((b) => (b.textContent||'').includes('第1章') && !b.closest('[aria-hidden="true"]')); if (el) { el.focus(); el.click(); } return !!el })()`)
   await sleep(600)
 }
 let tb = null

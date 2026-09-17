@@ -5,8 +5,13 @@
 const PORT = 8123
 const BASE = process.env.ZJ_SMOKE_BASE || `http://localhost:${PORT}`
 const list = await (await fetch('http://127.0.0.1:9224/json')).json()
-const page = list.find((t) => t.type === 'page' && new RegExp(`:${PORT}`).test(t.url) && /novel/.test(t.url))
-if (!page) { console.error('NO NOVEL PAGE'); process.exit(1) }
+// 宿主页=本端口 novel 页；无→自开兜底（㉝ 契约：找宿主页的冒烟要么自开要么兜底，health-bar 13:30 先例）
+let page = list.find((t) => t.type === 'page' && new RegExp(`:${PORT}`).test(t.url) && /novel/.test(t.url))
+if (!page) {
+  const r = await fetch('http://127.0.0.1:9224/json/new?' + encodeURIComponent(`${BASE}/?cb=${Date.now()}`), { method: 'PUT' })
+  page = await r.json()
+}
+if (!page || !page.webSocketDebuggerUrl) { console.error('NO NOVEL PAGE'); process.exit(1) }
 const ws = new WebSocket(page.webSocketDebuggerUrl)
 let seq = 0
 const pending = new Map()
@@ -32,9 +37,13 @@ let pass = 0, fail = 0
 const ok = (cond, msg) => { console.log((cond ? '✅ ' : '❌ ') + msg); cond ? pass++ : fail++ }
 
 await cmd('Page.navigate', { url: `${BASE}/?cb=${Date.now()}#/project/demo-aseya/novel` })
-await sleep(3500)
-await ev(`(() => { const b = [...document.querySelectorAll('aside button')].find((x) => x.textContent.includes('章')); if (b) b.click(); return !!b })()`)
-await sleep(1000)
+await sleep(3000)
+// 选章就绪等待（负载/CDP 退化期固定 sleep 不足，2026-09-18 全量实踩点击落空→编辑器未挂载）
+for (let i = 0; i < 30; i++) {
+  await ev(`(() => { const b = [...document.querySelectorAll('aside button')].find((x) => (x.textContent||'').includes('第1章') && !x.closest('[aria-hidden="true"]')); if (b) { b.click(); return true } return false })()`)
+  if (await ev(`!!document.querySelector('.zj-md .milkdown')`)) break
+  await sleep(500)
+}
 ok(await ev(`!!document.querySelector('.zj-md .milkdown')`), '编辑器已渲染')
 
 const grab = `(() => {

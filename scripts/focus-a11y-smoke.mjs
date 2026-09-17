@@ -7,9 +7,14 @@
 const PORT = 8899
 const BASE = process.env.ZJ_SMOKE_BASE || `http://localhost:${PORT}`
 const list = await (await fetch('http://127.0.0.1:9224/json')).json()
-// 选 8899 SPA 的页面（遗留 8123/其他 server 的旧 tab 会干扰 find）
-const page = list.find((t) => t.type === 'page' && (t.url || '').includes(':' + new URL(BASE).port)) || list.find((t) => t.type === 'page')
-if (!page) { console.error('NO PAGE'); process.exit(1) }
+// 选 8899 SPA 的页面（遗留 8123/其他 server 的旧 tab 会干扰 find）；无宿主页→自开兜底
+// （㉝ 契约：找宿主页的冒烟要么自开要么兜底，loading-indicator 22:30 先例；勿 fallback「任意 page」——可能是 about:blank/外域）
+let page = list.find((t) => t.type === 'page' && (t.url || '').includes(':' + new URL(BASE).port))
+if (!page) {
+  const r = await fetch('http://127.0.0.1:9224/json/new?' + encodeURIComponent(`${BASE}/?cb=${Date.now()}`), { method: 'PUT' })
+  page = await r.json()
+}
+if (!page || !page.webSocketDebuggerUrl) { console.error('NO PAGE'); process.exit(1) }
 const ws = new WebSocket(page.webSocketDebuggerUrl)
 let seq = 0
 const pending = new Map()
@@ -167,8 +172,9 @@ ok(!!treeActivate && treeActivate.sel, `树节点真实 Enter 选中（选中态
 // ============ ⑦ Esc 层级：查找条 + 批注抽屉共存 ============
 await cmd('Page.navigate', { url: `${BASE}/?cb=${Date.now()}#/project/demo-aseya/novel` })
 await sleep(3000)
-await ev(`(() => { const el = [...document.querySelectorAll('button')].find((b) => (b.textContent||'').includes('第1章')); if (el) el.click(); return !!el })()`)
-await evalUntil(`document.querySelectorAll('.zj-anno').length`, (n) => n === 2, 12000, '批注高亮（编辑器挂载）')
+// 选章就绪等待：章节按钮出现再点击（负载/CDP 退化期固定 sleep 不足，2026-09-18 全量实踩点击落空→编辑器不挂载）
+await evalUntil(`(() => { const el = [...document.querySelectorAll('button')].find((b) => (b.textContent||'').includes('第1章') && !b.closest('[aria-hidden="true"]')); if (el) { el.click(); return true } return false })()`, (v) => v === true, 15000, '章节按钮出现并点击')
+await evalUntil(`document.querySelectorAll('.zj-anno').length`, (n) => n === 2, 15000, '批注高亮（编辑器挂载）')
 // 打开查找条（合成 ⌘F 走 window 监听）
 await ev(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', metaKey: true, bubbles: true, cancelable: true }))`)
 await sleep(500)
