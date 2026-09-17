@@ -100,6 +100,22 @@ export function filterCharDocByLine(text: string, keepSlices: ReadonlySet<string
   return { text: out.join('\n'), omitted }
 }
 
+/**
+ * 建章预填基准决策（2026-09-17；多线项目建章预填按选中章线评估，02-创作层候选 2）。
+ * 现状口径（0181b8d）：建章对话框预填「上一章」= 约定头章号最大章（切片/时间线/涉及人物三字段同源）。
+ * 多线项目作者续写非最新线（如正编辑过去线第 2 章）时，最新章属于另一线 → 预填给出错误线的默认值，
+ * 每次新建都需纠正。业界形态（Plottr 场景卡落在当前 timeline lane / NovelCrafter 场景元数据按当前上下文维护）
+ * 表明：新场景默认归属 = 作者当前工作上下文。本函数 = 唯一决策源（Novel.tsx openCreate 使用）：
+ * 仅当「选中章存在且其线名（chapterLine 归一后）≠ 最新章线名」时返回 'selection'（预填跟随选中章整体）；
+ * 其余（无选中章 / 选中即最新章 / 同线 / 单线项目）返回 'latest' = 与旧行为完全一致（零回归）。
+ * 决策作用于预填基准「一章整体」：切片名/时间线/涉及人物同源切换，避免「时间线=过去线 + 切片=主线最新切片」
+ * 这类线与切片不配套的自相矛盾预填。
+ */
+export function prefillSource(selLine: string | null, latestLine: string | null): 'selection' | 'latest' {
+  if (selLine && latestLine && selLine !== latestLine) return 'selection'
+  return 'latest'
+}
+
 /** 线枚举条目（.zhijuan/lines.json 与 slices.json 同构；正文为源，可重建） */
 export interface LineInfo {
   /** 线名（chapterLine 归一后） */

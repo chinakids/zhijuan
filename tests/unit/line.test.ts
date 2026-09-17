@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chapterLine, linePredecessor, listLinesFromEntries, lineSliceNames, filterCharDocByLine, DEFAULT_LINE, type LineEntryNode } from '../../src/shared/line'
+import { chapterLine, linePredecessor, listLinesFromEntries, lineSliceNames, filterCharDocByLine, prefillSource, DEFAULT_LINE, type LineEntryNode } from '../../src/shared/line'
 
 describe('chapterLine（约定头「时间线」字段提取）', () => {
   it('缺省=主线（无字段/无 fm）', () => {
@@ -195,3 +195,31 @@ describe('filterCharDocByLine（人物档案按线过滤，设计文档 §4.4）
     expect(r.omitted).toEqual(['幕0B'])
   })
 })
+describe('prefillSource（建章预填基准：多线项目续写非最新线时跟随选中章）', () => {
+  it('选中章线 ≠ 最新章线（多线交错续写非最新线）→ selection（预填跟随选中章）', () => {
+    expect(prefillSource('过去线', '主线')).toBe('selection')
+    expect(prefillSource('主线', '现在线')).toBe('selection')
+  })
+
+  it('无选中章 → latest（与旧行为一致）', () => {
+    expect(prefillSource(null, '主线')).toBe('latest')
+    expect(prefillSource(null, null)).toBe('latest')
+  })
+
+  it('无最新章（首章场景）→ latest', () => {
+    expect(prefillSource('过去线', null)).toBe('latest')
+  })
+
+  it('选中即最新章（同章）→ latest', () => {
+    expect(prefillSource('主线', '主线')).toBe('latest')
+  })
+
+  it('同线但选中章非最新章（单线/主线中间章）→ latest：预填仍最新章，零回归', () => {
+    expect(prefillSource('主线', '主线')).toBe('latest')
+  })
+
+  it('线名为空串（falsy 防御）→ latest；空白串非契约输入（调用方 chapterLine 已归一，恒非空串）', () => {
+    expect(prefillSource('', '主线')).toBe('latest')
+  })
+})
+

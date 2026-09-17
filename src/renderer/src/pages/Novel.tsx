@@ -4,7 +4,7 @@ import { Plus, BookOpen, PanelLeftOpen, X } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import type { ChapterEntry, ChapterCheckKind, UnlistedHit, MissingHit } from '../../../shared/types'
 import { serializeFrontMatter, addFrontMatterListItem, removeFrontMatterListItem } from '../../../shared/fmatter'
-import { chapterLine, DEFAULT_LINE } from '../../../shared/line'
+import { chapterLine, DEFAULT_LINE, prefillSource } from '../../../shared/line'
 import type { LineInfo } from '../../../shared/line'
 import { shouldCollapseChapterList, AGENT_PANEL_DEFAULT_WIDTH } from '../../../shared/uiPrefs'
 import { Button } from '../components/ui/button'
@@ -187,19 +187,33 @@ export default function Novel() {
     return best
   }, [chapters])
 
-  // 打开建章对话框：有上一章时预填切片名、时间线与涉及人物（都在各自输入框里可改）
+  // 建章预填基准（2026-09-17：多线项目建章预填按选中章线评估，候选 2）——决策源=shared/line.prefillSource：
+  // 仅当「选中章存在且其线≠最新章线」时跟随选中章（作者当前工作上下文），否则维持最新章（零回归）。
+  // 基准作用于「一章整体」：切片名/时间线/涉及人物三字段同源，避免线与切片不配套的预填。
+  const selChapter = useMemo(() => chapters.find((c) => c.file === sel), [chapters, sel])
+  const prefill = useMemo(() => {
+    const viaSel =
+      prefillSource(
+        selChapter ? chapterLine(selChapter.fm) : null,
+        prevChapter ? chapterLine(prevChapter.fm) : null
+      ) === 'selection'
+    return { chapter: viaSel ? selChapter : prevChapter, viaSel }
+  }, [selChapter, prevChapter])
+  const prefillChapter = prefill.chapter
+
+  // 打开建章对话框：有预填基准章时预填切片名、时间线与涉及人物（都在各自输入框里可改）
   const openCreate = useCallback(() => {
-    const pf = prevChapter?.fm
+    const pf = prefillChapter?.fm
     setSlice(typeof pf?.['切片'] === 'string' ? pf['切片'] : '')
     setCast(Array.isArray(pf?.['涉及人物']) ? pf['涉及人物'].join('，') : '')
-    // 预填上一章线（chapterLine 归一：未写字段=主线；与切片/人物同一「上一章」口径=约定头章号最大章）
-    setTimeLine(prevChapter ? chapterLine(prevChapter.fm) : '')
+    // 预填基准章线（chapterLine 归一：未写字段=主线；来源=prefillSource 决策，非简单「上一章」）
+    setTimeLine(prefillChapter ? chapterLine(prefillChapter.fm) : '')
     setCreating(true)
     // 已有线枚举（正文为源现扫；失败静默——手输兜底，枚举只是快捷选择，不挡建章）
     if (id) {
       window.zhijuan.listLines(id).then(setLineOpts).catch(() => setLineOpts([]))
     }
-  }, [prevChapter, id])
+  }, [prefillChapter, id])
 
   // 项目引导「现在新建第一章」：经 Outlet context 发信号（递增计数），打开建章对话框（无上一章则空开）
   useEffect(() => {
@@ -836,9 +850,9 @@ export default function Novel() {
           <DialogHeader>
             <DialogTitle>新建章节</DialogTitle>
             <DialogDescription>一章 = 一个时间切片。约定头会写进正文文件顶部，保存正文时按它做切片同步。</DialogDescription>
-            {prevChapter && (
+            {prefillChapter && (
               <p className="text-[11px] text-ink-3">
-                已沿用上一章《{prevChapter.fm?.['题名'] ?? prevChapter.name}》的切片名、时间线与涉及人物，可直接修改。
+                已沿用{prefill.viaSel ? '当前选中章' : '上一章'}《{prefillChapter.fm?.['题名'] ?? prefillChapter.name}》的切片名、时间线与涉及人物，可直接修改。
               </p>
             )}
           </DialogHeader>
