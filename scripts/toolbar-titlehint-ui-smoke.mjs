@@ -155,5 +155,8 @@ ok('加粗按钮 hover 可交互（坐标命中）', !!geo, JSON.stringify(geo))
 
 await shot(page, 'toolbar-titlehint')
 
+if (page.errors.length) { fails++; console.log('FAIL 无 JS 异常:', page.errors.slice(0, 5).join(' | ')) }
+else console.log('OK 无 JS 异常')
+
 console.log(fails === 0 ? '\nTITLEHINT SMOKE OK' : `\nTITLEHINT SMOKE FAIL: ${fails}`)
 process.exit(fails === 0 ? 0 : 1)

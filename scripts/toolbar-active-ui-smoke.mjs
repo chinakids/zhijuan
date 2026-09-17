@@ -214,7 +214,8 @@ if (shot?.data) {
   console.log('SCREENSHOT:', path)
 }
 
-console.log('ERRORS:', page.errors.length ? page.errors.slice(0, 5) : 'none')
+if (page.errors.length) { fails++; console.log('FAIL 无 JS 异常:', page.errors.slice(0, 5).join(' | ')) }
+else console.log('OK 无 JS 异常')
 console.log(fails === 0 ? 'ALL PASS' : `FAIL: ${fails}`)
 page.close()
 process.exit(fails === 0 ? 0 : 1)

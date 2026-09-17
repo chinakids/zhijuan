@@ -198,6 +198,7 @@ try {
 }
 console.log('---')
 console.log(`${pass}/${pass + fail} PASS`)
-console.log('JS errors:', JSON.stringify(page.errors.slice(0, 3)))
+if (page.errors.length) { fail++; console.log('FAIL 无 JS 异常:', page.errors.slice(0, 3).join(' | ')) }
+else console.log('OK 无 JS 异常')
 page.close()
 process.exit(fail ? 1 : 0)
