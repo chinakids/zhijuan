@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Rea
 import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Quote, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, Users, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, ListChecks, Waypoints, RefreshCw, CircleSlash } from 'lucide-react'
+import { Quote, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, Users, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, ListChecks, Waypoints, RefreshCw, CircleSlash, CornerUpRight } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import type { ProseApi } from '../editor/Prose'
@@ -22,7 +22,7 @@ import { createStreamBuffer } from '../../../../shared/streamBuffer'
 import { trimHistoryMessage } from '../../../../shared/historyTrim'
 import { useAgentStore, type AgentMsg } from './store'
 import ErrorNotice from './ErrorNotice'
-import { groupToolMeta, isContinuedRead, summarizeGroup } from './toolChain'
+import { groupToolMeta, isContinuedRead, summarizeGroup, failureFollowupPrompt } from './toolChain'
 import { useUiStore } from '../../store/ui'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
 import TodoCard from './TodoCard'
@@ -65,7 +65,7 @@ function fmtDur(ms: number): string {
   return m + 'm' + Math.round(s - m * 60) + 's'
 }
 
-function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs, step, continued, argsJson, result, cancelled, aggFailed, aggSummary, aggCancelled, aggElapsedMs, aggCount }: {
+function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs, step, continued, argsJson, result, cancelled, aggFailed, aggSummary, aggCancelled, aggElapsedMs, aggCount, onFailGuide }: {
   tool: string; args?: string; done?: boolean; toolOk?: boolean; summary?: string; startedAt?: number; elapsedMs?: number
   /** 工具链内序号（如 2/3）——多轮连续工具调用可追溯顺序 */
   step?: { no: number; total: number }
@@ -85,6 +85,9 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
   /** 组内耗时合计（ms；>1 步时组头显示总成本，title 注明 N 步合计） */
   aggElapsedMs?: number
   aggCount?: number
+  /** 失败步处置引导（体验层 2026-09-17）：工具自身报错的失败态卡提供「让 agent 处理」——
+   * 把预写指引填入输入框（可编辑不代发），处置权交还作者；取消态不提供（非失败，人被中止） */
+  onFailGuide?: (tool: string, summary?: string) => void
 }) {
   const failed = (done === true && toolOk === false) || aggFailed === true
   const anyCancelled = cancelled === true || aggCancelled === true
@@ -152,6 +155,18 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
           </span>
         )}
         {failed && <span className="shrink-0 rounded-full bg-danger-soft px-2 py-0.5 text-[10px] text-danger">失败</span>}
+        {done && failed && onFailGuide && (
+          <button
+            type="button"
+            data-testid="zj-tool-fail-guide"
+            title="让 agent 处理这次失败（把指引填入输入框，可编辑后发送）"
+            aria-label="让 agent 处理这次失败"
+            onClick={() => onFailGuide(tool ?? '', failedSummary)}
+            className="shrink-0 rounded p-0.5 text-ink-3 transition-colors hover:bg-danger-soft hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 active:opacity-80"
+          >
+            <CornerUpRight className="h-3 w-3" />
+          </button>
+        )}
         {done && failedSummary && (
           <span className={cn('max-w-[45%] shrink-0 truncate', failed ? 'text-danger' : 'text-ink-3')} title={failedSummary}>{failedSummary}</span>
         )}
@@ -208,7 +223,7 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
  * 左缘竖线 + 步序号 + 续读徽标，多步「读文档→续读→搜索」顺序与次数一目了然。
  * 主人 2026-09-14 反馈（F-20260914-01）：连续同工具默认合并为一行 ×N（防卡片堆叠溢出），
  * 可展开看全逐步序号/徽标/参数。 */
-function ToolChain({ msgs }: { msgs: AgentMsg[] }) {
+function ToolChain({ msgs, onFailGuide }: { msgs: AgentMsg[]; onFailGuide?: (tool: string, summary?: string) => void }) {
   const [opened, setOpened] = useState<Record<number, boolean>>({})
   const groups: AgentMsg[][] = []
   for (const m of msgs) {
@@ -254,6 +269,7 @@ function ToolChain({ msgs }: { msgs: AgentMsg[] }) {
                     aggCancelled={agg?.hasCancelled}
                     aggElapsedMs={agg?.elapsedMs}
                     aggCount={agg?.count}
+                    onFailGuide={onFailGuide}
                   />
                 </div>
                 {g.length > 1 && (
@@ -283,6 +299,7 @@ function ToolChain({ msgs }: { msgs: AgentMsg[] }) {
                       argsJson={m.toolArgsJson}
                       result={m.toolResult}
                       cancelled={m.cancelled}
+                      onFailGuide={onFailGuide}
                     />
                   ))}
                 </div>
@@ -642,6 +659,23 @@ export default function AgentPanel(props: AgentPanelProps) {
     },
     [send]
   )
+  // 失败步处置引导（体验层 2026-09-17）：失败工具卡「让 agent 处理」→ 把预写指引追加进输入框
+  // （可编辑、不代发——业界基线见 toolChain.failureFollowupPrompt 注释；处置权交还作者）
+  const onFailGuide = useCallback((tool: string, summary?: string) => {
+    const text = failureFollowupPrompt(tool, summary)
+    setAtTrg(null)
+    setCmdTrg(null)
+    setInput((v) => (v.trim() ? v.replace(/\s+$/, '') + ' ' + text : text))
+    requestAnimationFrame(() => {
+      taRef.current?.focus()
+      const n = taRef.current?.value.length ?? text.length
+      try {
+        taRef.current?.setSelectionRange(n, n)
+      } catch {
+        /* 忽略 */
+      }
+    })
+  }, [])
   const scrollRef = useRef<HTMLDivElement>(null)
   const [audit, setAudit] = useState<{ open: boolean; tab: AuditKind }>({ open: false, tab: 'consistency' })
   // 固定逻辑命令（/巡查 /导演）执行中：锁发送防连点
@@ -1242,11 +1276,11 @@ export default function AgentPanel(props: AgentPanelProps) {
                 if (ch) {
                   if (!ch.isHead) return null
                   const chainMsgs = ch.ids.map((id) => metaById.get(id)).filter((x): x is AgentMsg => !!x)
-                  return <ToolChain key={ch.ids[0]} msgs={chainMsgs} />
+                  return <ToolChain key={ch.ids[0]} msgs={chainMsgs} onFailGuide={onFailGuide} />
                 }
                 return (
                   <div key={m.id} className="w-full">
-                    <ToolActivity tool={m.tool ?? ''} args={m.toolArgs} done={m.done} toolOk={m.toolOk} summary={m.content} startedAt={m.startedAt} elapsedMs={m.elapsedMs} argsJson={m.toolArgsJson} result={m.toolResult} cancelled={m.cancelled} />
+                    <ToolActivity tool={m.tool ?? ''} args={m.toolArgs} done={m.done} toolOk={m.toolOk} summary={m.content} startedAt={m.startedAt} elapsedMs={m.elapsedMs} argsJson={m.toolArgsJson} result={m.toolResult} cancelled={m.cancelled} onFailGuide={onFailGuide} />
                   </div>
                 )
               }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupToolMeta, isContinuedRead, parseToolFile, summarizeGroup } from '../../src/renderer/src/features/agent/toolChain'
+import { groupToolMeta, isContinuedRead, parseToolFile, summarizeGroup, failureFollowupPrompt } from '../../src/renderer/src/features/agent/toolChain'
 
 const meta = (id: string, tool: string, toolArgs?: string) => ({ id, kind: 'meta' as const, tool, toolArgs })
 
@@ -133,5 +133,25 @@ describe('summarizeGroup（链组聚合摘要）', () => {
   it('部分步骤有耗时：只累计有值部分', () => {
     const agg = summarizeGroup([doneOk('m1', 100, 'a'), doneOk('m2'), { id: 'm3', tool: 'zj_read_doc', done: true, toolOk: true, elapsedMs: 50, content: 'c' }])
     expect(agg?.elapsedMs).toBe(150)
+  })
+})
+
+describe('failureFollowupPrompt（失败步处置引导文案）', () => {
+  it('含工具名与失败摘要', () => {
+    const p = failureFollowupPrompt('zj_read_doc', '读取失败：文件已被外部修改（ENOENT）')
+    expect(p).toContain('上一步「zj_read_doc」调用失败')
+    expect(p).toContain('读取失败：文件已被外部修改（ENOENT）')
+    expect(p).toContain('重试该步')
+  })
+  it('超长摘要截断到 60 字加省略号', () => {
+    const long = 'x'.repeat(100)
+    const p = failureFollowupPrompt('zj_search', long)
+    expect(p.length).toBeLessThan(150)
+    expect(p).toContain('…')
+  })
+  it('无摘要时安全（不出现空冒号）', () => {
+    const p = failureFollowupPrompt('zj_find')
+    expect(p).not.toContain('：。')
+    expect(p).toBe('上一步「zj_find」调用失败。请查看错误详情后重试该步，或换一种方式完成当前任务。')
   })
 })

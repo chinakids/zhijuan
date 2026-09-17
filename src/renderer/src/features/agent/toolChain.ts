@@ -83,6 +83,17 @@ export interface GroupAggMsgLike extends MetaMsgLike {
   content?: string
 }
 
+/** 失败步处置引导文案（体验层 2026-09-17）：失败工具卡「让 agent 处理」填入输入框的预写指令。
+ * 业界基线（Claude Code / Codex 一手调研，见 04-体验层.md 迭代日志 2026-09-17 14:15 轮）：
+ * 两个一线 agent 都**没有**「单步工具重试按钮」——工具错误回灌模型、由模型自理（Claude Code 对
+ * malformed 还有内置自动重试次数）；用户级恢复=消息粒度（Codex backtrack 把旧 prompt 恢复到输入框）。
+ * 织卷等价形态＝把「重试该步/换方式」指引填回输入框（可编辑、不代发），处置权交还作者。 */
+export function failureFollowupPrompt(tool: string, summary?: string): string {
+  const s = (summary ?? '').trim()
+  const clipped = s.length > 60 ? s.slice(0, 60) + '…' : s
+  return `上一步「${tool}」调用失败${clipped ? `：${clipped}` : ''}。请查看错误详情后重试该步，或换一种方式完成当前任务。`
+}
+
 /** 仅对 ≥2 步的链组生效（单卡/单组无聚合语义，保持既有视觉零回归）。 */
 export function summarizeGroup(msgs: readonly GroupAggMsgLike[]): GroupAgg | undefined {
   if (msgs.length < 2) return undefined
