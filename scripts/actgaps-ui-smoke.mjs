@@ -89,18 +89,32 @@ try {
   await evalUntil(page, `document.body.innerText.includes('Agent') && document.body.innerText.includes('第1章')`, (v) => v === true, 20000, '正文页就绪')
   console.log('OK 正文页就绪')
 
-  // ① 次级检查项已收进「检查」折叠菜单（3e0ec55）：先开菜单，断言菜单项存在（title=label）
-  console.log('打开检查菜单:', await page.eval(openCheckMenu()))
-  await sleep(350)
-  const btn = await page.eval(`(() => {
-    const b = [...document.querySelectorAll('[role="menuitem"]')].find((x) => (x.title || '').startsWith('正文缺段核查'))
-    return b ? { title: b.title } : null
-  })()`)
-  check('菜单项存在（title=「正文缺段核查…」）', !!btn)
-
-  // ② 点击菜单项 → 抽屉打开并出现标题（K_TITLE 接线）
-  console.log('点击菜单项:', await page.eval(clickByTitle('正文缺段核查（本地规则·秒级）')))
-  await evalUntil(page, `document.body.innerText.includes('正文缺段核查')`, (v) => v === true, 8000, '抽屉标题出现')
+  // ① 本地规则入口=编辑器下方「规则体检」状态栏（F-20260916-05）：选中章 → 点盾牌 → 抽屉 → 切「缺段」Tab
+  const zjHealthOpen = async (page, tabText, titlePart, timeoutMs = 15000) => {
+    await page.eval(`(() => {
+      const cand = [...document.querySelectorAll('button')].find((b) => /第.{1,6}章/.test((b.innerText || '')))
+      if (!cand) return 'NO_CHAPTER'
+      cand.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+      cand.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
+      cand.click()
+      return 'OK'
+    })()`)
+    await evalUntil(page, `!!document.querySelector('[data-testid="health-bar"]')`, (v) => v === true, 15000, '规则体检状态栏出现')
+    await evalUntil(page, `!!document.querySelector('[data-testid="health-icon-issues"]') || !!document.querySelector('[data-testid="health-icon-ok"]')`, (v) => v === true, 30000, '体检完成')
+    await page.eval(`document.querySelector('[data-testid="health-status"]').click()`)
+    await evalUntil(page, `!!document.querySelector('[role="dialog"]')`, (v) => v === true, 10000, '抽屉打开')
+    await sleep(400)
+    const r = await page.eval(`(() => {
+      const b = [...document.querySelectorAll('[role="dialog"] button')].find((x) => (x.textContent || '').trim() === ${JSON.stringify(tabText)})
+      if (!b) return 'NO_TAB'
+      b.click()
+      return 'OK'
+    })()`)
+    if (r !== 'OK') throw new Error('切 Tab 失败: ' + r + '（' + tabText + '）')
+    await evalUntil(page, `document.body.innerText.includes(${JSON.stringify(titlePart)})`, (v) => v === true, timeoutMs, '抽屉标题出现: ' + titlePart)
+  }
+  await zjHealthOpen(page, '缺段', '正文缺段核查')
+  console.log('OK 抽屉打开（标题=正文缺段核查）')
   // 抽屉面板（role=dialog 或含标题元素）出现结果摘要
   await evalUntil(page, `document.body.innerText.includes('均无分幕缺段占位注释')`, (v) => v === true, 15000, '结果 summary 渲染')
   console.log('OK 抽屉显示结果（演示项目无占位 → 零命中空态）')

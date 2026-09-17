@@ -329,6 +329,24 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
           >
             称谓
           </button>
+          <button
+            onClick={() => onTab('actgaps')}
+            className={cn('rounded-md px-2.5 py-1 text-xs', tab === 'actgaps' ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface-2')}
+          >
+            缺段
+          </button>
+          <button
+            onClick={() => onTab('sliceord')}
+            className={cn('rounded-md px-2.5 py-1 text-xs', tab === 'sliceord' ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface-2')}
+          >
+            切片
+          </button>
+          <button
+            onClick={() => onTab('mixform')}
+            className={cn('rounded-md px-2.5 py-1 text-xs', tab === 'mixform' ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface-2')}
+          >
+            混用
+          </button>
           <button onClick={onClose} className="text-ink-3 hover:text-ink">
             <X className="h-4 w-4" />
           </button>

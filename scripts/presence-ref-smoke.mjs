@@ -91,13 +91,31 @@ try {
   await evalUntil(page, `document.body.innerText.includes('Agent') && document.body.innerText.includes('第1章')`, (v) => v === true, 20000, '正文页就绪')
   console.log('OK 正文页就绪')
 
-  // ① 打开「人物在场核查」抽屉（检查项已收进「检查」折叠菜单 3e0ec55：先开菜单再点项）
-  console.log('打开检查菜单:', await page.eval(openCheckMenu()))
-  await sleep(350)
-  const entry = await page.eval(`[...document.querySelectorAll('[role="menuitem"]')].find((b) => (b.title || '').includes('人物在场与称谓核查'))?.title ?? 'NONE'`)
-  console.log('入口:', entry)
-  console.log('点击菜单项:', await page.eval(clickByTitle('人物在场与称谓核查（本地规则·秒级）')))
-  await evalUntil(page, `document.body.innerText.includes('人物在场与称谓核查')`, (v) => v === true, 10000, '在场抽屉打开')
+  // ① 本地规则入口=编辑器下方「规则体检」状态栏（F-20260916-05）：选中章 → 点盾牌 → 抽屉 → 切「在场」Tab
+  const zjHealthOpen = async (page, tabText, titlePart, timeoutMs = 15000) => {
+    await page.eval(`(() => {
+      const cand = [...document.querySelectorAll('button')].find((b) => /第.{1,6}章/.test((b.innerText || '')))
+      if (!cand) return 'NO_CHAPTER'
+      cand.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+      cand.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
+      cand.click()
+      return 'OK'
+    })()`)
+    await evalUntil(page, `!!document.querySelector('[data-testid="health-bar"]')`, (v) => v === true, 15000, '规则体检状态栏出现')
+    await evalUntil(page, `!!document.querySelector('[data-testid="health-icon-issues"]') || !!document.querySelector('[data-testid="health-icon-ok"]')`, (v) => v === true, 30000, '体检完成')
+    await page.eval(`document.querySelector('[data-testid="health-status"]').click()`)
+    await evalUntil(page, `!!document.querySelector('[role="dialog"]')`, (v) => v === true, 10000, '抽屉打开')
+    await sleep(400)
+    const r = await page.eval(`(() => {
+      const b = [...document.querySelectorAll('[role="dialog"] button')].find((x) => (x.textContent || '').trim() === ${JSON.stringify(tabText)})
+      if (!b) return 'NO_TAB'
+      b.click()
+      return 'OK'
+    })()`)
+    if (r !== 'OK') throw new Error('切 Tab 失败: ' + r + '（' + tabText + '）')
+    await evalUntil(page, `document.body.innerText.includes(${JSON.stringify(titlePart)})`, (v) => v === true, timeoutMs, '抽屉标题出现: ' + titlePart)
+  }
+  await zjHealthOpen(page, '在场', '人物在场核查')
   console.log('OK 在场抽屉打开')
 
   // ② unlisted 别名命中条目显示关联档案（refFile=人物/沈藏.md）
@@ -122,11 +140,8 @@ try {
   if (!agentMsg) throw new Error('agent 指令未包含关联档案路径')
   console.log('OK 「让 agent 改」指令含「关联档案：人物/沈藏.md」')
 
-  // ④ 「档案」Tab：unused 条目（沈老爹）带 target → 出现「转提案」按钮（抽屉已被「让 agent 改」关闭，须重新开检查菜单点项）
-  console.log('打开检查菜单:', await page.eval(openCheckMenu()))
-  await sleep(350)
-  console.log('点击菜单项:', await page.eval(clickByTitle('人物档案腐坏核查（本地规则·秒级）')))
-  await evalUntil(page, `document.body.innerText.includes('人物档案腐坏核查')`, (v) => v === true, 10000, '档案抽屉打开')
+  // ④ 「档案」Tab：unused 条目（沈老爹）带 target → 出现「转提案」按钮（抽屉已被「让 agent 改」关闭，重开盾牌切档案 Tab）
+  await zjHealthOpen(page, '档案', '人物档案腐坏核查')
   await evalUntil(page, `document.body.innerText.includes('沈老爹')`, (v) => v === true, 10000, '沈老爹条目')
   const hasProposal = await page.eval(`document.body.innerText.includes('转提案')`)
   if (!hasProposal) throw new Error('unused 条目未出现「转提案」按钮（target 未生效）')

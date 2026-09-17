@@ -1,9 +1,9 @@
 // 织卷无头冒烟 · 人物在场与称谓核查：审计抽屉「在场」Tab（devShim 演示数据）
 // 用法：node scripts/presence-ui-smoke.mjs
 // 前置：node scripts/serve-renderer.mjs 8123；本机专用无头 Chrome CDP 127.0.0.1:9224
-// 验收点：① 正文页 Agent 面板出现「人物在场与称谓核查」入口按钮；② 点击后抽屉标题=人物在场与称谓核查；
-//         ③ 状态行显示「本地规则核查：共列 1 条」；④ 演示条目（清单列了却未署名出场）渲染；
-//         ⑤ 演示摘要口径含「档案登记的别名参与匹配」（别名约定已生效的文案证据）。
+// 验收点：① 选中章后编辑器下方「规则体检」状态栏出现（F-20260916-05：本地规则入口已从 Agent 检查菜单迁来）；
+//         ② 点盾牌打开抽屉 → 切「在场」Tab（标题=人物在场核查）；③ 状态行显示「本地规则核查：共列 1 条」；
+//         ④ 演示条目（清单列了却未署名出场）渲染；⑤ 演示摘要口径含「档案登记的别名参与匹配」（别名约定已生效的文案证据）。
 const CDP = 'http://127.0.0.1:9224'
 const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -75,6 +75,31 @@ const openCheckMenu = () => `(() => {
   return 'CLICKED'
 })()`
 
+// F-20260916-05：本地规则 7 项入口=编辑器下方「规则体检」状态栏（HealthBar）——选中章 → 点盾牌 → 抽屉 → 切目标 Tab
+const zjHealthOpen = async (page, tabText, titlePart, timeoutMs = 10000) => {
+  await page.eval(`(() => {
+    const cand = [...document.querySelectorAll('button')].find((b) => /第.{1,6}章/.test((b.innerText || '')))
+    if (!cand) return 'NO_CHAPTER'
+    cand.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+    cand.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
+    cand.click()
+    return 'OK'
+  })()`)
+  await evalUntil(page, `!!document.querySelector('[data-testid="health-bar"]')`, (v) => v === true, 15000, '规则体检状态栏出现')
+  await evalUntil(page, `!!document.querySelector('[data-testid="health-icon-issues"]') || !!document.querySelector('[data-testid="health-icon-ok"]')`, (v) => v === true, 30000, '体检完成')
+  await page.eval(`document.querySelector('[data-testid="health-status"]').click()`)
+  await evalUntil(page, `!!document.querySelector('[role="dialog"]')`, (v) => v === true, 10000, '抽屉打开')
+  await sleep(400)
+  const r = await page.eval(`(() => {
+    const b = [...document.querySelectorAll('[role="dialog"] button')].find((x) => (x.textContent || '').trim() === ${JSON.stringify(tabText)})
+    if (!b) return 'NO_TAB'
+    b.click()
+    return 'OK'
+  })()`)
+  if (r !== 'OK') throw new Error('切 Tab 失败: ' + r + '（' + tabText + '）')
+  await evalUntil(page, `document.body.innerText.includes(${JSON.stringify(titlePart)})`, (v) => v === true, timeoutMs, '抽屉标题出现: ' + titlePart)
+}
+
 const tab = await openTab(BASE + '/?cb=' + Date.now() + '#/project/demo-aseya/novel')
 console.log('TAB:', tab.id, tab.url)
 const page = await attach(tab.webSocketDebuggerUrl)
@@ -83,17 +108,9 @@ try {
   await evalUntil(page, `document.body.innerText.includes('Agent') && document.body.innerText.includes('第1章')`, (v) => v === true, 20000, '正文页就绪')
   console.log('OK 正文页就绪')
 
-  // ① 次级检查项已收进「检查」折叠菜单（3e0ec55）：先开菜单，断言菜单项存在（title 含「人物在场与称谓核查」）
-  console.log('打开检查菜单:', await page.eval(openCheckMenu()))
-  await sleep(350)
-  const hasEntry = await page.eval(`[...document.querySelectorAll('[role="menuitem"]')].some((b) => (b.title || '').includes('人物在场与称谓核查'))`)
-  if (!hasEntry) throw new Error('未找到「人物在场与称谓核查」菜单项')
-  console.log('OK 「人物在场与称谓核查」菜单项存在')
-
-  // ② 点击菜单项 → 抽屉出现（标题 = 人物在场与称谓核查）
-  console.log('点击菜单项:', await page.eval(clickByTitle('人物在场与称谓核查（本地规则·秒级）')))
-  await evalUntil(page, `document.body.innerText.includes('人物在场与称谓核查')`, (v) => v === true, 10000, '抽屉标题出现')
-  console.log('OK 抽屉打开（标题=人物在场与称谓核查）')
+  // ① 本地规则入口=编辑器下方「规则体检」状态栏（F-20260916-05）：选中章 → 点盾牌 → 抽屉 → 切「在场」Tab
+  await zjHealthOpen(page, '在场', '人物在场核查')
+  console.log('OK 抽屉打开（标题=人物在场核查）')
 
   // ③ 状态行：本地规则核查：共列 1 条（零模型·秒级）
   await evalUntil(page, `document.body.innerText.includes('本地规则核查：共列')`, (v) => v === true, 10000, '本地规则状态行')

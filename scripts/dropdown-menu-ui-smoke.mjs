@@ -1,9 +1,7 @@
 // 织卷无头冒烟 · 下拉菜单（DropdownMenu）一致性走查——HIG Menus / Pull-down buttons
 // 用法：node scripts/dropdown-menu-ui-smoke.mjs
 // 前置：npm run build；node scripts/serve-renderer.mjs 8123（SPA fallback）；CDP 127.0.0.1:9224
-// 验收点：A 首页项目卡菜单（icon/省略号/红字/触发器 open 态/Esc）；B Agent「检查」菜单（10 项、组序=秒级在前、
-//         分组分隔线、每项 icon、触发器 open 态、键盘导航、Esc、dark 复测）；C 编辑器 More 菜单
-//         （disabled 置灰、分隔线、触发器 open 态回归 4392ae5）；截图两张。
+// 验收点：A 首页项目卡菜单（icon/省略号/红字/触发器 open 态/Esc）；B Agent「检查」菜单（3 项全卷巡读——本地规则 7 项已迁「规则体检」状态栏 F-20260916-05；每项 icon、触发器 open 态、键盘导航、Esc、dark 复测）；C 编辑器 More 菜单（disabled 置灰、分隔线、触发器 open 态回归 4392ae5）；截图两张。
 import { writeFileSync, mkdirSync } from 'node:fs'
 const CDP = 'http://127.0.0.1:9224'
 const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
@@ -119,9 +117,9 @@ const CHKBTN = `[...document.querySelectorAll('button')].find(b => b.getAttribut
 ok('B1 检查菜单可打开', (await openMenuBySel(A, CHKBTN)) === 'OK')
 await sleep(700)
 const bMenu = (await A.eval(MENU_ITEMS))[0]
-ok('B2 检查菜单 10 项 + 1 条分组分隔线（HIG 逻辑分组）', !!bMenu && bMenu.items.length === 10 && bMenu.seps === 1, JSON.stringify({ items: bMenu?.items?.length, seps: bMenu?.seps }))
+ok('B2 检查菜单 3 项全卷巡读（F-20260916-05 本地规则已迁状态栏，无分组分隔线）', !!bMenu && bMenu.items.length === 3 && bMenu.seps === 0, JSON.stringify({ items: bMenu?.items?.length, seps: bMenu?.seps }))
 const b0 = await A.eval(`[...document.querySelectorAll('[role="menuitem"]')].map(i => i.textContent.trim())`)
-ok('B3 组序=本地秒级 7 项在前、巡读 3 项在后（HIG 高频在前）', b0.slice(0, 7).every((l) => l.includes('秒级')) && b0.slice(7).every((l) => !l.includes('秒级')) && b0[7].includes('一致性') && b0[9].includes('多视角'), b0.join(' | '))
+ok('B3 顺序=一致性巡查/冷读报告/多视角审视（本地规则已迁状态栏）', b0.length === 3 && b0[0].includes('一致性') && b0[1].includes('冷读报告') && b0[2].includes('多视角'), b0.join(' | '))
 ok('B4 每项带 icon（组内统一）', !!bMenu && bMenu.items.every((i) => i.icon))
 const bTrig = await triggerState(A, CHKBTN)
 ok('B5 触发器 open 态保持高亮', !!bTrig && bTrig.ds === 'open' && bTrig.bg !== 'rgba(0, 0, 0, 0)', JSON.stringify(bTrig))

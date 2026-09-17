@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { CircleAlert, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import AuditDrawer from './AuditDrawer'
+import { useAgentStore } from '../agent/store'
 import type { AuditKind } from '../../../../shared/types'
 
 /** 本地规则 7 项（与 AgentPanel 曾用菜单/本小环同组；零模型、秒级、不落盘） */
@@ -29,6 +30,8 @@ export default function HealthBar({ projectId, refreshSignal = 0 }: Props) {
   const [note, setNote] = useState('')
   const [audit, setAudit] = useState<{ open: boolean; tab: AuditKind }>({ open: false, tab: 'presence' })
   const runSeq = useRef(0)
+  // 「让 agent 改」：经 agent store 注册槽把审读发现发给 Agent 面板（AgentPanel 挂载时注册；F-20260916-05 迁移补链）
+  const streaming = useAgentStore((s) => s.streaming)
 
   const run = useCallback(async () => {
     const seq = ++runSeq.current
@@ -134,6 +137,11 @@ export default function HealthBar({ projectId, refreshSignal = 0 }: Props) {
         tab={audit.tab}
         onClose={() => setAudit((a) => ({ ...a, open: false }))}
         onTab={(t) => setAudit((a) => ({ ...a, tab: t }))}
+        onToAgent={(text) => {
+          setAudit((a) => ({ ...a, open: false }))
+          useAgentStore.getState().sendHandler?.(text)
+        }}
+        toAgentBusy={streaming}
       />
     </footer>
   )

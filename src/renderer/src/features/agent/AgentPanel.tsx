@@ -627,6 +627,11 @@ export default function AgentPanel(props: AgentPanelProps) {
   const metaById = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages])
   const [input, setInput] = useState('')
   const { send, stop, streaming: sending } = useSender(props)
+  // 「让 agent 改」注册槽：审计抽屉（含规则体检状态栏 HealthBar）经 store 调用本页发送函数（F-20260916-05 迁移补链）
+  useEffect(() => {
+    useAgentStore.getState().setSendHandler((text) => void send(text, null, true))
+    return () => useAgentStore.getState().setSendHandler(null)
+  }, [send])
   // 错误提示「重试」（2026-09-16 智能层候选3）：按原载荷重发一轮；不销毁旧消息（已产出的修改方案仍可采纳），
   // 标记 retried 后按钮置「已重试」防连点
   const onErrorRetry = useCallback(

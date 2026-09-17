@@ -68,6 +68,9 @@ interface AgentState {
   setEditState: (id: string, state: 'applied' | 'rejected' | 'error', error?: string) => void
   markAsked: (id: string) => void
   reset: () => void
+  /** 「让 agent 改」注册槽（AgentPanel 挂载时注册本页发送函数；审计抽屉等经此把审读发现发给 agent——F-20260916-05 迁移补链） */
+  sendHandler: ((text: string) => void) | null
+  setSendHandler: (h: ((text: string) => void) | null) => void
 }
 
 let n = 0
@@ -114,5 +117,7 @@ export const useAgentStore = create<AgentState>((set) => ({
   setEditState: (id, state, error) =>
     set((s) => ({ messages: s.messages.map((x) => (x.id === id ? { ...x, editState: state, editError: error } : x)) })),
   markAsked: (id) => set((s) => ({ messages: s.messages.map((x) => (x.id === id ? { ...x, answered: true } : x)) })),
-  reset: () => set({ messages: [], quote: null })
+  reset: () => set({ messages: [], quote: null }),
+  sendHandler: null,
+  setSendHandler: (h) => set({ sendHandler: h })
 }))

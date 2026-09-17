@@ -454,8 +454,8 @@ const projects: ProjectSummary[] = [
     description: seeded.description,
     createdAt: now - 86400_000 * 6,
     updatedAt: now - 3600_000,
-    stats: { chapters: 3, characters: 2, worldviewFiles: 2, materials: 1 },
-    lastChapter: '第03章_码头'
+    stats: { chapters: 5, characters: 2, worldviewFiles: 1, materials: 1 },
+    lastChapter: '第01章_雾港'
   },
   {
     id: 'demo-yunshan',
@@ -473,7 +473,7 @@ const projects: ProjectSummary[] = [
     createdAt: now - 86400_000 * 3,
     updatedAt: now - 3600_000,
     stats: { chapters: 5, characters: 2, worldviewFiles: 0, materials: 0 },
-    lastChapter: '第05章_破晓'
+    lastChapter: '第01章_夜航'
   },
   {
     id: 'demo-order',
@@ -482,7 +482,7 @@ const projects: ProjectSummary[] = [
     createdAt: now - 86400_000 * 2,
     updatedAt: now - 3600_000,
     stats: { chapters: 6, characters: 2, worldviewFiles: 0, materials: 0 },
-    lastChapter: '第06章_旧港之二'
+    lastChapter: '第01章_晨港'
   },
   {
     id: 'demo-blank',
