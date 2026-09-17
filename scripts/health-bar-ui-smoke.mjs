@@ -59,14 +59,16 @@ for (let i = 0; i < 30; i++) {
     return {
       issues: !!document.querySelector('[data-testid="health-icon-issues"]'),
       ok: !!document.querySelector('[data-testid="health-icon-ok"]'),
+      badge: document.querySelector('[data-testid="health-badge"]')?.textContent ?? null,
       txt
     }
   })()`)
   if (icon && (icon.issues || icon.ok || !!document.querySelector('[data-testid="health-icon-error"]'))) break
   await sleep(500)
 }
-ok(!!icon && !!icon.issues, `体检完成后为「有问题」态（琥珀盾），文案含问题数（实际 ${icon?.txt}）`)
-ok(!!icon && /处问题/.test(icon.txt), `状态文案为「N 处问题」（实际 ${icon?.txt}`.slice(0, 120) + '）')
+ok(!!icon && !!icon.issues, `体检完成后为「有问题」态（琥珀盾）（实际 ${icon?.txt}）`)
+ok(!!icon && !!icon.badge && /^\d+$/.test(icon.badge), `问题数为角标 badge（实际 ${icon?.badge}）`)
+ok(!!icon && /有问题/.test(icon.txt) && !/处问题/.test(icon.txt), `状态文案不写数字（「规则体检：有问题」），实际 ${JSON.stringify(icon?.txt)}`)
 
 // 3. 点击状态钮 → AuditDrawer 打开（首个有问题类=人物在场核查）
 await ev(`document.querySelector('[data-testid="health-status"]').click()`)

@@ -240,7 +240,7 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
         <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px]">
           <span className="rounded bg-surface-2 px-2 py-1 text-ink-2">新增 <b className="text-warn">{c.added}</b></span>
           <span className="rounded bg-surface-2 px-2 py-1 text-ink-2">已解决 <b className="text-success">{c.resolved}</b></span>
-          <span className="rounded bg-surface-2 px-2 py-1 text-ink-2">依旧 <b className="text-accent">{c.same}</b>{sevChanged ? `（其中 ${sevChanged} 条严重度变化）` : ''}</span>
+          <span className="rounded bg-surface-2 px-2 py-1 text-ink-2">依旧 <b className="text-accent">{c.same}</b>{sevChanged > 0 && <b className="ml-1 rounded bg-warn-soft px-1.5 py-0.5 text-[10px] font-medium text-warn">严重度变化 {sevChanged}</b>}</span>
         </div>
         {diff.shiftHint > 0 && (
           <p className="mb-3 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-[11px] leading-relaxed text-ink-2">

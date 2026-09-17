@@ -198,14 +198,14 @@ function ItemCard({ p, projectId, onChanged, err, onErr }: { p: Proposal; projec
         </div>
       )}
       <div className="mt-3 flex items-center gap-2">
-        <Button size="sm" className="h-7 px-2 text-[11px] [&_svg]:size-3" onClick={() => void doApply()} disabled={busy || p.status !== 'pending'}>
+        <Button size="sm" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px] [&_svg]:size-3" onClick={() => void doApply()} disabled={busy || p.status !== 'pending'}>
           <Check className="mr-1" /> 接受
         </Button>
-        <Button size="sm" variant="outline" className="h-7 px-2 text-[11px] [&_svg]:size-3" onClick={() => void doReject()} disabled={p.status !== 'pending'}>
+        <Button size="sm" variant="outline" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px] [&_svg]:size-3" onClick={() => void doReject()} disabled={p.status !== 'pending'}>
           <X className="mr-1" /> 拒绝
         </Button>
         {p.status === 'stale' && (
-          <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px] text-danger hover:bg-danger-soft hover:text-danger [&_svg]:size-3" onClick={() => void doDiscard()} title="清除这条过期提案">
+          <Button size="sm" variant="ghost" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px] text-danger hover:bg-danger-soft hover:text-danger [&_svg]:size-3" onClick={() => void doDiscard()} title="清除这条过期提案">
             <Trash2 className="mr-1" /> 清除
           </Button>
         )}

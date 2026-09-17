@@ -468,7 +468,7 @@ function ThinkingBlock({ text, active }: { text: string; active?: boolean }) {
         <ChevronRight className="h-3 w-3 transition-transform" />
       </summary>
       <div className="mt-1.5 max-h-48 overflow-y-auto whitespace-pre-wrap rounded bg-surface-2 px-2 py-1.5 text-[11px] leading-5 text-ink-2">
-        {text || '（正在思考…）'}
+        {text || '正在思考…'}
       </div>
     </details>
   )

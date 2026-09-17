@@ -133,7 +133,7 @@ try {
 
   const text = await page.eval(`document.body.innerText`)
   ok('三态计数：新增 1 / 已解决 2 / 依旧 2', /新增\s*1/.test(text) && /已解决\s*2/.test(text) && /依旧\s*2/.test(text), text.match(/新增\s*\d+.*?(?=⚠|$)/s)?.[0]?.slice(0, 60) ?? '')
-  ok('严重度变化标注（其中 1 条严重度变化）', text.includes('其中 1 条严重度变化'))
+  ok('严重度变化徽标（严重度变化 1）', text.includes('严重度变化 1'))
   ok('新增组含演示新条目（信件）', text.includes('新增（这次发现）') && text.includes('墙角提到一封信'))
   ok('已解决组含两条旧条目', text.includes('分幕与章节数对不上') && text.includes('开头雨景与后文不接'))
   ok('依旧组含严重度变化显示（low → medium）', text.includes('严重度 low → medium'))

@@ -89,6 +89,24 @@ export default function HealthBar({ projectId, refreshSignal = 0 }: Props) {
   }, [run])
 
   const firstIssue = (LOCAL_KINDS as AuditKind[]).find((k) => (counts[k] ?? 0) > 0) ?? 'presence'
+  const K_LABEL: Partial<Record<AuditKind, string>> = { presence: '人物在场', order: '切片时序', unused: '档案腐坏', actgaps: '正文缺段', sliceord: '档案切片', nameform: '称谓发现', mixform: '称谓混用' }
+  const detail = (LOCAL_KINDS as AuditKind[]).filter((k) => (counts[k] ?? 0) > 0).map((k) => `${K_LABEL[k] ?? k} ${counts[k]}`).join('、')
+  const healthTitle =
+    health === 'ok'
+      ? '规则体检：无问题 · 点击查看详情'
+      : health === 'issues'
+        ? `规则体检：${total} 处问题${detail ? ' · ' + detail : ''} · 点击查看详情`
+        : health === 'error'
+          ? '规则体检不可用 · 点击查看详情'
+          : '规则体检进行中'
+  const healthAria =
+    health === 'ok'
+      ? '规则体检：无问题'
+      : health === 'issues'
+        ? `规则体检：${total} 处问题`
+        : health === 'error'
+          ? '规则体检不可用'
+          : '规则体检进行中'
 
   return (
     <footer
@@ -98,27 +116,37 @@ export default function HealthBar({ projectId, refreshSignal = 0 }: Props) {
       <button
         type="button"
         data-testid="health-status"
-        title={health === 'ok' ? '规则体检：无问题（点击查看详情）' : health === 'issues' ? `规则体检：${total} 处问题（点击查看详情）` : '规则体检（点击查看详情）'}
-        aria-label={health === 'ok' ? '规则体检：无问题' : health === 'issues' ? `规则体检：${total} 处问题` : '规则体检'}
+        title={healthTitle}
+        aria-label={healthAria}
         onClick={() => setAudit({ open: true, tab: firstIssue })}
-        className="flex min-w-0 items-center gap-1 rounded hover:bg-well focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+        className="flex min-w-0 items-center gap-2 rounded hover:bg-well focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
       >
-        {health === 'checking' ? (
-          <LoadingIndicator size={12} />
-        ) : health === 'ok' ? (
-          <ShieldCheck data-testid="health-icon-ok" className="h-3.5 w-3.5 text-success" />
-        ) : health === 'issues' ? (
-          <ShieldAlert data-testid="health-icon-issues" className="h-3.5 w-3.5 text-warn" />
-        ) : (
-          <CircleAlert data-testid="health-icon-error" className="h-3.5 w-3.5 text-danger" />
-        )}
+        <span className="relative inline-flex">
+          {health === 'checking' ? (
+            <LoadingIndicator size={12} />
+          ) : health === 'ok' ? (
+            <ShieldCheck data-testid="health-icon-ok" className="h-3.5 w-3.5 text-success" />
+          ) : health === 'issues' ? (
+            <ShieldAlert data-testid="health-icon-issues" className="h-3.5 w-3.5 text-warn" />
+          ) : (
+            <CircleAlert data-testid="health-icon-error" className="h-3.5 w-3.5 text-danger" />
+          )}
+          {health === 'issues' && total > 0 && (
+            <span
+              data-testid="health-badge"
+              className="absolute -right-1.5 -top-1 flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-warn px-[2px] text-[9px] font-semibold leading-none text-white"
+            >
+              {total > 99 ? '99+' : total}
+            </span>
+          )}
+        </span>
         <span className="truncate">
           {health === 'checking'
             ? '规则体检中…'
             : health === 'ok'
               ? '规则体检：无问题'
               : health === 'issues'
-                ? `规则体检：${total} 处问题`
+                ? '规则体检：有问题'
                 : `规则体检：${note || '不可用'}`}
         </span>
       </button>
