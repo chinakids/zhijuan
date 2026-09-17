@@ -63,10 +63,14 @@ export function isContinuedRead(msgs: readonly MetaMsgLike[], idx: number): bool
  * 同工具连续 N 步里第 K 步失败时组头仍是「绿勾+×N」，作者误以为全部成功（业界基线=聚合视图结果
  * 状态始终可见，GitHub Actions run 摘要 success/failure/canceled/neutral 永不折叠）。 */
 export interface GroupAgg {
-  /** 组内任一步失败（done 且 toolOk=false） */
+  /** 组内任一步失败（done 且 toolOk=false）——历史事实，细节层/展开步用 */
   hasFailed: boolean
   /** 组内任一步被取消且无失败（失败优先语义） */
   hasCancelled: boolean
+  /** 链终态=最后一步失败（done 且 toolOk=false）；链停在失败=真失败需处置 */
+  endedFailed: boolean
+  /** 链曾失败但终态未停在失败（最后一步成功）——组头不得长期顶「失败」误导作者干预已自愈流程 */
+  recovered: boolean
   /** 首个失败步的结果摘要（组头失败态展示用） */
   summary: string | undefined
   /** 组内全部已终态步骤耗时合计（ms）；无任何耗时数据时 undefined */
@@ -98,6 +102,11 @@ export function failureFollowupPrompt(tool: string, summary?: string): string {
 export function summarizeGroup(msgs: readonly GroupAggMsgLike[]): GroupAgg | undefined {
   if (msgs.length < 2) return undefined
   const failed = msgs.find((m) => m.done === true && m.toolOk === false)
+  const last = msgs[msgs.length - 1]
+  // 链终态=最后一步结果：尾步失败=真失败（作者需处置）；曾失败但尾步成功=已恢复（过程事件，
+  // 业界基线=GitHub Actions continue-on-error：step 失败且允许 job 通过时，run 摘要显示成功）
+  const endedFailed = last.done === true && last.toolOk === false
+  const recovered = !!failed && !endedFailed
   let sum = 0
   let any = false
   for (const m of msgs) {
@@ -109,6 +118,8 @@ export function summarizeGroup(msgs: readonly GroupAggMsgLike[]): GroupAgg | und
   return {
     hasFailed: !!failed,
     hasCancelled: msgs.some((m) => m.cancelled) && !failed,
+    endedFailed,
+    recovered,
     summary: failed?.content || undefined,
     elapsedMs: any ? Math.round(sum * 10) / 10 : undefined,
     count: msgs.length

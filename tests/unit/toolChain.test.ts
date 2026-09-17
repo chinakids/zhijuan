@@ -101,21 +101,32 @@ describe('summarizeGroup（链组聚合摘要）', () => {
 
   it('全成功：无失败无取消，耗时=合计', () => {
     const agg = summarizeGroup([doneOk('m1', 100, 'a'), doneOk('m2', 250, 'b'), doneOk('m3', 50, 'c')])
-    expect(agg).toEqual({ hasFailed: false, hasCancelled: false, summary: undefined, elapsedMs: 400, count: 3 })
+    expect(agg).toEqual({ hasFailed: false, hasCancelled: false, endedFailed: false, recovered: false, summary: undefined, elapsedMs: 400, count: 3 })
   })
 
-  it('组内尾步失败：hasFailed=true 且摘要取首个失败步内容', () => {
+  it('组内尾步失败：endedFailed=true（真失败需处置）且摘要取首个失败步内容', () => {
     const agg = summarizeGroup([doneOk('m1', 100, 'a'), doneOk('m2', 200, 'b'), doneFail('m3', 300, '读取失败：文件已被外部修改')])
     expect(agg?.hasFailed).toBe(true)
+    expect(agg?.endedFailed).toBe(true)
+    expect(agg?.recovered).toBe(false)
     expect(agg?.hasCancelled).toBe(false)
     expect(agg?.summary).toBe('读取失败：文件已被外部修改')
     expect(agg?.elapsedMs).toBe(600)
   })
 
-  it('组内首步失败：摘要取首步内容', () => {
+  it('组内首步失败、尾步成功：recovered=true（已恢复），组头不得长期顶「失败」', () => {
     const agg = summarizeGroup([doneFail('m1', 100, 'ENOENT'), doneOk('m2', 200, 'b')])
     expect(agg?.hasFailed).toBe(true)
+    expect(agg?.endedFailed).toBe(false)
+    expect(agg?.recovered).toBe(true)
     expect(agg?.summary).toBe('ENOENT')
+  })
+
+  it('组内中间步失败、尾步成功：recovered=true', () => {
+    const agg = summarizeGroup([doneOk('m1', 100, 'a'), doneFail('m2', 200, '中途失败'), doneOk('m3', 300, 'c')])
+    expect(agg?.hasFailed).toBe(true)
+    expect(agg?.endedFailed).toBe(false)
+    expect(agg?.recovered).toBe(true)
   })
 
   it('组内任一步取消且无失败：hasCancelled=true；有失败则失败优先', () => {

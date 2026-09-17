@@ -65,7 +65,7 @@ function fmtDur(ms: number): string {
   return m + 'm' + Math.round(s - m * 60) + 's'
 }
 
-function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs, step, continued, argsJson, result, cancelled, aggFailed, aggSummary, aggCancelled, aggElapsedMs, aggCount, onFailGuide }: {
+function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs, step, continued, argsJson, result, cancelled, aggFailed, aggRecovered, aggSummary, aggCancelled, aggElapsedMs, aggCount, onFailGuide }: {
   tool: string; args?: string; done?: boolean; toolOk?: boolean; summary?: string; startedAt?: number; elapsedMs?: number
   /** 工具链内序号（如 2/3）——多轮连续工具调用可追溯顺序 */
   step?: { no: number; total: number }
@@ -77,8 +77,13 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
   /** 轮次以停止/错误终了时工具未返回结果（中性「已取消」终态；失败=工具自己报错，取消=人被中止，语义分层） */
   cancelled?: boolean
   /* 链组头聚合覆盖（智能层 2026-09-17）：折叠态组头须把组内步骤的结果状态带到一行——
-   * 组内任一步失败/取消时组头不得只显示首条成功（失败被折叠吞掉，违背聚合视图状态可见基线） */
+   * 组内任一步失败/取消时组头不得只显示首条成功（失败被折叠吞掉，违背聚合视图状态可见基线）
+   * 终态语义（体验层 2026-09-17 晚）：聚合=链尾结果——尾步失败才标「失败」；
+   * 曾失败但尾步成功=「已恢复」中性徽标（继续显示失败摘要），组头不得长期顶「失败」误导作者
+   * 干预已自愈流程（业界基线=GitHub Actions continue-on-error：step 失败、job 仍 pass） */
   aggFailed?: boolean
+  /** 链曾失败且已恢复（与 aggFailed 互斥：aggFailed=最终失败，aggRecovered=已自愈终态成功） */
+  aggRecovered?: boolean
   /** 聚合失败摘要（首个失败步的结果文本） */
   aggSummary?: string
   aggCancelled?: boolean
@@ -89,10 +94,12 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
    * 把预写指引填入输入框（可编辑不代发），处置权交还作者；取消态不提供（非失败，人被中止） */
   onFailGuide?: (tool: string, summary?: string) => void
 }) {
-  const failed = (done === true && toolOk === false) || aggFailed === true
+  // 组头（有 agg 覆盖）时以链终态为准：aggFailed=尾步失败才红；单卡（无 agg）用自身 done/toolOk
+  const failed = aggFailed !== undefined ? aggFailed : done === true && toolOk === false
+  const recovered = aggRecovered === true
   const anyCancelled = cancelled === true || aggCancelled === true
-  // 聚合失败时摘要改用首个失败步的内容（组头成功但组内失败——失败信号优先）
-  const failedSummary = (failed && aggSummary) ? aggSummary : summary
+  // 聚合失败摘要：终态失败（红）与「已恢复」（自愈成功仍保留失败步摘要，信息不丢；颜色走中性）都用首个失败步内容
+  const failedSummary = (failed || recovered) && aggSummary ? aggSummary : summary
   // 终态耗时：链组头用聚合合计（组级信息），单卡用自身耗时；title 注明 N 步合计
   const shownElapsed = aggElapsedMs ?? ((done || anyCancelled) ? elapsedMs : undefined)
   // 进行中态：每秒刷新「已 Ns」；完成后不再刷新（meta-done 事件里已带最终耗时）
@@ -155,6 +162,15 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
           </span>
         )}
         {failed && <span className="shrink-0 rounded-full bg-danger-soft px-2 py-0.5 text-[10px] text-danger">失败</span>}
+        {recovered && (
+          <span
+            data-testid="zj-chain-recovered"
+            title="本链曾有一步失败，后续步骤已成功恢复；失败详情可由本卡「展开」查看"
+            className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-[10px] text-ink-3"
+          >
+            已恢复
+          </span>
+        )}
         {done && failed && onFailGuide && (
           <button
             type="button"
@@ -246,7 +262,8 @@ function ToolChain({ msgs, onFailGuide }: { msgs: AgentMsg[]; onFailGuide?: (too
           const head = g[0]
           const isOpen = !!opened[gi]
           // 链组聚合（智能层 2026-09-17）：折叠态组头带组内结果状态与合计耗时——
-          // 组内任一步失败/取消时组头不得只显示首条成功（失败被折叠吞掉）
+          // 组内任一步失败/取消时组头不得只显示首条成功（失败被折叠吞掉）；
+          // 终态语义（体验层 2026-09-17 晚）：组头状态=链尾结果（aggFailed=尾步失败/aggRecovered=曾失败已恢复）
           const agg = summarizeGroup(g)
           return (
             <div key={gi}>
@@ -265,7 +282,8 @@ function ToolChain({ msgs, onFailGuide }: { msgs: AgentMsg[]; onFailGuide?: (too
                     argsJson={head.toolArgsJson}
                     result={head.toolResult}
                     cancelled={head.cancelled}
-                    aggFailed={agg?.hasFailed}
+                    aggFailed={agg?.endedFailed}
+                    aggRecovered={agg?.recovered}
                     aggSummary={agg?.summary}
                     aggCancelled={agg?.hasCancelled}
                     aggElapsedMs={agg?.elapsedMs}

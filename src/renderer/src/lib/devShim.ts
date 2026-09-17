@@ -1205,6 +1205,28 @@ const mock = {
       emit({ requestId: rid, type: 'aborted' })
       return { ok: true }
     }
+    // 链内恢复演示（体验层 2026-09-17 晚）：prompt 含「链恢复」时演示 3 步 read 链、第 1 步 ok=false、
+    // 第 2/3 步成功——用于验证链组头「已恢复」终态（曾失败但尾步成功，组头不得长期顶「失败」）
+    if (/链恢复/.test(input.prompt)) {
+      emit({ requestId: rid, type: 'think', text: '分三段读完这一章，首段失败后继续…' })
+      await demoDelay()
+      const chain = [
+        { args: '正文/第01章_雾港.md', argsJson: JSON.stringify({ file: '正文/第01章_雾港.md' }), msg: '读取失败：文件已被外部修改（ENOENT），请确认后重试', ok: false as const, result: 'Error: ENOENT 文件已被外部修改\\n请重新保存后再次读取，或直接编辑正文继续。' },
+        { args: '正文/第01章_雾港.md', argsJson: JSON.stringify({ file: '正文/第01章_雾港.md' }), msg: '重读成功：已读到第 6000 字符，全文共 12400 字符（可传 offset=6000 继续读）', result: '「灯语约定始于父亲出事那一夜……」', ok: true as const },
+        { args: '正文/第01章_雾港.md (offset=6000)', argsJson: JSON.stringify({ file: '正文/第01章_雾港.md', offset: 6000 }), msg: '已读到末尾，全文共 12400 字符', result: '（第 6001-12400 字符）', ok: true as const }
+      ]
+      for (const c of chain) {
+        emit({ requestId: rid, type: 'meta', tool: 'zj_read_doc', args: c.args, argsJson: c.argsJson })
+        await demoDelay()
+        emit({ requestId: rid, type: 'meta-done', tool: 'zj_read_doc', message: c.msg, result: c.result, ok: c.ok })
+        await demoDelay()
+      }
+      emit({ requestId: rid, type: 'delta', text: '首段读取失败已重试恢复——核对完成，可以直接继续。' })
+      await demoDelay()
+      emit({ requestId: rid, type: 'final', text: '首段读取失败已重试恢复——核对完成，可以直接继续。' })
+      emit({ requestId: rid, type: 'done' })
+      return { ok: true }
+    }
     // 链内失败演示（2026-09-17 智能层候选3）：prompt 含「链失败」时演示 3 步 read 链、第 3 步 ok=false——
     // 用于验证折叠态组头的聚合失败态（组内失败不得被「绿勾+×N」吞掉）；分支在前且 return，避免
     // 「失败演示」正则（/失败|读不到|不存在/）又追加一张独立失败卡
