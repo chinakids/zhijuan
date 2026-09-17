@@ -1,11 +1,22 @@
 // 规则体检状态栏 · 无头 UI 冒烟（F-20260916-05，2026-09-16 体验层）
 // 断言：① 状态栏出现在编辑器下方；② devShim 演示项目存在已知问题（沈爷 alias 未列）→ issues 态（琥珀盾+处问题）；
-//       ③ 点击状态钮打开 AuditDrawer（人物在场核查详情）；④ 手动重跑可用。
+//       ③ 点击状态钮打开 AuditDrawer（人物在场核查详情）；③.3 抽屉 Tab 栏含 缺段/切片/混用 且「让 agent 改」可点（F-20260916-05 迁移完整性，㉞）；
+//       ④ 切「缺段」Tab 生效（标题=正文缺段核查）；⑤ 手动重跑可用。
 // 用法：node scripts/health-bar-ui-smoke.mjs  （先 npm run build + node scripts/serve-renderer.mjs 8123，CDP 9224 在跑）
 const PORT = 8123
 const BASE = process.env.ZJ_SMOKE_BASE || `http://localhost:${PORT}`
 const list = await (await fetch('http://127.0.0.1:9224/json')).json()
-const page = list.find((t) => t.type === 'page' && new RegExp(`:${PORT}`).test(t.url) && /novel/.test(t.url))
+let page = list.find((t) => t.type === 'page' && new RegExp(`:${PORT}`).test(t.url) && /novel/.test(t.url))
+if (!page) {
+  // 兜底：宿主只需是 8123 页（脚本自会 Page.navigate 到 novel 路由）——全量 tab 治理后可能无合适页（2026-09-17 13:3x 实踩 NO NOVEL PAGE，同 icon-size/loading-indicator 22:30 兜底先例 ㉝）
+  const any = list.find((t) => t.type === 'page' && new RegExp(`:${PORT}`).test(t.url))
+  if (!any) {
+    const r = await fetch('http://127.0.0.1:9224/json/new?' + encodeURIComponent(`${BASE}/?cb=${Date.now()}`), { method: 'PUT' })
+    page = await r.json()
+  } else {
+    page = any
+  }
+}
 if (!page) { console.error('NO NOVEL PAGE'); process.exit(1) }
 const ws = new WebSocket(page.webSocketDebuggerUrl)
 let seq = 0
@@ -78,6 +89,28 @@ const drawer = await ev(`(() => {
   return !!t
 })()`)
 ok(!!drawer, '点击状态图标打开详情抽屉（人物在场核查）')
+
+// 3.3 F-20260916-05 迁移完整性（㉞ 教训资产化）：抽屉 Tab 栏含迁移后补的 缺段/切片/混用 三类 + 「让 agent 改」入口存在
+const tabs = await ev(`(() => {
+  const dlg = document.querySelector('[role="dialog"]')
+  if (!dlg) return null
+  const btns = [...dlg.querySelectorAll('button')].map((b) => (b.textContent || '').trim())
+  return { que: btns.includes('缺段'), sli: btns.includes('切片'), mix: btns.includes('混用'), toAgent: btns.includes('让 agent 改') }
+})()`)
+ok(!!tabs && tabs.que && tabs.sli && tabs.mix, `抽屉 Tab 栏含 缺段/切片/混用（迁移完整性，实际 ${JSON.stringify(tabs)}）`)
+ok(!!tabs && tabs.toAgent, '「让 agent 改」入口存在（onToAgent 已接线）')
+
+// 3.4 切「缺段」Tab 生效（标题=正文缺段核查）
+const clickedTab = await ev(`(() => {
+  const dlg = document.querySelector('[role="dialog"]')
+  const b = [...dlg.querySelectorAll('button')].find((x) => (x.textContent || '').trim() === '缺段')
+  b?.click()
+  return !!b
+})()`)
+ok(!!clickedTab, '抽屉「缺段」Tab 按钮可点')
+await sleep(800)
+const switched = await ev(`[...document.querySelectorAll('[role="dialog"] *')].some((el) => el.textContent?.includes('正文缺段核查'))`)
+ok(!!switched, '切「缺段」Tab 后标题=正文缺段核查')
 await cmd('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
 await cmd('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
 await sleep(600)

@@ -57,6 +57,10 @@ export const REVIEWED_NON_MODEL = new Set([
   // 无引擎/边车/模型调用）；强特征 zj-bridge 与弱特征「真模型」均来自其头注背景描述（mention zj-bridge.mjs
   // 白名单依据与「真模型冒烟假绿」动机说明），非实际调用——头注措辞若收缩弱特征可再评估。
   'smoke-userdata-check.mjs',
+  // 2026-09-17 13:30 平台层轮核对：multiline-outline-director-smoke.mjs 是数据层冒烟（bundle 主进程
+  // outline.ts/director.ts 真实现 + scripts/drive-mock-outline.mjs 驱动 mock，头注明示「驱动 mock（不依赖模型）」）；
+  // 强特征 runDirector 命中的是 esbuild stdin 的 export 行（L29），非引擎/边车/模型调用——第九次全量审计实抓。
+  'multiline-outline-director-smoke.mjs',
 ])
 
 export const MODEL_SKIP_REASON = '模型类：真模型驱动（依赖 vLLM 算力池），--all 门禁不包含——--live 或单独跑'

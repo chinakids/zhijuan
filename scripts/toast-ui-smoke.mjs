@@ -81,15 +81,15 @@ try {
   const vis = await page.eval(`document.visibilityState`)
   ok('页面可见（定时器不会被节流）', vis === 'visible', 'visibility=' + vis)
 
-  // ② 选第2章（灯塔）→ 导演本章 → 成功 toast
+  // ② 选第2章（灯塔）→ 导演本章 → 成功 toast（顶栏按钮 f535050 已改 icon-only，按 aria-label 点击——体验层 2026-09-17 11:59 按钮规范 F-20260917-01）
   await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.innerText.includes('第2章 · 灯塔')); return b ? (b.click(), 'CLICKED') : 'NOT_FOUND' })()`)
   await sleep(400)
-  await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.innerText.trim() === '导演本章'); return b ? (b.click(), 'CLICKED') : 'NOT_FOUND' })()`)
+  await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.getAttribute('aria-label') || '') === '导演本章'); return b ? (b.click(), 'CLICKED') : 'NOT_FOUND' })()`)
   await evalUntil(page, `[...document.querySelectorAll('.zj-toast')].some((t) => t.innerText.includes('导演板已生成'))`, (v) => v === true, 10000, '导演成功 toast')
   ok('真实动作→成功 toast', true, JSON.stringify(await toastTitles(page)))
 
-  // ③ 回建缺失 → 与导演 toast 堆叠（并发通知不再互相覆盖）
-  await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.innerText.trim().startsWith('回建缺失')); return b ? (b.click(), 'CLICKED') : 'NOT_FOUND' })()`)
+  // ③ 回建缺失（icon-only，aria-label 前缀）→ 与导演 toast 堆叠（并发通知不再互相覆盖）
+  await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.getAttribute('aria-label') || '').startsWith('回建缺失')); return b ? (b.click(), 'CLICKED') : 'NOT_FOUND' })()`)
   await evalUntil(page, `[...document.querySelectorAll('.zj-toast')].some((t) => t.innerText.includes('章卡回建完成'))`, (v) => v === true, 10000, '回建成功 toast')
   await sleep(300)
   const cnt = await toastCount(page)
