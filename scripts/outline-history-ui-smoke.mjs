@@ -78,6 +78,11 @@ const clickBtn = (text) => page.eval(`(() => {
   if (b) { b.click(); return true }
   return false
 })()`)
+const clickAria = (label) => page.eval(`(() => {
+  const b = [...document.querySelectorAll('button')].find((x) => (x.getAttribute('aria-label') || '') === ${JSON.stringify(label)})
+  if (b) { b.click(); return true }
+  return false
+})()`)
 const hasTestId = (tid) => page.eval(`!!document.querySelector('[data-testid="${tid}"]')`)
 const clickHistory = (tid) => page.eval(`(() => { const b = document.querySelector('[data-testid="${tid}"]'); if (b) { b.click(); return true } return false })()`)
 const drawerClose = async (label) => {
@@ -109,7 +114,7 @@ try {
   // ③ 选中第一章 → 「导演本章」覆盖 seed 导演板 → seed 旧版入史（共 1 版）
   await clickBtn('第1章')
   await sleep(300)
-  const d1 = await clickBtn('导演本章')
+  const d1 = await clickAria('导演本章')
   ok('可点「导演本章」', d1 === true)
   await evalUntil(page, `document.body.innerText.includes('生成本章导演板') || document.body.innerText.includes('演示数据')`, (v) => v === true, 20000, '第一次导演完成')
   const firstBoardText = await page.eval(`window.zhijuan.readDoc(${JSON.stringify(ID)}, ${JSON.stringify(BOARD)})`)

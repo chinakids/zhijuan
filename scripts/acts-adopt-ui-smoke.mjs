@@ -131,7 +131,7 @@ try {
     '第一段：阿七摸到一枚铜哨，哨绳上缠着褪色的红绳。', ''
   ].join('\n')
   await page.eval(`window.zhijuan.writeDoc('demo-aseya', '大纲/第01章_雾港_分幕.md', ${JSON.stringify(badDraft)})`)
-  await evalUntil(page, `document.body.innerText.includes('补写缺段')`, (v) => v === true, 8000, '缺段草稿注入后出现「补写缺段」按钮')
+  await evalUntil(page, `!!document.querySelector('[aria-label="补写缺段"]')`, (v) => v === true, 8000, '缺段草稿注入后出现「补写缺段」按钮')
   console.log('OK 缺段草稿已注入，出现「补写缺段」按钮')
   console.log('采纳(缺段 1):', await page.eval(clickByText('采纳为正文')))
   await evalUntil(page, `document.body.innerText.includes('缺第 2 段')`, (v) => v === true, 6000, '第一步确认出现缺段警告')

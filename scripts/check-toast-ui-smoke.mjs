@@ -69,6 +69,8 @@ const clickTitle = (page, title) =>
   page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.title === ${JSON.stringify(title)}); if (!b) return 'NOT_FOUND'; b.click(); return 'CLICKED' })()`)
 const clickText = (page, text, startsWith = false) =>
   page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => ${startsWith ? 'x.innerText.trim().startsWith' : 'x.innerText.trim() ==='}(${JSON.stringify(text)})); if (!b) return 'NOT_FOUND'; b.click(); return 'CLICKED' })()`)
+const clickAria = (page, label) =>
+  page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.getAttribute('aria-label') || '') === ${JSON.stringify(label)}); if (!b) return 'NOT_FOUND'; b.click(); return 'CLICKED' })()`)
 
 let fails = 0
 const ok = (name, cond, extra = '') => {
@@ -145,7 +147,7 @@ try {
 
   // 选中第1章（devShim 预置了它的章卡+导演板），「兑现检查」应直接可用
   await page2.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.innerText.includes('第1章 · 雾港')); if (!b) return 'NOT_FOUND'; b.click(); return 'CLICKED' })()`)
-  await evalUntil(page2, `(() => { const b = [...document.querySelectorAll('button')].find((x) => x.innerText.trim() === '兑现检查'); return b && !b.disabled })()`, (v) => v === true, 8000, '兑现检查可点')
+  await evalUntil(page2, `(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.getAttribute('aria-label') || '') === '兑现检查'); return b && !b.disabled })()`, (v) => v === true, 8000, '兑现检查可点')
   ok('选中第1章后兑现检查可点', true)
 
   // ④ 兑现检查 mock 延迟 → 运行中关闭 → warning「3 处未兑现」
@@ -154,7 +156,7 @@ try {
     window.zhijuan.agentDirectorCheck = async (...a) => { await new Promise((r) => setTimeout(r, 1500)); return window.__ORIG_DC(...a) }
     return 1
   })()`)
-  await clickText(page2, '兑现检查')
+  await clickAria(page2, '兑现检查')
   await evalUntil(page2, `document.body.innerText.includes('写作引擎对照导演板核本章')`, (v) => v === true, 5000, '兑现检查运行中')
   await page2.eval(`(() => { const o = document.querySelector('.fixed.inset-0.z-40.bg-black\\\\/10'); if (o) o.click(); return 1 })()`)
   await evalUntil(page2, `[...document.querySelectorAll('.zj-toast')].some((t) => t.innerText.includes('兑现检查：3 处未兑现'))`, (v) => v === true, 8000, '未兑现 toast')
@@ -162,7 +164,7 @@ try {
   await page2.eval(`window.__ZJ_TOAST.clear()`)
 
   // ⑤ 兑现检查开着完成 → 不打扰（重开会重跑）
-  await clickText(page2, '兑现检查')
+  await clickAria(page2, '兑现检查')
   await sleep(2200)
   const during2 = await toastCount(page2)
   ok('⑤ 兑现检查开着完成→不打扰（0 toast）', during2 === 0, 'count=' + during2)

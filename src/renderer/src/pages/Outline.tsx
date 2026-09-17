@@ -507,42 +507,45 @@ export default function Outline() {
           {guardIssues.length > 0 && <GuardIssuesNote issues={guardIssues} projectId={id} className="shrink-0" />}
           {building && (
             <span className="flex items-center gap-1 text-[11px] text-accent">
-              <LoadingIndicator size={12} /> 写作引擎逐章回建中…（每章约一两分钟）
+              <LoadingIndicator size={12} /> 写作引擎逐章回建中…每章约一两分钟
             </span>
           )}
           <button
             onClick={() => void build(missing.map((c) => c.file))}
             disabled={building || missing.length === 0}
-            className="flex items-center gap-1 rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+            className="flex h-7 shrink-0 items-center justify-center rounded-md border border-hair px-1.5 text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
             title={missing.length ? `回建缺失的 ${missing.length} 张章卡` : '所有章节都已回建'}
+            aria-label={missing.length ? `回建缺失的 ${missing.length} 张章卡` : '回建缺失章卡'}
           >
-            <Hammer className="h-3 w-3" /> 回建缺失 {missing.length > 0 ? `(${missing.length})` : ''}
+            <Hammer className="h-3.5 w-3.5" />
           </button>
           {directing && (
             <span className="flex items-center gap-1 text-[11px] text-accent">
-              <LoadingIndicator size={12} /> 写作引擎导演中…（约一两分钟）
+              <LoadingIndicator size={12} /> 写作引擎导演中…约一两分钟
             </span>
           )}
           <button
             onClick={() => void direct()}
             disabled={directing || !selChapter}
-            className="flex items-center gap-1 rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+            className="flex h-7 shrink-0 items-center justify-center rounded-md border border-hair px-1.5 text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
             title={selChapter ? `给「${selChapter.name}」导出一张导演板（动笔前用，可重导覆盖）` : '先在左侧选中一章'}
+            aria-label="导演本章"
           >
-            <Clapperboard className="h-3 w-3" /> 导演本章
+            <Clapperboard className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={() => setCheckOpen(true)}
             disabled={!selChapter || !hasBoard(selChapter)}
-            className="flex items-center gap-1 rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+            className="flex h-7 shrink-0 items-center justify-center rounded-md border border-hair px-1.5 text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
             title={selChapter && hasBoard(selChapter) ? `对照「${selChapter.name}」的导演板核对本章（动笔后用，只读不改稿）` : selChapter ? '本章还没有导演板，先点「导演本章」' : '先在左侧选中一章'}
+            aria-label="兑现检查"
           >
-            <ShieldCheck className="h-3 w-3" /> 兑现检查
+            <ShieldCheck className="h-3.5 w-3.5" />
           </button>
           {(acting || repairing) && (
             <span className="flex items-center gap-1 text-[11px] text-accent">
               <LoadingIndicator size={12} />
-              {repairing ? '写作引擎补写缺段中…（每段约一两分钟）' : '写作引擎分幕起草中…（每段约一两分钟）'}
+              {repairing ? '写作引擎补写缺段中…每段约一两分钟' : '写作引擎分幕起草中…每段约一两分钟'}
             </span>
           )}
           <button
@@ -557,14 +560,15 @@ export default function Outline() {
             <button
               onClick={() => void repair()}
               disabled={repairing || acting || !selChapter}
-              className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-warn px-2 py-1 text-[11px] text-warn transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+              className="flex h-7 shrink-0 items-center justify-center rounded-md border border-warn px-1.5 text-warn transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
               title={
                 selChapter
                   ? `只重写「${selChapter.name}」第 ${draftMissing.join('、')} 段（已写成的段保留），不重跑全章`
                   : '先在左侧选中一章'
               }
+              aria-label="补写缺段"
             >
-              <Wrench className="h-3 w-3" /> 补写缺段
+              <Wrench className="h-3.5 w-3.5" />
             </button>
           )}
           {adopting && (
@@ -576,10 +580,10 @@ export default function Outline() {
             onClick={() => void adopt()}
             disabled={adopting || !selChapter || !hasActs(selChapter)}
             className={cn(
-              'flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors disabled:opacity-40',
+              'flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] transition-colors disabled:opacity-40',
               confirmAdopt
                 ? 'border-danger bg-danger-soft text-danger hover:border-danger'
-                : 'border-hair text-ink-2 hover:border-accent hover:text-accent'
+                : 'border-accent/50 text-accent hover:border-accent'
             )}
             title={
               selChapter && hasActs(selChapter)
@@ -598,10 +602,11 @@ export default function Outline() {
           <button
             onClick={() => void build()}
             disabled={building}
-            className="flex items-center gap-1 rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+            className="flex h-7 shrink-0 items-center justify-center rounded-md border border-hair px-1.5 text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
             title="全部章节重新回建（覆盖旧章卡）"
+            aria-label="全部回建"
           >
-            <RefreshCw className="h-3 w-3" /> 全部回建
+            <RefreshCw className="h-3.5 w-3.5" />
           </button>
         </div>
         {selChapter && staleBoards.has(selChapter.name) && (

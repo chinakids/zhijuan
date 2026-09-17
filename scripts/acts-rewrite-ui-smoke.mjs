@@ -68,6 +68,16 @@ function clickByText(text, exact = true) {
   })()`
   return js
 }
+function clickByAria(label) {
+  const js = `(() => {
+    const btns = [...document.querySelectorAll('button')]
+    const hit = btns.find((b) => b.getAttribute('aria-label') === ${JSON.stringify(label)})
+    if (!hit) return 'NOT_FOUND'
+    hit.click()
+    return 'CLICKED:' + (hit.getAttribute('title') || '').slice(0, 30)
+  })()`
+  return js
+}
 
 const tab = await openTab(BASE + '/?cb=' + Date.now() + '#/project/demo-aseya/outline')
 console.log('TAB:', tab.id, tab.url)
@@ -87,7 +97,7 @@ try {
   console.log('OK 分幕草稿已生成')
 
   // ② 打开兑现检查抽屉
-  console.log('兑现检查:', await page.eval(clickByText('兑现检查')))
+  console.log('兑现检查:', await page.eval(clickByAria('兑现检查')))
   await evalUntil(page, `document.body.innerText.includes('部分兑现')`, (v) => v === true, 15000, '兑现检查报告出现')
   await evalUntil(page, `document.body.innerText.includes('重写第 2 段')`, (v) => v === true, 8000, '重写按钮出现')
   console.log('OK 兑现检查抽屉出现，「重写第 2 段」按钮可见')
