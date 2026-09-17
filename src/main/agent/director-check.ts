@@ -6,6 +6,7 @@
 import { readDoc, listChapters } from '../store'
 import { registerCapability, runSubtask, stripFm, clip, type SubtaskDef } from './subtask'
 import { directorRel } from './director'
+import { WCTX_CAPS } from '../../shared/contextCaps'
 import type { ChapterEntry, DirectorCheckResult, DirectorCheckItem } from '../../shared/types'
 import { extractFrontMatter } from '../../shared/fmatter'
 
@@ -84,7 +85,12 @@ const directorCheckDef: SubtaskDef<DirectorCheckResult> = {
     return [
       checkSystem(cast),
       `【本章导演板】\n${clip(board, 2000, 1000)}`,
-      `【本章正文】（可能截取了首尾）\n${clip(body, 8000, 1500)}`,
+      // 正文头部窗口＝正文预算权威源（shared/contextCaps WCTX_CAPS.chapter）：2026-09-17 装配预算
+      // 8000→12000（真实章长中位 8548）后兑现检查仍硬截 8000+1500 → 正文超 9500 字符即被裁中段，
+      // 而章节转折/波峰常落中段（兑现检查的核对盲区，见 2026-09-18 智能层轮调研）；与续写装配
+      // 同读一份正文却看到更少=口径不一致。尾 1500 保最新（检查器专用，非装配预算）。
+      // 改正文预算只改 contextCaps.ts，此处自动跟随。
+      `【本章正文】（可能截取了首尾）\n${clip(body, WCTX_CAPS.chapter, 1500)}`,
       '请给出导演兑现检查的 JSON。'
     ]
   },

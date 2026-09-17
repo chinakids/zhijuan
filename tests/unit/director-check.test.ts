@@ -161,6 +161,24 @@ describe('runDirectorCheck（走子任务骨架，只读不改稿）', () => {
     expect(driveMock.mock.calls[1][1]).toContain('左花括号')
   })
 
+  it('正文超旧窗口（9500）但 ≤ 正文预算 → 材料全量含中段（头部窗口=contextCaps 权威源防漂移）', async () => {
+    const padA = '潮声起落，渔火明灭。' // 10 字符 × 810 = 8100
+    const padB = '守塔人背过身去，影子被灯拉得很长。' // 18 字符
+    const midMark = '灯塔的灯芯在夜风里轻轻唱起一首旧歌，阿七猛然回头。'
+    const longBody = chapterDoc(padA.repeat(810) + midMark + '\n' + padB.repeat(130))
+    readMock.mockImplementation((_id: string, rel: string) => {
+      const table: Record<string, string> = { [CH]: longBody, [BOARD]: goodBoard }
+      return table[rel] ?? ''
+    })
+    driveMock.mockResolvedValue(typicalResult)
+    const r = await runDirectorCheck('pj', CH)
+    expect(r.ok).toBe(true)
+    const prompt = driveMock.mock.calls[0][1]
+    // 正文约 1.05 万字符 > 旧窗口 8000+1500，中段标识句落在旧窗口盲区（约 8100 处）
+    expect(prompt).toContain(midMark) // 新窗口（WCTX_CAPS.chapter+1500）下全量，不裁中段
+    expect(prompt).not.toContain('省略中部')
+  })
+
   it('能力注册表里有 director-check（设置页可开关）', () => {
     const all = listCapabilities()
     const d = all.find((c) => c.id === 'director-check')
