@@ -16,8 +16,11 @@ function attach(wsUrl) {
   const ws = new WebSocket(wsUrl)
   let seq = 0
   const pending = new Map()
+  const errors = []
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data)
+    if (m.method === 'Runtime.exceptionThrown') errors.push((m.params.exceptionDetails?.exception?.description ?? '').slice(0, 200))
+    if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') errors.push((m.params.args?.map((a) => a.value ?? a.description ?? '').join(' ') ?? '').slice(0, 200))
     if (m.id && pending.has(m.id)) {
       pending.get(m.id)(m)
       pending.delete(m.id)
@@ -30,9 +33,11 @@ function attach(wsUrl) {
       ws.send(JSON.stringify({ id, method, params }))
     })
   return new Promise((res) => {
-    ws.onopen = () =>
+    ws.onopen = async () => {
+      await cmd('Runtime.enable')
       res({
         cmd,
+        errors,
         eval: async (expression) => {
           const r = await cmd('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })
           if (r.exceptionDetails) throw new Error('EVAL: ' + JSON.stringify(r.exceptionDetails).slice(0, 300))
@@ -40,6 +45,7 @@ function attach(wsUrl) {
         },
         close: () => ws.close()
       })
+    }
   })
 }
 async function evalUntil(page, expr, pred, timeoutMs = 20000, label = expr) {
@@ -151,5 +157,7 @@ ok('新增批注即时高亮（.zj-anno ×3，含新 title）', (await page.eval
 ok('新增后计数徽标 → 批注 3', badge2 === '批注 3', String(badge2))
 
 console.log(`\nRESULT: ${pass} pass / ${fail} fail`)
+if (page.errors.length) { fail++; console.log('FAIL 无 JS 异常: ' + page.errors.slice(0, 3).join(' | ')) }
+else { pass++; console.log('PASS 无 JS 异常') }
 if (fail > 0) process.exit(1)
 process.exit(0)

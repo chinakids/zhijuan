@@ -19,8 +19,11 @@ function connect(wsUrl) {
   const ws = new WebSocket(wsUrl)
   let seq = 0
   const pending = new Map()
+  const errors = []
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data)
+    if (m.method === 'Runtime.exceptionThrown') errors.push((m.params.exceptionDetails?.exception?.description ?? '').slice(0, 200))
+    if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') errors.push((m.params.args?.map((a) => a.value ?? a.description ?? '').join(' ') ?? '').slice(0, 200))
     if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id) }
   }
   const cmd = (method, params = {}) =>
@@ -29,7 +32,7 @@ function connect(wsUrl) {
       pending.set(id, (m) => (m.error ? rej(new Error(JSON.stringify(m.error))) : res(m.result)))
       ws.send(JSON.stringify({ id, method, params }))
     })
-  return new Promise((res, rej) => { ws.onerror = rej; ws.onopen = () => res({ ws, cmd }) })
+  return new Promise((res, rej) => { ws.onerror = rej; ws.onopen = async () => { await cmd('Runtime.enable'); res({ ws, cmd, errors }) } })
 }
 
 let pass = 0
@@ -41,7 +44,7 @@ function check(name, cond, extra = '') {
 }
 
 const tab = await newTab('about:blank')
-const { ws, cmd } = await connect(tab.webSocketDebuggerUrl)
+const { ws, cmd, errors } = await connect(tab.webSocketDebuggerUrl)
 await cmd('Page.enable')
 await cmd('Emulation.setFocusEmulationEnabled', { enabled: true })
 await cmd('Page.bringToFront')
@@ -165,5 +168,7 @@ try {
 } finally {
   console.log(`\ncursor-memory-ui-smoke: ${pass} pass / ${fail} fail${fatal.e ? ' (EXC)' : ''}`)
   try { ws.close() } catch { /* noop */ }
+  if (errors.length) { fail++; console.log('  ✗ 无 JS 异常: ' + errors.slice(0, 3).join(' | ')) }
+  else { console.log('  ✓ 无 JS 异常') }
   process.exit(fail > 0 || fatal.e ? 1 : 0)
 }

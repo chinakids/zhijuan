@@ -17,8 +17,11 @@ function attach(wsUrl) {
   const ws = new WebSocket(wsUrl)
   let seq = 0
   const pending = new Map()
+  const errors = []
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data)
+    if (m.method === 'Runtime.exceptionThrown') errors.push((m.params.exceptionDetails?.exception?.description ?? '').slice(0, 200))
+    if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') errors.push((m.params.args?.map((a) => a.value ?? a.description ?? '').join(' ') ?? '').slice(0, 200))
     if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id) }
   }
   const cmd = (method, params = {}) =>
@@ -28,9 +31,11 @@ function attach(wsUrl) {
       ws.send(JSON.stringify({ id, method, params }))
     })
   return new Promise((res) => {
-    ws.onopen = () =>
+    ws.onopen = async () => {
+      await cmd('Runtime.enable')
       res({
         cmd,
+        errors,
         eval: async (expression) => {
           const r = await cmd('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })
           if (r.exceptionDetails) throw new Error('EVAL: ' + JSON.stringify(r.exceptionDetails).slice(0, 300))
@@ -43,6 +48,7 @@ function attach(wsUrl) {
         },
         close: () => ws.close()
       })
+    }
   })
 }
 async function evalUntil(page, expr, pred, timeoutMs = 15000, label = expr) {
@@ -203,5 +209,7 @@ for (const t of themes) {
 
 console.log('---')
 console.log(pass + '/' + (pass + fail) + ' PASS')
+if (page.errors.length) { fail++; console.log('FAIL 无 JS 异常: ' + page.errors.slice(0, 3).join(' | ')) }
+else { pass++; console.log('PASS 无 JS 异常') }
 page.close()
 process.exit(fail ? 1 : 0)
