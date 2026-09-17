@@ -85,7 +85,7 @@ await step('① 持续失败发送被拦：提示出现/输入保留/无消息�
   await page.eval(`document.querySelector('button[title="发送"]').click()`)
   await evalUntil(page, bodyHas('引擎离线，无法发送'), Boolean, 20000, 'offline hint')
   assert.equal(await page.eval(inputVal), '测试离线拦截', 'input kept after block')
-  assert.ok(await page.eval(bodyHas('在右侧和 agent 边聊边生成')), 'empty state still there (no message injected)')
+  assert.ok(await page.eval(bodyHas('与 agent 边聊边生成正文')), 'empty state still there (no message injected)')
   page.close()
 })
 

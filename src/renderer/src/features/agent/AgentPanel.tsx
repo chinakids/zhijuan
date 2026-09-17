@@ -1231,13 +1231,24 @@ export default function AgentPanel(props: AgentPanelProps) {
 
         <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3">
           {messages.length === 0 && (
-            <p className="px-2 py-10 text-center text-xs leading-5 text-ink-3">
-              在右侧和 agent 边聊边生成。
-              <br />
-              先选中正文某段 → 点浮层「添加到对话」，或直接输入指令。
-              <br />
-              <span className="mt-1 inline-block text-[10px] text-ink-3">要改正文时 agent 会直接给出修改方案，采纳即写入，无需复制粘贴。</span>
-            </p>
+            <div data-testid="agent-empty" className="space-y-2.5 rounded-xl border border-hair bg-surface-2/50 px-3 py-3">
+              <p className="text-[11px] font-medium text-ink-2">与 agent 边聊边生成正文</p>
+              <ul className="space-y-1.5">
+                {(
+                  [
+                    { icon: Quote, text: '选中正文 → 点浮层「对话」，作为引用提交' },
+                    { icon: Waypoints, text: '输入 @ 引用人物 / 章节 / 素材' },
+                    { icon: Clapperboard, text: '输入 / 使用命令：续写 · 润色 · 延伸 · 巡查 · 导演' },
+                    { icon: PenLine, text: '改正文：agent 给出修改方案，采纳即写入' }
+                  ] as { icon: LucideIcon; text: string }[]
+                ).map((g, i) => (
+                  <li key={i} data-testid="agent-empty-guide" className="flex min-w-0 items-center gap-1.5">
+                    <g.icon aria-hidden="true" className="h-3 w-3 shrink-0 text-accent" />
+                    <span className="truncate text-[11px] leading-4 text-ink-2">{g.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
           {messages.map((m, idx) => {
             if (m.role === 'tool') {
