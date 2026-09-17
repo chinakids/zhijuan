@@ -16,10 +16,15 @@
 //       UI 收敛改动后仍应人工浏览输出清单；词库更新时机=UI 收敛提交同步进行。
 // 用法：node scripts/textclick-audit.mjs            # 扫描（exit 0/1）
 //       node scripts/textclick-audit.mjs --lexicon  # 打印词库（核对维护面）
+// 门禁接入（2026-09-17 19:30）：smoke-ui.mjs --all 主流程已 import analyze/report 同进程复用为元审计
+//   （健康=一行、疑似=清单+提示，只提示不阻断——同 smoke-model-audit / smoke-userdata-check 先例；
+//   CI 阻断=本脚本直跑 exit 1）。改本脚本判据/词库后：先 node scripts/textclick-audit.mjs 直跑确认，
+//   再跑 node scripts/smoke-ui.mjs --all --list 确认审计行输出（㉖/㉘ 同款维护契约）。
 // 维护：改 UI（按钮 icon-only/删除/菜单化）→ 同步 ICON_ONLY_LEXICON（若有对应文本）并跑本脚本。
 // 约束：本文件名不含 smoke（isSmoke=/smoke/i 不命中），不会进 smoke-ui --all 集合。
 import { readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 // ---- 已收敛为 icon-only / 已删除的按钮文本（手维护；来源=源码 aria-label/title/删除记录）----
 // 2026-09-17 f535050（大纲顶栏）：回建缺失/导演本章/兑现检查/补写缺段/全部回建
@@ -31,7 +36,7 @@ export const ICON_ONLY_LEXICON = [
   '引用选中', '版本历史',
 ]
 
-const SCRIPTS_DIR = process.cwd() + '/scripts'
+const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url)) // 与 smoke-ui 同源（fileURLToPath 防中文路径被 URL 编码）；勿用 process.cwd()——被 smoke-ui import 时 cwd 是调用方，会扫错目录（2026-09-17 19:30 接入时修）
 const SELF = ['textclick-audit.mjs', 'scan-textclick.mjs']
 
 // ---------- 扫描：按文本查找「按钮/菜单项」的表达式行 ----------
@@ -78,37 +83,51 @@ function scan() {
   })
 }
 
-const rows = scan()
-const hits = []
-// 负向断言豁免：查找按钮文本后断言「已移除/不存在」是合法用法（icon-size「引用选中」先例）
-const NEGATIVE_HINT = /已移除|不存在|已删除|已取消|应为空|没有.*按钮|移除/
-for (const r of rows) {
-  const ctxAll = r.all
-  for (const lit of r.lits) {
-    if (ICON_ONLY_LEXICON.some((k) => lit.includes(k) || k.includes(lit))) {
-      const negative = NEGATIVE_HINT.test(ctxAll)
-      if (!negative) hits.push({ ...r, lit })
-      break
+export function analyze() {
+  const rows = scan()
+  const hits = []
+  // 负向断言豁免：查找按钮文本后断言「已移除/不存在」是合法用法（icon-size「引用选中」先例）
+  const NEGATIVE_HINT = /已移除|不存在|已删除|已取消|应为空|没有.*按钮|移除/
+  for (const r of rows) {
+    const ctxAll = r.all
+    for (const lit of r.lits) {
+      if (ICON_ONLY_LEXICON.some((k) => lit.includes(k) || k.includes(lit))) {
+        const negative = NEGATIVE_HINT.test(ctxAll)
+        if (!negative) hits.push({ ...r, lit })
+        break
+      }
     }
   }
+  return { rows, hits, lexicon: ICON_ONLY_LEXICON }
 }
 
-console.log(`扫描 scripts/ 按钮文本查找调用点：${rows.length} 处；词库 ${ICON_ONLY_LEXICON.length} 词`)
-if (process.argv.includes('--lexicon')) {
-  console.log('词库：')
-  for (const k of ICON_ONLY_LEXICON) console.log(`  - ${k}`)
+// 门禁元审计报告（2026-09-17 19:30 接入 smoke-ui --all）：健康=一行；疑似断链=清单并返回 false（默认不阻断）
+export function report({ rows, hits, lexicon }) {
+  console.log(`文本点击审计 · 扫描 scripts/ 按钮文本查找调用点：${rows.length} 处；词库 ${lexicon.length} 词`)
+  if (hits.length) {
+    console.log(`❗ 疑似断链 ${hits.length} 处（文本查找命中等 icon-only/已删除按钮）：`)
+    for (const h of hits) console.log(`  ${h.f}:${h.n}  「${h.lit}」`)
+    console.log('  ↓ 处置：改 aria-label/title 查找 或 更新词库后重跑')
+    return false
+  }
+  console.log('✅ 零词库命中：当前无「已收敛按钮仍被文本点击」断链')
+  return true
 }
-console.log('')
-if (rows.length) {
-  console.log('---- 全部调用点（人工抽查清单）----')
-  for (const r of rows) console.log(`${r.f}:${r.n}  「${r.lits.join(' / ')}」`)
+
+// ---------- 主流程（仅 CLI 直跑时执行；被 smoke-ui.mjs import 时只取 analyze/report，与 smoke-userdata-check 先例同构） ----------
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])
+if (isMain) {
+  const result = analyze()
+  report(result)
+  if (process.argv.includes('--lexicon')) {
+    console.log('词库：')
+    for (const k of result.lexicon) console.log(`  - ${k}`)
+  }
+  console.log('')
+  if (result.rows.length) {
+    console.log('---- 全部调用点（人工抽查清单）----')
+    for (const r of result.rows) console.log(`${r.f}:${r.n}  「${r.lits.join(' / ')}」`)
+  }
+  console.log('')
+  process.exit(result.hits.length ? 1 : 0)
 }
-console.log('')
-if (hits.length) {
-  console.log(`❗ 疑似断链 ${hits.length} 处（文本查找命中等 icon-only/已删除按钮）：`)
-  for (const h of hits) console.log(`  ${h.f}:${h.n}  「${h.lit}」`)
-  console.log('  ↓ 处置：改 aria-label/title 查找 或 更新词库后重跑')
-  process.exit(1)
-}
-console.log('✅ 零词库命中：当前无「已收敛按钮仍被文本点击」断链')
-process.exit(0)

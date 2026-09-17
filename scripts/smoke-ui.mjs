@@ -52,6 +52,8 @@
 //     健康显示一行、疑似漏网提示清单——默认不阻断；CI 阻断=node scripts/smoke-model-audit.mjs --strict）。
 //   userData 契约守卫（2026-09-17 01:30 接入）：--all 主流程自动跑 scripts/smoke-userdata-check.mjs 的审计
 //     （引用 electron-stub 的冒烟必须带独立 clean userData——共享默认目录残留 settings 会假绿；默认不阻断）。
+//   文本点击断链审计（2026-09-17 19:30 接入）：--all 主流程自动跑 scripts/textclick-audit.mjs 的审计
+//     （UI 收敛后冒烟仍按按钮文本查找=静默断链；零命中=健康一行，疑似=清单，默认不阻断；CI 阻断=直接跑该工具）。
 // 退出码 = FAIL 数（0=全绿）。
 // 参考：npm-run-all 生态缺口（api.github.com/repos/mysticatea/npm-run-all/contents/README.md）、
 //       Playwright test-cli --list/-x（playwright.dev/docs/test-cli）、
@@ -64,6 +66,7 @@ import { fileURLToPath } from 'node:url'
 import { MODEL_SCRIPTS, MODEL_SKIP_REASON } from './model-scripts.mjs' // 名单单源（2026-09-16 平台层轮抽取；判据与维护契约看该文件头注）
 import { analyze, report as auditReport } from './smoke-model-audit.mjs' // 门禁自动审计（2026-09-16 07:30 平台层轮接入——同进程复用 analyze/report，免子进程文本解析）
 import { analyze as udAnalyze, report as udAuditReport } from './smoke-userdata-check.mjs' // 数据层 userData 契约审计（2026-09-17 01:30 平台层轮接入——同进程复用，单名调试不跑审计=设计如此）
+import { analyze as tcAnalyze, report as tcAuditReport } from './textclick-audit.mjs' // 文本点击断链审计（2026-09-17 19:30 平台层轮接入——同进程复用；扫描「按钮文本查找」调用点 vs ICON_ONLY_LEXICON 词库，健康一行/疑似清单）
 
 const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url)) // scripts/（fileURLToPath 避免中文路径被 URL 编码）
 const repoRoot = resolve(SCRIPTS_DIR, '..')
@@ -407,6 +410,14 @@ if (all) {
     const udNote = '数据层 userData 契约审计不健康（硬缺口清单见上）——默认不阻断；CI 阻断用 node scripts/smoke-userdata-check.mjs --strict'
     auditNote = auditNote ? `${auditNote}；${udNote}` : udNote
     console.error(`⚠️  ${udNote}`)
+  }
+  // 文本点击断链审计（2026-09-17 19:30 接入，候选 4）：UI 收敛（icon-only/菜单化/删除）后冒烟脚本若仍按
+  //   按钮文本查找会静默断链（toast-ui 在 f535050 后断链 2h 才被发现，16:30 轮工具化）——接入门禁元审计，
+  //   扫描 scripts/ 文本查找调用点 vs ICON_ONLY_LEXICON；零命中=一行健康、有命中=清单+提示；默认只提示不阻断。
+  if (!tcAuditReport(tcAnalyze())) {
+    const tcNote = '文本点击审计不健康（疑似断链清单见上）——默认不阻断；CI 阻断用 node scripts/textclick-audit.mjs'
+    auditNote = auditNote ? `${auditNote}；${tcNote}` : tcNote
+    console.error(`⚠️  ${tcNote}`)
   }
 }
 
