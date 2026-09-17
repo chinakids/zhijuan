@@ -2,7 +2,7 @@
 // 用法：node scripts/copy-voice-ui-smoke.mjs
 // 前置：npm run build；node scripts/serve-renderer.mjs（8123）；CDP 9224
 // 验收点：① 建章对话框涉及人物占位=全角逗号「如：林晚，顾知远」；
-//         ② 有上一章时预填涉及人物=全角逗号分隔「阿七，沈藏」（join('，') 口径）；
+//         ② 有上一章时预填涉及人物=全角逗号分隔「阿七」（join('，') 口径；上一章=第05章_灯下，涉及人物 [阿七]）；
 //         ③ 预填切片仍用原名；④ 正文空态/命令面板空态文案（正文空态用 demo 有章节绕过，命令面板由 cmdk-ui-smoke 覆盖）；
 //         ⑤ 全程无 JS 异常。截图：~/Pictures/zhijuan/copy-punctuation-<HHMM>.png
 import fs from 'node:fs'
@@ -83,21 +83,21 @@ const ok = (name, cond, extra = '') => {
 }
 
 try {
-  // ① 正文页就绪（demo-aseya 有 4 章）
-  await evalUntil(page, `document.body.innerText.includes('第1章') && document.body.innerText.includes('第4章')`, (v) => v === true, 25000, '正文页就绪')
-  ok('正文页就绪（demo 4 章）', true)
+  // ① 正文页就绪（demo-aseya 有 5 章；04:30 轮加第05章_灯下作 presence-ref 别名种子）
+  await evalUntil(page, `document.body.innerText.includes('第1章') && document.body.innerText.includes('第5章')`, (v) => v === true, 25000, '正文页就绪')
+  ok('正文页就绪（demo 5 章）', true)
 
-  // ② 打开建章对话框（应预填最新上一章：第4章_雾夜 / 第四幕_雾夜 / 阿七, 沈藏）
+  // ② 打开建章对话框（应预填最新上一章：第5章_灯下 / 第五幕_灯下 / 阿七）
   await page.eval(`(() => { const els=[...document.querySelectorAll('button')]; const el=els.find(b=>b.title==='新建章节'); if(!el) return false; el.click(); return true })()`)
   await evalUntil(page, `document.querySelector('input[placeholder="如：林晚，顾知远"]') !== null`, (v) => v === true, 10000, '建章对话框')
   ok('① 涉及人物占位=全角逗号「如：林晚，顾知远」', true)
 
   const phSlice = `document.querySelector('input[placeholder="如：第二幕_台风夜（留空则用章号）"]')?.value`
-  ok('② 预填涉及人物=全角逗号「阿七，沈藏」',
-    (await page.eval(inputVal('如：林晚，顾知远'))) === '阿七，沈藏',
+  ok('② 预填涉及人物=全角逗号「阿七」',
+    (await page.eval(inputVal('如：林晚，顾知远'))) === '阿七',
     'val=' + JSON.stringify(await page.eval(inputVal('如：林晚，顾知远'))))
-  ok('③ 预填切片=「第四幕_雾夜」',
-    (await page.eval(phSlice)) === '第四幕_雾夜',
+  ok('③ 预填切片=「第五幕_灯下」',
+    (await page.eval(phSlice)) === '第五幕_灯下',
     'val=' + JSON.stringify(await page.eval(phSlice)))
 
   // ④ 截图：建章对话框（placeholder + 预填全角逗号可见）

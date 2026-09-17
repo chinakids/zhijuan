@@ -91,7 +91,7 @@ await step('listSlices：支持「时间」字段（旧 mock 缺失）；无切�
   eq(r.found, true)
   eq(r.row.time, '深夜')
   eq(r.row.chars, ['阿七'])
-  eq(r.count, 5) // 种子 4 切片（第1~4章）+ 新增第32章；第33章无切片被跳过
+  eq(r.count, 6) // 种子 5 切片（第1~5章，第05章_灯下为 04:30 轮 presence-ref 别名种子）+ 新增第32章；第33章无切片被跳过
 })
 
 await step('getPaths：默认走老默认位（legacy 分支与真机 libraryRoot 同口径）', async () => {
