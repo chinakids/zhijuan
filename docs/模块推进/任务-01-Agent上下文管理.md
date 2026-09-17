@@ -39,6 +39,13 @@
 
 ## 五、迭代记录
 
+### 2026-09-18 00:00–00:3x（观察项「director-check 正文窗口独立口径」落定：头部窗口改引 contextCaps 权威源）
+
+- 背景：2026-09-17 15:00/18:00 两轮登记「director-check clip(8000,1500) 未随正文预算对齐」——正文预算 8000→12000 后唯一未对齐的正文读入面（续写装配 context.ts 与兑现检查 director-check.ts 同读一份正文，后者却只看首+尾 9500 窗口）。
+- 调研（三源，URL 见智能层档案 00:00 轮）：Medium《Chapter Design》EIEPR 五拍中 **Pivot 转折点居场景/章中段**（"everything before it is preparation and everything after it is consequence"，Prolong 亦集中于 Pivot）；tmpublisher「**If that peak occurs in the middle of the chapter**」（编辑语境：章节张力峰可在中段，且影响改稿决策）；littleseabear 每章=mini episode、climax 位置因章而异。→ 兑现检查=对照导演板（含波峰定位）的**全覆盖核对**，首+尾窗口对中段波峰/钩子=核对盲区，可能误判 missed/open 误导改稿。
+- 落地：`director-check.ts` 正文头部窗口 `clip(body, 8000, 1500)` → `clip(body, WCTX_CAPS.chapter, 1500)`（单一权威源，改预算自动跟随；尾 1500=检查器专用尾部窗口保留，注释说明）；单测 +1（10336 字符正文含旧窗口盲区中段句 → 材料全量不裁，防再次硬编码漂移）。三道门全绿（853 例 83 文件）；构造独立性经 /tmp 脚本实证（旧漏/新全量）。
+- 交接：**正文读入预算在续写装配与兑现检查两处同源（WCTX_CAPS.chapter）**；该观察项关闭。导演板窗口 2000+1000 与审计 reduced 装配口径保留（设计使然）。
+
 ### 2026-09-17 21:00–21:5x（候选 3「embedding 增强召回」评估收口：可行性成立/触发制低优先；探针入仓）
 
 - 执行：评估轮（不实现）——本机事实核查（ollama nomic 已有但原生 ctx 2048/768 维；bge-m3 官方页 567M/1.2GB/8K/100+ 语言；vLLM 宿主无 embedding 模型实锤 `/v1/models`+`/v1/embeddings` 404；远端 API 违反 App 零网络依赖）+ 业界（Qdrant hybrid-search 文章：词义 dense 胜/精确术语 sparse 胜/hybrid 双成本；BEIR：BM25 鲁棒基线、rerank 平均最佳但计算成本高）+ **零代码实证**（新探针 `scripts/context-semantic-probe.mjs`：合成 20 篇意象标题素材+10 查询，基线=复刻 searchDocs）。
