@@ -6,6 +6,7 @@ vi.mock('../../src/main/store', () => ({ readDoc: vi.fn(), listChapters: vi.fn()
 import { buildWritingContext, buildProjectContext, isTemplateShell } from '../../src/main/agent/context'
 import { findAnchorLine } from '../../src/shared/anchor'
 import { actPlaceholder } from '../../src/shared/actsSeg'
+import { WCTX_CAPS } from '../../src/shared/contextCaps'
 import { readDoc, listChapters, listDocs } from '../../src/main/store'
 
 const readDocMock = vi.mocked(readDoc)
@@ -82,9 +83,9 @@ describe('buildWritingContext（写作上下文装配）', () => {
     expect(blocks.join('\n')).not.toContain('章号:')
   })
 
-  it('预算硬控：正文 ≤8000、人物 ≤4000、切片 ≤4000、素材索引 ≤1200', async () => {
+  it('预算硬控：正文 ≤WCTX_CAPS.chapter、人物 ≤4000、切片 ≤4000、素材索引 ≤1200', async () => {
     readDocMock.mockImplementation((_id: string, rel: string) => {
-      if (rel === '正文/第1章_b.md') return FM_1 + '甲'.repeat(9000)
+      if (rel === '正文/第1章_b.md') return FM_1 + '甲'.repeat(WCTX_CAPS.chapter + 1000)
       if (rel === '人物/林晚.md') return '乙'.repeat(5000)
       if (rel === '世界观/切片_第一幕.md') return '丙'.repeat(5000)
       if (rel === '素材库/索引.md') return '丁'.repeat(3000)
@@ -94,8 +95,8 @@ describe('buildWritingContext（写作上下文装配）', () => {
 
     const { blocks } = await buildWritingContext('p', '正文/第1章_b.md')
     const all = blocks.join('\n')
-    expect(all).toMatch(/甲{8000}/)
-    expect(all).not.toMatch(/甲{8001}/)
+    expect(all).toMatch(new RegExp('甲{' + WCTX_CAPS.chapter + '}'))
+    expect(all).not.toMatch(new RegExp('甲{' + (WCTX_CAPS.chapter + 1) + '}'))
     // 正文超预算：改装配结尾并注明省略（续写最需要「刚写到哪里」；2026-09-10 修复）
     expect(all).toContain('已省略')
     expect(all).toContain('zj_read_doc')
@@ -109,7 +110,8 @@ describe('buildWritingContext（写作上下文装配）', () => {
 
   it('正文超预算装配**结尾**：续写场景拿到「刚写到哪里」，开头可 zj_read_doc 现读', async () => {
     readDocMock.mockImplementation((_id: string, rel: string) => {
-      if (rel === '正文/第1章_b.md') return FM_1 + '【开头标记】' + '中'.repeat(8990) + '【结尾标记】'
+      if (rel === '正文/第1章_b.md')
+        return FM_1 + '【开头标记】' + '中'.repeat(WCTX_CAPS.chapter + 1000) + '【结尾标记】'
       return null
     })
     listChaptersMock.mockReturnValue([] as never)
@@ -118,7 +120,7 @@ describe('buildWritingContext（写作上下文装配）', () => {
     const chapter = blocks.find((b) => b.includes('当前章节'))
     expect(chapter).toBeTruthy()
     expect(chapter).toContain('【结尾标记】') // 尾部保留
-    expect(chapter).not.toContain('【开头标记】') // 开头被省略（预算内 8000 字符不够首尾都在）
+    expect(chapter).not.toContain('【开头标记】') // 开头被省略（预算内 WCTX_CAPS.chapter 字符不够首尾都在）
     expect(chapter).toContain('已省略')
     expect(chapter).toContain('zj_read_doc')
   })
