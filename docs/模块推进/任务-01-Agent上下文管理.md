@@ -24,6 +24,7 @@
 - 预算：WCTX_CAPS 硬控 + 块级注明（「被截了、可用 zj_read_doc 现读」）；
 - 注释：注入前剥离 `<!-- … -->`（shared/comments.ts），注释不占预算；
 - 可发现性：`scripts/context-outline-probe.mjs` 实证未开章模型经 zj_workspace→zj_list_docs→zj_read_doc 可达大纲；结论＝暂不加路标（2026-09-17 09:00 智能层轮）；
+- **工具描述（2026-09-18 03:00 轮收口）**：`zj-core.ts` 描述与实现一致性审计修正 2 处——zj_read_doc 引导「超长按返回提示 offset 续读、勿 maxChars 一次大读（白耗 token 拖慢响应）」、zj_search 如实说明「子串匹配/按目录顺序取前 N 文件/至多 3 行/无相关性排序」；描述守卫单测 zjToolDesc.test.ts + 真模型探针 zj-tooldesc-live.mjs（实证大读行为消除）；**改 src 描述后必须重跑 scripts/build-plugins.mjs（dsh 侧加载构建产物）**；
 - 冒烟/单测：multiline-context-smoke 14/14 等（装配域冒烟见 scripts/context-*）。
 
 ## 四、候选（按优先级，下一轮开工先读本节）
@@ -38,6 +39,15 @@
 4. **前文衰减摘要**（候选保留，评估已判非必需）——若换模型/大项目后 context-fading-probe 出现「不搜/编造」，按 Novelcrafter 摘要链+takeLast 范式（storySoFar 摘要链）引入「每 N 章自动产摘要」；当前不立项。
 
 ## 五、迭代记录
+
+### 2026-09-18 03:00–03:2x（zj 工具描述-实现一致性审计收口：描述引导 offset 续读 + zj_search 诚实化）
+
+- 背景：00:00 轮观察项①「模型倾向 maxChars=80000 大读非 offset 续读」+ 09:00 轮观察项②「zj 工具描述示例」——zj 工具描述面此前从未系统审计；线 A 范围明文含「zj 工具层描述与可发现性」。
+- 调研：**Anthropic《Writing effective tools for agents》**（anthropic.com/engineering/writing-tools-for-agents，2025-09-11，CDP 9224 全文 23KB 实抓）——「Prompt-engineering your tool descriptions… can collectively **steer agents toward effective tool-calling behaviors**」（小改即可显著改善）；「**encourage agents to pursue more token-efficient strategies**, like making many small and targeted searches instead of a single, broad search」（截断/描述引导省 token=业界明示范式）；「avoid ambiguity by clearly describing… expected inputs and outputs」。
+- 落地：`src/plugins/zj-core.ts` 2 处描述修正（zj_read_doc：删「读文件末尾可传 offset=全文长度-目标长度」诱导句，改「按返回提示 offset 续读，勿为一次读全调大 maxChars——整篇塞进上下文白耗 token 且拖慢响应」；maxChars 参数补「仅确需整篇时才调大」；zj_search：补「子串匹配、按目录顺序取前 N 文件、每文件至多 3 行、无相关性排序」）；`tests/unit/zjToolDesc.test.ts` 守卫 2 例；`scripts/build-plugins.mjs` 重跑（关键：dsh 侧加载构建产物，只改 src 不重建=描述不生效）；新长效探针 `scripts/zj-tooldesc-live.mjs`。
+- 实证：真 vLLM 中立提示词（不暗示可调大 maxChars）——模型轨迹=zj_read_doc 默认参数 + zj_search「金色」定向 → 尾部事实全命中零编造；**「大读 maxChars>7000」=false，与 00:00 轮「maxChars=80000 一次读全」对比大读行为消除**。三道门全绿（855 例 84 文件）。
+- 交接：观察项封闭；改描述/换模型后复跑 zj-tooldesc-live；描述修正仅影响 dsh 侧插件产物（主进程无描述副本）。候选顺位不变（1 真机核对锁屏顺延 → 2 zj 工具描述补大纲示例预防性 → 3 embedding 触发制 → 4 前文衰减摘要不立项）。
+
 
 ### 2026-09-18 00:00–00:3x（观察项「director-check 正文窗口独立口径」落定：头部窗口改引 contextCaps 权威源）
 
