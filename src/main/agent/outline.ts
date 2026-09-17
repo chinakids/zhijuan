@@ -4,6 +4,7 @@
 // 与 runAudit 同构：独立 session、无提问、离线出结果；写入走主进程 writeDoc（设定改动仍走提案制，章卡属于写作副产物，直写）。
 import { readDoc, listChapters, listDocs, writeDoc } from '../store'
 import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard } from '../../shared/outline'
+import { chapterLine, DEFAULT_LINE } from '../../shared/line'
 import { registerCapability, runOnceInner, subtaskBlocked, stripFm, type SubtaskDef } from './subtask'
 import type { ChapterEntry, OutlineCard } from '../../shared/types'
 
@@ -114,6 +115,8 @@ export async function runOutlineRebuild(
         no: c.fm?.['章号'],
         title: c.fm?.['题名'] ?? c.name,
         slice: c.fm?.['切片'] ?? '',
+        // 线名透传（设计文档 §4.5）：章卡 fm 与正文同口径——非主线才写「时间线」（outlineCardDoc 统一判定）
+        line: chapterLine(c.fm) === DEFAULT_LINE ? undefined : chapterLine(c.fm),
         ...parsed,
         wordCount: c.wordCount
       }

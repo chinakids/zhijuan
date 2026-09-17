@@ -5,6 +5,7 @@
 // 素材装配复用 buildWritingContext（与 runChat / runSync 同一创作半径，一处装配多处消费）。
 import { readDoc, listChapters, writeDoc } from '../store'
 import { extractFrontMatter } from '../../shared/fmatter'
+import { chapterLine, DEFAULT_LINE } from '../../shared/line'
 import { buildWritingContext } from './context'
 import { registerCapability, runSubtask, type SubtaskDef } from './subtask'
 import type { ChapterEntry, DirectorSheet } from '../../shared/types'
@@ -92,15 +93,18 @@ export function extractDirector(text: string, cast?: string[]): DirectorSheet {
   }
 }
 
-/** 导演板 → markdown（随章卡一起落在 大纲/ 目录，供正文页左侧查看） */
+/** 导演板 → markdown（随章卡一起落在 大纲/ 目录，供正文页左侧查看）
+ * 「时间线」字段与正文/章卡同口径：非主线才写（设计文档 §4.5 透传线名，2026-09-17）。 */
 export function directorToDoc(sheet: DirectorSheet, c: ChapterEntry): string {
   const no = c.fm?.['章号'] as number | undefined
   const title = (c.fm?.['题名'] as string | undefined) ?? c.name
   const slice = ((c.fm?.['切片'] as string | undefined) ?? '')
+  const line = chapterLine(c.fm)
   const lines = [
     '---',
     `章号: ${no ?? ''}`,
     `题名: ${title}`,
+    ...(line !== DEFAULT_LINE ? [`时间线: ${line}`] : []),
     `切片: ${slice}`,
     '状态: 已生成',
     '---',

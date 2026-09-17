@@ -56,6 +56,20 @@ describe('shared/outline · 章卡生成与回读', () => {
     expect(loose?.file).toBe('正文/第01章_雾港.md')
     expect(loose?.no).toBeUndefined()
   })
+
+  it('线名透传：非主线「时间线」写入 fm 且可回读；主线/缺省不写字段（与建章向导零冗余口径）', () => {
+    const multi = outlineCardDoc({ ...card(2, '旧信'), line: '过去线' }, '正文/第02章_旧信.md')
+    expect(multi).toContain('时间线: 过去线')
+    // 字段顺序与正文约定头一致：题名 → 时间线 → 切片
+    expect(multi).toMatch(/题名: 旧信\n时间线: 过去线\n切片: 第一幕/)
+    const back = parseOutlineCard(multi, '大纲/第02章_旧信.md')
+    expect(back?.line).toBe('过去线')
+    // 主线（DEFAULT_LINE）与未设：均不写字段
+    expect(outlineCardDoc({ ...card(1, '雾港'), line: '主线' }, '正文/第01章_雾港.md')).not.toContain('时间线')
+    const plain = outlineCardDoc(card(1, '雾港'), '正文/第01章_雾港.md')
+    expect(plain).not.toContain('时间线')
+    expect(parseOutlineCard(plain, '大纲/第01章_雾港.md')?.line).toBeUndefined()
+  })
 })
 
 describe('shared/outline · 重命名章时同步副产物内容', () => {

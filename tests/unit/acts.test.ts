@@ -94,6 +94,15 @@ describe('parseDirectorSheet（导演板逆解析）', () => {
     expect(back.hooks).toEqual(sheet.hooks)
   })
 
+  it('directorToDoc 线名透传：非主线写「时间线」、主线/缺省不写（与正文同口径）', () => {
+    const multi = directorToDoc(sheet, { ...ch, fm: { ...ch.fm, 时间线: '过去线' } })
+    expect(multi).toContain('时间线: 过去线')
+    expect(multi).toMatch(/题名: 雾港\n时间线: 过去线\n切片: 第一幕_雾港之夜/)
+    const lineMain = directorToDoc(sheet, { ...ch, fm: { ...ch.fm, 时间线: '主线' } })
+    expect(lineMain).not.toContain('时间线')
+    expect(directorToDoc(sheet, ch)).not.toContain('时间线')
+  })
+
   it('解析手写的板子文本：带 front matter、加粗、中英冒号都能吃', () => {
     const md = [
       '---',

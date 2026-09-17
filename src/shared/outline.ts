@@ -4,6 +4,7 @@
 // devShim（无头冒烟）共用同一套口径——避免「无头 mock 与真机不一致」假绿（2026-09-12 创作层）。
 import type { OutlineCard } from './types'
 import { setFrontMatterField } from './fmatter'
+import { DEFAULT_LINE } from './line'
 
 /**
  * 章卡文件判据：排除 索引.md、<章>_导演.md、<章>_分幕.md、审读_*.md 等写作副产物与 dot 文件。
@@ -19,12 +20,14 @@ export function isOutlineCardRel(rel: string): boolean {
   return true
 }
 
-/** 章卡 → 大纲/<章名>.md 文档（约定头 + 标准小节；章卡属写作副产物，直写，不走提案制） */
+/** 章卡 → 大纲/<章名>.md 文档（约定头 + 标准小节；章卡属写作副产物，直写，不走提案制）。
+ * 「时间线」字段与正文/建章向导同口径：非主线才写，不写=主线（缺省零冗余，2026-09-17 多线透传）。 */
 export function outlineCardDoc(c: OutlineCard, chapterRel: string): string {
+  const lineRow = c.line && c.line !== DEFAULT_LINE ? `时间线: ${c.line}\n` : ''
   const fm =
     c.no !== undefined
-      ? `---\n章号: ${c.no}\n题名: ${c.title}\n切片: ${c.slice}\n状态: 已回建\n---\n`
-      : `---\n题名: ${c.title}\n状态: 已回建\n---\n`
+      ? `---\n章号: ${c.no}\n题名: ${c.title}\n${lineRow}切片: ${c.slice}\n状态: 已回建\n---\n`
+      : `---\n题名: ${c.title}\n${lineRow}状态: 已回建\n---\n`
   const lines = [
     fm,
     '',
@@ -65,11 +68,14 @@ export function parseOutlineCard(raw: string, rel: string): OutlineCard | null {
     .map((m) => m[1].trim())
     .filter((h) => !h.startsWith('（待补）'))
   const fileM = raw.match(/^> 对应正文：(.+)$/m)
+  const lM = raw.match(/^时间线:\s*(.+)/m)
+  const line = lM ? lM[1].trim() : ''
   return {
     file: (fileM?.[1] ?? rel.replace(/^大纲\//, '正文/')).trim(),
     no: noM ? Number(noM[1]) : undefined,
     title: tM?.[1]?.trim() ?? '（无名）',
     slice: sM?.[1]?.trim() ?? '',
+    ...(line ? { line } : {}),
     oneLine: oneM?.[1]?.trim() ?? '',
     beats: beatLines,
     charProgress: charM?.[1]?.trim() ?? '',

@@ -380,6 +380,8 @@ export interface OutlineCard {
   no?: number
   title: string
   slice: string
+  /** 线名（章头「时间线」归一后；不写/主线=undefined；与建章向导 0181b8d「空或主线不写字段」同口径，章卡 fm 非主线才写「时间线」） */
+  line?: string
   /** 一句话定位：这一章在全书里干什么 */
   oneLine: string
   /** 关键事件（动词短语） */

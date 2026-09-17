@@ -4,7 +4,7 @@ import type { EditItem } from '../../../shared/types'
 import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterSliceInDoc } from '../../../shared/outline'
 import { listChapterEntries } from '../../../shared/chapters'
 import { listSliceEntries } from '../../../shared/slices'
-import { listLinesFromEntries } from '../../../shared/line'
+import { listLinesFromEntries, chapterLine, DEFAULT_LINE } from '../../../shared/line'
 import type { LineInfo } from '../../../shared/line'
 import { resolveLibraryRoot } from '../../../shared/settingsLogic'
 import { AGENT_PANEL_DEFAULT_WIDTH } from '../../../shared/uiPrefs'
@@ -1623,7 +1623,7 @@ const mock = {
         },
   // 大纲回建（dev 模式：写 mock 的 大纲/ 文件并返回卡片）
   agentOutlineRebuild: async (projectId: string) => {
-    const cards = [
+    let cards = [
       {
         file: '正文/第01章_雾港.md',
         no: 1,
@@ -1646,7 +1646,23 @@ const mock = {
         hooks: ['守塔人似乎认识阿七'],
         wordCount: 5
       }
-    ]
+    ] as OutlineCard[]
+    // 多线演示项目：与真机 runOutlineRebuild 同口径从演示章节真读——章卡透传线名（shared/outline 单一权威源，2026-09-17）
+    if (projectId === 'demo-multiline') {
+      const chs = await mock.listChapters(projectId)
+      cards = chs.map((c) => ({
+        file: '正文/' + c.file,
+        no: c.fm?.['章号'],
+        title: c.fm?.['题名'] ?? c.name,
+        slice: c.fm?.['切片'] ?? '',
+        line: chapterLine(c.fm) === DEFAULT_LINE ? undefined : chapterLine(c.fm),
+        oneLine: `（演示）第${c.fm?.['章号']}章「${c.fm?.['题名'] ?? c.name}」的一章定位。`,
+        beats: [],
+        charProgress: '',
+        hooks: [],
+        wordCount: c.wordCount
+      }))
+    }
     const writes: string[] = []
     for (const c of cards) {
       const rel = '大纲/' + c.file.replace(/^正文\//, '')
