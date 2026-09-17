@@ -28,10 +28,12 @@
 2. **解锁后真机核对**（锁屏顺延项汇集）：ⓐ 工具执行期取消路径优先级（点停止时 dsh 合成失败结果 vs 渲染层已取消兜底孰先孰后）；ⓑ 长工具（导演/检查类）取消耗时真机视图；ⓒ 展开态链内失败步呈现（含本轮新「让 agent 处理」按钮）；ⓓ TodoCard 完成态新外观、R7 跨线重名提示真机视图；ⓔ 检查菜单缩减后真机走查（3 项）。
 3. ~~失败步「一键重试」~~ **✅ 搁置（2026-09-17 14:15 轮）**：按候选 1 调研结论吸收——业界无单步工具重试（模型编排下无法重放后续步序），「让 agent 处理」引导（候选 1 落地形态）即等价替代；不再排期。
 4. **Agent 面板体验体检**（HIG 视角续）**✅ 收口（2026-09-17 17:15 轮，提交 7ca96e3，详见 04-体验层.md 迭代日志）**：走查=空态引导（实缺口：文案断链「添加到对话」vs 浮层按钮「对话」+ @//命令零可发现性 → 重做为 4 条图标指引卡）+ 消息流排版（92% 上限/长代码横向滚动/长消息整条+外层滚动=HIG 达标）+ 工具卡密度（truncate+title/失败徽标+耗时/icon-only 合规达标）；agent-empty-ui-smoke 10/10 + engine-gate 3/3 + 845 例绿 + 截图两档。
+5. ~~链 [失败→成功] 恢复后组头终态语义（观察项）~~ **✅ 收口（2026-09-17 23:15 轮，提交 a612ef5，详见 04-体验层.md 迭代日志）**：定案=聚合组头状态=链尾结果（GitHub Actions continue-on-error 同语义）——尾步失败才标「失败」+「让 agent 处理」；曾失败但尾步成功=「已恢复」中性徽标（绿勾终态+失败摘要保留，详情展开可见失败步完整结果）；chain-recover-ui-smoke 10/10 + fail-guide/tool-chain/tool-cancel 回归全绿 + 852 例绿 + 截图两档。**坑**：组头=head 首卡，「failed」必须以 agg 终态为准（aggFailed!==undefined ? aggFailed : 自身），否则失败首卡顶掉聚合语义。
 
 ## 五、迭代记录
 
 （每轮落档：日期时间 / 四阶段 / 提交号 / 验证；格式沿用模块推进档案。）
 
+- **2026-09-17 23:15–23:4x**：候选 5（链 [失败→成功] 恢复后组头终态语义）收口，提交 a612ef5——调研（GitHub Actions continue-on-error 官方语义=step 失败允许 job 通过时 run 摘要显示成功；HIG Progress indicators=状态指示瞬态/当前态）+ 落地（summarizeGroup 终态字段 endedFailed/recovered；组头 failed 以 agg 终态为准；「已恢复」中性徽标 zj-chain-recovered 仅尾步失败才红+「让 agent 处理」；失败摘要保留中性色；devShim「链恢复」种子）+ 验证（toolChain 单测 23 例 / chain-recover-ui-smoke 10/10 / 回归 fail-guide 9/9·tool-chain 15/15·tool-cancel 15/15 / 852 例绿）+ 截图 chain-recover-2337a/b.png。
 - **2026-09-17 17:15–17:5x**：候选 4（Agent 面板体验体检）收口，提交 7ca96e3——走查=空态引导（实缺口）：文案断链（划词浮层按钮「对话」vs 空态「添加到对话」，Prose L1253 实证）+ @ 引用//命令零可发现性 → 空态重做为 4 条图标指引卡（11px 同级权重+truncate）+ agent-empty-ui-smoke 10/10 + engine-gate 断言同步 3/3 + 845 例绿 + 截图 agent-empty(-dark)-1734.png；消息流排版与工具卡密度走查**达标不改**（证据见 04-体验层.md 迭代日志）；候选 5 观察项（链恢复终态）转入 04-体验层.md「五」候选 2。
 - **2026-09-17 14:15–14:5x**：候选 1（链内失败步处置引导）收口，提交 823a9d1——调研（Codex backtrack 源码 / Claude Code issues 一手）+ 落地（失败卡「让 agent 处理」按钮→预写指引入输入框不代发）+ 验证（failureFollowupPrompt 3 例单测 / fail-guide-ui-smoke 8/8 / tool-chain 15/15 / tool-cancel 15/15 / 845 例绿）+ 截图 fail-guide-1447.png；候选 3 按结论搁置；**观察项**：链 [失败→成功] 恢复后组头「失败」徽标缺终态语境（留候选 5 观察）。
