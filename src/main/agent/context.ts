@@ -246,7 +246,9 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
       // 路标预览=materialContextPreview：H1=素材名时取正文行（增量），题名≠文件名时保留题名（采集草稿）
       const preview = materialContextPreview(raw, d.name, 48)
       const name = d.file.replace(/\.md$/, '')
-      return `- ${name}${tagPart}${preview ? `：${preview}` : ''}`
+      // 路径行必须含「素材库/」前缀=项目根相对路径、可被模型照抄进 zj_read_doc——
+      // 曾用库内相对路径（环境/…），真模型素材使用侧探针实测首调按路标路径读失败并自纠（2026-09-18）。
+      return `- 素材库/${name}${tagPart}${preview ? `：${preview}` : ''}`
     })
     let idx = itemLines.join('\n')
     const over = idx.length - CAP.material
