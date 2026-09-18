@@ -39,6 +39,8 @@ const SelectContent = React.forwardRef<
       ref={ref}
       className={cn(
         'relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-lg border border-hair bg-surface text-ink shadow-[var(--shadow)]',
+        // 进场=高频浮层口径（动效分层.md 通道 A：100ms 纯淡入；HIG Motion brevity/高频交互克制）；reduced-motion 由 tokens.css 统一关
+        'data-[state=open]:animate-in data-[state=open]:fade-in duration-100',
         position === 'popper' && 'data-[side=bottom]:translate-y-1',
         className
       )}

@@ -218,7 +218,7 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
             {fmtDur(shownElapsed)}
           </span>
         )}
-        {hasDetail && <ChevronDown className={cn('h-3 w-3 shrink-0 text-ink-3 transition-transform', open && 'rotate-180')} />}
+        {hasDetail && <ChevronDown className={cn('h-3 w-3 shrink-0 text-ink-3 transition-transform motion-reduce:transition-none', open && 'rotate-180')} />}
       </div>
       {open && (
         <div data-testid="zj-tool-detail-body" className="space-y-1.5 border-t border-hair px-2.5 py-2">
@@ -505,7 +505,7 @@ function ThinkingBlock({ text, active }: { text: string; active?: boolean }) {
       <summary className="flex cursor-pointer select-none items-center gap-1 text-[11px] text-ink-3 hover:text-ink">
         <Brain className="h-3 w-3" />
         <span>{active ? '思考中…' : '思考过程'}</span>
-        <ChevronRight className="h-3 w-3 transition-transform" />
+        <ChevronRight className="h-3 w-3 transition-transform motion-reduce:transition-none" />
       </summary>
       <div className="mt-1.5 max-h-48 overflow-y-auto whitespace-pre-wrap rounded bg-surface-2 px-2 py-1.5 text-[11px] leading-5 text-ink-2">
         {text || '正在思考…'}

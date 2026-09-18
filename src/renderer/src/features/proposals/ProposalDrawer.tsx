@@ -187,7 +187,7 @@ function ItemCard({ p, projectId, onChanged, err, onErr }: { p: Proposal; projec
       )}
       <button onClick={() => setShowDiff((v) => !v)} className="mt-2 flex items-center gap-1 text-[11px] text-ink-3 hover:text-ink">
         <GitCompare className="h-3 w-3" /> 前后对照
-        <ChevronDown className={cn('h-3 w-3 transition-transform', showDiff && 'rotate-180')} />
+        <ChevronDown className={cn('h-3 w-3 transition-transform motion-reduce:transition-none', showDiff && 'rotate-180')} />
       </button>
       {showDiff && (
         <div className="mt-2 grid gap-2 text-[11px]">
@@ -293,8 +293,8 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose }: 
           <span className="text-sm font-medium">提案</span>
           <span className="ml-2 text-[11px] text-ink-3">切片同步与批注优化都会在这里提出修改</span>
           <span className="flex-1" />
-          <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={() => void doScan()}>
-            <RefreshCw className="size-3" /> 扫描批注
+          <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-[11px] [&_svg]:size-3" onClick={() => void doScan()}>
+            <RefreshCw /> 扫描批注
           </Button>
           <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={onClose}>收起</Button>
         </div>

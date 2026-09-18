@@ -18,6 +18,8 @@ const DropdownMenuContent = React.forwardRef<
       sideOffset={sideOffset}
       className={cn(
         'z-50 min-w-[8rem] overflow-hidden rounded-lg border border-hair bg-surface p-1 text-ink shadow-[var(--shadow)]',
+        // 进场=高频浮层口径（动效分层.md 通道 A：100ms 纯淡入；HIG Motion brevity/高频交互克制）；reduced-motion 由 tokens.css 统一关
+        'data-[state=open]:animate-in data-[state=open]:fade-in duration-100',
         className
       )}
       {...props}
@@ -33,7 +35,7 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none transition-colors',
+      'relative flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none transition-colors motion-reduce:transition-none',
       'focus:bg-well focus:text-ink data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       inset && 'pl-8',
       className
