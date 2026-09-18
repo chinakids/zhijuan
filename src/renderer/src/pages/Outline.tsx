@@ -12,6 +12,7 @@ import { useFsChanged, useFsEvents } from '../features/fs/useFsEvents'
 import { isBoardStale } from '../../../shared/boardAge'
 import { parseActsWarn } from '../../../shared/actsSeg'
 import { ColHideButton, ColShowBar } from '../features/common/colFold'
+import { useColFold } from '../features/common/useColFold'
 import { runSliceSync, type SliceSyncResult } from '../features/sync/sliceSync'
 import { describeSyncEvidence } from '../../../shared/syncEvidence'
 import { GuardIssuesNote } from '../features/sync/GuardIssues'
@@ -40,8 +41,8 @@ export default function Outline() {
   const [guardIssues, setGuardIssues] = useState<SyncIssue[]>([])
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
-  // 宽窗手动折叠（HIG Sidebars show/hide；与 Novel 5376f30 同机制，会话内状态不持久化）
-  const [colHidden, setColHidden] = useState(false)
+  // 宽窗手动折叠（HIG Sidebars show/hide；与 Novel 5376f30 同机制；折叠态持久化=AppSettings 跨重启记住侧栏）
+  const [colHidden, setColHidden] = useColFold('outline')
   // 当前选中章节的分幕草稿里「未写成」的段号（>0 时显示「补写缺段」按钮）
   const [draftMissing, setDraftMissing] = useState<number[]>([])
   const events = useFsEvents(id)

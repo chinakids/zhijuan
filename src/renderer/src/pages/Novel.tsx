@@ -17,6 +17,7 @@ import { isImeComposing } from '../lib/ime'
 import DocEditor from '../features/editor/DocEditor'
 import HealthBar from '../features/audit/HealthBar'
 import { runSliceSync } from '../features/sync/sliceSync'
+import { useColFold } from '../features/common/useColFold'
 import { describeSyncEvidence } from '../../../shared/syncEvidence'
 import { GuardIssuesNote } from '../features/sync/GuardIssues'
 import type { SyncIssue } from '../../../shared/types'
@@ -118,8 +119,8 @@ export default function Novel() {
   const [winW, setWinW] = useState<number>(() => window.innerWidth)
   const [chapOpen, setChapOpen] = useState(false)
   // 宽窗手动折叠（2026-09-18 体验层；HIG Sidebars「let people hide and show the sidebar」）：
-  // 与 narrow 正交——窄窗=自动（渲染判据），宽窗=作者主动收起；会话内状态不持久化（持久化待自然需求）
-  const [chapHidden, setChapHidden] = useState(false)
+  // 与 narrow 正交——窄窗=自动（渲染判据），宽窗=作者主动收起；折叠态持久化=AppSettings（macOS 先例跨重启记住侧栏）
+  const [chapHidden, setChapHidden] = useColFold('novel')
   const agentWd = useUiStore((s) => s.agentPanelWidth) ?? AGENT_PANEL_DEFAULT_WIDTH
   const narrow = shouldCollapseChapterList(winW, agentWd)
   const effectiveNarrow = narrow || chapHidden

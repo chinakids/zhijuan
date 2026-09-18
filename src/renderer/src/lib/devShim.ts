@@ -449,6 +449,7 @@ const settings: AppSettings = {
   focusModeEnabled: false,
   typewriterEnabled: false,
   agentPanelWidth: AGENT_PANEL_DEFAULT_WIDTH,
+  foldedCols: { novel: false, characters: false, worldview: false, outline: false, library: false },
   agentTools: { todo: true, askUser: true }
 }
 

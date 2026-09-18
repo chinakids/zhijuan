@@ -41,7 +41,8 @@ export function normalizeSettings(s: AppSettings): AppSettings {
   delete out.agentEngine
   return out as AppSettings
 }
-function readSettings(): AppSettings {
+/** 读盘并合并默认（导出供单测验证旧文件迁移；2026-09-18 体验层 foldedCols 键新增） */
+export function readSettings(): AppSettings {
   try {
     return normalizeSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(readFileSync(settingsFile(), 'utf-8')) })
   } catch {

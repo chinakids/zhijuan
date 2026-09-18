@@ -108,6 +108,11 @@ export interface AppSettings {
   typewriterEnabled: boolean
   /** Agent 面板宽度（px，模块设计 §十二「面板宽度记忆」；拖拽/方向键调整，越界钳制见 shared/uiPrefs） */
   agentPanelWidth: number
+  /** 各页导航列折叠态（体验层 2026-09-18；macOS 惯例=记住侧栏状态跨重启，Pages/TextEdit 先例）。
+   * 五键对应五个导航页：novel=正文创作章列 / characters=人物档案列 / worldview=世界观列 / outline=大纲章卡列 / library=素材库类别树。
+   * 人物与世界观共用 DocSection 组件但按键分开——两页折叠态相互独立（与旧会话内行为一致）。
+   * setSettings 是浅合并——改任一键必须传全量对象（先例 agentPanelWidth 平铺键；foldedCols 聚合为一键避免四处平铺）。 */
+  foldedCols: { novel: boolean; characters: boolean; worldview: boolean; outline: boolean; library: boolean }
   /** 常用 agent 工具开关（harness 引擎内） */
   agentTools?: { todo?: boolean; askUser?: boolean }
   /** agent 能力开关（模块 J / E3）：缺省 = 全开；值为 false 即关闭该能力 */
@@ -124,6 +129,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   focusModeEnabled: false,
   typewriterEnabled: false,
   agentPanelWidth: AGENT_PANEL_DEFAULT_WIDTH,
+  foldedCols: { novel: false, characters: false, worldview: false, outline: false, library: false },
   agentTools: { todo: true, askUser: true }
 }
 

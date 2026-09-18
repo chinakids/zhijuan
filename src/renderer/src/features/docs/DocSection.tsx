@@ -10,6 +10,7 @@ import { Label } from '../../components/ui/label'
 import { cn } from '../../lib/utils'
 import { isImeComposing } from '../../lib/ime'
 import { ColHideButton, ColShowBar } from '../common/colFold'
+import { useColFold, type ColFoldKey } from '../common/useColFold'
 import DocEditor from '../editor/DocEditor'
 import { useFsChanged, useFsEvents } from '../fs/useFsEvents'
 import { toast } from '../../store/toasts'
@@ -23,6 +24,8 @@ interface DocSectionProps {
   emptyHint: string
   /** 侧栏组头名称（默认「文档」；按语义传入，如 人物档案 / 世界观设定） */
   listLabel?: string
+  /** 折叠态持久化键（AppSettings.foldedCols；人物/世界观各自独立，勿共键） */
+  foldKey: ColFoldKey
   /** 新建文件时写入的模板正文（需返回漏斗与角标即可） */
   templateFor?: (name: string) => string
   fileTitle?: (name: string) => string
@@ -30,7 +33,7 @@ interface DocSectionProps {
   withFm?: boolean
 }
 
-export default function DocSection({ relDir, overviewFile, addLabel, addHint, emptyHint, listLabel, templateFor, fileTitle, withFm }: DocSectionProps) {
+export default function DocSection({ relDir, overviewFile, addLabel, addHint, emptyHint, listLabel, templateFor, fileTitle, withFm, foldKey }: DocSectionProps) {
   const { id = '' } = useParams()
   const [files, setFiles] = useState<{ file: string; name: string }[]>([])
   const [sel, setSel] = useState<string | null>(overviewFile ?? null)
@@ -38,8 +41,8 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
-  // 宽窗手动折叠（HIG Sidebars show/hide；与 Novel 5376f30 同机制，会话内状态不持久化）
-  const [colHidden, setColHidden] = useState(false)
+  // 宽窗手动折叠（HIG Sidebars show/hide；与 Novel 5376f30 同机制；折叠态持久化=AppSettings 跨重启记住侧栏；按导航页分键）
+  const [colHidden, setColHidden] = useColFold(foldKey)
   const events = useFsEvents(id)
 
   const refresh = useCallback(async () => {

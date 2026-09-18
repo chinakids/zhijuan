@@ -15,6 +15,7 @@ import { extractFrontMatter } from '../../../../shared/fmatter'
 import { isMaterialCard, materialPreview, materialTags } from '../../../../shared/materialCard'
 import type { LibraryCategory, SearchHit } from '../../../../shared/types'
 import { ColHideButton, ColShowBar } from '../common/colFold'
+import { useColFold } from '../common/useColFold'
 import DocEditor from '../editor/DocEditor'
 import { useFsChanged, useFsEvents } from '../fs/useFsEvents'
 
@@ -53,8 +54,8 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
   const [newMatName, setNewMatName] = useState('')
   const [newMatErr, setNewMatErr] = useState('')
   const [creating, setCreating] = useState(false)
-  // 宽窗手动折叠（HIG Sidebars show/hide；与 Novel 5376f30 同机制，会话内状态不持久化）
-  const [colHidden, setColHidden] = useState(false)
+  // 宽窗手动折叠（HIG Sidebars show/hide；与 Novel 5376f30 同机制；折叠态持久化=AppSettings 跨重启记住侧栏）
+  const [colHidden, setColHidden] = useColFold('library')
   const events = useFsEvents(id)
   const qTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
