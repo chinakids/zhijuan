@@ -23,6 +23,7 @@ import { findInDoc, type FindPos } from './finder'
 import { saveScroll, takeScroll } from './scrollMemory'
 import { anchorFromPos, restoreCursorSelection, saveCursor, takeCursor } from './cursorMemory'
 import { EMPTY_ACTIVE, activeEq, readToolbarActive, type ActiveState } from './toolbarActive'
+import { macTextKeysPlugin } from './macTextKeys'
 import {
   computeFloatingPos,
   FLOAT_EST_ANNO_POP,
@@ -926,7 +927,7 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
       .config((ctx) => {
         ctx.set(rootCtx, hostRef.current!)
         ctx.set(defaultValueCtx, initialRef.current)
-        ctx.set(prosePluginsCtx, [annoPlugin, selPlugin, emptyHintPlugin, focusPlugin, typewriterPlugin])
+        ctx.set(prosePluginsCtx, [annoPlugin, selPlugin, emptyHintPlugin, focusPlugin, typewriterPlugin, macTextKeysPlugin].filter((p): p is NonNullable<typeof p> => !!p))
         ctx.get(listenerCtx).markdownUpdated((_, md) => {
           if (!liveRef.current) return
           onEditRef.current?.(md)
