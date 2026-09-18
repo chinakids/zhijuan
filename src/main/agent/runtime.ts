@@ -186,7 +186,11 @@ export async function ensureHarness(): Promise<string | undefined> {
     ...(launch.command === process.execPath ? { ELECTRON_RUN_AS_NODE: '1' } : {})
   }
   try {
-    harness = new Sdk({ launch, provider: cfg.route, model: cfg.model, maxTokens: 8192 })
+    // maxTokens 输出预算（2026-09-19 智能层）：8192→12288——deep-pass 全卷巡查（audit/perspectives，
+    // 15min 档、8.5 万字符材料包）实证：模型逐章对照推理耗光 8192（含 reasoning），最终 turn 无 text
+    // 输出=报告恒空（items=[]），真模型三次复现；12288 留出 JSON 正文空间；runChat 8min 档不受影响
+    // （输出上限变大仅当模型真的生成超过 8192 时才体现，成本增益可控）。
+    harness = new Sdk({ launch, provider: cfg.route, model: cfg.model, maxTokens: 12288 })
     await harness.start()
     bootArgs = { provider: cfg.route, model: cfg.model }
     failCount = 0

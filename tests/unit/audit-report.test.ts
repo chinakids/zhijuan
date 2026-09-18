@@ -16,9 +16,10 @@ vi.mock('electron', () => ({
 }))
 vi.mock('../../src/main/store', () => ({
   readDoc: vi.fn(),
-  writeDoc: vi.fn(),
   listChapters: vi.fn(),
-  listDocs: vi.fn()
+  writeDoc: vi.fn(),
+  listDocs: vi.fn(),
+  projectDir: vi.fn(() => '/tmp/zj-项目')
 }))
 vi.mock('../../src/main/agent/runtime', () => ({ driveSession: vi.fn() }))
 

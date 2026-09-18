@@ -250,22 +250,31 @@ function clip(text: string, head = 2400, tail = 1400): string {
   return text.slice(0, head) + '\n……（此处为节省篇幅省略中部）……\n' + text.slice(-tail)
 }
 
-/** 组装“当前全卷”材料包：全部章节（每章节段式）+ 人物 · 世界观全档（截段） */
-function volumeBrief(projectId: string): string {
+/**
+ * 组装“当前全卷”材料包：全部章节（正文与 runChat/本章小环同一口径）+ 人物 · 世界观全档（判据完整）。
+ * 读入口径（2026-09-19 对齐，智能层）：
+ * - 正文每章用 chapterBodyBlock（≤WCTX_CAPS.chapter 全量 / 超预算保尾+注明可现读）——与 runChat 装配、
+ *   本章小环完全同源（「同一份正文一套口径」面的最后一块；旧版 clip(2400,1400)=3800 窗口会把真实章
+ *   （6851–10941/中位 8548）100% 裁掉中段 4700+ 字符=结构性盲区，巡查 prompt 又要求「每条都要能在
+ *   材料里有对应依据」→ 中段设定冲突必然漏检）；
+ * - 设定档 clip(t, WCTX_CAPS.char, 800)：≤4000 全量（真实 27 份人物档 739–3833 全部覆盖；判据=对照基准，
+ *   被裁=「按设定逐条对照」缺判据），超 4000 保头+尾 800（世界观总纲等长文档留尾部最新状态）。
+ */
+export function volumeBrief(projectId: string): string {
   const parts: string[] = []
-  parts.push('【全部章节正文（按章节顺序，可能节段）】')
+  parts.push('【全部章节正文（按章节顺序，每章与创作上下文同口径：预算内全量，超长保尾并在省略处注明）】')
   for (const c of listChapters(projectId)) {
     const raw = readDoc(projectId, '正文/' + c.file) ?? ''
     const body = stripFm(raw)
     if (!body.trim()) continue
-    parts.push(`\n### ${chapterHead(c)}\n${clip(body)}`)
+    parts.push(`\n### ${chapterHead(c)}\n${chapterBodyBlock(body, '正文/' + c.file)}`)
   }
   parts.push('\n【当前设定档案】')
   for (const dir of ['人物', '世界观']) {
     for (const d of listDocs(projectId, dir)) {
       const t = readDoc(projectId, dir + '/' + d.file) ?? ''
       if (!t.trim()) continue
-      parts.push(`\n### ${dir}/${d.file}\n${clip(t, 1800, 800)}`)
+      parts.push(`\n### ${dir}/${d.file}\n${clip(t, WCTX_CAPS.char, 800)}`)
     }
   }
   return parts.join('\n')
@@ -287,6 +296,7 @@ function auditSystem(kind: AuditKind): string {
       '- 伏笔异状：某句话或物件像是伏笔却无处回收，或前文已埋的本应在这里呼应却忘了；\n' +
       '- 人物漂移：性格、说话方式、关系与档案或与前文明显相悖。\n' +
       '要求：只根据上面材料判断，不要臆测；每条都要能在材料里有对应依据；不要提出材料里没有的“改进建议”。\n' +
+      '注意：各章正文与设定档案已在材料中完整给出（被裁章节/档案会在省略处注明，材料为节段摘录）。优先直接依据材料判断，不要整卷重新读取；仅当某处明确注明被省略、或证据确实不足时，才用 zj_read_doc 读取对应文件（路径见各小节标题）核对，不要臆测。\n' +
       '输出且只输出一个 JSON 对象（不要 markdown 围栏、不要任何前后缀文字）：\n' +
       '{"summary":"一段话总结当前最刺眼的一到两个问题","items":[' +
       '{"severity":"high|medium|low","type":"setting-conflict|timeline|foreshadow|character-drift",' +
@@ -299,6 +309,7 @@ function auditSystem(kind: AuditKind): string {
     '你是织卷的「资深外审」：一位严格但共情的职业编辑。下面给出了这部作品的全卷正文摘录。\n' +
       '请写下本可在工作台使用的“冷读报告”：先从结构、节奏、可信度给出整体判断，再列出具体可操作的发现。\n' +
       '要求：说人话、给作者改变的依据；指出问题也要给出做法的方向；不客套；每条都要能回到材料。\n' +
+      '注意：各章正文已在材料中完整给出（被裁章节会在省略处注明，材料为节段摘录）。优先直接依据材料判断，不要整卷重新读取；仅当某处明确注明被省略、或证据确实不足时，才用 zj_read_doc 读取对应文件（路径见各小节标题）核对，不要臆测。\n' +
       '输出且只输出一个 JSON 对象（不要 markdown 围栏、不要任何前后缀文字）：\n' +
       '{"summary":"一句话：这本书现在最需要动的一次是什么","items":[' +
       '{"severity":"high|medium|low","type":"structure|pacing|character|prose|foreshadow",' +
@@ -312,7 +323,10 @@ const auditDef: SubtaskDef<AuditResult> = {
   id: 'audit',
   title: '全卷检查',
   description: '一致性巡查 / 冷读报告：跨全卷对照设定找问题',
-  maxMs: 8 * 60 * 1000,
+  // deep-pass 分层（2026-09-19）：全卷材料包（正文全量后 8.5 万字符）在 vLLM 空闲下 480s 仍未生成完
+  // （引擎日志 step14 逐章推理中，被 8min 上限中止）——8min 是 reduced 类（chapter/director/check）的档，
+  // deep pass 按业界（Claude Code ultrareview 5-10min、--timeout 上限 45min）与实测放宽至 15min。
+  maxMs: 15 * 60 * 1000,
   buildParts: (c) => {
     const kind = c.args?.kind as AuditKind
     return [auditSystem(kind), volumeBrief(c.projectId), kind === 'consistency' ? '请给出巡查报告 JSON。' : '请给出冷读报告 JSON。']
@@ -364,6 +378,7 @@ function perspectiveSystem(): string {
       '- viewer=设定党：只关心设定自洽——设定冲突、时间线破损、伏笔不回收；\n' +
       '- viewer=节奏读者：只关心读得顺不顺——节奏拖沓、信息重复、该收不收。\n' +
       '要求：每条都要能回到上面材料，不要臆测；同一条只归到最合适的一位；每条各字段用一句自然话说清，不要展开成段落；最多给 10 条。\n' +
+      '注意：各章正文与设定档案已在材料中完整给出（被裁章节/档案会在省略处注明，材料为节段摘录）。优先直接依据材料判断，不要整卷重新读取；仅当某处明确注明被省略、或证据确实不足时，才用 zj_read_doc 读取对应文件（路径见各小节标题）核对，不要臆测。\n' +
       '格式纪律（重要）：你的整个回答只能是下面这个 JSON 对象，一个字都不要写在 JSON 之外（不要 markdown 围栏、不要开头结尾的话）：\n' +
       '{"summary":"一句话：三重眼光看完后全书最值得先处理的一件事","items":[' +
       '{"viewer":"角色粉|设定党|节奏读者","severity":"high|medium|low",' +
@@ -411,7 +426,9 @@ const perspectiveDef: SubtaskDef<AuditResult> = {
   id: 'perspectives',
   title: '多视角审视',
   description: '以角色粉 / 设定党 / 节奏读者三种立场各通读一遍，交叉找问题',
-  maxMs: 8 * 60 * 1000,
+  // deep-pass 分层（2026-09-19）：同 audit 理由——全卷材料包 8min 不足；且本任务带 retry（超时被中止后
+  // parse 为空会再补一轮），8min 时最坏 2×8=16min 仍可能整个失败，15min 单轮更符合可预期性。
+  maxMs: 15 * 60 * 1000,
   buildParts: (c) => [perspectiveSystem(), volumeBrief(c.projectId), '请给出多视角审读报告 JSON。'],
   parse: (text, c) => extractPerspective(text, new Set(settingList(c.projectId))),
   retry: {

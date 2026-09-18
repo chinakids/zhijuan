@@ -4,9 +4,26 @@
 // 同文件带能力注册表（评审 E3）与通用 JSON 提取工具。
 import { driveSession } from './runtime'
 import { getSettings } from '../settings'
+import { projectDir } from '../store'
 import type { SubtaskOutcome, SubtaskCtx, SubtaskDef } from './subtask-types'
 
 export type { SubtaskOutcome, SubtaskCtx, SubtaskDef }
+
+/**
+ * 子任务会话基座（2026-09-19 智能层）：给模型「作品根目录」坐标。
+ * 根因：zj_* 工具 schema 的 base=作品根目录（绝对路径）要求来自上下文；runChat 的 envBlock 有
+ * 【作品根目录】，而所有子任务（audit/perspectives/chapter/director/triage/acts/outline…）的材料包
+ * 从未带坐标 → 模型调工具只能猜/退化为 bash 探索宿主目录（真模型实测：104 次工具调用、26 次空结果、
+ * 「had 0 files」自循环，8.5 万字符全卷巡查 480s/900s 两次超时零产出）——注入后裁剪注记
+ * 「可用 zj_read_doc 现读」才真正可执行。
+ */
+export function subtaskEnvBlock(base: string): string {
+  return (
+    '【作品根目录】' + base + '\n' +
+    '【当前打开章节】（未打开——本任务为离线子任务）\n' +
+    '提示：需要资料时用 zj_* 工具读（base 永远是上下文给出的【作品根目录】，不要自己编），不要猜测。'
+  )
+}
 
 // ---------- 通用提取：剥围栏 + 切花括号/方括号 + parse（各检查器原重复逻辑收敛于此） ----------
 export function extractJson<T = unknown>(text: string): T | null {
@@ -81,7 +98,8 @@ export async function runOnceInner<T>(def: SubtaskDef<T>, ctx: SubtaskCtx): Prom
   const parts = await def.buildParts(ctx)
   if (!parts || !parts.length) throw new Error('任务材料为空')
   const sid = `${def.sidPrefix ?? def.id}-${Date.now().toString(36)}-${ctx.seq.toString(36)}-${ctx.projectId}`
-  const prompt = () => parts.join('\n\n')
+  const env = subtaskEnvBlock(projectDir(ctx.projectId))
+  const prompt = () => env + '\n\n' + parts.join('\n\n')
   const exec = (sidX: string, p: string) => driveSession(sidX, p, { maxMs: def.maxMs ?? 7 * 60 * 1000 })
   let text = await exec(sid, prompt())
   let result = def.parse(text, ctx)
