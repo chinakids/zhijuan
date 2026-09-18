@@ -2,6 +2,8 @@
 import type { AgentEvent, AppSettings, ChapterEntry, OutlineCard, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult, MenuActionEvent, MenuActionId, MenuStateReport, SyncIssue, SyncEvidence, SyncLogEntry } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
 import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterSliceInDoc } from '../../../shared/outline'
+import { isMaterialCard } from '../../../shared/materialCard'
+import type { ProjectStats } from '../../../shared/types'
 import { listChapterEntries } from '../../../shared/chapters'
 import { listSliceEntries } from '../../../shared/slices'
 import { listLinesFromEntries, chapterLine, DEFAULT_LINE } from '../../../shared/line'
@@ -291,6 +293,15 @@ docs.set(
   'demo-order/正文/第06章_旧港之二.md',
   ['---', '章号: 6', '题名: 旧港之二', '时间线: 过去线', '切片: 第一幕_潮起', '涉及人物: [苏晚]', '---', '', '# 旧港之二', '', '回闪结束前，她又想起登船那天的潮水。', ''].join('\n')
 )
+// demo-order 人物档案：与正文章约定头「涉及人物」自洽（2026-09-18 平台层：投影现算后须种子齐全——苏晚/老周）
+docs.set(
+  'demo-order/人物/苏晚.md',
+  ['---', '姓名: 苏晚', '身份: 远行客', '---', '', '# 苏晚', '', '- 外貌：瘦高，常穿灰蓝布衫，随身一只旧帆布包', '- 性格：寡言，认路却认不出人心', ''].join('\n')
+)
+docs.set(
+  'demo-order/人物/老周.md',
+  ['---', '姓名: 老周', '身份: 灯塔看守', '---', '', '# 老周', '', '- 外貌：络腮胡，右手虎口有旧疤', '- 性格：爱把话绕三圈才说透', ''].join('\n')
+)
 docs.set(
   'demo-aseya/素材库/桥段/追忆型开头.md',
   ['---', '标签: [桥段, 开头, 失忆]', '---', '', '# 追忆型开头', '', '以一件旧物切入，牵出角色“忘了的事”，用于开篇营造悬念。', ''].join('\n')
@@ -448,52 +459,37 @@ const WRK_DOCS: Record<string, string> = {
 }
 const wsDocs = new Map<string, string>()
 
-const projects: ProjectSummary[] = [
+// 演示项目清单（2026-09-18 根因修 ①㊱：stats/lastChapter 不再硬编码——listProjects 按种子现算，
+// 与真机 store.summarize 同口径（见 devStatsOf），种子增删投影自动一致，杜绝「首页投影 vs 库内实际」失配；
+// demo-yunshan「云山驿事」为骨架期幻影占位（db366f2 起从未有任何种子文件、无任何冒烟消费、demo-blank 已覆盖空态）→ 移除）
+const projects: Omit<ProjectSummary, 'stats' | 'lastChapter'>[] = [
   {
     id: seeded.id,
     name: seeded.name,
     description: seeded.description,
     createdAt: now - 86400_000 * 6,
-    updatedAt: now - 3600_000,
-    // stats 投影与真机 store.summarize 同口径（2026-09-18 d4dd488 起 materials=isMaterialCard 过滤）：
-    // demo-aseya 素材库 6 文件 − 采集池 2 任务卡 − 索引.md 1 = 3 素材卡（桥段/追忆型开头、环境/采集_演示图书馆、人物/旧茶楼账房）
-    stats: { chapters: 5, characters: 2, worldviewFiles: 1, materials: 3 },
-    lastChapter: '第01章_雾港'
-  },
-  {
-    id: 'demo-yunshan',
-    name: '云山驿事',
-    description: '示例：驿道上的妖与账房先生',
-    createdAt: now - 86400_000 * 40,
-    updatedAt: now - 86400_000 * 2,
-    stats: { chapters: 5, characters: 4, worldviewFiles: 3, materials: 2 },
-    lastChapter: '第05章_山雨'
+    updatedAt: now - 3600_000
   },
   {
     id: 'demo-multiline',
     name: '双线书',
     description: '示例：现在线/过去线交错叙事',
     createdAt: now - 86400_000 * 3,
-    updatedAt: now - 3600_000,
-    stats: { chapters: 5, characters: 2, worldviewFiles: 0, materials: 0 },
-    lastChapter: '第01章_夜航'
+    updatedAt: now - 3600_000
   },
   {
     id: 'demo-order',
     name: '潮汐的岔路',
     description: '示例：双线交错 + 切片名跨线共用（切片时序核查演示）',
     createdAt: now - 86400_000 * 2,
-    updatedAt: now - 3600_000,
-    stats: { chapters: 6, characters: 2, worldviewFiles: 0, materials: 0 },
-    lastChapter: '第01章_晨港'
+    updatedAt: now - 3600_000
   },
   {
     id: 'demo-blank',
     name: '空白示例',
     description: '示例：尚未写正文的项目（空态演示）',
     createdAt: now - 86400_000,
-    updatedAt: now - 3600_000,
-    stats: { chapters: 0, characters: 0, worldviewFiles: 0, materials: 0 }
+    updatedAt: now - 3600_000
   }
 ]
 
@@ -507,6 +503,39 @@ function docsOf(prefix: string): { file: string; name: string; mtime: number }[]
       const file = k.slice(prefix.length + 1)
       return { file, name: file.split('/').pop()!, mtime: devMtime(prefix, file) }
     })
+}
+
+/** dev 章节收集：与真机 store.listChapters 同口径（shared/chapters listChapterEntries；只收 .md，批注 csv 等不进） */
+function devChapterEntries(pid: string): ChapterEntry[] {
+  return listChapterEntries(
+    docsOf(pid + '/正文')
+      .filter((d) => d.file.endsWith('.md'))
+      .map(({ file, mtime }) => ({
+        file,
+        name: file.replace(/\.md$/, ''),
+        text: docs.get(pid + '/正文/' + file) ?? '',
+        mtime
+      }))
+  )
+}
+
+/** lastChapter 与真机 store.summarize 同口径 = listChapters(id)[0]?.name（章号升序首章；真机该字段名取 [0] 为历史语义） */
+function devLastChapterOf(pid: string): string | undefined {
+  return devChapterEntries(pid)[0]?.name
+}
+
+/** 与真机 store.summarize 同口径的投影现算（2026-09-18 根因修 ㊱②：取消硬编码，种子即投影——增删自动一致）：
+ * chapters=正文目录 .md 数；characters=人物 .md − 总览.md；worldviewFiles=世界观 .md − 总纲.md；
+ * materials=素材库 isMaterialCard 过滤（排除 采集池/ 任务卡、索引.md、隐藏文件；与 d4dd488 真机口径同源）。 */
+function devStatsOf(pid: string): ProjectStats {
+  const mdOf = (relDir: string): number =>
+    docsOf(pid + '/' + relDir).filter((d) => d.name.endsWith('.md')).length
+  return {
+    chapters: mdOf('正文'),
+    characters: Math.max(0, mdOf('人物') - (docs.has(pid + '/人物/总览.md') ? 1 : 0)),
+    worldviewFiles: Math.max(0, mdOf('世界观') - (docs.has(pid + '/世界观/总纲.md') ? 1 : 0)),
+    materials: docsOf(pid + '/素材库').filter((d) => isMaterialCard(d.file)).length
+  }
 }
 
 /** 审计用正文章收集：与真机 readVolumeChapters（main/agent/audit.ts）同口径——只收 .md（批注 csv 等不算章），raw 非空才纳入 */
@@ -572,7 +601,8 @@ const mock = {
     return { ok: true, created, docs: Object.keys(WRK_DOCS) }
   },
   workspaceRead: async (file: string) => wsDocs.get(file) ?? null,
-  listProjects: async (): Promise<ProjectSummary[]> => projects.slice(),
+  listProjects: async (): Promise<ProjectSummary[]> =>
+    projects.map((p) => ({ ...p, stats: devStatsOf(p.id), lastChapter: devLastChapterOf(p.id) })),
   createProject: async (name: string, description: string, _template?: string): Promise<ProjectSummary> => {
     // 与真机 store.createProject 同口径：shared nextProjectId（sanitizeFile + 已占用加时间戳后缀；2026-09-12 对齐）
     const id = nextProjectId(name, (i) => projects.some((p) => p.id === i))
@@ -867,19 +897,7 @@ const mock = {
     out.sort((a, b) => b.mtime - a.mtime || a.file.localeCompare(b.file, 'zh'))
     return out.slice(0, n)
   },
-  listChapters: async (id: string): Promise<ChapterEntry[]> => {
-    // 解析/排序口径在 shared/chapters（与真机 store.listChapters 同一实现，2026-09-12 根治分叉）；
-    // 与真机 listDocs 同口径只收 .md（划词批注 csv 等不进章节列表，2026-09-12 补）
-    const sources = docsOf(id + '/正文')
-      .filter((d) => d.file.endsWith('.md'))
-      .map(({ file, mtime }) => ({
-        file,
-        name: file.replace(/\.md$/, ''),
-        text: docs.get(id + '/正文/' + file) ?? '',
-        mtime
-      }))
-    return listChapterEntries(sources)
-  },
+  listChapters: async (id: string): Promise<ChapterEntry[]> => devChapterEntries(id),
   listSlices: async (id: string): Promise<SliceEntry[]> => {
     // 解析/排序口径在 shared/slices（与真机 main/slices.listSlices 同一实现，2026-09-12）；
     // updatedAt 与真机 statSync mtimeMs 同语义——docsOf 的 devMtime 稳定模拟（正文=现在/导演板=一天前等）

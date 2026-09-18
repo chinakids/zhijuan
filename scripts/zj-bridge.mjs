@@ -31,7 +31,7 @@ const PORT = Number(process.env.ZJ_BRIDGE_PORT || 8810)
 const wss = new WebSocketServer({ port: PORT })
 
 // devShim 示例项目 → 真实验收项目 的映射
-const PROJECT_MAP = { 'demo-aseya': 'agent冒烟', 'demo-yunshan': 'agent冒烟' }
+const PROJECT_MAP = { 'demo-aseya': 'agent冒烟' }
 
 console.log('[bridge] 边车上电准备中… true 引擎已加载，WS 监听', PORT)
 
