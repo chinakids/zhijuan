@@ -455,7 +455,9 @@ const projects: ProjectSummary[] = [
     description: seeded.description,
     createdAt: now - 86400_000 * 6,
     updatedAt: now - 3600_000,
-    stats: { chapters: 5, characters: 2, worldviewFiles: 1, materials: 1 },
+    // stats 投影与真机 store.summarize 同口径（2026-09-18 d4dd488 起 materials=isMaterialCard 过滤）：
+    // demo-aseya 素材库 6 文件 − 采集池 2 任务卡 − 索引.md 1 = 3 素材卡（桥段/追忆型开头、环境/采集_演示图书馆、人物/旧茶楼账房）
+    stats: { chapters: 5, characters: 2, worldviewFiles: 1, materials: 3 },
     lastChapter: '第01章_雾港'
   },
   {
