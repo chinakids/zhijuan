@@ -571,7 +571,11 @@ const chapterCheckDef: SubtaskDef<ChapterCheckResult> = {
   id: 'chapter-check',
   title: '本章检查',
   description: '每章短巡查 / 分层修订：沿写作线的小环兜底',
-  maxMs: 6 * 60 * 1000,
+  // 2026-09-18：6min→8min（候选 2 收口）。依据：①15:00 轮实测慢车期（算力池互阻）chapter 341s 险过、revision 360s 超时（六连）；
+  // ②15:00 轮 chapterBrief 当前章全量化到 ≤12000（chapterBodyBlock），大章材料包比旧 9000 保头大 ~33%，负载同向加重；
+  // ③域内一致性：audit / perspectives 均 8min，本章检查与「检查域主流预算」同档；revision 输出多层结构化 JSON = 域内最重检查。
+  // 与 runSubtask 默认 7min 的关系：保持显式（8min）。后续改回 6min 前先看 15:00 轮实测数据；慢车期若 8min 仍不足，再按 kind（chapter/revision）分层。
+  maxMs: 8 * 60 * 1000,
   buildParts: (c) => {
     const chapterRel = String(c.args?.chapterRel ?? '')
     const kind = c.args?.kind as ChapterCheckKind
