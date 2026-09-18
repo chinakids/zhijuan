@@ -9,6 +9,7 @@ import { FieldError, fieldInvalidClass } from '../../components/ui/field-error'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import { cn } from '../../lib/utils'
+import { isImeComposing } from '../../lib/ime'
 import { buildLibraryTree, type LibraryFileItem } from '../../../../shared/libraryTree'
 import { extractFrontMatter } from '../../../../shared/fmatter'
 import type { LibraryCategory, SearchHit } from '../../../../shared/types'
@@ -466,7 +467,11 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
                 setNewCatName(e.target.value)
                 if (newCatErr) setNewCatErr('')
               }}
-              onKeyDown={(e) => e.key === 'Enter' && void createCat()}
+              onKeyDown={(e) => {
+                // IME 组合期 Enter 只确认候选，不建类别（F-IME-03）
+                if (isImeComposing(e)) return
+                if (e.key === 'Enter') void createCat()
+              }}
             />
             {newCatErr && <FieldError data-testid="cat-field-error">{newCatErr}</FieldError>}
           </div>
@@ -495,7 +500,11 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
                 setNewMatName(e.target.value)
                 if (newMatErr) setNewMatErr('')
               }}
-              onKeyDown={(e) => e.key === 'Enter' && void createMat()}
+              onKeyDown={(e) => {
+                // IME 组合期 Enter 只确认候选，不建素材（F-IME-03）
+                if (isImeComposing(e)) return
+                if (e.key === 'Enter') void createMat()
+              }}
             />
             {newMatErr && <FieldError data-testid="mat-field-error">{newMatErr}</FieldError>}
           </div>

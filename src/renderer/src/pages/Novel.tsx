@@ -13,6 +13,7 @@ import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { Textarea } from '../components/ui/textarea'
 import { cn } from '../lib/utils'
+import { isImeComposing } from '../lib/ime'
 import DocEditor from '../features/editor/DocEditor'
 import HealthBar from '../features/audit/HealthBar'
 import { runSliceSync } from '../features/sync/sliceSync'
@@ -943,6 +944,8 @@ export default function Novel() {
                 if (renameErr) setRenameErr('')
               }}
               onKeyDown={(e) => {
+                // IME 组合期 Enter 只确认候选，不重命名（F-IME-03）
+                if (isImeComposing(e)) return
                 if (e.key === 'Enter' && renameVal.trim()) void doRename()
               }}
             />
@@ -972,6 +975,8 @@ export default function Novel() {
               placeholder="如：第二幕_台风夜"
               onChange={(e) => setSliceVal(e.target.value)}
               onKeyDown={(e) => {
+                // IME 组合期 Enter 只确认候选，不改切片名（F-IME-03）
+                if (isImeComposing(e)) return
                 if (e.key === 'Enter' && sliceVal.trim()) void doEditSlice()
               }}
             />

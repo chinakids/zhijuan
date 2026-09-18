@@ -18,6 +18,7 @@ import {
   DialogClose
 } from '../components/ui/dialog'
 import { Input } from '../components/ui/input'
+import { isImeComposing } from '../lib/ime'
 import { Label } from '../components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
 import { toast } from '../store/toasts'
@@ -388,7 +389,17 @@ export default function Home() {
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
               <Label>项目名</Label>
-              <Input autoFocus placeholder="如：山那边" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void create()} />
+              <Input
+                autoFocus
+                placeholder="如：山那边"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => {
+                  // IME 组合期 Enter 只确认候选，不建项目（F-IME-03）
+                  if (isImeComposing(e)) return
+                  if (e.key === 'Enter') void create()
+                }}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>一句话简介（可选）</Label>
@@ -434,7 +445,16 @@ export default function Home() {
           <div className="space-y-2 py-2">
             <Label>目录路径</Label>
             <div className="flex items-center gap-2">
-              <Input placeholder="/Users/你/某个已有作品目录" value={folder} onChange={(e) => setFolder(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void importDir()} />
+              <Input
+                placeholder="/Users/你/某个已有作品目录"
+                value={folder}
+                onChange={(e) => setFolder(e.target.value)}
+                onKeyDown={(e) => {
+                  // IME 组合期 Enter 只确认候选，不导入目录（F-IME-03）
+                  if (isImeComposing(e)) return
+                  if (e.key === 'Enter') void importDir()
+                }}
+              />
               <Button variant="outline" size="sm" className="shrink-0 whitespace-nowrap" onClick={() => void pickImportDir()}>
                 选择文件夹…
               </Button>

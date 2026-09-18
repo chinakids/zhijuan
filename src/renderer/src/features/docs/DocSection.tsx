@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import { cn } from '../../lib/utils'
+import { isImeComposing } from '../../lib/ime'
 import DocEditor from '../editor/DocEditor'
 import { useFsChanged, useFsEvents } from '../fs/useFsEvents'
 import { toast } from '../../store/toasts'
@@ -156,6 +157,8 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => {
+                // IME 组合期 Enter 只确认候选，不建档（F-IME-03）
+                if (isImeComposing(e)) return
                 if (e.key === 'Enter' && name.trim()) void createDoc()
               }}
             />
