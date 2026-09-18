@@ -74,7 +74,10 @@ await esbuild({
 const r = spawnSync('node', ['/tmp/zj-subtasks-bundle.mjs'], {
   env: { ...process.env, LOCAL_LLM_KEY: 'local', ZJ_USERDATA: process.env.ZJ_USERDATA },
   encoding: 'utf-8',
-  timeout: 25 * 60 * 1000
+  // 外层预算（2026-09-19 智能层 25→40min）：六步全真模型 + 检查域 maxMs 升级（8/15min）后，
+  // 25min 本轮实测不够（22.5min 完成五步、director 步 ~100s 时被外层截断=假失败），
+  // 40min 覆盖快车期全六步（25min 档为 2026-09-04 四步时代设计）。
+  timeout: 40 * 60 * 1000
 })
 process.stdout.write(r.stdout || '')
 process.stderr ? process.stderr.write(r.stderr || '') : null
