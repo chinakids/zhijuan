@@ -16,6 +16,8 @@ export interface ToastItem {
   kind: ToastKind
   title: string
   description?: string
+  /** 可展开的完整明细（渐进披露二级，默认折叠；与 GuardIssuesNote「摘要常显、明细按需一层展开」同构——2026-09-18 创作层） */
+  detail?: string
   /** 内嵌操作按钮（可选；弹层存活期间一直可点，不随自动消失时序处理） */
   action?: ToastAction | null
   /** 实际生效的自动消失毫秒数；0 = 不自动消失（loading 默认；带 action 的 toast 同此口径——常驻到用户操作/手动关闭） */
@@ -32,6 +34,8 @@ export interface ToastInput {
   kind?: ToastKind
   title: string
   description?: string
+  /** 可展开的完整明细（默认折叠；传 undefined 清空——update 浅合并下必须显式清除） */
+  detail?: string
   /** 内嵌操作按钮（可选） */
   action?: ToastAction | null
   duration?: number
@@ -106,7 +110,7 @@ export function dismiss(id: number) {
 interface ToastsState {
   toasts: ToastItem[]
   add: (input: ToastInput) => number
-  update: (id: number, patch: Partial<Pick<ToastItem, 'kind' | 'title' | 'description' | 'action' | 'duration'>>) => void
+  update: (id: number, patch: Partial<Pick<ToastItem, 'kind' | 'title' | 'description' | 'detail' | 'action' | 'duration'>>) => void
   dismiss: (id: number) => void
   /** hover 暂停（其余时间继续计） */
   pause: (id: number) => void
@@ -123,7 +127,7 @@ export const useToastsStore = create<ToastsState>((set, get) => ({
     // 带 action 的 toast 常驻（不自动消失），显式 duration 仅对无 action 生效
     const duration = effDuration(kind, input.duration, Boolean(input.action))
     const id = seq++
-    const toast: ToastItem = { id, kind, title: input.title, description: input.description, action: input.action ?? null, duration, createdAt: Date.now() }
+    const toast: ToastItem = { id, kind, title: input.title, description: input.description, detail: input.detail, action: input.action ?? null, duration, createdAt: Date.now() }
     const cur = get().toasts
     // 栈上限：挤掉最旧的一条（leaving 中的不占位、不重复挤）
     const active = cur.filter((t) => !t.leaving)

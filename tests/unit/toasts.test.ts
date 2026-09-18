@@ -199,6 +199,20 @@ describe('toasts 全局通知（自研轻量）', () => {
     expect(useToastsStore.getState().toasts).toHaveLength(0)
   })
 
+  it('detail 明细：add 透传、update 可保留/显式清除（渐进披露二级，与 description 独立）', () => {
+    const id = toast.add({ kind: 'success', title: '切片同步', description: '（拦截 3 条）', detail: '已纠正 人物/沈眠.md：原因\n已丢弃 人物/新角色1.md：尚未建档' })
+    const t = useToastsStore.getState().toasts.find((x) => x.id === id)
+    expect(t?.detail).toContain('已纠正 人物/沈眠.md')
+    // update 不带 detail → 浅合并保留
+    toast.update(id, { title: '切片同步完成' })
+    expect(useToastsStore.getState().toasts.find((x) => x.id === id)?.detail).toContain('已丢弃')
+    // update 显式 detail: undefined → 清除（语义收尾后不再有明细块）
+    toast.update(id, { description: '已为 2 名人物建档案', detail: undefined, action: null })
+    const t2 = useToastsStore.getState().toasts.find((x) => x.id === id)
+    expect(t2?.detail).toBeUndefined()
+    expect(t2?.description).toBe('已为 2 名人物建档案')
+  })
+
   it('clear 清空全部（走退场动画后移除）', () => {
     toast.add({ title: 'a' })
     toast.add({ kind: 'error', title: 'b' })

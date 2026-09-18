@@ -29,18 +29,21 @@ const STATUS: Record<string, { text: string; cls: string }> = {
   stale: { text: '已过期', cls: 'bg-surface-2 text-ink-3' }
 }
 
-/** toast 同步结果的描述 + 可处置的未建档条目（批注接受入口：守卫明细在 toast 就地可处置，与四入口 GuardIssuesNote 同能力） */
-function describeChapterSync(s: SliceSyncResult | 'throttled' | 'skipped'): { ok: boolean; kind: ToastKind; desc: string; unfiled: SyncIssue[] } | null {
+/** toast 同步结果的描述 + 可处置的未建档条目（批注接受入口：守卫明细在 toast 就地可处置，与四入口 GuardIssuesNote 同能力）
+ * 明细渐进披露（2026-09-18）：摘要「（拦截 N 条）」常显，完整逐行明细走 detail（toast 内「查看明细」一层展开）——
+ * 与四入口 GuardIssuesNote「摘要常显、明细按需一层展开」同构；批量建档 action 仍留在首层（NN/g「frequently need up front」）。 */
+function describeChapterSync(s: SliceSyncResult | 'throttled' | 'skipped'): { ok: boolean; kind: ToastKind; desc: string; detail?: string; unfiled: SyncIssue[] } | null {
   if (s === 'throttled' || s === 'skipped') return null
   const unfiled = (s.issues ?? []).filter(isUnfiledIssue)
   const guardText = formatGuardIssuesText(s.issues)
-  // 摘要行「（拦截 N 条）」一行、明细逐条一行（formatGuardIssuesText \\n 分隔；toast description 已 whitespace-pre-wrap）
-  const guardNote = guardText ? `（拦截 ${s.issues!.length} 条）\n${guardText}` : ''
+  const guardNote = guardText ? `（拦截 ${s.issues!.length} 条）` : ''
+  const detail = guardText || undefined
   if (s.ok) {
     return {
       ok: true,
       kind: 'success',
       desc: s.items > 0 ? `正文已改写，切片同步到 ${s.items} 条提案待确认${guardNote}` : `正文已改写，切片同步无设定变化${describeSyncEvidence(s.evidence)}${guardNote}`,
+      detail,
       unfiled
     }
   }
@@ -54,8 +57,8 @@ async function createMissingOnToast(tid: number, projectId: string, issues: Sync
     const parts: string[] = []
     if (created.length) parts.push(`已为 ${created.length} 名人物建档案`)
     if (skipped.length) parts.push(`${skipped.length} 名已有档案未改动`)
-    // 摘除 action → 恢复类型默认自动消失（常驻到处置完成，符合带 action 常驻口径）
-    toast.update(tid, { kind: 'success', title: '已建档案', description: `${parts.join('，')}；下次保存同步不再拦截`, action: null })
+    // 摘除 action → 恢复类型默认自动消失（常驻到处置完成，符合带 action 常驻口径）；detail 显式清除（update 浅合并）
+    toast.update(tid, { kind: 'success', title: '已建档案', description: `${parts.join('，')}；下次保存同步不再拦截`, detail: undefined, action: null })
   } catch (e) {
     toast.update(tid, {
       kind: 'warning',
@@ -91,6 +94,7 @@ function retryChapterSync(projectId: string, target: string) {
         kind: d.kind,
         title: '切片同步',
         description: d.desc,
+        detail: d.detail,
         action: guardAction(tid, projectId, d) ?? (d.ok ? null : { label: '重试同步', onClick: () => retryChapterSync(projectId, target) })
       })
     })
@@ -110,7 +114,7 @@ function toastAfterChapterApply(projectId: string, target: string) {
     .then((s) => {
       const d = describeChapterSync(s)
       if (!d) return
-      const tid = toast.add({ kind: d.kind, title: '切片同步', description: d.desc })
+      const tid = toast.add({ kind: d.kind, title: '切片同步', description: d.desc, detail: d.detail })
       const act = guardAction(tid, projectId, d) ?? (!d.ok ? { label: '重试同步', onClick: () => retryChapterSync(projectId, target) } : null)
       if (act) toast.update(tid, { action: act })
     })

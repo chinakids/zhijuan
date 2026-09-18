@@ -118,10 +118,15 @@ try {
   await evalUntil(page, bodyHas('接受'), Boolean, 10000, '抽屉接受按钮')
   await page.eval(clickBtn('接受', true))
 
-  // ③ 接受后触发切片同步 → toast 带拦截明细 + 建档动作按钮
+  // ③ 接受后触发切片同步 → toast 摘要「（拦截 3 条）」+ 明细（渐进披露折叠）+ 建档动作按钮
   await evalUntil(page, bodyHas('（拦截 3 条）'), Boolean, 20000, 'toast 拦截 3 条')
-  ok('① toast 出现「（拦截 3 条）」+ 明细两行未建档', await page.eval(
-    `document.body.innerText.includes('人物/新角色1.md') && document.body.innerText.includes('人物/新角色2.md') && document.body.innerText.includes('尚未建档')`
+  ok('①a toast 出现「（拦截 3 条）」摘要', await page.eval(`[...document.querySelectorAll('.zj-toast')].some((t) => (t.innerText || '').includes('（拦截 3 条）'))`))
+  ok('①b 默认折叠：明细（人物名/原因）不常显（渐进披露，2026-09-18）', await page.eval(`[...document.querySelectorAll('.zj-toast')].every((t) => !(t.innerText || '').includes('人物/新角色1.md'))`))
+  // 点开「查看明细」→ 逐条明细完整可见
+  await page.eval(`(() => { const b = document.querySelector('.zj-toast button[aria-label="查看明细"]'); if (b) b.click(); return 1 })()`)
+  await sleep(300)
+  ok('①c 点开「查看明细」后逐条完整（新角色1/新角色2/尚未建档）', await page.eval(
+    `document.querySelectorAll('.zj-toast').length > 0 && [...document.querySelectorAll('.zj-toast')].some((t) => (t.innerText || '').includes('人物/新角色1.md') && (t.innerText || '').includes('人物/新角色2.md') && (t.innerText || '').includes('尚未建档'))`
   ))
   const hasBtn = await page.eval(`[...document.querySelectorAll('.zj-toast button')].some((b) => (b.innerText || '').trim() === '为 2 名人物建档案')`)
   ok('② toast 挂「为 2 名人物建档案」动作按钮（未建档 2 条）', hasBtn === true)

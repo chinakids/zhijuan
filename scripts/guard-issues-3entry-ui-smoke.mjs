@@ -233,19 +233,40 @@ console.log('── Tab D：批注接受→toast 守卫明细逐行 ──')
     const ts = [...document.querySelectorAll('.zj-toast')]
     const t = ts.find((x) => (x.innerText || '').includes('切片同步'))
     if (!t) return null
-    const desc = [...t.querySelectorAll('div')].filter((d) => (d.textContent || '').includes('已纠正')).at(-1)
+    const tg = t.querySelector('button[aria-label="查看明细"]')
     return {
       text: t.innerText,
-      hasNewline: (desc ? desc.textContent : '').includes('\\n'),
-      innerNewline: (desc ? desc.textContent : '').includes(String.fromCharCode(10)),
-      whiteSpace: desc ? getComputedStyle(desc).whiteSpace : null
+      h: t.getBoundingClientRect().height,
+      hasToggle: !!tg,
+      expanded: tg ? tg.getAttribute('aria-expanded') : null
     }
   })()`)
   ok('D1 批注接受后切片同步 toast 出现', Boolean(toastInfo), JSON.stringify(toastInfo && toastInfo.text.slice(0, 60)))
-  ok('D2 toast 明细含「（拦截 2 条）」与已纠正/已丢弃完整行', toastInfo.text.includes('（拦截 2 条）') && toastInfo.text.includes('已纠正 人物/沈眠.md') && toastInfo.text.includes('已丢弃 人物/新角色1.md'), JSON.stringify(toastInfo.text.slice(0, 120)))
-  ok('D3 toast description 逐条换行（\\n 生效）', toastInfo.hasNewline || toastInfo.innerNewline, JSON.stringify({ hasNewline: toastInfo.hasNewline, innerNewline: toastInfo.innerNewline }))
-  ok('D4 toast description white-space=pre-wrap', toastInfo.whiteSpace === 'pre-wrap', 'ws=' + toastInfo.whiteSpace)
-  await shoot(page, 'guard-3entry-toast')
+  ok('D2 默认折叠：toast 仅「（拦截 2 条）」摘要＋「查看明细」按钮，明细文本不常显（渐进披露二级，2026-09-18）', Boolean(toastInfo) && toastInfo.text.includes('（拦截 2 条）') && !toastInfo.text.includes('已纠正 人物/沈眠.md') && !toastInfo.text.includes('已丢弃 人物/新角色1.md') && toastInfo.hasToggle && toastInfo.expanded === 'false', JSON.stringify(toastInfo && toastInfo.text.slice(0, 120)))
+  // 点开「查看明细」→ 逐条完整行 + 换行 + pre-wrap + 体积扩展
+  await page.eval(`(() => { const b = document.querySelector('.zj-toast button[aria-label="查看明细"]'); if (b) b.click(); return 1 })()`)
+  await sleep(300)
+  const expanded = await page.eval(`(() => {
+    const t = [...document.querySelectorAll('.zj-toast')].find((x) => (x.innerText || '').includes('切片同步'))
+    if (!t) return null
+    const d = t.querySelector('[data-testid="toast-detail"]')
+    return {
+      text: t.innerText,
+      h: t.getBoundingClientRect().height,
+      hasDetail: !!d,
+      hasNewline: d ? (d.textContent || '').includes(String.fromCharCode(10)) : false,
+      whiteSpace: d ? getComputedStyle(d).whiteSpace : null
+    }
+  })()`)
+  ok('D3 点开后逐条明细完整（已纠正/已丢弃全行＋完整 reason）', Boolean(expanded) && expanded.hasDetail && expanded.text.includes('已纠正 人物/沈眠.md') && expanded.text.includes('已丢弃 人物/新角色1.md') && expanded.text.includes('沈藏'), JSON.stringify(expanded && expanded.text.slice(0, 140)))
+  ok('D4 展开块逐条换行（\\n 生效）且 white-space=pre-wrap', Boolean(expanded) && expanded.hasNewline && expanded.whiteSpace === 'pre-wrap', JSON.stringify({ hasNewline: expanded.hasNewline, whiteSpace: expanded.whiteSpace }))
+  ok('D5 展开后 toast 高度扩展（体积断言：折叠 → 展开差值 >20px）', Boolean(toastInfo) && Boolean(expanded) && expanded.h > toastInfo.h + 20, JSON.stringify({ collapsed: toastInfo && toastInfo.h, expanded: expanded && expanded.h }))
+  await shoot(page, 'guard-3entry-toast-expanded')
+  // 收起 → 明细文本再次隐藏
+  await page.eval(`(() => { const b = document.querySelector('.zj-toast button[aria-label="收起明细"]'); if (b) b.click(); return 1 })()`)
+  await sleep(300)
+  const collapsedBack = await page.eval(`[...document.querySelectorAll('.zj-toast')].some((t) => (t.innerText || '').includes('切片同步') && !(t.innerText || '').includes('已纠正 人物/沈眠.md'))`)
+  ok('D6 点「收起明细」后明细文本再次隐藏', collapsedBack === true)
   page.close()
   try { await fetch(CDP + '/json/close/' + tab.id, { method: 'PUT' }) } catch {}
 }
