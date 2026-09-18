@@ -450,6 +450,7 @@ const settings: AppSettings = {
   typewriterEnabled: false,
   agentPanelWidth: AGENT_PANEL_DEFAULT_WIDTH,
   foldedCols: { novel: false, characters: false, worldview: false, outline: false, library: false },
+  settingsPane: 'workspace',
   agentTools: { todo: true, askUser: true }
 }
 

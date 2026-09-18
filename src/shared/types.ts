@@ -92,6 +92,9 @@ export interface LlmSettings {
   providers: Partial<Record<LlmProviderId, LlmProviderCfg>>
 }
 
+/** 设置页 pane 键（体验层 2026-09-18；与 Settings.tsx SECTIONS 的 key 一一对应，HIG Settings 分区导航） */
+export type SettingsPaneKey = 'workspace' | 'engine' | 'look' | 'about'
+
 /** 设置（存 app userData） */
 export interface AppSettings {
   /** 工作区根目录（空则用 文档/织卷工作区）；相关文档与项目库都在其下 */
@@ -113,6 +116,9 @@ export interface AppSettings {
    * 人物与世界观共用 DocSection 组件但按键分开——两页折叠态相互独立（与旧会话内行为一致）。
    * setSettings 是浅合并——改任一键必须传全量对象（先例 agentPanelWidth 平铺键；foldedCols 聚合为一键避免四处平铺）。 */
   foldedCols: { novel: boolean; characters: boolean; worldview: boolean; outline: boolean; library: boolean }
+  /** 设置页当前 pane（体验层 2026-09-18；HIG Settings「Restore the most recently viewed pane」——macOS 系统设置打开回到上次分区）。
+   * 默认 workspace；在 Settings.tsx 侧栏选择时即时写盘。 */
+  settingsPane: SettingsPaneKey
   /** 常用 agent 工具开关（harness 引擎内） */
   agentTools?: { todo?: boolean; askUser?: boolean }
   /** agent 能力开关（模块 J / E3）：缺省 = 全开；值为 false 即关闭该能力 */
@@ -130,6 +136,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   typewriterEnabled: false,
   agentPanelWidth: AGENT_PANEL_DEFAULT_WIDTH,
   foldedCols: { novel: false, characters: false, worldview: false, outline: false, library: false },
+  settingsPane: 'workspace',
   agentTools: { todo: true, askUser: true }
 }
 

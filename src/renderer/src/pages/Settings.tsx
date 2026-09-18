@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppStore, applyTheme } from '../store/app'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -12,6 +12,7 @@ import LoadingIndicator from '../components/LoadingIndicator'
 import ShortcutHelp from '../features/command/ShortcutHelp'
 import { PROVIDER_PRESETS, providerById } from '../../../shared/providers'
 import type { LlmProviderId } from '../../../shared/types'
+import type { SettingsPaneKey } from '../../../shared/types'
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -31,6 +32,7 @@ const SECTIONS = [
   { key: 'about', label: '关于', hint: '版本与本地数据', icon: 'Info' }
 ] as const
 type SectionKey = (typeof SECTIONS)[number]['key']
+const SECTION_KEYS: SettingsPaneKey[] = SECTIONS.map((s) => s.key)
 
 export default function Settings() {
   const { settings, settingsErr, loadSettings, updateSettings } = useAppStore()
@@ -55,7 +57,18 @@ export default function Settings() {
   const [caps, setCaps] = useState<Record<string, boolean>>({})
   const [capsMeta, setCapsMeta] = useState<{ id: string; title: string; description?: string }[]>([])
   const [saved, setSaved] = useState(false)
+  const [saveErr, setSaveErr] = useState('')
   const [section, setSection] = useState<SectionKey>('workspace')
+  // HIG Settings「Restore the most recently viewed pane」：打开回到上次分区（即时写盘 settingsPane）。
+  // touched ref 防「设置异步加载完成时覆盖用户已点选的新 pane」——仅首次加载未触碰时恢复持久化值。
+  const paneTouched = useRef(false)
+
+  /** 选择分区：即时写盘上次 pane（HIG macOS Settings 惯例） */
+  function selectPane(k: SectionKey) {
+    paneTouched.current = true
+    setSection(k)
+    void updateSettings({ settingsPane: k as SettingsPaneKey }).catch(() => {})
+  }
 
   const refreshWorkspace = useCallback(async () => {
     try {
@@ -81,6 +94,10 @@ export default function Settings() {
 
   useEffect(() => {
     if (!settings) return
+    // 恢复上次 pane（HIG Settings「Restore the most recently viewed pane」）；用户已主动点选则尊重
+    if (!paneTouched.current && SECTION_KEYS.includes(settings.settingsPane)) {
+      setSection(settings.settingsPane)
+    }
     setWorkspacePath(settings.workspace)
     const llm = settings.llm ?? { active: 'local' as LlmProviderId, providers: {} }
     setProvider(llm.active)
@@ -126,21 +143,27 @@ export default function Settings() {
       ...(provBaseUrl.trim() ? { baseUrl: provBaseUrl.trim() } : {}),
       ...(provModel.trim() ? { model: provModel.trim() } : {})
     }
-    await updateSettings({
-      workspace: workspacePath.trim(),
-      llm: { active: provider, providers },
-      libraryRoot: libraryRoot.trim(),
-      theme,
-      collectionEnabled: collection,
-      annotationsEnabled: annotations,
-      focusModeEnabled: focusMode,
-      typewriterEnabled: typewriter,
-      agentTools: tools
-    })
-    setSaved(true)
-    setTimeout(() => setSaved(false), 1500)
-    void refreshWorkspace()
-    void refreshLibrary()
+    try {
+      await updateSettings({
+        workspace: workspacePath.trim(),
+        llm: { active: provider, providers },
+        libraryRoot: libraryRoot.trim(),
+        theme,
+        collectionEnabled: collection,
+        annotationsEnabled: annotations,
+        focusModeEnabled: focusMode,
+        typewriterEnabled: typewriter,
+        agentTools: tools
+      })
+      setSaveErr('')
+      setSaved(true)
+      setTimeout(() => setSaved(false), 1500)
+      void refreshWorkspace()
+      void refreshLibrary()
+    } catch (e) {
+      // 写盘失败不静默（HIG：错误就地、可行动）；FieldError 同款 role=alert 语义
+      setSaveErr(`设置保存失败：${String((e as Error).message ?? e)}`)
+    }
   }
 
   async function initWorkspace() {
@@ -172,7 +195,7 @@ export default function Settings() {
         {SECTIONS.map((s) => (
           <button
             key={s.key}
-            onClick={() => setSection(s.key)}
+            onClick={() => selectPane(s.key)}
             className={cn(
               'flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors',
               section === s.key ? 'bg-accent-soft' : 'hover:bg-surface'
@@ -227,7 +250,12 @@ export default function Settings() {
               <p className="mt-0.5 text-sm text-ink-3">{cur?.hint}</p>
             </div>
             <div className="flex items-center gap-2">
-              {saved && <span className="text-xs text-success">已保存 ✓</span>}
+              {saved && !saveErr && <span className="text-xs text-success">已保存 ✓</span>}
+              {saveErr && (
+                <span role="alert" className="max-w-56 truncate text-xs text-danger" title={saveErr}>
+                  {saveErr}
+                </span>
+              )}
               <Button onClick={() => void save()}>保存设置</Button>
             </div>
           </div>
@@ -295,9 +323,16 @@ export default function Settings() {
                   label="服务商"
                   hint="写作引擎始终走你选中的这家；切换即完成远程模型对接。保存后下一次对话生效（本机为默认，无需任何配置）。"
                 >
-                  <div className="flex flex-wrap gap-1 rounded-lg border border-hair p-1">
+                  <div className="flex flex-wrap gap-1 rounded-lg border border-hair p-1" role="group" aria-label="服务商">
                     {PROVIDER_PRESETS.map((p) => (
-                      <Button key={p.id} variant={provider === p.id ? 'default' : 'ghost'} size="sm" className="h-7" onClick={() => selectProvider(p.id)}>
+                      <Button
+                        key={p.id}
+                        variant={provider === p.id ? 'default' : 'ghost'}
+                        size="sm"
+                        className="h-7"
+                        aria-pressed={provider === p.id}
+                        onClick={() => selectProvider(p.id)}
+                      >
                         {p.name}
                       </Button>
                     ))}
@@ -395,11 +430,32 @@ export default function Settings() {
                     <Label>主题</Label>
                     <p className="text-xs text-ink-3">暖纸（默认）适合长时间写作，深色适合夜间。</p>
                   </div>
-                  <div className="flex gap-1 rounded-lg border border-hair p-0.5">
-                    <Button variant={theme === 'paper' ? 'default' : 'ghost'} size="sm" className="h-7" onClick={() => { setTheme('paper'); applyTheme('paper') }}>
+                  <div className="flex gap-1 rounded-lg border border-hair p-0.5" role="group" aria-label="主题">
+                    <Button
+                      variant={theme === 'paper' ? 'default' : 'ghost'}
+                      size="sm"
+                      className="h-7"
+                      aria-pressed={theme === 'paper'}
+                      onClick={() => {
+                        setTheme('paper')
+                        applyTheme('paper')
+                        // 即时写盘：与开关族同口径（HIG Settings 即时生效；避免「切了主题没点保存离开=丢」）
+                        void updateSettings({ theme: 'paper' }).catch(() => {})
+                      }}
+                    >
                       暖纸
                     </Button>
-                    <Button variant={theme === 'dark' ? 'default' : 'ghost'} size="sm" className="h-7" onClick={() => { setTheme('dark'); applyTheme('dark') }}>
+                    <Button
+                      variant={theme === 'dark' ? 'default' : 'ghost'}
+                      size="sm"
+                      className="h-7"
+                      aria-pressed={theme === 'dark'}
+                      onClick={() => {
+                        setTheme('dark')
+                        applyTheme('dark')
+                        void updateSettings({ theme: 'dark' }).catch(() => {})
+                      }}
+                    >
                       深色
                     </Button>
                   </div>
