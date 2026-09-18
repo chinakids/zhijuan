@@ -12,6 +12,7 @@ import { cn } from '../../lib/utils'
 import { isImeComposing } from '../../lib/ime'
 import { buildLibraryTree, type LibraryFileItem } from '../../../../shared/libraryTree'
 import { extractFrontMatter } from '../../../../shared/fmatter'
+import { isMaterialCard, materialPreview, materialTags } from '../../../../shared/materialCard'
 import type { LibraryCategory, SearchHit } from '../../../../shared/types'
 import DocEditor from '../editor/DocEditor'
 import { useFsChanged, useFsEvents } from '../fs/useFsEvents'
@@ -25,28 +26,6 @@ interface CardMeta {
 function materialTemplate(name: string): string {
   return `# ${name}\n\n## 用途\n\n## 正文可复用的点\n\n## 来源与版权注意\n`
 }
-
-/** front matter 里的标签（兼容 `标签:`（旧演示）与 `tags:`（模块设计）两种键） */
-function tagsOf(text: string): string[] {
-  const { fm } = extractFrontMatter(text)
-  if (!fm) return []
-  const raw = fm['标签'] ?? fm['tags'] ?? fm['标签:'] ?? null
-  if (Array.isArray(raw)) return raw.map(String)
-  return raw ? String(raw).split(/[,，]/).map((s) => s.trim()).filter(Boolean) : []
-}
-
-/** 首屏预览：第一个非空行（含标题行——标题最有辨识度；截 72 字） */
-function previewOf(text: string): string {
-  const { body } = extractFrontMatter(text)
-  for (const line of body.split('\n')) {
-    const t = line.trim()
-    if (!t) continue
-    return t.length > 72 ? t.slice(0, 72) + '…' : t
-  }
-  return ''
-}
-
-const isMaterialFile = (f: string) => !f.startsWith('采集池/') && f !== '索引.md' && !f.startsWith('.')
 
 interface LibraryBrowserProps {
   /** 外部请求打开某个素材（相对项目根路径，如 素材库/人物/x.md；来自 ⌘K 面板搜索跳转） */
@@ -110,7 +89,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
   // 素材卡元信息（预览/标签）——当前选中类别变化时（重）读；全部文件量小，逐条读前 2KB 不阻塞
   useEffect(() => {
     let cancel = false
-    const matFiles = selCat ? files.filter((f) => isMaterialFile(f.file) && f.file.split('/')[0] === selCat) : []
+    const matFiles = selCat ? files.filter((f) => isMaterialCard(f.file) && f.file.split('/')[0] === selCat) : []
     if (!matFiles.length) {
       setCards(new Map())
       return
@@ -120,7 +99,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
       for (const f of matFiles) {
         try {
           const text = (await window.zhijuan.readDoc(id, '素材库/' + f.file)) ?? ''
-          map.set(f.file, { preview: previewOf(text), tags: tagsOf(text) })
+          map.set(f.file, { preview: materialPreview(text), tags: materialTags(text) })
         } catch {
           // 单张素材读取失败不阻断列表（其余卡片照常显示；列表本身有错误卡兜底）
         }
@@ -141,7 +120,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
 
   // 树：类别（含 count） + 素材文件（排除采集池/索引）
   const tree = useMemo(
-    () => buildLibraryTree(categories, files.filter((f) => isMaterialFile(f.file))),
+    () => buildLibraryTree(categories, files.filter((f) => isMaterialCard(f.file))),
     [categories, files]
   )
 
@@ -211,7 +190,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
   const matInCat = useMemo(
     () =>
       files
-        .filter((f) => isMaterialFile(f.file) && (!selCat || f.file.split('/')[0] === selCat))
+        .filter((f) => isMaterialCard(f.file) && (!selCat || f.file.split('/')[0] === selCat))
         .sort((a, b) => b.mtime - a.mtime),
     [files, selCat]
   )

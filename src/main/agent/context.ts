@@ -12,6 +12,7 @@ import { stripHtmlComments } from '../../shared/comments'
 import { matchActPlaceholders } from '../../shared/actsSeg'
 import { WCTX_CAPS as CAP } from '../../shared/contextCaps'
 import { chapterLine, linePredecessor, lineSliceNames, filterCharDocByLine, DEFAULT_LINE } from '../../shared/line'
+import { isMaterialCard, materialTags, materialContextPreview } from '../../shared/materialCard'
 
 export interface WritingContext {
   blocks: string[]
@@ -228,11 +229,35 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
     }
   }
 
-  // 6. 素材库索引（只给路标，细节仍 zj_* 现读）
-  const idx = read('素材库/索引.md')
-  if (idx.trim()) {
-    blocks.push(`【素材库索引】\n${capHead(idx, CAP.material, '素材库索引', '素材库/索引.md')}`)
-    sources.push('素材库/索引.md')
+  // 6. 素材库路标（2026-09-18 素材注入链路审计修复：静态 素材库/索引.md 无任何程序维护端——
+  //    骨架模板占位/人工陈旧/缺失都会让注入变成「看似索引」的零信号（模板说明文字）或干脆缺块；
+  //    改以素材文件为权威、运行时生成本——与「大纲/索引.md 供人看、装配用章卡文件」同构；
+  //    Anthropic 上下文工程：每次注入须 curated（真信号），低信号注入稀释模型注意力预算）。
+  //    静态索引.md 回归其设计定位（作者侧类别目录/采集入口说明，模块设计 §9），不再进模型上下文。
+  const matDocs = listDocs(projectId, '素材库')
+    .filter((d) => isMaterialCard(d.file))
+    .sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0))
+  if (matDocs.length > 0) {
+    const itemLines = matDocs.map((d) => {
+      const rel = '素材库/' + d.file
+      const raw = read(rel)
+      const tags = materialTags(raw)
+      const tagPart = tags.length ? `（标签：${tags.slice(0, 4).join('、')}）` : ''
+      // 路标预览=materialContextPreview：H1=素材名时取正文行（增量），题名≠文件名时保留题名（采集草稿）
+      const preview = materialContextPreview(raw, d.name, 48)
+      const name = d.file.replace(/\.md$/, '')
+      return `- ${name}${tagPart}${preview ? `：${preview}` : ''}`
+    })
+    let idx = itemLines.join('\n')
+    const over = idx.length - CAP.material
+    if (over > 0) {
+      // 路标是「多个素材文件」拼成的清单，无单一文件可 zj_read_doc 现读——超限提示指 zj_search
+      // （dir=素材库）而非 capHead 的「单文件现读」口径（2026-09-18）。
+      const note = `（素材库共 ${matDocs.length} 篇，路标超 ${CAP.material} 字符预算：仅列前若干篇；要看其他素材请用 zj_search 搜索（dir=素材库））\n`
+      idx = note + idx.slice(0, Math.max(0, CAP.material - note.length))
+    }
+    blocks.push(`【素材库索引】\n${idx}`)
+    for (const d of matDocs) sources.push('素材库/' + d.file)
   }
 
   return { blocks, sources }

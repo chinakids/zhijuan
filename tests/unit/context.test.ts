@@ -32,6 +32,8 @@ const FM_OBJ_2 = { '章号': 2, '题名': '第二章', '切片': '第二幕', '�
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // 2026-09-18 素材路标动态生成：素材库默认空（各用例按需覆盖；防 buildWritingContext 新 listDocs 调用 undefined 抛错）
+  listDocsMock.mockReturnValue([] as never)
 })
 
 describe('buildWritingContext（写作上下文装配）', () => {
@@ -46,11 +48,19 @@ describe('buildWritingContext（写作上下文装配）', () => {
         '人物/苏禾.md': '苏禾档案',
         '世界观/切片_第二幕.md': '切片设定',
         '大纲/第2章_雾.md': '章卡一句话',
-        '素材库/索引.md': '索引路标'
+        '素材库/桥段/旧物定情.md': '---\n标签: [桥段, 旧物, 相遇]\n---\n\n# 旧物定情\n\n用一个旧物件串起两人第一次真正交集的场景。\n',
+        '素材库/环境/雾海夜航.md': '---\n标签: [环境, 雾, 夜]\n---\n\n# 雾海夜航\n\n大雾的夜里，港口的能见度往往不足五十米。\n'
       }
       return table[rel] ?? null
     })
     listChaptersMock.mockReturnValue([chEntry('第1章_云.md', FM_OBJ_1), chEntry('第2章_雾.md', FM_OBJ_2)] as never)
+    // 素材库：素材文件为权威、路标运行时生成（2026-09-18）；采集池任务卡/索引.md 不注入
+    listDocsMock.mockReturnValue([
+      { file: '采集池/任务_1.md', name: '任务_1', mtime: 0 },
+      { file: '索引.md', name: '索引', mtime: 0 },
+      { file: '桥段/旧物定情.md', name: '旧物定情', mtime: 0 },
+      { file: '环境/雾海夜航.md', name: '雾海夜航', mtime: 0 }
+    ] as never)
 
     const { blocks, sources } = await buildWritingContext('p', '正文/第2章_雾.md')
 
@@ -64,7 +74,8 @@ describe('buildWritingContext（写作上下文装配）', () => {
       '人物/苏禾.md',
       '世界观/切片_第二幕.md',
       '大纲/第2章_雾.md',
-      '素材库/索引.md'
+      '素材库/桥段/旧物定情.md',
+      '素材库/环境/雾海夜航.md'
     ])
     // 第 5 位（第五）不进档案，但名单要全量给出（2026-09-10 上下文审计修复）
     expect(blocks).toHaveLength(10)
@@ -81,6 +92,12 @@ describe('buildWritingContext（写作上下文装配）', () => {
     // front matter 不泄漏进上下文
     expect(blocks.join('\n')).not.toMatch(/^---\n?/)
     expect(blocks.join('\n')).not.toContain('章号:')
+    // 素材路标：内容=素材文件（类别/标题/标签/首段预览），采集池任务卡与索引.md 不进（2026-09-18）
+    const mat = blocks.find((b) => b.includes('素材库索引'))
+    expect(mat).toContain('桥段/旧物定情（标签：桥段、旧物、相遇）：用一个旧物件串起两人第一次真正交集的场景')
+    expect(mat).toContain('环境/雾海夜航（标签：环境、雾、夜）：大雾的夜里，港口的能见度往往不足五十米')
+    expect(mat).not.toContain('采集池')
+    expect(mat).not.toContain('索引路标')
   })
 
   it('预算硬控：正文 ≤WCTX_CAPS.chapter、人物 ≤4000、切片 ≤4000、素材索引 ≤1200', async () => {
@@ -88,10 +105,11 @@ describe('buildWritingContext（写作上下文装配）', () => {
       if (rel === '正文/第1章_b.md') return FM_1 + '甲'.repeat(WCTX_CAPS.chapter + 1000)
       if (rel === '人物/林晚.md') return '乙'.repeat(5000)
       if (rel === '世界观/切片_第一幕.md') return '丙'.repeat(5000)
-      if (rel === '素材库/索引.md') return '丁'.repeat(3000)
+      if (rel === '素材库/桥段/追忆型.md') return '---\n标签: [桥段]\n---\n\n# 追忆型\n\n' + '丁'.repeat(3000)
       return null
     })
     listChaptersMock.mockReturnValue([] as never)
+    listDocsMock.mockReturnValue([{ file: '桥段/追忆型.md', name: '追忆型', mtime: 0 }] as never)
 
     const { blocks } = await buildWritingContext('p', '正文/第1章_b.md')
     const all = blocks.join('\n')
@@ -104,8 +122,11 @@ describe('buildWritingContext（写作上下文装配）', () => {
     expect(all).not.toMatch(/乙{4001}/)
     expect(all).toMatch(/丙{4000}/)
     expect(all).not.toMatch(/丙{4001}/)
-    expect(all).toMatch(/丁{1200}/)
-    expect(all).not.toMatch(/丁{1201}/)
+    // 素材路标：内容=素材文件，预览按 48 字截断（2026-09-18 动态路标）
+    const mat = blocks.find((b) => b.includes('素材库索引'))
+    expect(mat).toContain('桥段/追忆型（标签：桥段）')
+    expect(mat).toContain('丁'.repeat(48) + '…')
+    expect(mat).not.toContain('丁'.repeat(49))
   })
 
   it('正文超预算装配**结尾**：续写场景拿到「刚写到哪里」，开头可 zj_read_doc 现读', async () => {
@@ -299,8 +320,7 @@ describe('buildWritingContext（写作上下文装配）', () => {
         '正文/第2章_雾.md': FM_2 + '第二章正文',
         '大纲/第2章_雾.md': '章卡一句话',
         '大纲/第2章_雾_导演.md':
-          ['---', '章号: 2', '题名: 雾', '切片: 第二幕', '状态: 已生成', '---', '', '## 情绪弧分段', '1. **推进**：abc', '', '## 波峰', '', '第 3 段 · 高潮', '', '## 人物行为轴', '', '- **林晚（试探）**：步步靠近', '', '## 写作红线（不许破）', '', '- 不揭穿旧事', ''].join('\n') + '\n',
-        '素材库/索引.md': '索引路标'
+          ['---', '章号: 2', '题名: 雾', '切片: 第二幕', '状态: 已生成', '---', '', '## 情绪弧分段', '1. **推进**：abc', '', '## 波峰', '', '第 3 段 · 高潮', '', '## 人物行为轴', '', '- **林晚（试探）**：步步靠近', '', '## 写作红线（不许破）', '', '- 不揭穿旧事', ''].join('\n') + '\n'
       }
       return table[rel] ?? null
     })
@@ -538,40 +558,62 @@ describe('预算截断可见性（2026-09-13 上下文审计第二轮收口）',
     expect(board).not.toContain('【板尾标记】')
   })
 
-  it('素材库索引超预算：保头 + 注明 + 可现读（路标被截也告知模型可再读）', async () => {
+  it('素材库路标超预算（>1200 字符）：注明共 N 篇 + 超预算 + 指 zj_search（dir=素材库），保留可容纳的前若干条', async () => {
     readDocMock.mockImplementation((_id: string, rel: string) => {
       if (rel === '正文/第1章_a.md') return FM_1 + '第一章正文'
-      if (rel === '素材库/索引.md') return '【索首标记】' + '索'.repeat(1500) + '【索尾标记】'
+      // 20 个素材：每条「- 类别/素材NN（标签：…）：<48 字预览>」≈90 字符 → 合计 ≈1800 > 1200
+      for (let i = 1; i <= 20; i++) {
+        const cat = i % 2 ? '桥段' : '环境'
+        if (rel === `素材库/${cat}/素材${String(i).padStart(2, '0')}.md`) {
+          return `---\n标签: [${cat}, 标签${i}]\n---\n\n# 素材${String(i).padStart(2, '0')}\n\n` + `索${i}`.repeat(30)
+        }
+      }
       return null
     })
     listChaptersMock.mockReturnValue(noPrev)
+    listDocsMock.mockReturnValue(
+      Array.from({ length: 20 }, (_, i) => {
+        const n = i + 1
+        return { file: `${n % 2 ? '桥段' : '环境'}/素材${String(n).padStart(2, '0')}.md`, name: `素材${String(n).padStart(2, '0')}`, mtime: 0 }
+      }) as never
+    )
     const { blocks } = await buildWritingContext('p', '正文/第1章_a.md')
     const idx = blocks.find((b) => b.includes('素材库索引'))
     expect(idx).toBeTruthy()
-    expect(idx).toContain('已超 1200 字符预算')
-    expect(idx).toContain('已省略')
-    expect(idx).toContain('素材库/索引.md')
-    expect(idx).toContain('【索首标记】')
-    expect(idx).not.toContain('【索尾标记】')
+    expect(idx).toContain('素材库共 20 篇')
+    expect(idx).toContain('超 1200 字符预算')
+    expect(idx).toContain('zj_search 搜索（dir=素材库）')
+    // 保头：首条在；尾条被截掉
+    expect(idx).toContain('素材01')
+    expect(idx).not.toContain('素材20')
+    // 路标整体 ≤1200（提示行 + 内容）
+    expect(idx!.length - '【素材库索引】\n'.length).toBeLessThanOrEqual(1200)
   })
 
-  it('章卡/导演板/素材索引未超预算：原样全量装配，零提示零回归', async () => {
+  it('素材库路标未超预算：素材文件（类别/标题/标签/首段预览）原样全量装配，零提示；索引.md/采集池不注入', async () => {
     readDocMock.mockImplementation((_id: string, rel: string) => {
       if (rel === '正文/第1章_a.md') return FM_1 + '第一章正文'
       if (rel === '大纲/第1章_a.md') return '章卡一句话'
       if (rel === '大纲/第1章_a_导演.md') return '导演板一句话'
-      if (rel === '素材库/索引.md') return '索引路标'
+      if (rel === '素材库/桥段/旧物定情.md') {
+        return '---\n标签: [桥段, 旧物, 相遇]\n---\n\n# 旧物定情\n\n用一个旧物件串起两人第一次真正交集的场景。\n'
+      }
       return null
     })
     listChaptersMock.mockReturnValue(noPrev)
+    listDocsMock.mockReturnValue([
+      { file: '索引.md', name: '索引', mtime: 0 },
+      { file: '采集池/任务_1.md', name: '任务_1', mtime: 0 },
+      { file: '桥段/旧物定情.md', name: '旧物定情', mtime: 0 }
+    ] as never)
     const { blocks } = await buildWritingContext('p', '正文/第1章_a.md')
     const all = blocks.join('\n')
     expect(all).toContain('章卡一句话')
     expect(all).toContain('导演板一句话')
-    expect(all).toContain('索引路标')
+    expect(all).toContain('- 桥段/旧物定情（标签：桥段、旧物、相遇）：用一个旧物件串起两人第一次真正交集的场景')
+    expect(all).not.toContain('索引.md')
     expect(all).not.toContain('已超')
     expect(all).not.toContain('已省略')
-    expect(all).not.toContain('…')
   })
 
   it('buildProjectContext：作品总纲/世界观总纲超预算注明省略，文档清单路标仍全量', async () => {

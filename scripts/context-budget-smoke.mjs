@@ -30,8 +30,21 @@ writeFileSync(P('正文/第01章_预算.md'), FM, 'utf-8')
 writeFileSync(P('大纲/第01章_预算.md'), '【卡首标记】' + '卡'.repeat(2200) + '【卡尾标记】', 'utf-8')
 // ② 导演板超预算（2600 > 2500）
 writeFileSync(P('大纲/第01章_预算_导演.md'), '【板首标记】' + '板'.repeat(2600) + '【板尾标记】', 'utf-8')
-// ③ 素材索引超预算（1500 > 1200）
+// ③ 素材库路标超预算（20 个素材 ≈1500+ > 1200；2026-09-18 改动态路标——素材文件为权威，索引.md 不再是信号源）
+mkdirSync(P('素材库/桥段'), { recursive: true })
+mkdirSync(P('素材库/环境'), { recursive: true })
+for (let i = 1; i <= 20; i++) {
+  const cat = i % 2 ? '桥段' : '环境'
+  writeFileSync(
+    P(`素材库/${cat}/素材${String(i).padStart(2, '0')}.md`),
+    `---\n标签: [${cat}, 标签${i}]\n---\n\n# 素材${String(i).padStart(2, '0')}\n\n` + `索${i}`.repeat(30),
+    'utf-8'
+  )
+}
+// 采集池任务卡 + 索引.md 存在但不得进路标（判据 isMaterialCard）
 writeFileSync(P('素材库/索引.md'), '【索首标记】' + '索'.repeat(1500) + '【索尾标记】', 'utf-8')
+mkdirSync(P('素材库/采集池'), { recursive: true })
+writeFileSync(P('素材库/采集池/任务_1.md'), 'status: pending', 'utf-8')
 // ④ 项目总纲/世界观总纲超预算（buildProjectContext）
 writeFileSync(P('project.md'), '【纲首标记】' + '纲'.repeat(3200) + '【纲尾标记】', 'utf-8')
 writeFileSync(P('世界观/总纲.md'), '【世首标记】' + '世'.repeat(2300) + '【世尾标记】', 'utf-8')
@@ -69,7 +82,8 @@ ok('章卡超限标记存在', card.includes('【卡首标记】'))
 ok('章卡超限尾部被裁', !card.includes('【卡尾标记】'))
 ok('章卡超限注明预算+省略+现读', card.includes('已超 2000 字符预算') && card.includes('已省略') && card.includes('zj_read_doc'))
 ok('导演板超限注明', board.includes('已超 2500 字符预算') && board.includes('已省略') && board.includes('【板首标记】') && !board.includes('【板尾标记】'))
-ok('素材索引超限注明', idx.includes('已超 1200 字符预算') && idx.includes('已省略') && idx.includes('【索首标记】') && !idx.includes('【索尾标记】'))
+ok('素材库路标超限注明', idx.includes('素材库共 20 篇') && idx.includes('超 1200 字符预算') && idx.includes('zj_search 搜索（dir=素材库）') && idx.includes('素材01') && !idx.includes('素材20'))
+ok('素材路标不含索引.md/采集池', !idx.includes('【索首标记】') && !idx.includes('任务_1'))
 const chapter = ctx.blocks.find((b) => b.includes('当前章节')) ?? ''
 const slice = ctx.blocks.find((b) => b.includes('当前切片设定')) ?? ''
 ok('正文/切片未超限零提示', !chapter.includes('已超') && !slice.includes('已超'))

@@ -74,7 +74,7 @@ describe('项目全流程（临时目录真实落盘）', () => {
     const meta = readFileSync(join(dir, 'project.md'), 'utf-8')
     expect(meta).toContain('name: 雾港')
     expect(meta).toContain('时间线总纲')
-    expect(p.stats).toEqual({ chapters: 0, characters: 0, worldviewFiles: 0, materials: 1 }) // skeleton 自带的 素材库/索引.md 计入
+    expect(p.stats).toEqual({ chapters: 0, characters: 0, worldviewFiles: 0, materials: 0 }) // 骨架自带 素材库/索引.md 是目录文档，不计入素材卡（2026-09-18 口径统一 isMaterialCard）
   })
 
   it('同名项目自动加后缀，不互相覆盖', () => {

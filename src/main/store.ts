@@ -18,6 +18,7 @@ import {
 import { extractFrontMatter, serializeFrontMatter, setFrontMatterField } from '../shared/fmatter'
 import { posixRel, toPosix } from '../shared/relpath'
 import { isOutlineCardRel, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterSliceInDoc } from '../shared/outline'
+import { isMaterialCard } from '../shared/materialCard'
 import { listChapterEntries } from '../shared/chapters'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, DOT_DIR } from '../shared/paths'
 import { sanitizeFile } from '../shared/paths'
@@ -142,7 +143,7 @@ function summarize(id: string): ProjectSummary | null {
     chapters: countFiles(id, '正文'),
     characters: Math.max(0, chars),
     worldviewFiles: Math.max(0, world),
-    materials: countFiles(id, '素材库') - (existsSync(rel('素材库/采集池')) ? countFiles(id, '素材库/采集池') : 0)
+    materials: listDocs(id, '素材库').filter((d) => isMaterialCard(d.file)).length
   }
   const lastChapter = listChapters(id)[0]?.name
   return { ...meta, stats, lastChapter }

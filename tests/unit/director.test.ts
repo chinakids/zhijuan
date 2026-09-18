@@ -26,7 +26,7 @@ import { extractDirector, runDirector, cancelDirector, directorRel, type Directo
 import { driveSession } from '../../src/main/agent/runtime'
 import { listCapabilities } from '../../src/main/agent/subtask'
 import { setSettings } from '../../src/main/settings'
-import { readDoc, listChapters, writeDoc } from '../../src/main/store'
+import { readDoc, listChapters, writeDoc, listDocs } from '../../src/main/store'
 
 afterAll(() => {
   rmSync(holder.tmp, { recursive: true, force: true })
@@ -36,10 +36,13 @@ const driveMock = vi.mocked(driveSession)
 const readMock = vi.mocked(readDoc)
 const listChaptersMock = vi.mocked(listChapters)
 const writeMock = vi.mocked(writeDoc)
+const listDocsMock = vi.mocked(listDocs)
 
 beforeEach(() => {
   vi.clearAllMocks()
   setSettings({ capabilities: {}, workspace: '', libraryRoot: '' })
+  // 素材路标动态生成（2026-09-18）：素材库默认空，防 buildWritingContext 内 listDocs undefined 抛错
+  listDocsMock.mockReturnValue([] as never)
 })
 
 describe('extractDirector（导演板提取）', () => {
