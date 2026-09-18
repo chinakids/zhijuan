@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams, useOutletContext } from 'react-router-dom'
-import { Plus, BookOpen, PanelLeftOpen, X } from 'lucide-react'
+import { Plus, BookOpen, PanelLeftOpen, PanelLeftClose, X } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import type { ChapterEntry, ChapterCheckKind, UnlistedHit, MissingHit } from '../../../shared/types'
 import { serializeFrontMatter, addFrontMatterListItem, removeFrontMatterListItem } from '../../../shared/fmatter'
@@ -117,8 +117,12 @@ export default function Novel() {
   // 正文可用宽 <360px 时折叠章节列，改由「章节列表」浮层访问；Agent 面板拖宽会抬高阈值（正文始终受保护）
   const [winW, setWinW] = useState<number>(() => window.innerWidth)
   const [chapOpen, setChapOpen] = useState(false)
+  // 宽窗手动折叠（2026-09-18 体验层；HIG Sidebars「let people hide and show the sidebar」）：
+  // 与 narrow 正交——窄窗=自动（渲染判据），宽窗=作者主动收起；会话内状态不持久化（持久化待自然需求）
+  const [chapHidden, setChapHidden] = useState(false)
   const agentWd = useUiStore((s) => s.agentPanelWidth) ?? AGENT_PANEL_DEFAULT_WIDTH
   const narrow = shouldCollapseChapterList(winW, agentWd)
+  const effectiveNarrow = narrow || chapHidden
   const chapRef = useRef<HTMLDivElement | null>(null)
   const prevSelRef = useRef<string | null>(sel)
   useEffect(() => {
@@ -517,6 +521,11 @@ export default function Novel() {
         <Button variant="ghost" size="icon" className="h-7 w-7" title="新建章节" aria-label="新建章节" onClick={openCreate}>
           <Plus />
         </Button>
+        {!narrow && (
+          <Button variant="ghost" size="icon" className="h-7 w-7" title="隐藏章节列表" aria-label="隐藏章节列表" onClick={() => setChapHidden(true)}>
+            <PanelLeftClose />
+          </Button>
+        )}
         {narrow && (
           <Button variant="ghost" size="icon" className="h-7 w-7" title="关闭章节列表" aria-label="关闭章节列表" onClick={() => setChapOpen(false)}>
             <X />
@@ -603,7 +612,7 @@ export default function Novel() {
 
   return (
     <div className="flex h-full min-h-0">
-      {!narrow && (
+      {!effectiveNarrow && (
         <aside data-testid="chapter-sidebar" className="flex w-60 shrink-0 flex-col border-r border-hair bg-surface-2">
           {chapterHeader}
           {chapterList}
@@ -668,8 +677,8 @@ export default function Novel() {
           }
         }}
       >
-        {/* 窄窗入口条：章节列已折叠时提供「章节列表」入口（HIG Sidebars show/hide） */}
-        {narrow && (
+        {/* 入口条：章节列已折叠（窄窗自动 / 宽窗手动）时提供「显示章节列表」入口（HIG Sidebars show/hide） */}
+        {effectiveNarrow && (
           <div className="flex h-9 shrink-0 items-center gap-1 border-b border-hair px-2">
             <Button
               variant="ghost"
@@ -678,7 +687,7 @@ export default function Novel() {
               data-testid="chapter-toggle"
               title="显示章节列表"
               aria-label="显示章节列表"
-              onClick={() => setChapOpen((v) => !v)}
+              onClick={() => (narrow ? setChapOpen((v) => !v) : setChapHidden(false))}
             >
               <PanelLeftOpen />
             </Button>
@@ -705,14 +714,14 @@ export default function Novel() {
             {/* 规则体检状态栏（F-20260916-05）：本地规则常驻实时体检，图标即健康状态，点击看详情 */}
             <HealthBar projectId={id} refreshSignal={extVersion} />
           </>
-        ) : narrow ? (
+        ) : effectiveNarrow ? (
           <div className="flex h-full items-center justify-center">
             <EmptyState
               art="chapter"
               title="还没有选中章节"
-              hint="打开章节列表，选择一个章节开始写作。"
+              hint={narrow ? '打开章节列表，选择一个章节开始写作。' : '点击上方「显示章节列表」恢复侧栏，选择一个章节开始写作。'}
               action={
-                <Button onClick={() => setChapOpen(true)}>
+                <Button onClick={() => (narrow ? setChapOpen(true) : setChapHidden(false))} data-testid="pick-chapter">
                   <PanelLeftOpen /> 打开章节列表
                 </Button>
               }
