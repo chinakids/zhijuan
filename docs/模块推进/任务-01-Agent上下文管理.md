@@ -49,6 +49,13 @@
 - 实证：**MULTILINE-CTX LIVE OK** 首跑通过——Q1 答「第03章_灯下……红灯笼在檐下挂了一整夜」；Q2 准确复述「略去了其他时间线的切片小节『旧巷』」（=装配注明被模型利用）；Q3 只答主线状态不把子弹壳归当前线；调用工具=[]。
 - 交接：加入观察项验证资产清单（**改多线装配/换模型后复跑**）；只验证「不误承接」负向面，「模型主动跨线查询正确归因」正向面待时间线页（体验层）就绪后补场景；候选顺位不变。
 
+### 2026-09-18 09:00–09:5x（素材注入链路审计收口：素材库/索引.md 无任何程序维护端实锤→模型侧素材块改素材文件动态路标；提交 d4dd488，详见智能层档案 09:00 轮）
+
+- 背景：线 A 范围「装配」面里素材注入（主人主线②首项）从未行为层验证；审计发现静态 `素材库/索引.md` 唯一写入点=骨架模板（store.ts DEFAULT_FILES.libIndex 说明文字），采集回填/App 新建素材均不更新它，且现实项目核证三态（织卷smoke 缺失/agent冒烟 陈旧描述不存在素材/模板占位非空被注入）→ 素材注入=失效甚至误导。定位=「大纲/索引.md 供人看、装配用章卡文件」同构：索引是作者侧目录文档（模块设计 §9 不变），模型侧路标必须以素材文件为权威运行时生成。
+- 落地：`src/shared/materialCard.ts`（新单源：isMaterialCard/materialTags/materialPreview/materialContextPreview，LibraryBrowser 原私有三函数与 context/store 三口同源）；`context.ts` 素材块= listDocs('素材库') 过滤 isMaterialCard → 路标（类别/素材名/标签/增量预览，预算仍 1200、超限注明 zj_search dir=素材库——不套 capHead 的单文件现读提示）；`store.ts` stats.materials 同口径（不再把索引.md 计为素材，首页素材数修正）；三探针适配素材文件化。
+- 实证：三道门全绿（863 例 86 文件）；context-budget-smoke 全过；**context-full-live FULLCTX LIVE OK**（真模型题 8 从路标答出真实素材「潮汐笔记/雾中航标」、零工具）；context-tools-live OK（素材核心意象移文件中段保探针纯度）；library-cat-ui-smoke 全 PASS（渲染层抽取零回归）。
+- 交接：素材注入修复闭环；观察项——素材「使用侧」（路标→现读→用于创作）专门探针未单列；改素材卡判据/预览/标签先跑 materialCard.test + library-cat-ui-smoke + context-budget-smoke。
+
 ### 2026-09-18 03:00–03:2x（zj 工具描述-实现一致性审计收口：描述引导 offset 续读 + zj_search 诚实化）
 
 - 背景：00:00 轮观察项①「模型倾向 maxChars=80000 大读非 offset 续读」+ 09:00 轮观察项②「zj 工具描述示例」——zj 工具描述面此前从未系统审计；线 A 范围明文含「zj 工具层描述与可发现性」。

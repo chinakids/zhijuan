@@ -98,7 +98,7 @@
 ### M4 模型适配接入层 ✅ 完成（2026-09，主人拍板）
 - **模型适配接入层**（src/shared/providers.ts）：除本地 vLLM 外，可对接 DeepSeek / 智谱 GLM / OpenAI / Claude / Gemini 各家远程 API；设置页选服务商 + 填 key 即切，写作引擎按新厂商重启（沿用既有机制）。各家默认型号按官方文档核实（glm-5.3-flash、deepseek-v4 系、gpt-5.6、claude-4.5 系、gemini-2.5 系），全部可改。
 - **harness 默认生效**：删除 agentEngine 开关与 legacy 直连路径（llm.ts / context.ts / sliceSync legacy 分支），dsh 写作引擎是唯一创作引擎。
-- **创作上下文装配到主进程**（src/main/agent/context.ts）：runChat / runSync 自动注入 当前章 + 上一章尾部 + 涉及人物档案 + 当下切片世界观 + 本章章卡 + 素材库索引；预算硬控沿 M1.3 精神；不再要求模型每轮自己现读（细节仍可 zj_* 读）。
+- **创作上下文装配到主进程**（src/main/agent/context.ts）：runChat / runSync 自动注入 当前章 + 上一章尾部 + 涉及人物档案 + 当下切片世界观 + 本章章卡 + 素材库路标（素材文件为权威运行时生成，2026-09-18 起——静态 素材库/索引.md 无维护端已回归作者侧目录文档）；预算硬控沿 M1.3 精神；不再要求模型每轮自己现读（细节仍可 zj_* 读）。
 - 详案见 docs/模型适配接入层与创作上下文-2026-09.md。
 
 ### M5 agent 区交互完善 ✅ 完成（2026-09）
