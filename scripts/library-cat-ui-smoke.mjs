@@ -90,8 +90,13 @@ check('点击命中打开编辑器（rel 正确）', !!doc && doc.rel === '素�
 // [6] 返回列表（回到搜索态：保留搜索词与结果）
 await evalJs(`[...document.querySelectorAll('button')].find((b) => b.textContent.includes('返回'))?.click(); 'ok'`)
 await sleep(500)
-const back = await evalJs(`document.querySelector('main')?.innerText ?? ''`)
-check('编辑可返回列表（搜索态保留）', !back.includes('返回') && back.includes('清除') && back.includes('搜索结果（1 条'), back.slice(0, 120))
+const back = await evalJs(`(() => {
+  const text = document.querySelector('main')?.innerText ?? ''
+  return { text, hasClear: !!document.querySelector('[data-testid="lib-search-clear"]') }
+})()`)
+// 注：479575e（体验层 2026-09-19 05:41）把素材库 clear 改 icon-only —— 「清除」文本断言断链；
+// 改结构化锚点：clear 按钮仅 searchQ 非空时渲染，其存在性同时验证「搜索词保留（搜索态）」。
+check('编辑可返回列表（搜索态保留）', !back.text.includes('返回') && back.hasClear && back.text.includes('搜索结果（1 条'), back.text.slice(0, 120))
 
 await fetch(CDP + '/json/close/' + tab.id)
 ws.close()

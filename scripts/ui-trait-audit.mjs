@@ -13,6 +13,10 @@
 //       （src 存在性判不住，须手维护词库）；本审计面向「特征整体消失」类收敛（文本/类名从src消失）。
 // 局限（启发式，维持定位级）：动态拼接的类名/文本、注释中的特征词可能漏报或误绿；健康输出附
 //       「人工抽查清单」全量列出——UI 收敛提交后仍应先跑本脚本再人工浏览清单。
+//       【2026-09-19 07:30 平台层轮补录】「变量中转 includes」不在提取面：const x=…innerText??''; x.includes('旧文案')
+//       形态静态无法关联 src（479575e 素材库 clear 改 icon-only 后 library-cat L94 断链即此形态——textclick
+//       （只审 button 上下文）与本审计（只审 innerText/textContent 紧跟参数）均抓不到，点名回归才赶上）。
+//       该形态断言一律优先 data-testid/data-* 结构化锚点（本次 library-cat 已改）。
 // 用法：node scripts/ui-trait-audit.mjs            # 扫描（失配>0 exit 1）
 //       node scripts/ui-trait-audit.mjs --selfcheck # 判据自检：探针注入→必红→删除→恢复（变异测试思想）
 // 门禁接入（本轮）：smoke-ui.mjs --all 已 import analyze/report 同进程复用为元审计第四段（只提示不阻断，
