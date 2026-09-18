@@ -144,11 +144,11 @@ try {
   const head = await page.eval(`(() => {
     const chain = document.querySelector('[data-testid="zj-tool-chain"]')
     if (!chain) return { found: false }
-    const badge = [...chain.querySelectorAll('span')].find((s) => s.textContent === '失败')
+    const failedRow = chain.querySelector('[data-failed="true"]')
     const btn = chain.querySelector('[data-testid="zj-tool-fail-guide"]')
-    return { found: true, hasFailBadge: !!badge, hasGuideBtn: !!btn }
+    return { found: true, hasFailBadge: !!failedRow, hasGuideBtn: !!btn }
   })()`)
-  ok('链失败：折叠组头显示「失败」徽标', head.found && head.hasFailBadge === true, JSON.stringify(head))
+  ok('链失败：折叠组头呈失败态（红色文字行 data-failed）', head.found && head.hasFailBadge === true, JSON.stringify(head))
   ok('链失败：折叠组头提供「让 agent 处理」按钮', head.found && head.hasGuideBtn === true, JSON.stringify(head))
 
   // ②b 防溢出回归（F-20260917-03 主人：工具链文本溢出）：链内任何可见元素不得越出卡片右边界

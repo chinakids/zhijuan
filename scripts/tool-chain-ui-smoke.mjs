@@ -192,14 +192,14 @@ try {
     const text = chain.innerText || ''
     return {
       found: true,
-      hasFailBadge: text.includes('失败'),
+      hasFailBadge: !!chain.querySelector('[data-failed="true"]'),
       hasFailSummary: text.includes('读取失败：文件已被外部修改'),
       hasSuccessIcon: !!chain.querySelector('svg.lucide-circle-x, [class*="lucide-circle-x"]') ||
         [...chain.querySelectorAll('svg')].some((s) => (s.getAttribute('class') || '').includes('lucide-circle-x')),
       collapseInfo: [...chain.querySelectorAll('[data-testid="zj-step"]')].map((e) => e.innerText.trim())
     }
   })()`)
-  ok('链失败：折叠组头显示「失败」徽标', failHead.found === true && failHead.hasFailBadge === true, JSON.stringify(failHead))
+  ok('链失败：折叠组头呈失败态（红色文字行 data-failed）', failHead.found === true && failHead.hasFailBadge === true, JSON.stringify(failHead))
   ok('链失败：组头摘要为首个失败步内容（红色失败信号）', failHead.hasFailSummary === true)
   ok('链失败：折叠态无成功绿勾（CircleX 替代）', failHead.hasSuccessIcon === true)
   ok('链失败：默认折叠（步骤仅 1/3）', JSON.stringify(failHead.collapseInfo) === JSON.stringify(['1/3']), JSON.stringify(failHead.collapseInfo))

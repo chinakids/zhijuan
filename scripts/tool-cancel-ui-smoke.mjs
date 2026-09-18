@@ -104,7 +104,7 @@ async function toolCardState(page, toolNameZh) {
   return page.eval(`(() => {
     const badge = document.querySelector('[data-testid="zj-tool-cancelled"]')
     if (!badge) return { found: false }
-    const card = badge.closest('.rounded-lg')
+    const card = badge.closest('[data-testid="zj-tool-detail"], [data-testid="zj-tool-chain"]')
     if (!card) return { found: true, badge: true }
     return {
       found: true,

@@ -185,10 +185,10 @@ try {
     '失败演示结束'
   )
   await sleep(400)
-  // 找到失败卡（「失败」徽标所在卡）的 toggle
+  // 找到失败卡（data-failed 行）的 toggle
   await page.eval(`(() => {
     const cards = [...document.querySelectorAll('[data-testid="zj-tool-detail"]')]
-    const card = cards.find((c) => c.innerText.includes('失败'))
+    const card = cards.find((c) => c.getAttribute('data-failed') === 'true')
     const t = card && card.querySelector('[data-testid="zj-tool-detail-toggle"]')
     if (t) t.click()
     return !!t

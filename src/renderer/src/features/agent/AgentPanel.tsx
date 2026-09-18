@@ -123,13 +123,25 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
   }, [argsJson])
   return (
     <div
-      className={cn(
-        'rounded-lg border text-[11px]',
-        failed ? 'border-danger/40 bg-surface' : anyCancelled ? 'border-hair bg-surface' : done ? 'border-hair bg-surface' : 'border-accent/30 bg-surface'
-      )}
       data-testid={hasDetail ? 'zj-tool-detail' : undefined}
+      data-failed={failed ? 'true' : undefined}
+      className="min-w-0 rounded px-1.5 py-0.5"
     >
-      <div className="flex items-center gap-2 px-2.5 py-1.5">
+      <div
+        role="button"
+        tabIndex={hasDetail ? 0 : -1}
+        data-testid={hasDetail ? 'zj-tool-detail-toggle' : undefined}
+        title={hasDetail ? (open ? '收起完整参数/结果' : '查看完整参数与结果') : undefined}
+        aria-expanded={hasDetail ? open : undefined}
+        onClick={() => hasDetail && setOpen((v) => !v)}
+        onKeyDown={(e) => {
+          if (hasDetail && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault()
+            setOpen((v) => !v)
+          }
+        }}
+        className="flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded text-[11px] leading-5 transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/60"
+      >
         {failed ? (
           <CircleX className="h-3 w-3 shrink-0 text-danger" />
         ) : anyCancelled ? (
@@ -140,16 +152,17 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
           <LoadingIndicator size={12} className="shrink-0 text-accent" />
         )}
         {step && (
-          <span data-testid="zj-step" className="shrink-0 rounded bg-surface-2 px-1 py-0.5 text-[10px] leading-none text-ink-3">
+          <span data-testid="zj-step" className="shrink-0 text-[10px] leading-none text-ink-3">
             {step.no}/{step.total}
           </span>
         )}
-        <span className={cn('shrink-0 font-medium', failed ? 'text-danger' : 'text-ink-2')}>{toolLabel(tool)}</span>
+        {/* 状态即文字颜色（主人 2026-09-17 F-20260917-04）：失败红/取消灰/成功墨色/进行中主题色——去卡片去徽标 */}
+        <span className={cn('shrink-0 font-medium', failed ? 'text-danger' : anyCancelled ? 'text-ink-3' : done ? 'text-ink-2' : 'text-accent')}>{toolLabel(tool)}</span>
         {continued && (
           <span
             data-testid="zj-continued"
             title="同一文档的续读片段（offset 续读链：前面的读取已提示「可传 offset=… 继续读」）"
-            className="shrink-0 rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] text-accent"
+            className="shrink-0 text-[10px] text-accent"
           >
             续读
           </span>
@@ -157,16 +170,15 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
         {/* 参数行：truncate 单行 + title 全量（原 break-all 会把 CJK 文件名逐字竖排——F-20260912-06 修复） */}
         {args && <span className="min-w-0 flex-1 truncate font-mono text-[10px] leading-4 text-ink-3" title={args}>{args}</span>}
         {anyCancelled && !failed && (
-          <span data-testid="zj-tool-cancelled" className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-[10px] text-ink-3">
+          <span data-testid="zj-tool-cancelled" className="shrink-0 text-[10px] text-ink-3">
             已取消
           </span>
         )}
-        {failed && <span className="shrink-0 rounded-full bg-danger-soft px-2 py-0.5 text-[10px] text-danger">失败</span>}
         {recovered && (
           <span
             data-testid="zj-chain-recovered"
-            title="本链曾有一步失败，后续步骤已成功恢复；失败详情可由本卡「展开」查看"
-            className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-[10px] text-ink-3"
+            title="本链曾有一步失败，后续步骤已成功恢复；失败详情可由本行「展开」查看"
+            className="shrink-0 text-[10px] text-success"
           >
             已恢复
           </span>
@@ -177,8 +189,11 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
             data-testid="zj-tool-fail-guide"
             title="让 agent 处理这次失败（把指引填入输入框，可编辑后发送）"
             aria-label="让 agent 处理这次失败"
-            onClick={() => onFailGuide(tool ?? '', failedSummary)}
-            className="shrink-0 rounded p-0.5 text-ink-3 transition-colors hover:bg-danger-soft hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 active:opacity-80"
+            onClick={(e) => {
+              e.stopPropagation()
+              onFailGuide(tool ?? '', failedSummary)
+            }}
+            className="shrink-0 rounded p-0.5 text-danger transition-colors hover:bg-danger-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 active:opacity-80"
           >
             <CornerUpRight className="h-3 w-3" />
           </button>
@@ -188,33 +203,22 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
           <span className={cn('min-w-0 flex-1 truncate', failed ? 'text-danger' : 'text-ink-3')} title={failedSummary}>{failedSummary}</span>
         )}
         {live != null && (
-          <span className="shrink-0 whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-[10px] text-accent">已 {fmtDur(live)}</span>
+          <span className="shrink-0 whitespace-nowrap text-[10px] text-accent">已 {fmtDur(live)}</span>
         )}
         {!done && !anyCancelled && live == null && elapsedMs != null && (
-          <span className="shrink-0 whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-[10px] text-accent">已 {fmtDur(elapsedMs)}</span>
+          <span className="shrink-0 whitespace-nowrap text-[10px] text-accent">已 {fmtDur(elapsedMs)}</span>
         )}
         {/* 终态统一显示耗时：完成/失败/已取消（取消=settleTrailingTools 冻结的真实耗时——作者可见「跑了多久才被停」的等待成本）；
             链组头显示组内合计（aggElapsedMs，title 注明 N 步合计） */}
         {shownElapsed != null && (done || anyCancelled || aggElapsedMs != null) && (
           <span
-            className="shrink-0 whitespace-nowrap rounded-full bg-surface px-2 py-0.5 text-[10px] text-ink-3"
+            className="shrink-0 whitespace-nowrap text-[10px] text-ink-3"
             title={aggElapsedMs != null && aggCount != null && aggCount > 1 ? `本组 ${aggCount} 步工具调用合计耗时` : undefined}
           >
             {fmtDur(shownElapsed)}
           </span>
         )}
-        {hasDetail && (
-          <button
-            data-testid="zj-tool-detail-toggle"
-            title={open ? '收起完整参数/结果' : '查看完整参数与结果'}
-            aria-label={open ? '收起详情' : '展开详情'}
-            aria-expanded={open}
-            onClick={() => setOpen((v) => !v)}
-            className="shrink-0 rounded p-0.5 text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
-          >
-            <ChevronDown className={cn('h-3 w-3 transition-transform', open && 'rotate-180')} />
-          </button>
-        )}
+        {hasDetail && <ChevronDown className={cn('h-3 w-3 shrink-0 text-ink-3 transition-transform', open && 'rotate-180')} />}
       </div>
       {open && (
         <div data-testid="zj-tool-detail-body" className="space-y-1.5 border-t border-hair px-2.5 py-2">
@@ -250,7 +254,7 @@ function ToolChain({ msgs, onFailGuide }: { msgs: AgentMsg[]; onFailGuide?: (too
   }
   const idxOf = (m: AgentMsg) => msgs.indexOf(m)
   return (
-    <div data-testid="zj-tool-chain" className="w-full rounded-lg border border-hair bg-surface p-2">
+    <div data-testid="zj-tool-chain" className="w-full px-1 py-0.5">
       <div className="mb-1.5 flex items-center gap-1 px-0.5 text-[10px] text-ink-3">
         <Waypoints className="h-3 w-3 shrink-0" />
         <span>工具链</span>
@@ -295,7 +299,7 @@ function ToolChain({ msgs, onFailGuide }: { msgs: AgentMsg[]; onFailGuide?: (too
                   <button
                     onClick={() => setOpened((s) => ({ ...s, [gi]: !isOpen }))}
                     title={isOpen ? '收起其余步骤' : '展开该工具的每一步'}
-                    className="shrink-0 rounded-full border border-hair px-1.5 py-0.5 text-[10px] text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
+                    className="shrink-0 rounded px-1 py-0.5 text-[10px] text-ink-3 transition-colors hover:bg-surface-2 hover:text-ink"
                   >
                     ×{g.length} {isOpen ? '收起' : '展开'}
                   </button>
