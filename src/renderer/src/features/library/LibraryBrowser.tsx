@@ -304,14 +304,17 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
               />
               {searchQ && (
                 <button
+                  type="button"
                   data-testid="lib-search-clear"
-                  className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] text-ink-3 hover:text-ink active:text-ink-2"
+                  aria-label="清空搜索"
+                  title="清空搜索"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-ink-3 transition-colors hover:text-ink active:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                   onClick={() => {
                     onSearchChange('')
                     searchRef.current?.focus()
                   }}
                 >
-                  <X className="h-3 w-3" /> 清除
+                  <X className="h-3.5 w-3.5" />
                 </button>
               )}
               <Button

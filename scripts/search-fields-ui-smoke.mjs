@@ -1,9 +1,10 @@
-// 织卷无头冒烟 · 搜索框走查落地（体验层 2026-09-15 14:15 轮，HIG Search fields）
+// 织卷无头冒烟 · 搜索框走查落地（体验层 2026-09-15 14:15 轮，HIG Search fields；2026-09-19 05:15 轮扩展）
 // 验收：① 首页搜索=即时过滤（不依赖 type=search 原生语义）；
 //       ② 首页 clear 按钮：非空显示/点击清空+回焦输入框/空时隐藏；
 //       ③ 首页 Esc：清空查询+恢复全量+焦点保持（macOS 搜索框惯例）；
-//       ④ 素材库同口径：Esc 清空+回浏览态，「清除」按钮点击清空+回焦；
+//       ④ 素材库同口径：Esc 清空+回浏览态，clear 按钮点击清空+回焦（icon-only X + aria-label，与首页同口径）；
 //       ⑤ clear 是原生 button（键盘可达）且带 aria-label；截图两档。
+//       ⑧ 命令面板（⌘K）Clear button：输入非空出现/点击清空+回焦+命令组恢复/Esc 仍关闭。
 import { writeFileSync, mkdirSync } from 'node:fs'
 
 const CDP = 'http://127.0.0.1:9224'
@@ -179,14 +180,67 @@ s = await libState()
 if (s.val === '' && !s.hasClear && !s.resultText && s.focused) ok('⑥b 素材库 Esc：清空/回浏览态/焦点保持')
 else bad('⑥b 素材库 Esc', JSON.stringify(s))
 
-// ⑥c 输入再点「清除」→ 清空 + 回焦
+// ⑥c 输入再点「清除」→ 清空 + 回焦；并核对 clear=icon-only 按钮（HIG Clear button：X 图形+aria-label，与首页同口径）
 await setInput('[data-testid="lib-search"]', '图书馆')
 await evalUntil(`!!document.querySelector('[data-testid="lib-search-clear"]')`, Boolean, 12000)
+const libClearAttr = await evalJs(`(() => {
+  const el = document.querySelector('[data-testid="lib-search-clear"]')
+  return { tag: el.tagName, aria: el.getAttribute('aria-label'), title: el.getAttribute('title'), text: (el.innerText || '').trim() }
+})()`)
+if (libClearAttr.tag === 'BUTTON' && libClearAttr.aria === '清空搜索' && libClearAttr.text === '')
+  ok('⑥c1 素材库 clear=icon-only 按钮（X 图形 + aria-label 清空搜索，无文字——与首页同口径）')
+else bad('⑥c1 素材库 clear 属性', JSON.stringify(libClearAttr))
 await evalJs(`document.querySelector('[data-testid="lib-search-clear"]').click()`)
 await sleep(500)
 s = await libState()
 if (s.val === '' && !s.hasClear && !s.resultText && s.focused) ok('⑥c 素材库「清除」点击：清空/回浏览态/回焦')
 else bad('⑥c 素材库清除点击', JSON.stringify(s))
+
+// ⑧ 命令面板（⌘K）清除按钮：HIG Search fields Clear button——输入非空出现、点击清空+回焦+命令组恢复、空时隐藏、Esc 仍关闭
+async function paletteState() {
+  return evalJs(`(() => {
+    const inp = document.querySelector('[cmdk-input]')
+    if (!inp) return null
+    const wrapper = inp.closest('[cmdk-input-wrapper]')
+    return {
+      val: inp.value,
+      hasClear: !!wrapper?.querySelector('[data-testid="cmd-input-clear"]'),
+      clearAria: wrapper?.querySelector('[data-testid="cmd-input-clear"]')?.getAttribute('aria-label') ?? null,
+      groups: [...document.querySelectorAll('[cmdk-group-heading]')].map((g) => g.innerText),
+      focused: document.activeElement === inp
+    }
+  })()`)
+}
+await evalJs(`(() => {
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', code: 'KeyK', metaKey: true, bubbles: true }))
+})()`)
+await evalUntil(`!!document.querySelector('[cmdk-input]')`, Boolean, 8000)
+let ps = await paletteState()
+if (ps && ps.val === '' && !ps.hasClear) ok('⑧a 命令面板打开：空查询无 clear（初始全量组=' + ps.groups.length + '）')
+else bad('⑧a 命令面板初始', JSON.stringify(ps))
+await setInput('[cmdk-input]', '灯塔')
+await evalUntil(`!!document.querySelector('[data-testid="cmd-input-clear"]')`, Boolean, 8000)
+ps = await paletteState()
+if (ps && ps.val === '灯塔' && ps.hasClear && ps.clearAria === '清空搜索') ok('⑧b 输入非空：clear 出现（aria-label=清空搜索）')
+else bad('⑧b 命令面板 clear 出现', JSON.stringify(ps))
+await evalJs(`document.querySelector('[data-testid="cmd-input-clear"]').click()`)
+await sleep(600)
+ps = await paletteState()
+if (ps && ps.val === '' && !ps.hasClear && ps.focused && ps.groups.includes('最近素材'))
+  ok('⑧c clear 点击：清空+回焦+最近素材建议组恢复')
+else bad('⑧c 命令面板 clear 点击', JSON.stringify(ps))
+// ⑧d dark 主题下 clear 存在且可点（tokens 跟随，无硬编码色）——宽窗态再输入一次供截图
+await setInput('[cmdk-input]', '雾港')
+await evalUntil(`!!document.querySelector('[data-testid="cmd-input-clear"]')`, Boolean, 8000)
+await shot('search-clear-palette-0520', 1200, 800)
+ps = await paletteState()
+if (ps && ps.val === '雾港' && ps.hasClear) ok('⑧d 再输入：clear 保持（供截图）')
+else bad('⑧d 再输入', JSON.stringify(ps))
+await cmd('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 })
+await cmd('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 })
+await sleep(400)
+const paletteGone = await evalJs(`!document.querySelector('[cmdk-input]')`)
+if (paletteGone) ok('⑧e Esc 关闭面板（项目内面板=瞬态层，Esc 关闭为预期；清空入口改用 clear 按钮）')
 
 console.log(fails === 0 ? 'ALL PASS' : `FAILS=${fails}`)
 ws.close()

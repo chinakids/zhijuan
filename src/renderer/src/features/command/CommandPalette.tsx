@@ -37,6 +37,7 @@ export default function CommandPalette() {
   const [chLoading, setChLoading] = useState(false)
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [q, setQ] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
   const [matHits, setMatHits] = useState<SearchHit[] | null>(null)
   const [matLoading, setMatLoading] = useState(false)
   const matSeq = useRef(0)
@@ -119,7 +120,27 @@ export default function CommandPalette() {
   return (
     <>
       <CommandDialog open={open} onOpenChange={setOpen}>
-        <CommandInput placeholder="输入页面、章节、项目或素材关键词…" autoFocus onValueChange={setQ} />
+        <CommandInput
+          ref={searchRef}
+          placeholder="输入页面、章节、项目或素材关键词…"
+          autoFocus
+          onValueChange={setQ}
+          clearable={q.trim() !== ''}
+          onClear={() => {
+            // 非受控口径：cmdk 内部 search 只由 onChange/effect(value) 更新，这里用原生 setter+input 事件清空
+            // （与无头冒烟 setInput 同技法；React onChange → onValueChange('') → cmdk setState('search','')）
+            setQ('')
+            const el = searchRef.current
+            if (el) {
+              const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value')?.set
+              if (setter) {
+                setter.call(el, '')
+                el.dispatchEvent(new Event('input', { bubbles: true }))
+              }
+              el.focus()
+            }
+          }}
+        />
       <CommandList>
         <CommandEmpty>没有匹配的结果（试试「正文」、章节题名或素材里的关键词）</CommandEmpty>
 

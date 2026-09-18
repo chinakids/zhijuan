@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { type DialogProps } from '@radix-ui/react-dialog'
 import { Command as CommandPrimitive } from 'cmdk'
-import { Search } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { Dialog, DialogContent } from './dialog'
 
@@ -32,8 +32,13 @@ const CommandDialog = ({ children, ...props }: DialogProps) => (
 
 const CommandInput = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Input>,
-  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>
->(({ className, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input> & {
+    /** 显示清空按钮（搜索词非空时由调用方传入 true）；HIG Search fields「displays a Search icon, a Clear button」 */
+    clearable?: boolean
+    /** 清空点击回调（调用方负责 setQ('')；组件内部点击后不抢焦点，由调用方按需回焦） */
+    onClear?: () => void
+  }
+>(({ className, clearable, onClear, ...props }, ref) => (
   <div className="flex items-center border-b border-hair px-3" cmdk-input-wrapper="">
     <Search className="mr-2 h-4 w-4 shrink-0 text-ink-3" />
     <CommandPrimitive.Input
@@ -44,6 +49,17 @@ const CommandInput = React.forwardRef<
       )}
       {...props}
     />
+    {clearable ? (
+      <button
+        type="button"
+        data-testid="cmd-input-clear"
+        aria-label="清空搜索"
+        className="ml-2 flex h-6 w-6 shrink-0 items-center justify-center rounded text-ink-3 transition-colors hover:text-ink active:text-ink-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+        onClick={onClear}
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+    ) : null}
   </div>
 ))
 CommandInput.displayName = CommandPrimitive.Input.displayName
