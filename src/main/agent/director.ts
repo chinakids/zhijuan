@@ -143,7 +143,11 @@ const directorDef: SubtaskDef<DirectorSheet> = {
   id: 'director',
   title: '章节导演',
   description: '动笔前先出一张本章导演板（情绪弧分段＋行为轴＋红线），落 大纲/<章>_导演.md',
-  maxMs: 6 * 60 * 1000,
+  // 8min＝检查域主流档（audit/perspectives/chapterCheck 同档）：材料包=buildWritingContext
+  // 全套（≤WCTX_MAX 40700）＝子任务域最重，输出=多字段结构化导演板 JSON（premise/arcs/
+  // climax/axes/redlines/hooks）；2026-09-18 18:00 轮 chapter-check 6→8min 后导演域是无
+  // 人处理的同风险面（登记观察项升候选）——同章对齐，慢车期不足再按 kind 分层。
+  maxMs: 8 * 60 * 1000,
   buildParts: async (c) => {
     const chapterRel = String(c.args?.chapterRel ?? '')
     const cast = Array.isArray(c.args?.cast) ? (c.args?.cast as string[]).filter(Boolean) : []

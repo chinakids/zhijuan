@@ -72,7 +72,12 @@ const directorCheckDef: SubtaskDef<DirectorCheckResult> = {
   id: 'director-check',
   title: '导演兑现检查',
   description: '动笔后对照导演板核对：情绪弧是否兑现、行为轴是否守位、红线有没有破、钩子有没有还',
-  maxMs: 6 * 60 * 1000,
+  // 8min＝检查域主流档（audit/perspectives/chapterCheck 同档）：2026-09-18 18:00 轮已把
+  // chapter-check 6→8min（依据=慢车期 revision 六连超时 + 材料包全量化 + 域内一致）；本任务
+  // 材料包（导演板 2000+1000 + 正文 ≤12000+尾 1500 ≈16.5k 字符）比 chapter-check 更重，
+  // 输出=21 条核对决策（arcs/axes/redlines/hooks），慢车期间等风险——同章对齐，不做按任务分层
+  // （8min 域内一致更好维护；若慢车期仍不足再按 kind 分层，focus 12min 先例）。
+  maxMs: 8 * 60 * 1000,
   buildParts: (c) => {
     const chapterRel = String(c.args?.chapterRel ?? '')
     const boardRel = String(c.args?.boardRel ?? '')
