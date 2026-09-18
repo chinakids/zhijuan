@@ -10,6 +10,7 @@ import { chapterOrderCheck } from '../../shared/chapterorder'
 import { sliceSectionOrderCheck } from '../../shared/sliceorder'
 import { registerCapability, runSubtask, type SubtaskDef } from './subtask'
 import { auditDocMarkdown } from '../../shared/auditDoc'
+import { WCTX_CAPS } from '../../shared/contextCaps'
 import type {
   ChapterEntry,
   AuditItem,
@@ -456,11 +457,24 @@ export function extractAudit(text: string): AuditResult {
 // 与全卷检查同构（driveSession 一次结构化 JSON），但参数 reduced：目标单章 + 更省的材料包，
 // 只带本章全文与现有设定档案的小截段，跑得轻，沿写作线随时可兜底。
 
-/** 本章材料包：本章全文（整段不省略）+ 人物 · 世界观档案（小截段）+ 素材库目录名（给修订时参考） */
+/**
+ * 本章正文块：≤正文预算（WCTX_CAPS.chapter）全量；超预算保尾 + 注明省略（与 runChat 装配同口径，
+ * 2026-09-18 对齐——旧版 slice(0,9000) 保头会把刚写的结尾裁掉，本章短巡查/分层修订最需要的正是尾部；
+ * 真实章长 6851–10941（中位 8548）全部 ≤12000，现存样本零截断）。
+ */
+export function chapterBodyBlock(body: string, rel: string): string {
+  const cap = WCTX_CAPS.chapter
+  if (body.length <= cap) return body
+  return (
+    body.slice(-cap) +
+    `\n……（本章已超 ${cap} 字符预算：装配的是结尾部分，前文 ${body.length - cap} 字符已省略；要看前面内容请用 zj_read_doc 读 ${rel}）……`
+  )
+}
+
+/** 本章材料包：本章正文（预算内全量，超长保尾+注明）+ 人物 · 世界观档案（小截段）+ 素材库目录名（给修订时参考） */
 function chapterBrief(projectId: string, chapterRel: string, body: string): string {
   const parts: string[] = []
-  parts.push(`【当前章节】（正文/${chapterRel}）\n${body.slice(0, 9000)}`)
-  if (body.length > 9000) parts[parts.length - 1] += '\n……（本章更长，已截前段）……'
+  parts.push(`【当前章节】（正文/${chapterRel}）\n${chapterBodyBlock(body, chapterRel)}`)
   parts.push('\n【当前设定档案（节选）】')
   for (const dir of ['人物', '世界观']) {
     for (const d of listDocs(projectId, dir)) {

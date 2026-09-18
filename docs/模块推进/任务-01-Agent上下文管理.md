@@ -42,6 +42,15 @@
 
 ## 五、迭代记录
 
+### 2026-09-18 15:00–15:5x（检查域读入口径对齐：本章小环当前章改保尾全量同源 WCTX_CAPS.chapter）
+
+- 背景：线 A「装配口径」面审计发现检查域读入口径从未与正文预算对齐——`audit.ts chapterBrief`（runChapterCheck 本章短巡查/分层修订材料包）当前章 `body.slice(0,9000)` 保头截断：头注释却写「本章全文（整段不省略）」（注释-实现背离）；真实章长最大 10941 → 裁掉刚写结尾 1941 字符（0cfb172 已论证巡查最需要尾部）；截断方向与 runChat 保尾口径相反；director-check（00:00 轮）与管理层正文预算（15:00 轮 12000）均已对齐，此为最后一处。
+- 调研：Claude Code《Code Review》官方（code.claude.com/docs/en/code-review.md，34KB 实取）——审读 agent「examine the code changes **in the context of your full codebase**」=被审对象完整上下文是审读输入范式。
+- 落地：`audit.ts` 新导出纯函数 `chapterBodyBlock`（≤WCTX_CAPS.chapter 全量；超保尾+注明省略量+zj_read_doc 现读路径），chapterBrief 换用；`tests/unit/chapterBody.test.ts` 5 例（含 12000 锚点防漂移）；真模型长章实证（9500 字符章尾部「刑警队」冲突命中=旧版必裁区间）+ subtasks-smoke 真模型回归。
+- 三道门全绿（875 例 88 文件）。**runChat 装配 / director-check / 本章小环 正文读入口径三口同源**——正文预算只改 shared/contextCaps.ts 即全程跟随。
+
+
+
 ### 2026-09-18 06:00–06:4x（多线装配真模型验证面补全：`scripts/multiline-context-live.mjs` 入仓，首跑 OK）
 
 - 背景：多线装配（41c2105）只有数据层冒烟（multiline-context-smoke 14/14），**无行为层验证**——「上一章必须取同线前驱，否则跨时域误承接」=设计文档 §3 B 形态明示头号风险（D-V2-5 修订验收口径=多线交错中篇自洽）；换模型/改装配后是唯一静默回归面。
