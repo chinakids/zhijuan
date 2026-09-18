@@ -9,6 +9,7 @@ import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import { cn } from '../../lib/utils'
 import { isImeComposing } from '../../lib/ime'
+import { ColHideButton, ColShowBar } from '../common/colFold'
 import DocEditor from '../editor/DocEditor'
 import { useFsChanged, useFsEvents } from '../fs/useFsEvents'
 import { toast } from '../../store/toasts'
@@ -37,6 +38,8 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
+  // 宽窗手动折叠（HIG Sidebars show/hide；与 Novel 5376f30 同机制，会话内状态不持久化）
+  const [colHidden, setColHidden] = useState(false)
   const events = useFsEvents(id)
 
   const refresh = useCallback(async () => {
@@ -78,13 +81,17 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
 
   return (
     <div className="flex h-full min-h-0">
-      <aside className="flex w-60 shrink-0 flex-col border-r border-hair bg-surface-2">
-        <div className="flex items-center justify-between px-3 pb-2 pt-3">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">{listLabel ?? '文档'}</span>
-          <Button variant="ghost" size="icon" className="h-7 w-7" title={addHint} aria-label={addHint} onClick={() => setCreating(true)}>
-            <Plus />
-          </Button>
-        </div>
+      {!colHidden && (
+        <aside data-testid="doc-col" className="flex w-60 shrink-0 flex-col border-r border-hair bg-surface-2">
+          <div className="flex items-center justify-between px-3 pb-2 pt-3">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">{listLabel ?? '文档'}</span>
+            <span className="flex items-center gap-0.5">
+              <Button variant="ghost" size="icon" className="h-7 w-7" title={addHint} aria-label={addHint} onClick={() => setCreating(true)}>
+                <Plus />
+              </Button>
+              <ColHideButton label={listLabel ?? '文档'} onClick={() => setColHidden(true)} />
+            </span>
+          </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
           {loading && (
             <div className="flex items-center justify-center gap-2 px-2 py-6 text-xs text-ink-3">
@@ -125,9 +132,13 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
             </button>
           ))}
         </div>
-      </aside>
+        </aside>
+      )}
 
       <main className="flex min-w-0 flex-1 flex-col">
+        {colHidden && (
+          <ColShowBar label={listLabel ?? '文档'} onShow={() => setColHidden(false)} dataTestId="doc-col-show" />
+        )}
         {sel ? (
           <>
             <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hair px-4">
@@ -140,7 +151,9 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
             </div>
           </>
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-ink-3">选择左侧一个文档开始</div>
+          <div className="flex h-full items-center justify-center px-4 text-center text-sm text-ink-3">
+            {colHidden ? `点上方「显示${listLabel ?? '文档'}列表」恢复侧栏，选择一个文档开始。` : '选择左侧一个文档开始'}
+          </div>
         )}
       </main>
 

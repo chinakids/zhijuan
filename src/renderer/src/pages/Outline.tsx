@@ -11,6 +11,7 @@ import DirectorCheckDrawer from '../features/check/DirectorCheckDrawer'
 import { useFsChanged, useFsEvents } from '../features/fs/useFsEvents'
 import { isBoardStale } from '../../../shared/boardAge'
 import { parseActsWarn } from '../../../shared/actsSeg'
+import { ColHideButton, ColShowBar } from '../features/common/colFold'
 import { runSliceSync, type SliceSyncResult } from '../features/sync/sliceSync'
 import { describeSyncEvidence } from '../../../shared/syncEvidence'
 import { GuardIssuesNote } from '../features/sync/GuardIssues'
@@ -39,6 +40,8 @@ export default function Outline() {
   const [guardIssues, setGuardIssues] = useState<SyncIssue[]>([])
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
+  // 宽窗手动折叠（HIG Sidebars show/hide；与 Novel 5376f30 同机制，会话内状态不持久化）
+  const [colHidden, setColHidden] = useState(false)
   // 当前选中章节的分幕草稿里「未写成」的段号（>0 时显示「补写缺段」按钮）
   const [draftMissing, setDraftMissing] = useState<number[]>([])
   const events = useFsEvents(id)
@@ -335,12 +338,14 @@ export default function Outline() {
 
   return (
     <div className="flex h-full min-h-0">
-      <aside className="flex w-64 shrink-0 flex-col border-r border-hair bg-surface-2">
+      {!colHidden && (
+      <aside data-testid="outline-col" className="flex w-64 shrink-0 flex-col border-r border-hair bg-surface-2">
         <div className="flex items-center gap-2 border-b border-hair px-3 py-2.5">
           <BookMarked className="h-4 w-4 text-accent" />
           <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">章卡</span>
           <span className="flex-1" />
           <span className="text-[10px] text-ink-3">{chapters.length} 章 · {outlineFiles.filter((f) => !f.endsWith('索引.md') && !f.endsWith('_导演.md') && !f.endsWith('_分幕.md') && !f.startsWith('大纲/审读_')).length} 已回建</span>
+          <ColHideButton label="章卡" onClick={() => setColHidden(true)} />
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
           <button
@@ -495,8 +500,12 @@ export default function Outline() {
           )}
         </div>
       </aside>
+      )}
 
       <main className="flex min-w-0 flex-1 flex-col">
+        {colHidden && (
+          <ColShowBar label="章卡" onShow={() => setColHidden(false)} dataTestId="outline-col-show" />
+        )}
         <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hair px-4">
           <ListTree className="h-3.5 w-3.5 text-ink-3" />
           <span className="truncate text-sm font-medium text-ink">

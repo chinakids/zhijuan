@@ -14,6 +14,7 @@ import { buildLibraryTree, type LibraryFileItem } from '../../../../shared/libra
 import { extractFrontMatter } from '../../../../shared/fmatter'
 import { isMaterialCard, materialPreview, materialTags } from '../../../../shared/materialCard'
 import type { LibraryCategory, SearchHit } from '../../../../shared/types'
+import { ColHideButton, ColShowBar } from '../common/colFold'
 import DocEditor from '../editor/DocEditor'
 import { useFsChanged, useFsEvents } from '../fs/useFsEvents'
 
@@ -52,6 +53,8 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
   const [newMatName, setNewMatName] = useState('')
   const [newMatErr, setNewMatErr] = useState('')
   const [creating, setCreating] = useState(false)
+  // 宽窗手动折叠（HIG Sidebars show/hide；与 Novel 5376f30 同机制，会话内状态不持久化）
+  const [colHidden, setColHidden] = useState(false)
   const events = useFsEvents(id)
   const qTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -199,10 +202,13 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
   return (
     <div className="flex h-full min-h-0">
       {/* 左列：类别树 */}
-      <aside data-zj-libtree className="flex w-56 shrink-0 flex-col border-r border-hair bg-surface-2">
+      {!colHidden && (
+      <aside data-zj-libtree data-testid="lib-col" className="flex w-56 shrink-0 flex-col border-r border-hair bg-surface-2">
         <div className="flex items-center gap-1.5 px-3 pb-2 pt-3">
           <LibraryIcon className="h-3.5 w-3.5 text-ink-3" />
           <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">素材库</span>
+          <span className="flex-1" />
+          <ColHideButton label="素材库" onClick={() => setColHidden(true)} />
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
           {/* 固定项：索引说明（模块设计 §2.2 素材库/索引.md） */}
@@ -268,9 +274,13 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
           </Button>
         </div>
       </aside>
+      )}
 
       {/* 右列：列表 / 搜索 / 编辑 */}
       <main className="flex min-w-0 flex-1 flex-col">
+        {colHidden && (
+          <ColShowBar label="素材库" onShow={() => setColHidden(false)} dataTestId="lib-col-show" />
+        )}
         {listView ? (
           <>
             <div className="flex shrink-0 items-center gap-2 border-b border-hair px-4 py-2">
