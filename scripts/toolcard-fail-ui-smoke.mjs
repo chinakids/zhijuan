@@ -1,8 +1,10 @@
-// 织卷无头冒烟 · 工具活动卡失败态（meta-done ok:false → 红色失败徽标）
+// 织卷无头冒烟 · 工具活动失败态（meta-done ok:false → 失败行 data-failed + 红色文字）
 // 用法：node scripts/toolcard-fail-ui-smoke.mjs
 // 前置：npm run build；node scripts/serve-renderer.mjs 8123；CDP 9224
-// 验收：① devShim 演示 prompt 含「读不到」→ zj_search 失败卡（红「失败」徽标 + 错误摘要）；
-//       ② 同轮成功工具卡仍渲染对勾；③ 无 JS 异常。
+// 验收：① devShim 演示 prompt 含「读不到」→ zj_search 失败行（data-failed 锚点 + 红色文字 + 错误摘要）；
+//       ② 同轮成功工具行仍渲染（成功色对勾、无 data-failed）；③ 无 JS 异常。
+// 适配（2026-09-18 平台层）：9048f00 工具调用去卡片化（F-20260917-04）后失败态=行级 data-failed="true"＋
+//       文字颜色（移除「失败」徽标 pill 与 bg-danger-soft 卡片、border-hair 卡容器），断言改 data-failed 锚点（同 fail-guide-ui-smoke 口径）。
 const CDP = 'http://127.0.0.1:9224'
 const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -85,25 +87,34 @@ try {
   await page.cmd('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', text: '\r', windowsVirtualKeyCode: 13 })
   await page.cmd('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
 
-  // ② 失败工具卡出现：红「失败」徽标 + 错误摘要「未找到匹配（ENOENT）」
-  await evalUntil(page, `document.body.innerText.includes('未找到匹配（ENOENT）')`, (v) => v === true, 20000, '失败卡摘要')
-  ok('② 失败工具卡·错误摘要出现', true)
-  const failBadge = await page.eval(`(() => { const els = [...document.querySelectorAll('span')].filter((e) => e.innerText.trim() === '失败'); return els.map((e) => { const c = getComputedStyle(e); return { color: c.color, bg: c.backgroundColor } }) })()`)
-  ok('③ 失败徽标渲染（text-danger/bg-danger-soft 系）', failBadge.length >= 1, JSON.stringify(failBadge.slice(0, 2)))
-  const isRed = failBadge.some((x) => {
-    const m = String(x.color).match(/[0-9]+/g)
-    if (!m || m.length < 3) return false
-    const [r, g, b] = m.map(Number)
-    return r > g && r > b && r > 100
-  })
-  ok('③ 失败徽标为红色', isRed, JSON.stringify(failBadge.slice(0, 2)))
+  // ② 失败工具行出现：data-failed 锚点 + 错误摘要「未找到匹配（ENOENT）」
+  await evalUntil(page, `document.body.innerText.includes('未找到匹配（ENOENT）')`, (v) => v === true, 20000, '失败行摘要')
+  ok('② 失败工具行·错误摘要出现', true)
+  // ③ 失败态=行级 data-failed="true" + 红色文字（去卡片化 F-20260917-04：无「失败」徽标 pill/bg-danger-soft 卡片）
+  const failState = await page.eval(`(() => {
+    const rows = [...document.querySelectorAll('[data-failed="true"]')]
+    if (!rows.length) return { found: false }
+    const row = rows.find((r) => r.innerText.includes('未找到匹配（ENOENT）'))
+    if (!row) return { found: false }
+    const label = [...row.querySelectorAll('span')].find((s) => /text-danger/.test(s.className || ''))
+    if (!label) return { found: true, hasDangerClass: false }
+    const m = String(getComputedStyle(label).color).match(/[0-9]+/g)
+    const isRed = !!m && m.length >= 3 && Number(m[0]) > Number(m[1]) + 40 && Number(m[0]) > Number(m[2]) + 40
+    return { found: true, hasDangerClass: true, isRed, redColor: getComputedStyle(label).color, labelText: label.innerText }
+  })()`)
+  ok('③ 失败行 data-failed 锚点 + 红字', failState.found && failState.hasDangerClass && failState.isRed, JSON.stringify(failState))
 
-  // ④ 本轮成功工具卡仍为对勾（zj_read_doc 成功）
-  await evalUntil(page, `document.body.innerText.includes('章节已读完')`, (v) => v === true, 8000, '成功卡摘要')
-  // ④ 注意：summary span 最近 div 是工具卡内部 flex 行（无 border-hair），须向上找工具卡容器
-  //（智能层 e9ccfad ToolChain 容器也带 border-hair，但 closest 命中更近的内层工具卡，见 AgentPanel L98-104）
-  const okBadge = await page.eval(`(() => { const s = [...document.querySelectorAll('span')].find((e) => e.innerText === '章节已读完'); if (!s) return null; const row = s.closest('div[class*="border-hair"]'); return row ? { text: row.innerText, cls: row.className } : null })()`)
-  ok('④ 成功工具卡仍渲染（对勾绿）', !!okBadge && /border-hair/.test(okBadge.cls), JSON.stringify(okBadge))
+  // ④ 本轮成功工具行仍渲染（zj_read_doc 成功：成功色对勾、无 data-failed）
+  await evalUntil(page, `document.body.innerText.includes('章节已读完')`, (v) => v === true, 8000, '成功行摘要')
+  const okState = await page.eval(`(() => {
+    const s = [...document.querySelectorAll('span')].find((e) => e.innerText === '章节已读完')
+    if (!s) return { found: false }
+    const row = s.closest('[data-testid="zj-tool-detail"]')
+    if (!row) return { found: true, inRow: false }
+    const chk = [...row.querySelectorAll('svg')].find((svg) => /text-success/.test(svg.getAttribute('class') || ''))
+    return { found: true, inRow: true, hasCheck: !!chk, failed: row.hasAttribute('data-failed') }
+  })()`)
+  ok('④ 同轮成功工具行仍渲染（成功色对勾）', okState.found && okState.inRow && okState.hasCheck === true && okState.failed === false, JSON.stringify(okState))
 
   // ⑤ 无 JS 异常
   const errs = page.errors.filter((e) => !/ResizeObserver/.test(e) && !/Download the React DevTools/.test(e) && !/DevTools/.test(e))

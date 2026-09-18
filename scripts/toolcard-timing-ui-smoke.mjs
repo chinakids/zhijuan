@@ -1,8 +1,10 @@
-// 织卷无头冒烟 · 工具活动卡耗时显示（meta→meta-done 计时 + 进行中「已 Ns」tick）
+// 织卷无头冒烟 · 工具活动耗时显示（meta→meta-done 计时 + 进行中「已 Ns」tick）
 // 用法：node scripts/toolcard-timing-ui-smoke.mjs
 // 前置：npm run build；node scripts/serve-renderer.mjs 8123；CDP 9224
-// 验收：① devShim 演示（zj-agent-delay=1600）zj_read_doc 进行中卡显示「已 1.x s」；
-//       ② meta-done 完成后卡显示总耗时（x.xs）；③ 进行中 tick 每秒更新；④ 无 JS 异常。
+// 验收：① devShim 演示（zj-agent-delay=1600）zj_read_doc 进行中行显示「已 1.x s」；
+//       ② meta-done 完成后行显示总耗时（x.xs）；③ 进行中 tick 每秒更新；④ 无 JS 异常。
+// 适配（2026-09-18 平台层）：9048f00 工具调用去卡片化（F-20260917-04）后无 div.rounded-lg 卡容器，
+//       工具行一律 [data-testid="zj-tool-detail"]（有参数/结果时）；耗时 tick「已 Ns」与终态耗时保留（行内 10px 小字）。
 const CDP = 'http://127.0.0.1:9224'
 const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -90,20 +92,21 @@ try {
   ok('② 工具卡（zj_read_doc 进行中）出现', true)
 
   // ③ 进行中「已 Ns」tick（meta 后 1s 起每秒更新；delay=1600 保证 meta-done 前至少有 1 次 tick）
+  // 行容器=[data-testid="zj-tool-detail"]（去卡片化后无 rounded-lg 卡；F-20260917-04）
   await evalUntil(
     page,
-    `(() => { const cards = [...document.querySelectorAll('div')].filter((d) => d.className && /rounded-lg/.test(d.className) && d.innerText.includes('正文/第01章_雾港.md')); return cards.map((c) => c.innerText).find((t) => /已 [0-9]/.test(t)) ?? '' })()`,
+    `(() => { const rows = [...document.querySelectorAll('[data-testid="zj-tool-detail"]')].filter((d) => d.innerText.includes('正文/第01章_雾港.md')); return rows.map((c) => c.innerText).find((t) => /已 [0-9]/.test(t)) ?? '' })()`,
     (v) => /已 [1-9](\.[0-9])?s/.test(v),
     12000,
     '进行中耗时 tick（≥1s 更新）'
   )
-  const liveText = await page.eval(`(() => { const cards = [...document.querySelectorAll('div')].filter((d) => d.className && /rounded-lg/.test(d.className) && d.innerText.includes('正文/第01章_雾港.md')); return cards.map((c) => c.innerText).find((t) => /已 [0-9]/.test(t)) ?? '' })()`)
+  const liveText = await page.eval(`(() => { const rows = [...document.querySelectorAll('[data-testid="zj-tool-detail"]')].filter((d) => d.innerText.includes('正文/第01章_雾港.md')); return rows.map((c) => c.innerText).find((t) => /已 [0-9]/.test(t)) ?? '' })()`)
   ok('③ 进行中显示「已 Ns」且每秒更新（非 0.0s 停滞）', /已 [1-9](\.[0-9])?s/.test(liveText), liveText.replace(/\n/g, ' | '))
 
-  // ④ meta-done 后：完成卡显示总耗时（x.xs，去掉「已」前缀），tick 徽章消失
+  // ④ meta-done 后：完成行显示总耗时（x.xs，去掉「已」前缀），tick 消失
   await evalUntil(page, `document.body.innerText.includes('章节已读完')`, (v) => v === true, 15000, 'meta-done 摘要')
   await sleep(400)
-  const doneText = await page.eval(`(() => { const cards = [...document.querySelectorAll('div')].filter((d) => d.className && /rounded-lg/.test(d.className) && d.innerText.includes('正文/第01章_雾港.md')); return cards.map((c) => c.innerText).join(' || ') })()`)
+  const doneText = await page.eval(`(() => { const rows = [...document.querySelectorAll('[data-testid="zj-tool-detail"]')].filter((d) => d.innerText.includes('正文/第01章_雾港.md')); return rows.map((c) => c.innerText).join(' || ') })()`)
   const hasDur = /([0-9]+(\.[0-9])?s|[0-9]+m[0-9]+s)/.test(doneText)
   const noLive = !/已 [0-9]/.test(doneText)
   ok('④ 完成后显示总耗时且进行中徽章消失', hasDur && noLive, doneText.replace(/\n/g, ' | ').slice(0, 200))

@@ -138,7 +138,7 @@ try {
     const chain = document.querySelector('[data-testid="zj-tool-chain"]')
     if (!chain) return { found: false }
     const rec = chain.querySelector('[data-testid="zj-chain-recovered"]')
-    const failBadge = [...chain.querySelectorAll('span')].find((s) => s.textContent === '失败')
+    const failRow = chain.querySelector('[data-failed="true"]')
     const guide = chain.querySelector('[data-testid="zj-tool-fail-guide"]')
     // 链组头主图标=成功绿勾（lucide-check + text-success；方式线/详情箭头/续读除外）
     const hasOkIcon = [...chain.querySelectorAll('svg')].some((s) => {
@@ -146,10 +146,10 @@ try {
       return cls.includes('lucide-check') && cls.includes('text-success')
     })
     const inner = chain.innerText
-    return { found: true, hasRecovered: !!rec, hasFailBadge: !!failBadge, hasGuide: !!guide, hasOkIcon, inner }
+    return { found: true, hasRecovered: !!rec, hasFailState: !!failRow, hasGuide: !!guide, hasOkIcon, inner }
   })()`)
   ok('链恢复：折叠组头显示「已恢复」徽标', head.found && head.hasRecovered === true, JSON.stringify({ ...head, inner: undefined }))
-  ok('链恢复：折叠组头无「失败」徽标（终态=成功不误导）', head.found && head.hasFailBadge === false, JSON.stringify({ ...head, inner: undefined }))
+  ok('链恢复：折叠组头无失败态（终态=成功不误导，无 data-failed）', head.found && head.hasFailState === false, JSON.stringify({ ...head, inner: undefined }))
   ok('链恢复：折叠组头无「让 agent 处理」按钮（已自愈无需干预）', head.found && head.hasGuide === false, JSON.stringify({ ...head, inner: undefined }))
   ok('链恢复：折叠组头主体为成功图标（绿勾终态）', head.hasOkIcon === true, JSON.stringify({ ...head, inner: undefined }))
   ok('链恢复：失败步摘要仍保留（中性小字+title 全量）', head.inner.includes('读取失败：文件已被外部修改'), 'inner=' + head.inner.slice(0, 200))
@@ -211,11 +211,11 @@ try {
     const chains = [...document.querySelectorAll('[data-testid="zj-tool-chain"]')]
     const chain = chains.at(-1)
     if (!chain) return { found: false }
-    const failBadge = [...chain.querySelectorAll('span')].find((s) => s.textContent === '失败')
+    const failRow = chain.querySelector('[data-failed="true"]')
     const guide = chain.querySelector('[data-testid="zj-tool-fail-guide"]')
-    return { found: true, hasFailBadge: !!failBadge, hasGuide: !!guide, hasRecovered: !!chain.querySelector('[data-testid="zj-chain-recovered"]') }
+    return { found: true, hasFailState: !!failRow, hasGuide: !!guide, hasRecovered: !!chain.querySelector('[data-testid="zj-chain-recovered"]') }
   })()`)
-  ok('回归：链失败（尾步失败）组头仍显示「失败」徽标', reg.found && reg.hasFailBadge === true, JSON.stringify(reg))
+  ok('回归：链失败（尾步失败）组头仍呈失败态（data-failed 红字）', reg.found && reg.hasFailState === true, JSON.stringify(reg))
   ok('回归：链失败组头仍有「让 agent 处理」按钮', reg.found && reg.hasGuide === true, JSON.stringify(reg))
 
   // ⑤ 无 JS 异常断言（双通道收集）
