@@ -67,6 +67,7 @@ import { MODEL_SCRIPTS, MODEL_SKIP_REASON } from './model-scripts.mjs' // 名单
 import { analyze, report as auditReport } from './smoke-model-audit.mjs' // 门禁自动审计（2026-09-16 07:30 平台层轮接入——同进程复用 analyze/report，免子进程文本解析）
 import { analyze as udAnalyze, report as udAuditReport } from './smoke-userdata-check.mjs' // 数据层 userData 契约审计（2026-09-17 01:30 平台层轮接入——同进程复用，单名调试不跑审计=设计如此）
 import { analyze as tcAnalyze, report as tcAuditReport } from './textclick-audit.mjs' // 文本点击断链审计（2026-09-17 19:30 平台层轮接入——同进程复用；扫描「按钮文本查找」调用点 vs ICON_ONLY_LEXICON 词库，健康一行/疑似清单）
+import { analyze as utAnalyze, report as utAuditReport } from './ui-trait-audit.mjs' // UI 结构特征断链审计（2026-09-18 22:30 平台层轮接入——同进程复用；类名/短文本断言 vs src 存在性：src 已消失=断链，类名失配红/文本失配⚠提示）
 
 const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url)) // scripts/（fileURLToPath 避免中文路径被 URL 编码）
 const repoRoot = resolve(SCRIPTS_DIR, '..')
@@ -418,6 +419,15 @@ if (all) {
     const tcNote = '文本点击审计不健康（疑似断链清单见上）——默认不阻断；CI 阻断用 node scripts/textclick-audit.mjs'
     auditNote = auditNote ? `${auditNote}；${tcNote}` : tcNote
     console.error(`⚠️  ${tcNote}`)
+  }
+  // UI 结构特征断链审计（2026-09-18 22:30 接入，观察项 ㊲）：UI 结构收敛（去卡片化/去徽标/改类名/删状态文本）
+  //   后断言若引用已消失的类名/徽标文本会静默断链（9048f00 漏适配 3 支冒烟实证；textclick-audit 只审文本点击）。
+  //   判据=scripts 断言引用 vs src/ 存在性（src 已消失=必落空）：类名失配=红、文本失配=⚠（模板/输入值形态不判死）；
+  //   默认只提示不阻断（continue-on-error 语义同前三审计）；CI 阻断用 node scripts/ui-trait-audit.mjs。
+  if (!utAuditReport(utAnalyze())) {
+    const utNote = 'UI 结构特征审计不健康（疑似断链清单见上）——默认不阻断；CI 阻断用 node scripts/ui-trait-audit.mjs'
+    auditNote = auditNote ? `${auditNote}；${utNote}` : utNote
+    console.error(`⚠️  ${utNote}`)
   }
 }
 
