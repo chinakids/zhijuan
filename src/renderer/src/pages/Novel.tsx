@@ -96,6 +96,9 @@ export default function Novel() {
   const events = useFsEvents(id)
   const apiRef = useRef<ProseApi | null>(null)
   const [syncMsg, setSyncMsg] = useState('')
+  // 浮条 6s 自动清除定时器句柄（synctimer）：新同步状态必须清旧 timer——
+  // 防「6s 内二次保存」旧 timer 提前清新提示，也防「成功→失败」旧 timer 把常驻失败提示清掉（失败可感知可重试语义）
+  const syncTimer = useRef<number | null>(null)
   // 守卫拦截（target 存在性防线）：浮条「查看」可展开完整明细（正文为源、设定为流，拦截需作者判断是否补档案）
   const [syncIssues, setSyncIssues] = useState<SyncIssue[]>([])
   // 切片同步失败后的就地重试（03:45 观察②→06:45 候选 2）：失败浮条不随 6s 自动清，留「重试同步」按钮
@@ -239,6 +242,11 @@ export default function Novel() {
   const doSync = useCallback(
     async (rel: string) => {
       if (!id) return
+      // 新同步状态开始前：清掉上一轮残存的自动清除 timer（竞态修复，见 syncTimer 注释）
+      if (syncTimer.current !== null) {
+        window.clearTimeout(syncTimer.current)
+        syncTimer.current = null
+      }
       setSyncMsg('切片同步中…')
       setSyncRetry(null)
       setSyncIssues([])
@@ -248,7 +256,10 @@ export default function Novel() {
         // 「无设定变化」追加比对基准证据（2026-09-14 21:45）：确认同步真跑了、基准是什么
         setSyncMsg(r.items > 0 ? `✓ 已生成 ${r.items} 条切片提案` : `✓ 无设定变化${describeSyncEvidence(r.evidence)}`)
         useProposalStore.getState().bump()
-        window.setTimeout(() => setSyncMsg(''), 6000)
+        syncTimer.current = window.setTimeout(() => {
+          setSyncMsg('')
+          syncTimer.current = null
+        }, 6000)
       } else {
         // 失败可感知：浮条留存（不随 6s 清），并提供就地重试按钮
         setSyncMsg('✗ 切片同步失败: ' + r.error)
@@ -340,9 +351,20 @@ export default function Novel() {
   // 切换章节：收起「清单不一致」提示卡（忽略记录保留，本会话内不重复打扰该章）
   useEffect(() => {
     setCastCard(null)
+    if (syncTimer.current !== null) {
+      window.clearTimeout(syncTimer.current)
+      syncTimer.current = null
+    }
     setSyncMsg('')
     setSyncRetry(null)
   }, [sel])
+
+  // 卸载清理：组件销毁时移除未触发的自动清除 timer（防泄漏）
+  useEffect(() => {
+    return () => {
+      if (syncTimer.current !== null) window.clearTimeout(syncTimer.current)
+    }
+  }, [])
 
   // 「补入涉及人物」：把命中人物写进本章约定头（只改那一行，其他约定头原样；正文不动）
   async function addUnlisted() {
