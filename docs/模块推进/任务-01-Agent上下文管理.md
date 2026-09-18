@@ -42,6 +42,13 @@
 
 ## 五、迭代记录
 
+### 2026-09-19 06:00–06:5x（subtaskEnvBlock 坐标修复效果量化收口：子任务系真模型复跑零破坏+工具行为对比；提交 2f4f215，详见智能层档案 06:00 轮）
+
+- 背景：cab8caf 注入 `subtaskEnvBlock`（【作品根目录】坐标+禁止编 base 提示）改变了所有子任务 prompt 前缀——线 A「子任务上下文」面：既有真模型冒烟注入后未复跑、工具行为未量化。
+- 执行：串行复跑 director-smoke（**PASS 321.1s**）/director-check-smoke（**PASS 319.6s**）/subtasks-smoke（**前五步 OK**：chapter 159.8s/revision 646.3s/perspectives 391.0s/outline 90.5s/triage 67.5s）——env 块注入后 7 类子任务真模型零破坏；新入仓 `scripts/subtask-toolstats.mjs`（解析 dsh 引擎 session.jsonl.zstd）量化：注入前 audit 会话 43 次调用含 26 次 bash/glob 宿主探索+2 空结果 vs 注入后 33 次全 zj_* 零空零错——「模型猜 base 空转」根因=环境坐标缺失，注入即消失（03:00 轮「104 次/26 空」同证）。
+- 顺带修复：subtasks-smoke 外层预算 25→40min（六步+检查域 8/15min 档下 25min 实测不足，director 步被截断=假失败，已由 director-smoke 覆盖）。
+- 交接：候选顺位不变（2 zj 工具描述补大纲示例 → 4 前文衰减摘要）。新观察项入 智能层档案 候选 7：① **revision 第一轮 maxTokens 12288 被截断**（finish=max-tokens，def.retry 兜底成功——若再截断→升本线候选：harness maxTokens 按子任务参数化）；② subtask-toolstats 与「改子任务装配/subtaskEnvBlock/工具层后复跑并量化」绑定为固定后置；③ subtasks-smoke 全量六步以 40min 档为准（下轮可全量验）。
+
 ### 2026-09-18 15:00–15:5x（检查域读入口径对齐：本章小环当前章改保尾全量同源 WCTX_CAPS.chapter）
 
 - 背景：线 A「装配口径」面审计发现检查域读入口径从未与正文预算对齐——`audit.ts chapterBrief`（runChapterCheck 本章短巡查/分层修订材料包）当前章 `body.slice(0,9000)` 保头截断：头注释却写「本章全文（整段不省略）」（注释-实现背离）；真实章长最大 10941 → 裁掉刚写结尾 1941 字符（0cfb172 已论证巡查最需要尾部）；截断方向与 runChat 保尾口径相反；director-check（00:00 轮）与管理层正文预算（15:00 轮 12000）均已对齐，此为最后一处。
