@@ -123,3 +123,10 @@
 - 评估探针 `scripts/context-fading-probe.mjs`（60 章临时项目，独家事实只在第 08 章正文；第 60 章正文含「老槐树」线索引子）：数据层 FADING DATA OK；真模型（vLLM deepseek-v4-flash）两问全中零编造，轨迹=zj_workspace→zj_search「红丝带」→zj_read_doc 第08章→zj_search×2，用时 156.8s、zj 工具 6 次（8min 预算内）。
 - 结论：50 章+ 场景「线索驱动承接」检索增强链通，**前文衰减摘要当前非必需**（摘要资产有漂移/生成成本，zj_search 以正文为准；无线索全景=审计域冷读职责）。
 - 三道门全绿（842 例 83 文件）；观察项：结论基于单模型单样本，换模型/大项目先复跑探针。
+
+### 2026-09-19 09:00–10:3x（观察项「harness maxTokens 按子任务参数化」收口；提交见智能层档案 09:00 轮）
+
+- 背景：06:00 轮观察项①实锤 revision 首驱 outputTokens=12288 卡顶（finish=max-tokens、无 text、靠 retry 兜底）；官方 API 文档（api-docs.deepseek.com/api/create-chat-completion）确认 max_tokens 默认 thinking 模式 64K、reasoning tokens 计入 completion、reasoning_effort 默认 high——12288 全局档对「think+JSON 正文」的任务（revision）过紧。
+- 落地：SubtaskDef.maxTokens/maxMs 支持 `number | ((ctx)=>number|undefined)`（按 ctx.args.kind 分层）；vendored 补丁 `patch-server-maxtokens.mjs`（session/prompt 加 per-session maxTokens 透传，懒创建 agent 时应用，install.sh 重放）；driveSession 低阶口携带（全局档 12288 保留）；revision=20480+12min（focus「让 agent 改」先例），chapter 不覆盖。
+- 实证：小值探针三态 PASS（1→截断/8→完整/不带→完整=server 侧真实应用）+revision 会话 request/header `maxTokens:20480`。
+- **未收口观察项**：revision 真模型两跑超时（480.3s/720.6s）——20480 档下单 turn think 20K+ tokens 不收敛（06:00 旧行为 12288+retry=646.3s 可用）；「约束 vs 宽松」策略取舍与 reasoning_effort 引擎侧支持=智能层档案候选 1/2，待下一轮实测。**线 A 无新增候选**（上述在模块档案排期）。
