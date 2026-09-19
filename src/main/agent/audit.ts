@@ -8,7 +8,7 @@ import { actGapsCheck } from '../../shared/actGaps'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { chapterOrderCheck } from '../../shared/chapterorder'
 import { sliceSectionOrderCheck } from '../../shared/sliceorder'
-import { registerCapability, runSubtask, type SubtaskDef } from './subtask'
+import { registerCapability, runSubtask, extractJson, type SubtaskDef } from './subtask'
 import { auditDocMarkdown } from '../../shared/auditDoc'
 import { WCTX_CAPS } from '../../shared/contextCaps'
 import type {
@@ -336,7 +336,15 @@ const auditDef: SubtaskDef<AuditResult> = {
     const kind = c.args?.kind as AuditKind
     return [auditSystem(kind), volumeBrief(c.projectId), kind === 'consistency' ? '请给出巡查报告 JSON。' : '请给出冷读报告 JSON。']
   },
-  parse: (text) => extractAudit(text)
+  parse: (text) => extractAudit(text),
+  // 提取失败重试（2026-09-20 智能层，与 perspectiveDef/chapterCheckDef 对齐——auditDef 此前无 retry：
+  // 解析失败直接静默成空结果；且只重试真正的「提取失败」（空结果+原始回复非合法 JSON），
+  // 模型按格式回答「没有问题」（合法空 JSON=真零发现）不再无谓重试（省一次最长 15min 的调用）。
+  retry: {
+    check: (r, raw) => !r.summary && !r.items.length && !auditReplyIsValid(raw),
+    prompt:
+      '【提醒】上一次回答没有解析成要求的 JSON。这次请只原样输出一个 JSON 对象，先输出左花括号 {，别的什么也不要写。'
+  }
 }
 registerCapability(auditDef as never)
 
@@ -358,6 +366,16 @@ export async function runAudit(
       ? await runSubtask(perspectiveDef, projectId)
       : await runSubtask(auditDef, projectId, { kind })
   if (!r.ok) return r
+  // 审读存档：空结果保护（2026-09-20 智能层）——「提取失败」与「真零发现」必须区分：
+  // 模型未按格式回复（JSON 截断/跑偏）时 extract 折叠成空结果，若照常落盘会把「这一遍没有
+  // 发现问题」写成报告并覆盖上次好存档（03:00 轮实锤：perspectives 截断→空报告覆盖 06:00 轮
+  // 好报告）。ESLint CLI 三态语义（exit 0=成功无错 / 1=成功有错 / 2=无法运行）同构：执行失败
+  // ≠ 零发现。判据：仅「弱结果」（retry 后仍空且非法）才带 lastRaw（runSubtask 契约）→ 返回
+  // 失败并保留存档；无 lastRaw 的空结果=模型按格式回答「没有问题」（合法空 JSON），照常落盘
+  // （正反馈：上次的问题已全部解决，审计 diff 可展示全部「已解决」）。
+  if (!r.result.summary && !r.result.items.length && r.lastRaw !== undefined) {
+    return { ok: false, error: '检查没有完成：写作引擎没有给出有效报告（输出可能被中断）。为保护已有存档，本次未覆盖上次报告，请稍后重试。' }
+  }
   // 审读存档：结论落盘（覆盖式），失败不阻断审计结果本身
   let savedReport: string | undefined
   try {
@@ -440,12 +458,26 @@ const perspectiveDef: SubtaskDef<AuditResult> = {
   buildParts: (c) => [perspectiveSystem(), volumeBrief(c.projectId), '请给出多视角审读报告 JSON。'],
   parse: (text, c) => extractPerspective(text, new Set(settingList(c.projectId))),
   retry: {
-    check: (r) => !r.summary && !r.items.length,
+    // 2026-09-20 智能层：只重试真「提取失败」（空结果+原始回复非合法 JSON）；模型按格式回答
+    // 「没有问题」（合法空 JSON=真零发现）不再无谓重试——例：10 条上限全被滤空但 summary 非空。
+    check: (r, raw) => !r.summary && !r.items.length && !auditReplyIsValid(raw),
     prompt:
       '【提醒】上一次回答没有解析成要求的 JSON。这次请只原样输出一个 JSON 对象，先输出左花括号 {，别的什么也不要写。'
   }
 }
 registerCapability(perspectiveDef as never)
+
+/**
+ * 模型原始回复是否给出「结构完整」的 JSON（能解析出对象且 items 为数组）——区分「真零发现」与「提取失败」。
+ * 2026-09-20 智能层：extractAudit/extractPerspective 对 JSON 截断/跑偏会折叠成空结果，
+ * 若把提取失败也当「这一遍没有发现问题」落盘，会覆盖上次好存档（03:00 轮实锤：perspectives 截断→
+ * 空报告覆盖 06:00 轮好报告）。判据=模型确实按格式回答（items 可为空数组=真零发现）。
+ */
+export function auditReplyIsValid(text: string | undefined): boolean {
+  if (!text) return false
+  const obj = extractJson<{ items?: unknown }>(text)
+  return obj !== null && Array.isArray(obj.items)
+}
 
 /** 从模型回复里稳健提取审计 JSON 对象 */
 export function extractAudit(text: string): AuditResult {
@@ -631,7 +663,9 @@ const chapterCheckDef: SubtaskDef<ChapterCheckResult> = {
   },
   parse: (text, c) => extractChapterCheck(text, new Set(settingList(c.projectId))),
   retry: {
-    check: (r) => !r.summary && !r.items.length,
+    // 2026-09-20 智能层：与 audit/perspectives 同口径——只重试真「提取失败」（空结果+原始回复
+    // 非合法 JSON）；模型按格式回答「没有问题」（合法空 JSON=真零发现）不再无谓重试。
+    check: (r, raw) => !r.summary && !r.items.length && !auditReplyIsValid(raw),
     prompt:
       '【提醒】上一次回答没有解析成要求的 JSON。这次请只原样输出一个 JSON 对象，先输出左花括号 {，别的什么也不要写。'
   }

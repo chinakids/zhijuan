@@ -11,8 +11,11 @@ export type SubtaskOutcome<T> =
   | { ok: false; error: string }
 
 export interface SubtaskRetry<T> {
-  /** 当 check 命中（结果似乎无效）时，用强化提示再跑一次 */
-  check: (r: T) => boolean
+  /** 当 check 命中（结果似乎无效）时，用强化提示再跑一次。
+   * 第二参 raw=模型原始回复（2026-09-20 智能层）：用于区分「真零发现」（模型按格式回答
+   * 「没有问题」，如 {"summary":"","items":[]}——不该重试）与「提取失败」（JSON 截断/跑偏，
+   * 解析不出结构——该重试）；只判解析结果的旧写法会把两者都当成无效。 */
+  check: (r: T, raw?: string) => boolean
   /** 追加在提示末尾的再要求 */
   prompt: string
 }

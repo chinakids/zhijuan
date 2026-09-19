@@ -1431,6 +1431,11 @@ const mock = {
     return { ok: true }
   },
   agentAudit: async (projectId: string, kind: string) => {
+    // 失败态注入（?zj-auditfail=1）：模拟真机 runAudit「提取失败」返回（2026-09-20 智能层保护——
+    // 模型未按格式回复时 ok:false 且不覆盖上次存档），供无头冒烟验证抽屉错误呈现；与真机同文案同形态。
+    if (new URLSearchParams(location.search).get('zj-auditfail')) {
+      return { ok: false, error: '检查没有完成：写作引擎没有给出有效报告（输出可能被中断）。为保护已有存档，本次未覆盖上次报告，请稍后重试。' }
+    }
     // 与主进程同语义：审计成功后把结论落盘 大纲/审读_<名>.md（供无头 UI 冒烟断言「已存档」与大纲区「审读存档」）
     const name = kind === 'consistency' ? '一致性巡查' : kind === 'perspectives' ? '多视角审视' : kind === 'presence' ? '人物在场核查' : kind === 'order' ? '切片时序核查' : kind === 'unused' ? '人物档案腐坏核查' : kind === 'actgaps' ? '正文缺段核查' : kind === 'sliceord' ? '档案切片核查' : kind === 'nameform' ? '称谓发现核查' : kind === 'mixform' ? '称谓混用核查' : '冷读报告'
     const res =

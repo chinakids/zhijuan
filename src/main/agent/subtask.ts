@@ -91,7 +91,8 @@ export async function runSubtask<T>(
   try {
     const out = await runOnceInner(def, { projectId, args, seq: runSeq++ })
     // 诊断增强：最后一次驱动仍被判「空/无效」时，把模型原始回复带回（正常路径不带，省跨 IPC 大文本）
-    const weak = def.retry ? def.retry.check(out.value) : false
+    // 2026-09-20 智能层：check 第二参传 raw——「真零发现」（合法空 JSON）不算弱，只有「提取失败」才带 lastRaw
+    const weak = def.retry ? def.retry.check(out.value, out.lastRaw) : false
     return weak
       ? { ok: true, result: out.value, lastRaw: out.lastRaw }
       : { ok: true, result: out.value }
@@ -121,7 +122,7 @@ export async function runOnceInner<T>(def: SubtaskDef<T>, ctx: SubtaskCtx): Prom
     })
   let text = await exec(sid, prompt())
   let result = def.parse(text, ctx)
-  if (def.retry && def.retry.check(result)) {
+  if (def.retry && def.retry.check(result, text)) {
     text = await exec(sid + '-r', prompt() + '\n\n' + def.retry.prompt)
     result = def.parse(text, ctx)
   }
