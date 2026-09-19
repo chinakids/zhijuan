@@ -107,12 +107,24 @@ try {
     await evalUntil(page, `!!document.querySelector('[role="dialog"]')`, (v) => v === true, 10000, '抽屉打开')
     await sleep(400)
     const r = await page.eval(`(() => {
-      const b = [...document.querySelectorAll('[role="dialog"] button')].find((x) => (x.textContent || '').trim() === ${JSON.stringify(tabText)})
+      const sel = document.querySelector('[data-testid="audit-kind-select"]')
+      if (!sel) return 'NO_SELECT'
+      sel.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+      sel.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
+      sel.click()
+      return 'OK'
+    })()`)
+    if (r !== 'OK') throw new Error('开切换菜单失败: ' + r)
+    await sleep(600)
+    const r2 = await page.eval(`(() => {
+      const b = [...document.querySelectorAll('[role="menuitem"]')].find((x) => (x.textContent || '').trim() === ${JSON.stringify(tabText)})
       if (!b) return 'NO_TAB'
+      b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+      b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
       b.click()
       return 'OK'
     })()`)
-    if (r !== 'OK') throw new Error('切 Tab 失败: ' + r + '（' + tabText + '）')
+    if (r2 !== 'OK') throw new Error('切 Tab 失败: ' + r2 + '（' + tabText + '）')
     await evalUntil(page, `document.body.innerText.includes(${JSON.stringify(titlePart)})`, (v) => v === true, timeoutMs, '抽屉标题出现: ' + titlePart)
   }
   await zjHealthOpen(page, '档案', '人物档案腐坏核查')
@@ -128,18 +140,32 @@ try {
   if (!hasItems) throw new Error('条目未渲染（缺 从未出现/让 agent 改）')
   console.log('OK 演示条目渲染（冗余别名 沈老爹，含「让 agent 改」入口）')
 
-  // ⑤ 抽屉内「档案」Tab 高亮，切到「在场」再切回「档案」标题随切
-  const tabState = await page.eval(`(() => {
-    const btns = [...document.querySelectorAll('button')]
-    const on = btns.find((b) => (b.textContent || '').trim() === '档案')
-    return on ? on.className : 'NOT_FOUND'
-  })()`)
-  if (!String(tabState).includes('bg-accent-soft')) throw new Error('「档案」Tab 未高亮: ' + tabState)
-  console.log('OK 「档案」Tab 高亮')
-  console.log('切到「在场」:', await page.eval(clickByText('在场')))
+  // ⑤ 抽屉内当前项=切换触发器「档案」，开菜单切「在场」再切回「档案」标题随切（18fd703 下拉化）
+  const curTab = await page.eval(`document.querySelector('[data-testid="audit-kind-select"]')?.textContent?.trim() ?? 'NOT_FOUND'`)
+  if (curTab !== '档案') throw new Error('当前项应为「档案」: ' + curTab)
+  console.log('OK 触发器显示「档案」')
+  await page.eval(`(() => { const s = document.querySelector('[data-testid="audit-kind-select"]'); if (!s) return; s.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); s.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' })); s.click() })()`)
+  await sleep(600)
+  console.log('切到「在场」:', await page.eval(`(() => {
+  const b = [...document.querySelectorAll('[role="menuitem"]')].find((x) => (x.textContent || '').trim() === '在场')
+  if (!b) return 'NO_ITEM'
+  b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+  b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
+  b.click()
+  return 'OK'
+})()`))
   await evalUntil(page, `document.body.innerText.includes('人物在场核查')`, (v) => v === true, 10000, '切到在场')
   console.log('OK 切成「在场」')
-  console.log('切回「档案」:', await page.eval(clickByText('档案')))
+  await page.eval(`(() => { const s = document.querySelector('[data-testid="audit-kind-select"]'); if (!s) return; s.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); s.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' })); s.click() })()`)
+  await sleep(600)
+  console.log('切回「档案」:', await page.eval(`(() => {
+  const b = [...document.querySelectorAll('[role="menuitem"]')].find((x) => (x.textContent || '').trim() === '档案')
+  if (!b) return 'NO_ITEM'
+  b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+  b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
+  b.click()
+  return 'OK'
+})()`))
   await evalUntil(page, `document.body.innerText.includes('人物档案腐坏核查')`, (v) => v === true, 10000, '切回档案')
   console.log('OK 切回「档案」')
 

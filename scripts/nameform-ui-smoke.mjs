@@ -105,12 +105,24 @@ try {
     await evalUntil(page, `!!document.querySelector('[role="dialog"]')`, (v) => v === true, 10000, '抽屉打开')
     await sleep(400)
     const r = await page.eval(`(() => {
-      const b = [...document.querySelectorAll('[role="dialog"] button')].find((x) => (x.textContent || '').trim() === ${JSON.stringify(tabText)})
+      const sel = document.querySelector('[data-testid="audit-kind-select"]')
+      if (!sel) return 'NO_SELECT'
+      sel.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+      sel.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
+      sel.click()
+      return 'OK'
+    })()`)
+    if (r !== 'OK') throw new Error('开切换菜单失败: ' + r)
+    await sleep(600)
+    const r2 = await page.eval(`(() => {
+      const b = [...document.querySelectorAll('[role="menuitem"]')].find((x) => (x.textContent || '').trim() === ${JSON.stringify(tabText)})
       if (!b) return 'NO_TAB'
+      b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+      b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
       b.click()
       return 'OK'
     })()`)
-    if (r !== 'OK') throw new Error('切 Tab 失败: ' + r + '（' + tabText + '）')
+    if (r2 !== 'OK') throw new Error('切 Tab 失败: ' + r2 + '（' + tabText + '）')
     await evalUntil(page, `document.body.innerText.includes(${JSON.stringify(titlePart)})`, (v) => v === true, timeoutMs, '抽屉标题出现: ' + titlePart)
   }
   await zjHealthOpen(page, '称谓', '称谓发现核查')
@@ -125,18 +137,19 @@ try {
   check('空态语义渲染', txt.includes('这一遍没有发现问题'))
   check('本地规则秒级文案', txt.includes('本地规则核查') && txt.includes('零模型·秒级'))
 
-  // ⑤ 抽屉内 tab 按钮「称谓」存在且可切换（当前已是 nameform，切去「在场」再切回）
-  const tabBtn = await page.eval(`(() => {
-    const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === '称谓' && !x.title)
-    return b ? b.textContent.trim() : null
-  })()`)
-  check('抽屉顶栏「称谓」tab 存在', tabBtn === '称谓')
+  // ⑤ 抽屉当前项=切换触发器「称谓」；开菜单切「在场」再切回（18fd703 下拉化）
+  const curTab = await page.eval(`document.querySelector('[data-testid="audit-kind-select"]')?.textContent?.trim() ?? 'NOT_FOUND'`)
+  check('抽屉切换触发器显示「称谓」', curTab === '称谓')
+  await page.eval(`(() => { const s = document.querySelector('[data-testid="audit-kind-select"]'); if (!s) return; s.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' })); s.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' })); s.click() })()`)
+  await sleep(600)
   console.log('切 tab:', await page.eval(`(() => {
-    const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === '在场' && !x.title)
-    if (!b) return 'NOT_FOUND'
-    b.click()
-    return 'CLICKED'
-  })()`))
+  const b = [...document.querySelectorAll('[role="menuitem"]')].find((x) => (x.textContent || '').trim() === '在场')
+  if (!b) return 'NO_ITEM'
+  b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+  b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
+  b.click()
+  return 'OK'
+})()`))
   await evalUntil(page, `document.body.innerText.includes('人物在场核查')`, (v) => v === true, 10000, '切到在场 tab')
   console.log('OK 可切换到其他 tab（无 JS 异常）')
 
