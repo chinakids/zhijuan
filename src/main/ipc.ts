@@ -2,7 +2,7 @@
 import { ipcMain, shell, BrowserWindow, dialog, app } from 'electron'
 import { writeFileSync } from 'fs'
 import { join } from 'path'
-import type { AppSettings, FsEvent, ProposalItem, EditItem, Proposal } from '../shared/types'
+import type { AppSettings, FsEvent, ProposalItem, EditItem, Proposal, SaveTraceEntry } from '../shared/types'
 import { adoptActsChapter } from '../shared/actsAdopt'
 import { countWords } from '../shared/count'
 import { extractFrontMatter } from '../shared/fmatter'
@@ -33,6 +33,7 @@ import {
   watchProject
 } from './store'
 import { workspaceStatus, ensureWorkspaceDocs, readWorkspaceDoc } from './workspace'
+import { appendSaveTrace } from './saveTrace'
 import { listLibraryCategories, createLibraryCategory, searchDocs, recentLibraryDocs } from './library'
 import { listTemplates } from './templates'
 import { workspaceDir } from './settings'
@@ -156,6 +157,11 @@ export function registerIpc() {
   })
   ipcMain.handle('doc:list', (_e, id: string, relDir: string) => listDocs(id, relDir))
   ipcMain.handle('chapter:list', (_e, id: string) => listChapters(id))
+  // 渲染层保存动作取证（P1 F-20260917-10 残余：渲染层根因无日志；fire-and-forget 旁路留痕，仅取证不改行为）
+  ipcMain.handle('doc:saveTrace', (_e, id: string, rel: string, entry: SaveTraceEntry) => {
+    appendSaveTrace(id, rel, entry)
+    return true
+  })
 
   // 章节管理（§6.2）：重命名（改约定头题名＋文件名，联动大纲副产物/版本历史）、删除（正文+大纲副产物进废纸篓）、导出单章 md
   ipcMain.handle('chapter:rename', (_e, id: string, rel: string, newTitle: string) => renameChapter(id, rel, newTitle))

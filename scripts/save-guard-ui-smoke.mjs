@@ -158,7 +158,27 @@ try {
   console.log(`📸 截图 saved: ~/Pictures/zhijuan/save-guard-confirm-${hhmm2}.png`)
 } catch (e) { console.log('截图失败（不阻断）: ' + e.message) }
 
-// ===== 5. 零 JS 异常 =====
+// ===== 5.（2026-09-19 创作层扩展，P1 F-20260917-10）渲染层取证点 save-trace 留痕 =====
+const trace = await ev(`(() => {
+  const t = (window.__ZJ_SAVETRACE || []).map((x) => x.action + '|' + x.mdLen + '|' + x.status + '|' + x.confirmEmpty)
+  return t
+})()`)
+ok(trace.some((x) => x.startsWith('blocked|0|')), `取证点记录 blocked（空写拦截留痕）`)
+ok(trace.some((x) => x.startsWith('allow-empty|0|')), `取证点记录 allow-empty（两步确认写空放行留痕）`)
+ok(trace.some((x) => x.startsWith('write|') && !x.startsWith('write-empty') && !x.startsWith('write|0|')), `取证点记录 write（正常写盘留痕）`)
+const full = await ev(`(() => {
+  const t = window.__ZJ_SAVETRACE || []
+  const w = t.find((x) => x.action === 'write')
+  return w ? { mdLen: w.mdLen, status: w.status, epoch: w.epoch, diskBodyLen: w.diskBodyLen, confirmEmpty: w.confirmEmpty, rel: w.rel, time: w.time } : null
+})()`)
+ok(
+  !!full && typeof full.mdLen === 'number' && typeof full.status === 'string' && typeof full.epoch === 'number' &&
+    typeof full.diskBodyLen === 'number' && typeof full.confirmEmpty === 'boolean' &&
+    typeof full.time === 'number' && full.rel.includes('正文/'),
+  `取证字段完整（mdLen/status/epoch/diskBodyLen/confirmEmpty/time/rel）`
+)
+
+// ===== 6. 零 JS 异常 =====
 ok(errors.length === 0, `全程零 JS 异常（${errors.length}）`)
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed, errors=${errors.length}`)

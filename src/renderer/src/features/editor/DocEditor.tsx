@@ -6,6 +6,7 @@ import HistoryDrawer from './HistoryDrawer'
 import AnnoDrawer from './AnnoDrawer'
 import { withBody } from '../../../../shared/fmatter'
 import type { AnnotationRow } from '../../../../shared/annotations'
+import type { SaveTraceEntry } from '../../../../shared/types'
 import { registerDocEditor, unregisterDocEditor } from '../menu/menuState'
 import { MENU_EV_SAVE, isMenuJustHandled } from '../menu/menuBus'
 
@@ -43,6 +44,10 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
   const [readErr, setReadErr] = useState('')
   const [retryTick, setRetryTick] = useState(0) // 读取失败后「重试」：+1 触发加载 effect 重跑
   const [epoch, setEpoch] = useState(0) // 换文件时强制重建编辑器，避免脏状态串文件
+  // P1 F-20260917-10 取证用：doSave 是 useCallback（deps 不含 epoch），闭包只能拿创建时旧值——
+  // 保存动作留痕需要「保存时刻」的代次，经 ref 实时透传（仅取证，不参与行为）。
+  const epochRef = useRef(epoch)
+  epochRef.current = epoch
   const [historyOpen, setHistoryOpen] = useState(false)
   const [annoOpen, setAnnoOpen] = useState(false)
   // P1 防线「二次确认」（F-20260917-10，2026-09-19 创作层）：编辑器为空+磁盘非空被拦后，
@@ -95,7 +100,22 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
 
   const doSave = useCallback(async () => {
     const api = apiRef.current
-    if (!api) return
+    // P1 F-20260917-10 取证点（2026-09-19 创作层落地，仅取证不改行为）：每次保存动作在
+    // `.zhijuan/save-trace.jsonl` 留一条渲染层侧证据（mdLen/status/epoch/confirmEmpty/action）——
+    // 与主进程 write-log（写盘侧长度/内容头）互补；「保存时编辑器为何为空」下次再现可直接回放，
+    // 不再需要靠 history 快照与引擎日志推断。fire-and-forget：不 await、失败无感。
+    if (!api) {
+      void window.zhijuan.saveTrace(projectId, rel, {
+        time: Date.now(),
+        mdLen: -1,
+        status: statusRef.current,
+        epoch: epochRef.current,
+        confirmEmpty,
+        diskBodyLen: -1,
+        action: 'aborted'
+      })
+      return
+    }
     // P1 防线（F-20260917-10，2026-09-19 智能层）+ 创作层加固：编辑器内容为空但磁盘正文非空 → 拦一次，
     // 再按一次保存=两步确认放行（作者确要清空；空写不可逆，版本历史是唯一后悔药）。
     // 智能层原判据用内存 rawRef 判断磁盘——竞态下 rawRef 可能失真；本轮改为空 md 时真读磁盘（
@@ -103,26 +123,50 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
     setStatus('saving')
     try {
       const md = api.getMarkdown()
-      let diskBody = ''
+      let diskBodyLen = -1
+      let action: SaveTraceEntry['action'] = 'write'
       if (md === '') {
         const onDisk = (await window.zhijuan.readDoc(projectId, rel)) ?? ''
-        diskBody = withFm ? splitFm(onDisk).body : onDisk
-        if (diskBody !== '') {
+        diskBodyLen = withFm ? splitFm(onDisk).body.length : onDisk.length
+        if (diskBodyLen > 0) {
           if (!confirmEmpty) {
+            action = 'blocked'
+            void window.zhijuan.saveTrace(projectId, rel, {
+              time: Date.now(),
+              mdLen: md.length,
+              status: statusRef.current,
+              epoch: epochRef.current,
+              confirmEmpty,
+              diskBodyLen,
+              action
+            })
             setStatus('external')
             setNote('正文疑似为空：磁盘上已有正文，本次未保存；若确要清空，请再按一次保存确认')
             setConfirmEmpty(true)
             return
           }
           // 已确认（再按一次保存）：放行写空，随即复位防第三次误放行
+          action = 'allow-empty'
           setConfirmEmpty(false)
+        } else {
+          // 磁盘也为空（首存/本就空文档）：正常写空，不算异常
+          action = 'write-empty'
         }
-        // 磁盘也为空（首存/本就空文档）：正常写空，不算异常
       }
       const content = withFm ? withBody(rawRef.current, md) : md
       await window.zhijuan.writeDoc(projectId, rel, content)
       rawRef.current = content
       savedMdRef.current = md
+      // 写盘成功留痕（blocked 已在上方分支记录，此处记录 write/allow-empty/write-empty）
+      void window.zhijuan.saveTrace(projectId, rel, {
+        time: Date.now(),
+        mdLen: md.length,
+        status: statusRef.current,
+        epoch: epochRef.current,
+        confirmEmpty,
+        diskBodyLen,
+        action
+      })
       setStatus('saved')
       onSave?.()
       window.setTimeout(() => setStatus((s) => (s === 'saved' ? 'idle' : s)), 1800)

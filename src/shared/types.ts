@@ -299,6 +299,25 @@ export interface SyncLogEntry {
   /** ok=false 时的错误摘要（截断 120 字） */
   error?: string
 }
+/** 渲染层保存动作取证单条（2026-09-19 创作层，P1 F-20260917-10 残余：写盘方已钉死但「保存时编辑器为何为空」渲染层无日志）。
+ * 与主进程 write-log（写盘侧事实：长度/内容头）互补：本条=保存动作侧状态（mdLen/status/epoch/confirmEmpty/action）。
+ * 落盘 `.zhijuan/save-trace.jsonl`（main/saveTrace.ts），仅取证不改保存行为。 */
+export interface SaveTraceEntry {
+  /** 时间戳（ms） */
+  time: number
+  /** 保存时刻编辑器正文长度（getMarkdown；0=空——P1 现场形态；aborted 时 -1=未取得） */
+  mdLen: number
+  /** 保存时刻 DocStatus（idle/dirty/saving/saved/external/error） */
+  status: string
+  /** 编辑器重建代次（epoch；换章/静默重载竞态判别） */
+  epoch: number
+  /** 空写两步确认态（P1 防线：是否已确认清空） */
+  confirmEmpty: boolean
+  /** 空 md 时磁盘正文本体长度（>=0；非空 md 未读盘=-1） */
+  diskBodyLen: number
+  /** 保存动作分类：write=正常写盘 / blocked=空写被拦 / allow-empty=确认后空写放行 / write-empty=磁盘亦空的空写 / aborted=编辑器未就绪（Prose create 窗口） */
+  action: 'write' | 'blocked' | 'allow-empty' | 'write-empty' | 'aborted'
+}
 /** 批注同步来源引用（proposal.meta.annotations）：接受/拒绝后按行删除对应 csv 条目 */
 export interface AnnotationRef {
   /** 批注 csv 相对路径（如 正文/第01章_雾港_批注.csv） */

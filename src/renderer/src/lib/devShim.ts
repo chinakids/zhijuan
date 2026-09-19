@@ -1,5 +1,5 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
-import type { AgentEvent, AppSettings, ChapterEntry, OutlineCard, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult, MenuActionEvent, MenuActionId, MenuStateReport, SyncIssue, SyncEvidence, SyncLogEntry } from '../../../shared/types'
+import type { AgentEvent, AppSettings, ChapterEntry, OutlineCard, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult, MenuActionEvent, MenuActionId, MenuStateReport, SyncIssue, SyncEvidence, SyncLogEntry, SaveTraceEntry } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
 import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterSliceInDoc } from '../../../shared/outline'
 import { isMaterialCard } from '../../../shared/materialCard'
@@ -663,6 +663,13 @@ const mock = {
   getRecentEntries: async (): Promise<RecentEntry[]> => recents.slice().sort((a, b) => b.openedAt - a.openedAt),
   readDoc: async (_id: string, rel: string) => docs.get(_id + '/' + rel) ?? null,
   writeDoc: async (_id: string, rel: string, content: string) => devWriteDoc(_id, rel, content),
+  // 保存动作取证（2026-09-19 创作层，P1 F-20260917-10）：真机落 .zhijuan/save-trace.jsonl（main/saveTrace.ts）；
+  // devShim 无磁盘，记录到 window.__ZJ_SAVETRACE（无头冒烟断言「取证点真的跑了」；与 writeDoc 的 _id 前缀无关，仅测试面）
+  saveTrace: async (_id: string, rel: string, entry: SaveTraceEntry) => {
+    const w = window as unknown as { __ZJ_SAVETRACE?: Array<SaveTraceEntry & { rel: string }> }
+    ;(w.__ZJ_SAVETRACE ??= []).push({ ...entry, rel })
+    return true
+  },
   deleteDoc: async (_id: string, rel: string) => {
     // 与真机 store.deleteDoc 同口径防御：只收 .md、拒绝空/绝对/带 .. 段的路径
     const bad = !rel || !rel.endsWith('.md') || rel.startsWith('/') || rel.split('/').some((s) => s === '..')

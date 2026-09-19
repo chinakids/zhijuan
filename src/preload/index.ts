@@ -13,6 +13,7 @@ import type {
   SyncIssue,
   SyncEvidence,
   SyncLogEntry,
+  SaveTraceEntry,
   AuditItem,
   AuditKind,
   ChapterCheckKind,
@@ -70,6 +71,8 @@ const api = {
   // 文档（相对项目根）
   readDoc: (id: string, rel: string) => ipcRenderer.invoke('doc:read', id, rel) as Promise<string | null>,
   writeDoc: (id: string, rel: string, content: string) => ipcRenderer.invoke('doc:write', id, rel, content) as Promise<boolean>,
+  // 渲染层保存动作取证（P1 F-20260917-10：fire-and-forget 旁路，不 await 等待结果）
+  saveTrace: (id: string, rel: string, entry: SaveTraceEntry) => ipcRenderer.invoke('doc:saveTrace', id, rel, entry) as Promise<boolean>,
   deleteDoc: (id: string, rel: string) =>
     ipcRenderer.invoke('doc:delete', id, rel) as Promise<{ ok: boolean; error?: string }>,
   // 章节管理（§6.2）：重命名 / 删除（联动大纲副产物）/ 导出单章 md
