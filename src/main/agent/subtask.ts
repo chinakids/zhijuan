@@ -68,6 +68,12 @@ export function subtaskBlocked(id: string, title: string): string | null {
   return caps[id] === false ? `能力「${title}」已在设置里关闭，先用设置页把它打开。` : null
 }
 
+/** 子任务输出预算解析（2026-09-19 智能层）：def.maxTokens 可为函数（按 ctx 区分，如 revision）；返回
+ * undefined = 走 SDK 全局档（12288）。纯函数，可单测。 */
+export function resolveMaxTokens<T>(def: SubtaskDef<T>, ctx: SubtaskCtx): number | undefined {
+  return typeof def.maxTokens === 'function' ? def.maxTokens(ctx) : def.maxTokens
+}
+
 /** 执行一次结构化子任务（单会话）；材料组装的失败、驱动失败、解析失败都折叠成 { ok:false, error } */
 export async function runSubtask<T>(
   def: SubtaskDef<T>,
@@ -100,7 +106,9 @@ export async function runOnceInner<T>(def: SubtaskDef<T>, ctx: SubtaskCtx): Prom
   const sid = `${def.sidPrefix ?? def.id}-${Date.now().toString(36)}-${ctx.seq.toString(36)}-${ctx.projectId}`
   const env = subtaskEnvBlock(projectDir(ctx.projectId))
   const prompt = () => env + '\n\n' + parts.join('\n\n')
-  const exec = (sidX: string, p: string) => driveSession(sidX, p, { maxMs: def.maxMs ?? 7 * 60 * 1000 })
+  const maxMs = typeof def.maxMs === 'function' ? def.maxMs(ctx) : def.maxMs
+  const exec = (sidX: string, p: string) =>
+    driveSession(sidX, p, { maxMs: maxMs ?? 7 * 60 * 1000, maxTokens: resolveMaxTokens(def, ctx) })
   let text = await exec(sid, prompt())
   let result = def.parse(text, ctx)
   if (def.retry && def.retry.check(result)) {

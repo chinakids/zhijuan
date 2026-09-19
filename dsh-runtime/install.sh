@@ -44,4 +44,8 @@ cd .. && node scripts/build-plugins.mjs
 #    给 vendored jsonrpc-server 加 session/cancel 转发（幂等；重装依赖后自动恢复，勿删）
 cd dsh-runtime && node scripts/patch-server-cancel.mjs && cd ..
 
+# 7) 织卷自维护补丁：session/prompt 加 per-session maxTokens 透传（子任务输出预算按 kind 分层，
+#    幂等；重装依赖后自动恢复，勿删）
+cd dsh-runtime && node scripts/patch-server-maxtokens.mjs && cd ..
+
 echo 'dsh-runtime 就绪'

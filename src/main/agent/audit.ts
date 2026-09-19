@@ -591,8 +591,18 @@ const chapterCheckDef: SubtaskDef<ChapterCheckResult> = {
   // 2026-09-18：6min→8min（候选 2 收口）。依据：①15:00 轮实测慢车期（算力池互阻）chapter 341s 险过、revision 360s 超时（六连）；
   // ②15:00 轮 chapterBrief 当前章全量化到 ≤12000（chapterBodyBlock），大章材料包比旧 9000 保头大 ~33%，负载同向加重；
   // ③域内一致性：audit / perspectives 均 8min，本章检查与「检查域主流预算」同档；revision 输出多层结构化 JSON = 域内最重检查。
-  // 与 runSubtask 默认 7min 的关系：保持显式（8min）。后续改回 6min 前先看 15:00 轮实测数据；慢车期若 8min 仍不足，再按 kind（chapter/revision）分层。
-  maxMs: 8 * 60 * 1000,
+  // 与 runSubtask 默认 7min 的关系：保持显式。后续改回 6min 前先看 15:00 轮实测数据；慢车期若 8min 仍不足，再按 kind（chapter/revision）分层。
+  // 按 kind 分层预算（2026-09-19 智能层，候选 3 触发）：本章短巡查 8min（快车期实测 159.8s/慢车期 341s 险过）；分层修订（revision）
+  // 是「让 agent 改」类多轮工具任务（真模型实测：step 1/2/3 连续 tool-calls 核对+think，本轮首驱 480.3s 被 8min 档中止）——
+  // 对齐 focus 12min 先例（09-15 定：「让 agent 改」类专属预算）；maxMs 函数化同 maxTokens 模式。
+  maxMs: (c) => (c.args?.kind === 'revision' ? 12 * 60 * 1000 : 8 * 60 * 1000),
+  // 输出预算分层（2026-09-19 智能层，候选「harness maxTokens 按子任务参数化」观察项触发）：
+  // 06:00 轮真模型会话日志实锤——revision 首次驱动 outputTokens=12288 卡在 SDK 全局上限（finish=max-tokens、
+  // 无 text，靠 def.retry 兜底）；本章短巡查同场景 4255（未截断）。官方 API（api-docs.deepseek.com）：
+  // max_tokens 默认 thinking 模式 64K，reasoning tokens 计入 completion——12288 全局档对「think+JSON 正文」
+  // 的修订任务过紧。revision → 20480（think ~12K+ 留 JSON 空间；仍低于官方 thinking 默认 64K）；chapter 不覆盖
+  // （=全局档，4255 实测量级无风险）。改回全局前先看 06:00/09:00 轮会话日志 usage 数据。
+  maxTokens: (c) => (c.args?.kind === 'revision' ? 20480 : undefined),
   buildParts: (c) => {
     const chapterRel = String(c.args?.chapterRel ?? '')
     const kind = c.args?.kind as ChapterCheckKind

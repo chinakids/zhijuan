@@ -15,8 +15,9 @@ import { activeProvider, buildLlmOverrideYml } from '../../shared/providers'
 export interface EnginePort {
   /** 确保引擎在跑；失败返回原因串，成功 undefined */
   ensureHarness(): Promise<string | undefined>
-  /** 低阶驱动一轮（发提示并泵取事件直到回合结束；isAborted＝外部取消信号，为 true 立即收尾） */
-  driveSession(sid: string, text: string, opts?: { onEvent?: (n: DriveEvent) => void; maxMs?: number; isAborted?: () => boolean }): Promise<string>
+  /** 低阶驱动一轮（发提示并泵取事件直到回合结束；isAborted＝外部取消信号，为 true 立即收尾；
+   * maxTokens＝本轮输出预算（仅首次创建该会话的 agent 时生效，dsh 会话懒创建；undefined＝SDK 全局档 12288） */
+  driveSession(sid: string, text: string, opts?: { onEvent?: (n: DriveEvent) => void; maxMs?: number; isAborted?: () => boolean; maxTokens?: number }): Promise<string>
   /** 真中断：请求引擎立即取消指定会话的活动轮次（SDK 无公开中断口，走 session/cancel 补丁；未就绪时静默返回 false） */
   cancelTurn(sessionId: string): Promise<boolean>
   /** 关闭引擎（应用退出时） */
@@ -212,11 +213,14 @@ async function sessionHandle(key: string) {
 }
 
 /** 低阶驱动一轮：发 prompt 并用订阅泵取事件，直到本轮 turn 结束（含历史回放也会被正确跳过）。
- * isAborted：外部取消信号（如用户点停止）——每次事件后检查，为 true 立即收尾（不等待侧引擎收尾事件）。 */
+ * isAborted：外部取消信号（如用户点停止）——每次事件后检查，为 true 立即收尾（不等待侧引擎收尾事件）。
+ * maxTokens（2026-09-19 智能层）：本轮输出预算——dsh 会话懒创建于首次 prompt，这里用低阶
+ * session/prompt 携带 maxTokens；server 侧 per-agent 应用（vendored 补丁 patch-server-maxtokens）。
+ * 不携带时 = SDK 全局档（initialize 12288），runChat/runSync 等既有调用零行为变化。 */
 export async function driveSession(
   sid: string,
   text: string,
-  opts?: { onEvent?: (n: DriveEvent) => void; maxMs?: number; isAborted?: () => boolean }
+  opts?: { onEvent?: (n: DriveEvent) => void; maxMs?: number; isAborted?: () => boolean; maxTokens?: number }
 ): Promise<string> {
   const err = await ensureHarness()
   if (err) throw new Error(err)
@@ -245,7 +249,13 @@ export async function driveSession(
     })()
   }, Math.max(1, opts?.maxMs ?? 10 * 60 * 1000))
   try {
-    await client.prompt(sid, [{ type: 'text', text }])
+    // 低阶 session/prompt（2026-09-19）：SDK 高层 prompt() 不带 maxTokens；低阶口可附
+    // per-session 输出预算（与 cancelTurn 同法；server 端 vendored 补丁应用）。
+    await client.request('session/prompt', {
+      sessionId: sid,
+      contentBlocks: [{ type: 'text', text }],
+      ...(opts?.maxTokens !== undefined ? { maxTokens: opts.maxTokens } : {})
+    })
     for await (const n of sub) {
       opts?.onEvent?.(n)
       if (opts?.isAborted?.()) break // 外部已取消：尽快收尾（awaiting-prompt 阶段引擎可能已清队列、不再发事件）

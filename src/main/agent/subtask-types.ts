@@ -34,6 +34,10 @@ export interface SubtaskDef<T> {
   retry?: SubtaskRetry<T>
   /** 可选的结果后处理（校验 target、注数据等） */
   postprocess?: (result: T, ctx: SubtaskCtx) => T
-  /** 单次会话超时（默认 7 分钟） */
-  maxMs?: number
+  /** 单次会话超时（默认 7 分钟）；可为函数按 ctx（如 args.kind）区分（与 maxTokens 同构） */
+  maxMs?: number | ((ctx: SubtaskCtx) => number | undefined)
+  /** 会话输出预算（2026-09-19 智能层）：覆盖 SDK 全局 maxTokens（12288）——dsh 会话懒创建于首次
+   * prompt，此值随 prompt 携带（vendored 补丁 patch-server-maxtokens 在 server 侧应用）。
+   * 可为函数：按 ctx（如 args.kind）区分；返回 undefined = 用全局档。 */
+  maxTokens?: number | ((ctx: SubtaskCtx) => number | undefined)
 }

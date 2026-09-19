@@ -16,7 +16,7 @@ vi.mock('electron', () => ({
 }))
 vi.mock('../../src/main/agent/runtime', () => ({ driveSession: vi.fn() }))
 
-import { registerCapability, runSubtask, extractJson, listCapabilities, clip, stripFm, type SubtaskDef } from '../../src/main/agent/subtask'
+import { registerCapability, runSubtask, extractJson, listCapabilities, clip, stripFm, resolveMaxTokens, type SubtaskDef } from '../../src/main/agent/subtask'
 import { driveSession } from '../../src/main/agent/runtime'
 import { setSettings } from '../../src/main/settings'
 
@@ -161,6 +161,49 @@ describe('runSubtask（子任务骨架）', () => {
     const r = await runSubtask(d, 'p1')
     expect(r.ok).toBe(true)
     if (r.ok) expect(r.lastRaw).toBeUndefined()
+  })
+})
+
+describe('resolveMaxTokens（子任务输出预算分层）', () => {
+  const ctx = { projectId: 'p1', seq: 0, args: { kind: 'revision' } }
+
+  it('静态值直接返回', () => {
+    expect(resolveMaxTokens({ ...goodDef, maxTokens: 20480 }, ctx)).toBe(20480)
+  })
+
+  it('函数按 ctx.args 区分（revision 返回预算、其他 undefined=全局档）', () => {
+    const f: SubtaskDef<unknown> = {
+      id: 'demo', title: '演示能力', buildParts: () => ['系统提示', '材料包'],
+      parse: (t) => t,
+      maxTokens: (c) => (c.args?.kind === 'revision' ? 20480 : undefined)
+    }
+    expect(resolveMaxTokens(f, ctx)).toBe(20480)
+    expect(resolveMaxTokens(f, { ...ctx, args: { kind: 'chapter' } } as never)).toBeUndefined()
+  })
+
+  it('未设置 → undefined（不覆盖 SDK 全局档）', () => {
+    expect(resolveMaxTokens(goodDef, ctx)).toBeUndefined()
+  })
+
+  it('runSubtask 把解析出的 maxTokens 传给 driveSession 第三参数', async () => {
+    driveMock.mockResolvedValue('{"items":["a"]}')
+    const d: SubtaskDef<{ items: string[] }> = { ...goodDef, maxTokens: (c) => (c.args?.kind === 'revision' ? 20480 : undefined) }
+    await runSubtask(d, 'p1', { kind: 'revision' })
+    expect(driveMock).toHaveBeenCalledTimes(1)
+    expect(driveMock.mock.calls[0][2]).toMatchObject({ maxTokens: 20480 })
+  })
+
+  it('maxMs 函数化：按 ctx.args.kind 分层（revision 12min / 其他 8min）', async () => {
+    driveMock.mockResolvedValue('{"items":["a"]}')
+    const d: SubtaskDef<{ items: string[] }> = {
+      ...goodDef,
+      maxMs: (c) => (c.args?.kind === 'revision' ? 12 * 60 * 1000 : 8 * 60 * 1000)
+    }
+    await runSubtask(d, 'p1', { kind: 'revision' })
+    expect(driveMock.mock.calls[0][2]).toMatchObject({ maxMs: 12 * 60 * 1000 })
+    driveMock.mockClear()
+    await runSubtask(d, 'p1', { kind: 'chapter' })
+    expect(driveMock.mock.calls[0][2]).toMatchObject({ maxMs: 8 * 60 * 1000 })
   })
 })
 
