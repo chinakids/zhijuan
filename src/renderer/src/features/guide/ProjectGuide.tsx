@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Globe2, Users, PartyPopper, Plus, Trash2 } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import { Textarea } from '../../components/ui/textarea'
+import { isImeComposing } from '../../lib/ime'
 import {
   Dialog,
   DialogContent,
@@ -58,10 +59,23 @@ function worldDoc(world: { background: string; tone: string; rules: string }, ke
 
 export default function ProjectGuide({ projectId, projectName, open, onClose }: Props) {
   const [step, setStep] = useState(0)
-  const [changed, setChanged] = useState(false)
   const [saving, setSaving] = useState(false)
   const [world, setWorld] = useState({ background: '', tone: '', rules: '' })
   const [chars, setChars] = useState<CharRow[]>([{ name: '', role: '', traits: '' }])
+  // 各步「最可能的下一个交互元素」——步骤切换后焦点落在该处（HIG Buttons「primary button responds to Return」+ macOS sheet 惯例：当前步第一字段自动聚焦）
+  const worldRef = useRef<HTMLTextAreaElement | null>(null)
+  const nameRef = useRef<HTMLInputElement | null>(null)
+  const startChapterRef = useRef<HTMLButtonElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(() => {
+      if (step === 0) worldRef.current?.focus()
+      else if (step === 1) nameRef.current?.focus()
+      else startChapterRef.current?.focus()
+    }, 50)
+    return () => clearTimeout(t)
+  }, [step, open])
 
   if (!open) return null
 
@@ -75,7 +89,6 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
         const nm = sanitizeFile(r.name.trim())
         await window.zhijuan.writeDoc(projectId, `人物/${nm}.md`, charDocMarkdown(nm, r.role.trim(), r.traits.trim()))
       }
-      setChanged(true)
       setStep(2)
     } finally {
       setSaving(false)
@@ -87,9 +100,21 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
     setChars((cs) => cs.map((r, idx) => (idx === i ? { ...r, [k]: v } : r)))
   const delRow = (i: number) =>
     setChars((cs) => (cs.length === 1 ? [{ name: '', role: '', traits: '' }] : cs.filter((_, idx) => idx !== i)))
+  /** 单行输入内 Return=触发本步主按钮（macOS text field 惯例，HIG Buttons「primary button responds to the Return key」）；IME 组合期放行 */
+  const returnAsPrimary = (fn: () => void) => (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !isImeComposing(e)) {
+      e.preventDefault()
+      fn()
+    }
+  }
 
   return (
-    <Dialog open onOpenChange={(v) => !v && !changed && onClose('guide-done')}>
+    <Dialog open onOpenChange={(v) => {
+      if (v) return
+      if (saving) return // 写入中不允许 Esc/X 关闭（防「以为取消了、实际已写盘」误解）
+      if (step === 2) { onClose('guide-done'); return } // 完成页 Esc/X 放行（数据已写盘，无风险）
+      onClose('guide-done') // step0/1：Esc/X=取消，与「以后补充」同语义（轻量向导按 HIG Cancel 语义，不追加确认）
+    }}>
       <DialogContent className="sm:max-w-lg" outsideDismiss={false}>
         <DialogHeader>
           <DialogTitle>开始《{projectName}》</DialogTitle>
@@ -118,7 +143,7 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
             </DialogDescription>
             <div className="space-y-1.5">
               <Label>时代背景</Label>
-              <Textarea rows={2} placeholder="如：近未来的柳城，科技与旧城交错，霓虹镇着一条古河。" value={world.background} onChange={(e) => setWorld((w) => ({ ...w, background: e.target.value }))} />
+              <Textarea ref={worldRef} rows={2} placeholder="如：近未来的柳城，科技与旧城交错，霓虹镇着一条古河。" value={world.background} onChange={(e) => setWorld((w) => ({ ...w, background: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
               <Label>世界基调</Label>
@@ -139,14 +164,21 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
             {chars.map((r, i) => (
               <div key={i} className="rounded-lg border border-hair bg-surface-2 p-2.5">
                 <div className="flex items-center gap-2">
-                  <Input className="flex-1" placeholder="姓名 *" value={r.name} onChange={(e) => patchRow(i, 'name', e.target.value)} />
+                  <Input
+                    ref={(el) => { if (i === 0) nameRef.current = el }}
+                    className="flex-1"
+                    placeholder="姓名 *"
+                    value={r.name}
+                    onChange={(e) => patchRow(i, 'name', e.target.value)}
+                    onKeyDown={returnAsPrimary(() => void finish())}
+                  />
                   <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" title="删除该人物" aria-label="删除该人物" onClick={() => delRow(i)}>
                     <Trash2 />
                   </Button>
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-2">
-                  <Input placeholder="在故事里的身份" value={r.role} onChange={(e) => patchRow(i, 'role', e.target.value)} />
-                  <Input placeholder="关键特征" value={r.traits} onChange={(e) => patchRow(i, 'traits', e.target.value)} />
+                  <Input placeholder="在故事里的身份" value={r.role} onChange={(e) => patchRow(i, 'role', e.target.value)} onKeyDown={returnAsPrimary(() => void finish())} />
+                  <Input placeholder="关键特征" value={r.traits} onChange={(e) => patchRow(i, 'traits', e.target.value)} onKeyDown={returnAsPrimary(() => void finish())} />
                 </div>
               </div>
             ))}
@@ -169,7 +201,9 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
 
         <DialogFooter className="flex items-center justify-between">
           <div className="flex-1 text-left">
-            {step < 2 && (
+            {step === 0 && (
+              // HIG Sheets：Cancel(以后补充) 与 Done 同时在多步 flow 会与 Back 三按钮同显（「Avoid showing all three buttons」），
+              // 故 step1 起取消由 Esc/X/窗口关闭承担（与「以后补充」同语义）；step1 仅 Back+Done 满足「Done 配 Back 或 Cancel 之一」
               <Button variant="ghost" size="sm" onClick={() => onClose('guide-done')}>以后补充</Button>
             )}
           </div>
@@ -186,7 +220,7 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
             {step === 2 && (
               <>
                 <Button size="sm" variant="outline" onClick={() => onClose('guide-done')}>稍后再说</Button>
-                <Button size="sm" onClick={() => onClose('start-chapter')}>现在新建第一章</Button>
+                <Button ref={startChapterRef} size="sm" onClick={() => onClose('start-chapter')}>现在新建第一章</Button>
               </>
             )}
           </div>
