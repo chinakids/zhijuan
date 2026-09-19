@@ -120,6 +120,11 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
   const onEditRef = useRef(onEdit)
   onEditRef.current = onEdit
   const liveRef = useRef(true)
+  /** create 代次计数器：StrictMode/重挂载后旧 Editor.make().create() 的异步结果必须销毁，
+   * 否则新旧两个 editor 会同时挂在同一宿主 DOM 上（「编辑区双占位/双正文」根因，F-20260917-11）。
+   * 为什么不用 liveRef 判断：React 18 StrictMode 的 mount→cleanup→mount 是同一实例，
+   * cleanup 把 liveRef 置 false 后第二次 effect 又置回 true，旧 create 的回调误判自身仍有效。 */
+  const createEpochRef = useRef(0)
   const edRef = useRef<any>(null) // Milkdown Editor 实例（工具栏用）
   /** 滚动位置记忆键：挂载时快照（不随 prop 更新）——切章时同一 Prose 实例会先被 render 注入新 rel 的
    * memoryKey 再卸载，若随 prop 更新会把位置存到错误 key（2026-09-16 实锤：1200 存进「灯塔」、雾港得 0） */
@@ -923,6 +928,7 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
     if (!hostRef.current) return
     let api: ProseApi | null = null
     liveRef.current = true
+    const myEpoch = ++createEpochRef.current
     const ed = Editor.make()
       .config((ctx) => {
         ctx.set(rootCtx, hostRef.current!)
@@ -948,6 +954,12 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
       .use(trailing)
       .create()
     ed.then((e) => {
+      // 代次不符：本 create 已被更新一次的 effect 取代（StrictMode 双 effect/快速重挂载）——
+      // 立即销毁，否则新旧两个 editor 会同时挂在同一宿主 DOM（F-20260917-11 双占位根因）
+      if (createEpochRef.current !== myEpoch) {
+        void e.destroy()
+        return
+      }
       edRef.current = e
       if (!liveRef.current) {
         e.destroy()
