@@ -497,7 +497,7 @@ export default function Novel() {
     toast.add({
       kind: 'success',
       title: '已更新切片名',
-      description: `${r.newSlice}${r.synced ? `（已同步 ${r.synced} 篇大纲副产物）` : ''}${r.staled ? `；${r.staled} 条旧切片提案已过期` : ''}`
+      description: `${r.newSlice}${r.synced ? `（已同步 ${r.synced} 篇大纲副产物）` : ''}${r.staled ? `；${r.staled} 条旧切片提案已过期` : ''}；旧切片设定已保留为历史、不再参与后续同步`
     })
   }
   async function doDelete() {
@@ -996,7 +996,7 @@ export default function Novel() {
           <DialogHeader>
             <DialogTitle>修改切片名</DialogTitle>
             <DialogDescription>
-              一章 = 一个时间切片。只改本章约定头的切片名；旧切片名下已落档的世界切片文件与人物状态小节保留为历史，新切片名的设定由下次保存正文时重新同步。
+              一章 = 一个时间切片。只改本章约定头的切片名；旧切片名下已落档的世界切片文件与人物状态小节保留为历史、不再参与后续同步与创作上下文，新切片名的设定由下次保存正文时重新同步。
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5 py-2">
