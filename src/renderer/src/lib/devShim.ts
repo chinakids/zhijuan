@@ -23,6 +23,7 @@ import { sliceSectionOrderCheck } from '../../../shared/sliceorder'
 import { chapterOrderCheck } from '../../../shared/chapterorder'
 import { findAnchorLine, normalizeAnchor } from '../../../shared/anchor'
 import { isIoFailure } from '../../../shared/proposalApply'
+import { dedupeRejectedSliceItems } from '../../../shared/proposalDup'
 import { auditDocMarkdown } from '../../../shared/auditDoc'
 import { parseAnnotationCsv, segmentFromText, escapeCsvField } from '../../../shared/annotations'
 import { scrollMemorySnapshot } from '../features/editor/scrollMemory'
@@ -1021,6 +1022,18 @@ const mock = {
     useProposalStore.getState().bump()
     return created
   },
+  // 切片同步专用建提案（2026-09-20 候选 3）：与真机 createSliceProposals 同口径——
+  // 先滤掉「与已拒绝提案同款」（source=slice-sync && status=rejected），再走 createProposals 同款置 stale 语义；
+  // 返回 {created, suppressed}（suppressed>0=作者已裁决，UI 明示而非报「无设定变化」）
+  createSliceProposals: async (id: string, chapter: string, sliceName: string, items: ProposalItem[]) => {
+    const settled: ProposalItem[] = []
+    for (const p of mock.proposals) {
+      if (p.source === 'slice-sync' && p.status === 'rejected') settled.push(...p.items)
+    }
+    const deduped = dedupeRejectedSliceItems(items, settled)
+    const created = await mock.createProposals(id, 'slice-sync', chapter, sliceName, deduped.kept)
+    return { created, suppressed: deduped.suppressed }
+  },
   applyProposal: async (_id: string, pid: string) => {
     const p = mock.proposals.find((x) => x.id === pid)
     if (!p || p.status !== 'pending') return { ok: false, applied: [], errors: ['未找到待处理的提案'] }
@@ -1644,6 +1657,23 @@ const mock = {
       }
       devAppendSyncLog(id, rel, sliceName, { itemCount: 0, guardCount: issues.length })
       return r
+    }
+    // 无头冒烟：?zj-sync-items=N 注入 N 条「固定同款」切片动向（2026-09-20 候选 3 重复提案演示）——
+    // 每次调用返回完全相同的内容，配合「保存→拒绝→再保存」可断言同款被抑制链路；
+    // 与真机 runSync 成功路径同口径（items 传给调用方 + sync-log itemCount）。
+    const n2 = Number(new URLSearchParams(location.search).get('zj-sync-items') ?? '0')
+    if (n2 > 0) {
+      const demoItem: ProposalItem = {
+        target: '人物/沈藏.md',
+        anchor: '切片：雾港夜',
+        kind: 'upsert-section',
+        before: '',
+        after: '## 切片：雾港夜\n\n（演示）沈藏开始密切来往：雾港夜场散后总在栈桥口等阿七。',
+        reason: '（演示）固定动向：沈藏行为变化'
+      }
+      const items = Array.from({ length: n2 }, () => ({ ...demoItem }))
+      devAppendSyncLog(id, rel, sliceName, { itemCount: items.length })
+      return { ok: true, items, evidence: { slice: sliceName, castCount: 3, knownFiles: 5, unarchived: 1 } }
     }
     // 比对基准证据注入（2026-09-14 21:45）：?zj-slice=<名> 控制，__empty__=空切片；
     // 缺省「雾港夜」+ 3 涉及人物 / 5 人档 / 1 未建档，供无头冒烟断言证据小字真实渲染

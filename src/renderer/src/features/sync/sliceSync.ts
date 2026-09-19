@@ -8,6 +8,9 @@ import type { SyncEvidence } from '../../../../shared/types'
 export interface SliceSyncResult {
   ok: boolean
   items: number
+  /** 与已拒绝提案同款而被抑制的条数（>0 时 UI 应明示「同款 N 条此前已拒绝，未重复提案」，
+   * 而不是报「无设定变化」——「已被作者裁决」与「无新动向」是两种事实，2026-09-20 候选 3） */
+  suppressed?: number
   /** 产物守卫（target 存在性防线）拦截/纠正的记录；有内容即作者需知道的处置 */
   issues?: SyncIssue[]
   /** 本次比对基准（无设定变化时的可信呈现；runSync 随 ok:true 返回） */
@@ -24,9 +27,9 @@ export async function runSliceSync(projectId: string, chapterRel: string): Promi
     const ch = (await window.zhijuan.readDoc(projectId, chapterRel)) ?? ''
     const slice = String(extractFrontMatter(ch).fm?.['切片'] ?? '')
     if (!clean.length) return { ok: true, items: 0, issues, evidence: r.evidence }
-    const created = await window.zhijuan.createProposals(projectId, 'slice-sync', chapterRel, slice, clean)
+    const created = await window.zhijuan.createSliceProposals(projectId, chapterRel, slice, clean)
     useProposalStore.getState().refresh(projectId)
-    return { ok: true, items: created.length, issues, evidence: r.evidence }
+    return { ok: true, items: created.created.length, suppressed: created.suppressed, issues, evidence: r.evidence }
   } catch (e) {
     return { ok: false, items: 0, error: String((e as Error).message || e) }
   }

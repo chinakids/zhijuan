@@ -6,6 +6,7 @@ import type { Proposal, ProposalItem } from '../shared/types'
 import { DOT_DIR } from '../shared/paths'
 import { findAnchorLine, normalizeAnchor } from '../shared/anchor'
 import { isIoFailure } from '../shared/proposalApply'
+import { dedupeRejectedSliceItems } from '../shared/proposalDup'
 
 function dir(root: string, projectId: string): string {
   return join(root, projectId, DOT_DIR, 'proposals')
@@ -55,6 +56,28 @@ export function createProposals(root: string, projectId: string, source: Proposa
     write(root, projectId, p)
     return p
   })
+}
+
+/**
+ * 切片同步专用建提案（2026-09-20 候选 3「重复提案」收口）：
+ * 与 createProposals 同「同章旧 pending 置 stale」语义，但先把「与已拒绝提案同款」的
+ * 候选项滤掉（dedupeRejectedSliceItems，判据=全字段归一化精确相等，见 shared/proposalDup）——
+ * 拒绝=作者显式裁决（GitHub code scanning dismiss 同构：显式否决后同款不再重提），
+ * 只收集 status=rejected 且 source=slice-sync 的历史（accepted 不抑制：
+ * 已应用后若档案回滚/正文新发生同一事态，重提是正确行为；跨章收集——切片设定是项目级进度）。
+ * 返回 { created, suppressed }：suppressed 供 UI 反馈「同款 N 条此前已拒绝，未重复提案」，
+ * 不能把「已被裁决的同款」报成「无设定变化」（破坏反馈真实性）。
+ */
+export function createSliceProposals(root: string, projectId: string, chapter: string, slice: string, items: ProposalItem[]): { created: Proposal[]; suppressed: number } {
+  const settled: ProposalItem[] = []
+  for (const p of readAll(root, projectId)) {
+    if (p.source === 'slice-sync' && p.status === 'rejected') {
+      for (const it of p.items) settled.push(it)
+    }
+  }
+  const { kept, suppressed } = dedupeRejectedSliceItems(items, settled)
+  const created = createProposals(root, projectId, 'slice-sync', chapter, slice, kept)
+  return { created, suppressed }
 }
 
 /**

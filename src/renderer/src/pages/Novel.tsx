@@ -241,8 +241,17 @@ export default function Novel() {
       const r = await runSliceSync(id, rel)
       if (r.ok) {
         setSyncIssues(r.issues ?? [])
-        // 「无设定变化」追加比对基准证据（2026-09-14 21:45）：确认同步真跑了、基准是什么
-        setSyncMsg(r.items > 0 ? `✓ 已生成 ${r.items} 条切片提案` : `✓ 无设定变化${describeSyncEvidence(r.evidence)}`)
+        // 「无设定变化」追加比对基准证据（2026-09-14 21:45）：确认同步真跑了、基准是什么；
+        // 2026-09-20 候选 3：被抑制的同款（此前已拒绝）是「作者已裁决」，不能报成「无设定变化」
+        const sup = r.suppressed ?? 0
+        const supNote = sup > 0 ? ` · 同款 ${sup} 条此前已拒绝，未重复提案` : ''
+        setSyncMsg(
+          r.items > 0
+            ? `✓ 已生成 ${r.items} 条切片提案${supNote}`
+            : sup > 0
+              ? `✓ 无新动向${supNote}${describeSyncEvidence(r.evidence)}`
+              : `✓ 无设定变化${describeSyncEvidence(r.evidence)}`
+        )
         useProposalStore.getState().bump()
         syncTimer.current = window.setTimeout(() => {
           setSyncMsg('')

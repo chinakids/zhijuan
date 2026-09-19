@@ -6,7 +6,7 @@ import type { AppSettings, FsEvent, ProposalItem, EditItem, Proposal, SaveTraceE
 import { adoptActsChapter } from '../shared/actsAdopt'
 import { countWords } from '../shared/count'
 import { extractFrontMatter } from '../shared/fmatter'
-import { listProposals, createProposals, applyProposal, rejectProposal, discardProposal } from './proposals'
+import { listProposals, createProposals, createSliceProposals, applyProposal, rejectProposal, discardProposal } from './proposals'
 import { listLines, listSlices } from './slices'
 import { listSnapshots, readSnapshot } from './history'
 import { registerAgentIpc } from './agent/ipc'
@@ -212,6 +212,8 @@ export function registerIpc() {
   // 提案（S4）
   ipcMain.handle('proposal:list', (_e, id: string) => listProposals(libraryRoot(), id))
   ipcMain.handle('proposal:create', (_e, id: string, source: Proposal['source'], chapter: string, slice: string, items: ProposalItem[], meta?: Proposal['meta'], metas?: Proposal['meta'][]) => createProposals(libraryRoot(), id, source, chapter, slice, items, meta, metas))
+  // 切片同步专用（2026-09-20 候选 3）：去重「与已拒绝同款」+ 返回被抑制条数（UI 反馈真实性）
+  ipcMain.handle('proposal:createSlice', (_e, id: string, chapter: string, slice: string, items: ProposalItem[]) => createSliceProposals(libraryRoot(), id, chapter, slice, items))
   ipcMain.handle('proposal:apply', (_e, id: string, pid: string) => {
     const res = applyProposal(libraryRoot(), id, pid)
     const p = listProposals(libraryRoot(), id).find((x) => x.id === pid)

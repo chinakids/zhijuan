@@ -125,6 +125,9 @@ const api = {
   listProposals: (id: string) => ipcRenderer.invoke('proposal:list', id) as Promise<Proposal[]>,
   createProposals: (id: string, source: 'slice-sync' | 'agent-chat' | 'annotation-sync', chapter: string, slice: string, items: ProposalItem[], meta?: { annotations?: { file: string; rows: number[] }[]; note?: string }, metas?: { annotations?: { file: string; rows: number[] }[]; note?: string }[]) =>
     ipcRenderer.invoke('proposal:create', id, source, chapter, slice, items, meta, metas) as Promise<Proposal[]>,
+  // 切片同步专用建提案（2026-09-20）：过滤「与已拒绝同款」，返回 {created, suppressed}
+  createSliceProposals: (id: string, chapter: string, slice: string, items: ProposalItem[]) =>
+    ipcRenderer.invoke('proposal:createSlice', id, chapter, slice, items) as Promise<{ created: Proposal[]; suppressed: number }>,
   applyProposal: (id: string, pid: string) =>
     ipcRenderer.invoke('proposal:apply', id, pid) as Promise<{ ok: boolean; applied: string[]; errors: string[]; retryable?: boolean }>,
   rejectProposal: (id: string, pid: string) => ipcRenderer.invoke('proposal:reject', id, pid) as Promise<boolean>,
