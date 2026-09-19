@@ -327,6 +327,11 @@ const auditDef: SubtaskDef<AuditResult> = {
   // （引擎日志 step14 逐章推理中，被 8min 上限中止）——8min 是 reduced 类（chapter/director/check）的档，
   // deep pass 按业界（Claude Code ultrareview 5-10min、--timeout 上限 45min）与实测放宽至 15min。
   maxMs: 15 * 60 * 1000,
+  // 输出预算对齐 revision 先例（2026-09-20 智能层，subtasks-smoke 复跑实锤）：perspectives 两次会话
+  // outputTokens 均=12288 硬上限（usage 实测）且 text 0/649 字符——think 吃光预算致 JSON 截断→提取失败
+  // →重试又同额截断→结果空。revision 同型已升 20480（09:00 轮），检查域输出=长 think+多条目 JSON，一并对齐；
+  // 改回 12288 前先看会话日志 outputTokens/text 占比。
+  maxTokens: 20480,
   buildParts: (c) => {
     const kind = c.args?.kind as AuditKind
     return [auditSystem(kind), volumeBrief(c.projectId), kind === 'consistency' ? '请给出巡查报告 JSON。' : '请给出冷读报告 JSON。']
@@ -429,6 +434,9 @@ const perspectiveDef: SubtaskDef<AuditResult> = {
   // deep-pass 分层（2026-09-19）：同 audit 理由——全卷材料包 8min 不足；且本任务带 retry（超时被中止后
   // parse 为空会再补一轮），8min 时最坏 2×8=16min 仍可能整个失败，15min 单轮更符合可预期性。
   maxMs: 15 * 60 * 1000,
+  // 输出预算同 auditDef（2026-09-20 智能层）：本任务为本次复跑唯一失败步——两次会话 outputTokens=12288
+  // 硬上限、text 0/649 字符（think 吃光），提取失败重试又同额截断=结果空且覆盖掉上次好存档。
+  maxTokens: 20480,
   buildParts: (c) => [perspectiveSystem(), volumeBrief(c.projectId), '请给出多视角审读报告 JSON。'],
   parse: (text, c) => extractPerspective(text, new Set(settingList(c.projectId))),
   retry: {
