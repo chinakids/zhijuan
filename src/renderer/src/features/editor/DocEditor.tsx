@@ -45,6 +45,10 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
   const [epoch, setEpoch] = useState(0) // 换文件时强制重建编辑器，避免脏状态串文件
   const [historyOpen, setHistoryOpen] = useState(false)
   const [annoOpen, setAnnoOpen] = useState(false)
+  // P1 防线「二次确认」（F-20260917-10，2026-09-19 创作层）：编辑器为空+磁盘非空被拦后，
+  // 再按一次保存=作者显式确认真要清空（two-step confirmation；Confirmation 模式——
+  // 不可逆写空动作需要两步验证，防 slip）。内容恢复/换文档即复位，防误放行。
+  const [confirmEmpty, setConfirmEmpty] = useState(false)
   // 批注被删空时自动收起抽屉（防空列表残留）
   const annoCount = annotations?.length ?? 0
   useEffect(() => {
@@ -59,6 +63,7 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
     setNote('')
     setReadErr('')
     setEpoch((x) => x + 1)
+    setConfirmEmpty(false) // 换文档/重试：清掉上文的「确要清空」待确认态
     ;(async () => {
       try {
         const raw = (await window.zhijuan.readDoc(projectId, rel)) ?? ''
@@ -82,18 +87,28 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
   const doSave = useCallback(async () => {
     const api = apiRef.current
     if (!api) return
-    // P1 防线（F-20260917-10，2026-09-19 智能层）：编辑器内容为空但磁盘正文非空 → 拒绝写盘。
-    // 现场形态=正文被写成「仅约定头」（92B）：能产出该形态的调用只有 doSave 且 getMarkdown() 为空
-    // （Cmd+S / 菜单保存不检查 dirty，编辑器空态也会触发写盘）。空编辑器+非空磁盘=异常态
-    // （正常首存=磁盘也为空，不受影响）；拦截并提示，防「编辑器被清空→保存扩散到磁盘」。
+    // P1 防线（F-20260917-10，2026-09-19 智能层）+ 创作层加固：编辑器内容为空但磁盘正文非空 → 拦一次，
+    // 再按一次保存=两步确认放行（作者确要清空；空写不可逆，版本历史是唯一后悔药）。
+    // 智能层原判据用内存 rawRef 判断磁盘——竞态下 rawRef 可能失真；本轮改为空 md 时真读磁盘（
+    // 正常保存 md 非空零额外 IO），判定更可靠且不必信任内存快照。
     setStatus('saving')
     try {
       const md = api.getMarkdown()
-      const curBody = withFm ? splitFm(rawRef.current).body : rawRef.current
-      if (md === '' && curBody !== '') {
-        setStatus('external')
-        setNote('正文疑似为空：磁盘上已有正文，但编辑器当前没有任何内容——本次未保存；若确要清空请先在编辑器里删除')
-        return
+      let diskBody = ''
+      if (md === '') {
+        const onDisk = (await window.zhijuan.readDoc(projectId, rel)) ?? ''
+        diskBody = withFm ? splitFm(onDisk).body : onDisk
+        if (diskBody !== '') {
+          if (!confirmEmpty) {
+            setStatus('external')
+            setNote('正文疑似为空：磁盘上已有正文，本次未保存；若确要清空，请再按一次保存确认')
+            setConfirmEmpty(true)
+            return
+          }
+          // 已确认（再按一次保存）：放行写空，随即复位防第三次误放行
+          setConfirmEmpty(false)
+        }
+        // 磁盘也为空（首存/本就空文档）：正常写空，不算异常
       }
       const content = withFm ? withBody(rawRef.current, md) : md
       await window.zhijuan.writeDoc(projectId, rel, content)
@@ -106,7 +121,7 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
       setStatus('error')
       setNote(String(e))
     }
-  }, [projectId, rel, withFm, onSave])
+  }, [projectId, rel, withFm, onSave, confirmEmpty])
 
   // 编辑器挂载状态上报主进程菜单（save/find 组启用依据；正文与分幕草稿同构）
   useEffect(() => {
@@ -223,7 +238,11 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
           key={epoch}
           apiRef={apiRef}
           value={savedMdRef.current}
-          onEdit={(md) => setStatus(md === savedMdRef.current ? 'idle' : 'dirty')}
+          onEdit={(md) => {
+            // 内容恢复非空：清掉「确要清空」待确认态（之后再次清空仍会被拦一次，防误放行）
+            if (md) setConfirmEmpty(false)
+            setStatus(md === savedMdRef.current ? 'idle' : 'dirty')
+          }}
           className="h-full w-full"
           annotations={annotations}
           anno={anno}

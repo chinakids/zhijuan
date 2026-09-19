@@ -101,7 +101,64 @@ const savedMd = await ev(`(async () => {
 ok(savedMd.includes('测试正文：雾重新浓了起来'), '正常编辑保存仍写盘（防线零误伤）')
 ok(!(savedMd.includes('正文疑似为空')), '拦截提示未残留状态')
 
-// ===== 3. 零 JS 异常 =====
+// ===== 3.（创作层 2026-09-19 扩展）作者确要清空：第一次保存被拦 → 再按一次保存=两步确认放行 =====
+await ev(`window.__ZJ_EDITORS[0].setContent('')`)
+await sleep(1200)
+await ev(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true }))`)
+await sleep(1500)
+const midMd = await ev(`(async () => {
+  const d = await window.zhijuan.readDoc('demo-aseya', '正文/第01章_雾港.md')
+  return d || ''
+})()`)
+ok(midMd.includes('测试正文：雾重新浓了起来'), '清空首次保存仍被拦（磁盘未变）')
+const tip2 = await ev(`(() => {
+  const sp = [...document.querySelectorAll('span')].find((x) => (x.textContent || '').includes('再按一次保存确认'))
+  return sp ? sp.textContent : null
+})()`)
+ok(!!tip2, `拦截提示含「再按一次保存确认」步骤指引（${JSON.stringify(tip2)}）`)
+await ev(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true }))`)
+await sleep(1500)
+const emptiedMd = await ev(`(async () => {
+  const d = await window.zhijuan.readDoc('demo-aseya', '正文/第01章_雾港.md')
+  return d || ''
+})()`)
+ok(emptiedMd.includes('章号') && !emptiedMd.includes('测试正文'), `确认后写空生效（约定头保留、正文体为空，${emptiedMd.length} 字符）`)
+
+// ===== 4. 恢复内容后再次清空仍会被拦一次（confirmEmpty 不残留误放行） =====
+await ev(`window.__ZJ_EDITORS[0].setContent('恢复正文：灯塔亮起。')`)
+await sleep(1200)
+await ev(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true }))`)
+await sleep(1500)
+await ev(`window.__ZJ_EDITORS[0].setContent('')`)
+await sleep(1200)
+await ev(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true }))`)
+await sleep(1500)
+const guard2 = await ev(`(async () => {
+  const d = await window.zhijuan.readDoc('demo-aseya', '正文/第01章_雾港.md')
+  return d || ''
+})()`)
+ok(guard2.includes('恢复正文：灯塔亮起'), '恢复内容→再清空→首次保存仍被拦（无确认残留）')
+// 确认放行并恢复现场（demo-aseya 为内存 mock，收回为后续冒烟留可读态）
+await ev(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true }))`)
+await sleep(1500)
+await ev(`window.__ZJ_EDITORS[0].setContent('测试正文：雾重新浓了起来。\\n\\n新的一段。')`)
+await sleep(1200)
+await ev(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true }))`)
+await sleep(1500)
+const restored = await ev(`(async () => {
+  const d = await window.zhijuan.readDoc('demo-aseya', '正文/第01章_雾港.md')
+  return d || ''
+})()`)
+ok(restored.includes('测试正文：雾重新浓了起来'), '现场已恢复（正文可再读可再保存）')
+try {
+  const shot2 = await cmd('Page.captureScreenshot', { format: 'png' })
+  const fs2 = await import('node:fs')
+  const hhmm2 = new Date().toTimeString().slice(0, 5).replace(':', '')
+  fs2.writeFileSync(`${process.env.HOME}/Pictures/zhijuan/save-guard-confirm-${hhmm2}.png`, Buffer.from(shot2.data, 'base64'))
+  console.log(`📸 截图 saved: ~/Pictures/zhijuan/save-guard-confirm-${hhmm2}.png`)
+} catch (e) { console.log('截图失败（不阻断）: ' + e.message) }
+
+// ===== 5. 零 JS 异常 =====
 ok(errors.length === 0, `全程零 JS 异常（${errors.length}）`)
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed, errors=${errors.length}`)
