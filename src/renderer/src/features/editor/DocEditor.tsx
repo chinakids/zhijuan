@@ -42,6 +42,8 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(true)
   const [readErr, setReadErr] = useState('')
+  /** 编辑器初始化（Milkdown create）失败：与 readErr 同口径显式呈现（P1 走查 2026-09-20 智能层） */
+  const [initErr, setInitErr] = useState('')
   const [retryTick, setRetryTick] = useState(0) // 读取失败后「重试」：+1 触发加载 effect 重跑
   const [epoch, setEpoch] = useState(0) // 换文件时强制重建编辑器，避免脏状态串文件
   // P1 F-20260917-10 取证用：doSave 是 useCallback（deps 不含 epoch），闭包只能拿创建时旧值——
@@ -67,6 +69,7 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
     setStatus('idle')
     setNote('')
     setReadErr('')
+    setInitErr('')
     setEpoch((x) => x + 1)
     setConfirmEmpty(false) // 换文档/重试：清掉上文的「确要清空」待确认态
     ;(async () => {
@@ -272,6 +275,20 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
       </div>
     )
   }
+  if (initErr) {
+    return (
+      <div className={cn('flex h-full flex-col items-center justify-center gap-2 text-sm', className)}>
+        <p className="text-danger">编辑器初始化失败</p>
+        <p className="max-w-md break-all text-center text-xs text-ink-3">{initErr}</p>
+        <button
+          className="text-xs text-accent underline-offset-2 hover:underline"
+          onClick={() => setRetryTick((x) => x + 1)}
+        >
+          重试
+        </button>
+      </div>
+    )
+  }
   if (readErr) {
     return (
       <div className={cn('flex h-full flex-col items-center justify-center gap-2 text-sm', className)}>
@@ -309,6 +326,7 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
           key={epoch}
           apiRef={apiRef}
           value={savedMdRef.current}
+          onCreateError={(msg) => setInitErr(msg)}
           onEdit={(md) => {
             // 内容恢复非空：清掉「确要清空」待确认态（之后再次清空仍会被拦一次，防误放行）
             if (md) setConfirmEmpty(false)

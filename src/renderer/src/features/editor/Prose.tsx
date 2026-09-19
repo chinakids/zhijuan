@@ -62,6 +62,10 @@ interface ProseProps {
   value: string
   onEdit?: (md: string) => void
   apiRef?: MutableRefObject<ProseApi | null>
+  /** 编辑器初始化（Milkdown create）失败回调——默认入口把失败静默成空白编辑器
+   * （P1 F-20260917-10 走查：create 拒绝属未处理拒绝，宿主空白且无任何提示）。
+   * 父级据此显式呈现错误卡（与「读取失败显式化」同口径）。 */
+  onCreateError?: (msg: string) => void
   className?: string
   /** 本章批注（显示 UI：定位后的 loc/note/before；before 为可在正文匹配的文段，空则跳过） */
   annotations?: AnnotationRow[]
@@ -114,11 +118,13 @@ function testUnregister(api: ProseApi) {
   if (i >= 0) a.splice(i, 1)
 }
 
-export default function Prose({ value, onEdit, apiRef, className, annotations, anno = true, memoryKey }: ProseProps) {
+export default function Prose({ value, onEdit, apiRef, onCreateError, className, annotations, anno = true, memoryKey }: ProseProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const initialRef = useRef<string>(value)
   const onEditRef = useRef(onEdit)
   onEditRef.current = onEdit
+  const onCreateErrorRef = useRef(onCreateError)
+  onCreateErrorRef.current = onCreateError
   const liveRef = useRef(true)
   /** create 代次计数器：StrictMode/重挂载后旧 Editor.make().create() 的异步结果必须销毁，
    * 否则新旧两个 editor 会同时挂在同一宿主 DOM 上（「编辑区双占位/双正文」根因，F-20260917-11）。
@@ -929,6 +935,18 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
     let api: ProseApi | null = null
     liveRef.current = true
     const myEpoch = ++createEpochRef.current
+    // 冒烟注入：Milkdown create 拒绝在真机不可复现（无稳定触发），按 devShim ?zj-null 先例提供
+    // URL 参数注入面（?zj-createfail），供无头脚本端到端验证「初始化失败卡」呈现；生产零影响。
+    if (new URLSearchParams(typeof location !== 'undefined' ? location.search : '').has('zj-createfail')) {
+      void Promise.reject(new Error('注入：编辑器初始化失败（冒烟）')).catch((err: unknown) => {
+        if (createEpochRef.current !== myEpoch || !liveRef.current) return
+        onCreateErrorRef.current?.(err instanceof Error ? err.message : String(err))
+      })
+      return () => {
+        liveRef.current = false
+        edRef.current = null
+      }
+    }
     const ed = Editor.make()
       .config((ctx) => {
         ctx.set(rootCtx, hostRef.current!)
@@ -1152,6 +1170,13 @@ export default function Prose({ value, onEdit, apiRef, className, annotations, a
           }
         }
       }
+    })
+    ed.catch((err: unknown) => {
+      // create 拒绝=初始化失败：代次不符（被 StrictMode/重挂载的更新实例取代）或组件已卸载时静默
+      // （旧实例生命周期本就结束）；其余必须显式呈现——旧代码无 catch=未处理拒绝，宿主空白、
+      // 无任何提示（P1 F-20260917-10 走查：与「读不到静默当空」同型的不见性缺口）。
+      if (createEpochRef.current !== myEpoch || !liveRef.current) return
+      onCreateErrorRef.current?.(err instanceof Error ? err.message : String(err))
     })
     return () => {
       liveRef.current = false
