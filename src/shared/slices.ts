@@ -54,3 +54,27 @@ export function listSliceEntries(sources: SliceSource[]): SliceEntry[] {
   })
   return out
 }
+
+/**
+ * 按世界切片文件命名约定（shared/paths.worldSliceFile：世界观/切片_<切片名>.md）解析文件名中的切片名。
+ * 输入=相对「世界观/」的文件名（listDocs(id,'世界观') 的 file 字段口径）；
+ * 非「切片_」前缀返回 null——总纲/作者自定义设定文档/旧无前缀格式（context.readWorldState 的只读兜底名）均不参与孤儿判定。
+ * 注意只匹配顶层文件名（子目录嵌套文件不判，保守跳过）。
+ */
+export function sliceNameOfWorldFile(file: string): string | null {
+  const m = /^切片_(.+)\.md$/.exec(file)
+  return m ? m[1] : null
+}
+
+/**
+ * 世界切片孤儿文件判定（2026-09-19 创作层）：世界文件名为「切片_<名>.md」且 <名> 不在活跃切片集合 →
+ * 孤儿=切片改名后保留的历史快照（已退出活跃流：context 装配按当前章切片名读、writeRegistry 不登记）。
+ * 供浏览面标注（世界观页 DocSection「历史」徽标）；不提供删除/列表入口（语义=保留为历史，见口径表）。
+ */
+export function orphanWorldFiles(files: string[], activeSliceNames: string[]): string[] {
+  const active = new Set(activeSliceNames)
+  return files.filter((f) => {
+    const n = sliceNameOfWorldFile(f)
+    return n !== null && !active.has(n)
+  })
+}

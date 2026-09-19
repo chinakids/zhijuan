@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { listSliceEntries, type SliceSource } from '../../src/shared/slices'
+import { listSliceEntries, orphanWorldFiles, sliceNameOfWorldFile, type SliceSource } from '../../src/shared/slices'
 
 // shared/slices.listSliceEntries：切片枚举纯函数口径（真机 main/slices.listSlices 与 devShim 共用，2026-09-12）
 // 锁住老 devShim 手写正则分叉过的点：只认约定头块、支持「时间」字段、无切片字段跳过、按章号数值排序。
@@ -45,5 +45,28 @@ describe('listSliceEntries（与真机 listSlices 同口径）', () => {
     const t = ['---', '章号: 5', '切片: 第五幕', '涉及人物: []', '---', '', '正文。'].join('\n')
     const [s] = listSliceEntries([src('第05章_x.md', t)])
     expect(s.chars).toEqual([])
+  })
+})
+
+describe('orphanWorldFiles（世界切片孤儿文件判定，2026-09-19 创作层）', () => {
+  it('sliceNameOfWorldFile：切片_<名>.md 解析；非切片前缀/无 .md/子目录 返回 null', () => {
+    expect(sliceNameOfWorldFile('切片_第二幕_灯塔.md')).toBe('第二幕_灯塔')
+    expect(sliceNameOfWorldFile('总纲.md')).toBeNull()
+    expect(sliceNameOfWorldFile('灯塔.md')).toBeNull()
+    expect(sliceNameOfWorldFile('子目录/切片_第二幕.md')).toBeNull()
+  })
+
+  it('孤儿=切片_<名>.md 且 <名> 不在活跃集合；非切片前缀文件一律不算', () => {
+    const files = ['总纲.md', '切片_第二幕_灯塔.md', '切片_第一幕_烧杯.md', '灯塔.md', '切片_旧_线.md']
+    expect(orphanWorldFiles(files, ['第二幕_灯塔', '旧_线'])).toEqual(['切片_第一幕_烧杯.md'])
+    expect(orphanWorldFiles(files, [])).toEqual(['切片_第二幕_灯塔.md', '切片_第一幕_烧杯.md', '切片_旧_线.md'])
+    expect(orphanWorldFiles(['总纲.md', '灯塔.md'], [])).toEqual([])
+  })
+
+  it('空文件/空活跃集/重复防御', () => {
+    expect(orphanWorldFiles([], ['a'])).toEqual([])
+    expect(orphanWorldFiles(['切片_a.md'], [])).toEqual(['切片_a.md'])
+    // 活跃集合含重名时不算孤儿（Set 语义）
+    expect(orphanWorldFiles(['切片_a.md'], ['a', 'a'])).toEqual([])
   })
 })

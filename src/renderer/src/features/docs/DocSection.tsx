@@ -31,9 +31,11 @@ interface DocSectionProps {
   fileTitle?: (name: string) => string
   /** 编辑时剥离 front matter（如人物档案已有「别名」约定头） */
   withFm?: boolean
+  /** 标为「历史」的文件名集合（file 字段口径，相对 relDir）：世界切片孤儿文件标注（2026-09-19 创作层） */
+  staleDocFiles?: Set<string>
 }
 
-export default function DocSection({ relDir, overviewFile, addLabel, addHint, emptyHint, listLabel, templateFor, fileTitle, withFm, foldKey }: DocSectionProps) {
+export default function DocSection({ relDir, overviewFile, addLabel, addHint, emptyHint, listLabel, templateFor, fileTitle, withFm, foldKey, staleDocFiles }: DocSectionProps) {
   const { id = '' } = useParams()
   const [files, setFiles] = useState<{ file: string; name: string }[]>([])
   const [sel, setSel] = useState<string | null>(overviewFile ?? null)
@@ -132,6 +134,14 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
               <span className={cn('truncate text-sm', sel === relDir + '/' + f.file ? 'font-medium text-accent' : 'text-ink')}>
                 {fileTitle ? fileTitle(f.name) : f.name}
               </span>
+              {staleDocFiles?.has(f.file) && (
+                <span
+                  title="切片已改名：此文件保留为历史，不再参与后续同步与创作上下文"
+                  className="ml-auto shrink-0 rounded bg-amber-500/15 px-1 py-px text-[10px] leading-tight text-amber-700 dark:text-amber-300"
+                >
+                  历史
+                </span>
+              )}
             </button>
           ))}
         </div>
