@@ -294,6 +294,8 @@ export interface SyncLogEntry {
   guardCount: number
   /** 同步是否成功 */
   ok: boolean
+  /** 同步时刻章节正文本体长度（剥约定头后；0=正文为空——P1 F-20260917-10 取证字段：清空写盘后同步照跑的形态在日志一眼可辨） */
+  bodyLen?: number
   /** ok=false 时的错误摘要（截断 120 字） */
   error?: string
 }

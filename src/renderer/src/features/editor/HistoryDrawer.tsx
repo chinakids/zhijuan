@@ -14,6 +14,7 @@ import { buildDiffView, DIFF_MAX_ROWS } from './diffView'
 import { syncAfterChapterEdit } from '../sync/editSync'
 import { GuardIssuesNote } from '../sync/GuardIssues'
 import { describeSyncEvidence } from '../../../../shared/syncEvidence'
+import { shouldBlockEmptyRestore } from '../sync/guardRestore'
 import type { SyncIssue } from '../../../../shared/types'
 
 interface Props {
@@ -99,6 +100,15 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
 
   const restore = async () => {
     if (!sel || oldText === null || busy) return
+    // 恢复防线（P1 F-20260917-10 衍生，2026-09-19 智能层）：该版本「剥约定头后正文为空」而
+    // 磁盘当前有正文时，恢复会把完好正文清成只剩约定头（现场 761B→92B 形态的破坏性重现）——拦截。
+    // 判据单源 shared 纯函数（guardRestore.ts，可单测）；此处现读磁盘防 stale。
+    const curNow = (await window.zhijuan.readDoc(projectId, rel)) ?? ''
+    if (shouldBlockEmptyRestore(oldText, curNow)) {
+      setConfirming(false)
+      setMsg('该版本正文为空（疑似损坏）：恢复会把现有正文清成只剩约定头——本次未恢复；确要恢复请先在编辑器里清空正文')
+      return
+    }
     setBusy(true)
     setMsg('')
     setSyncRetry(false)

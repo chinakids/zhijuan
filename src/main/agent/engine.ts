@@ -272,11 +272,14 @@ export async function runSync(
   // 先读约定头拿切片名：世界状态一律进 世界观/切片_<切片名>.md（不存在则创建模板），anchor 也按它归一
   let sliceName = ''
   let castAll: string[] = []
+  let bodyLen = 0
   try {
     const ch = readFileSync(join(projectDir(projectId), chapterRel), 'utf-8')
     const fm = extractFrontMatter(ch).fm ?? {}
     sliceName = String(fm['切片'] ?? '')
     castAll = Array.isArray(fm['涉及人物']) ? (fm['涉及人物'] as string[]) : []
+    // P1 F-20260917-10 取证字段：同步时刻正文本体长度（剥约定头后；0=正文为空——「同步照跑但正文已被清空」的形态在 sync-log 一眼可辨）
+    bodyLen = extractFrontMatter(ch).body.length
   } catch {
     // 章节读不到就不做切片文件；不影响同步本身
   }
@@ -321,6 +324,7 @@ export async function runSync(
           itemCount: 0,
           guardCount: 0,
           ok: false,
+          bodyLen,
           error: clipLogError(`模型回复未能解析为设定 JSON 数组（已重试一次仍失败）——原文节选：${excerptSyncRaw(text)}`)
         })
         return {
@@ -357,7 +361,8 @@ export async function runSync(
       fileCount: knownFiles.length,
       itemCount: g.items.length,
       guardCount: g.issues.length,
-      ok: true
+      ok: true,
+      bodyLen
     })
     return res
   } catch (e: any) {
@@ -370,6 +375,7 @@ export async function runSync(
       itemCount: 0,
       guardCount: 0,
       ok: false,
+      bodyLen,
       error: clipLogError(String(e?.message ?? e))
     })
     return { ok: false, error: String(e?.message ?? e).slice(0, 300) }
