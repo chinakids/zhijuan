@@ -48,4 +48,8 @@ cd dsh-runtime && node scripts/patch-server-cancel.mjs && cd ..
 #    幂等；重装依赖后自动恢复，勿删）
 cd dsh-runtime && node scripts/patch-server-maxtokens.mjs && cd ..
 
+# 8) 织卷自维护补丁：session/prompt 加 per-session reasoningEffort 透传（子任务思考档位按 kind 分层，
+#    revision→low；幂等；重装依赖后自动恢复，勿删）
+cd dsh-runtime && node scripts/patch-server-reasoning.mjs && cd ..
+
 echo 'dsh-runtime 就绪'

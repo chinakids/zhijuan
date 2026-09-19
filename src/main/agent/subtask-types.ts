@@ -40,4 +40,9 @@ export interface SubtaskDef<T> {
    * prompt，此值随 prompt 携带（vendored 补丁 patch-server-maxtokens 在 server 侧应用）。
    * 可为函数：按 ctx（如 args.kind）区分；返回 undefined = 用全局档。 */
   maxTokens?: number | ((ctx: SubtaskCtx) => number | undefined)
+  /** 会话思考档位（2026-09-20 智能层）：'off'|'low'|'high'|'max'——随 prompt 携带（vendored 补丁
+   * patch-server-reasoning 在 server 侧经 createSession 安装模型选择）；可为函数按 ctx 区分。
+   * 返回 undefined = 模型默认档（不传参，零行为变化）。依据：21:00 轮实测同场景 revision
+   * low 档 10.7× 提速/质量等价（47.95s vs 511.96s）。 */
+  reasoningEffort?: string | ((ctx: SubtaskCtx) => string | undefined)
 }

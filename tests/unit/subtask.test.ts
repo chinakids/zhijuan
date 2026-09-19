@@ -16,7 +16,7 @@ vi.mock('electron', () => ({
 }))
 vi.mock('../../src/main/agent/runtime', () => ({ driveSession: vi.fn() }))
 
-import { registerCapability, runSubtask, extractJson, listCapabilities, clip, stripFm, resolveMaxTokens, type SubtaskDef } from '../../src/main/agent/subtask'
+import { registerCapability, runSubtask, extractJson, listCapabilities, clip, stripFm, resolveMaxTokens, resolveReasoningEffort, type SubtaskDef } from '../../src/main/agent/subtask'
 import { driveSession } from '../../src/main/agent/runtime'
 import { setSettings } from '../../src/main/settings'
 
@@ -204,6 +204,38 @@ describe('resolveMaxTokens（子任务输出预算分层）', () => {
     driveMock.mockClear()
     await runSubtask(d, 'p1', { kind: 'chapter' })
     expect(driveMock.mock.calls[0][2]).toMatchObject({ maxMs: 8 * 60 * 1000 })
+  })
+})
+
+describe('resolveReasoningEffort（子任务思考档位分层，2026-09-20）', () => {
+  const ctx = { projectId: 'p1', seq: 0, args: { kind: 'revision' } }
+
+  it('静态值直接返回', () => {
+    expect(resolveReasoningEffort({ ...goodDef, reasoningEffort: 'low' }, ctx)).toBe('low')
+  })
+
+  it('函数按 ctx.args 区分（revision→low、其他 undefined=模型默认档）', () => {
+    const f: SubtaskDef<unknown> = {
+      id: 'demo', title: '演示能力', buildParts: () => ['系统提示', '材料包'],
+      parse: (t) => t,
+      reasoningEffort: (c) => (c.args?.kind === 'revision' ? 'low' : undefined)
+    }
+    expect(resolveReasoningEffort(f, ctx)).toBe('low')
+    expect(resolveReasoningEffort(f, { ...ctx, args: { kind: 'chapter' } } as never)).toBeUndefined()
+  })
+
+  it('未设置 → undefined（不传参=模型默认档）', () => {
+    expect(resolveReasoningEffort(goodDef, ctx)).toBeUndefined()
+  })
+
+  it('runSubtask 把解析出的 reasoningEffort 传给 driveSession 第三参数（未设置时不带该键）', async () => {
+    driveMock.mockResolvedValue('{"items":["a"]}')
+    const d: SubtaskDef<{ items: string[] }> = { ...goodDef, reasoningEffort: (c) => (c.args?.kind === 'revision' ? 'low' : undefined) }
+    await runSubtask(d, 'p1', { kind: 'revision' })
+    expect(driveMock.mock.calls[0][2]).toMatchObject({ reasoningEffort: 'low' })
+    driveMock.mockClear()
+    await runSubtask(d, 'p1', { kind: 'chapter' })
+    expect(driveMock.mock.calls[0][2]).not.toHaveProperty('reasoningEffort')
   })
 })
 

@@ -11,4 +11,4 @@ llm:
           thinking: false
       models:
         - id: deepseek-v4-flash-vision-exp-uncensored
-          reasoningEfforts: false
+          reasoningEfforts: {"low":"low","high":"high","max":"max"}

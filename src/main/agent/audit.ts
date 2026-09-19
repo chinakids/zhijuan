@@ -603,6 +603,12 @@ const chapterCheckDef: SubtaskDef<ChapterCheckResult> = {
   // 的修订任务过紧。revision → 20480（think ~12K+ 留 JSON 空间；仍低于官方 thinking 默认 64K）；chapter 不覆盖
   // （=全局档，4255 实测量级无风险）。改回全局前先看 06:00/09:00 轮会话日志 usage 数据。
   maxTokens: (c) => (c.args?.kind === 'revision' ? 20480 : undefined),
+  // 思考档位分层（2026-09-20 智能层，候选「reasoning_effort 引擎侧落地」照 21:00 轮实测落地）：同场景直调
+  // 实测 revision 类任务 low 档 47.95s vs 默认档 511.96s（10.7× 提速）且质量等价（同条件产出可比）；
+  // 只给「改」类长检查（revision）选 low，chapter 短巡查/聊天不选 = 模型默认档（不传参）零行为变化。
+  // 生效链路 = session/prompt → 补丁 patch-server-reasoning（createSession setup 装模型选择）→ adapter 声明
+  // （providers.ts reasoningEfforts 档位表）→ 引擎请求头带 reasoning_effort。改回默认前先看会话日志 header。
+  reasoningEffort: (c) => (c.args?.kind === 'revision' ? 'low' : undefined),
   buildParts: (c) => {
     const chapterRel = String(c.args?.chapterRel ?? '')
     const kind = c.args?.kind as ChapterCheckKind

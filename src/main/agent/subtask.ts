@@ -74,6 +74,12 @@ export function resolveMaxTokens<T>(def: SubtaskDef<T>, ctx: SubtaskCtx): number
   return typeof def.maxTokens === 'function' ? def.maxTokens(ctx) : def.maxTokens
 }
 
+/** 子任务思考档位解析（2026-09-20 智能层）：def.reasoningEffort 可为函数（按 ctx 区分，如 revision→'low'）；
+ * 返回 undefined = 模型默认档（不传参）。纯函数，可单测。 */
+export function resolveReasoningEffort<T>(def: SubtaskDef<T>, ctx: SubtaskCtx): string | undefined {
+  return typeof def.reasoningEffort === 'function' ? def.reasoningEffort(ctx) : def.reasoningEffort
+}
+
 /** 执行一次结构化子任务（单会话）；材料组装的失败、驱动失败、解析失败都折叠成 { ok:false, error } */
 export async function runSubtask<T>(
   def: SubtaskDef<T>,
@@ -108,7 +114,11 @@ export async function runOnceInner<T>(def: SubtaskDef<T>, ctx: SubtaskCtx): Prom
   const prompt = () => env + '\n\n' + parts.join('\n\n')
   const maxMs = typeof def.maxMs === 'function' ? def.maxMs(ctx) : def.maxMs
   const exec = (sidX: string, p: string) =>
-    driveSession(sidX, p, { maxMs: maxMs ?? 7 * 60 * 1000, maxTokens: resolveMaxTokens(def, ctx) })
+    driveSession(sidX, p, {
+      maxMs: maxMs ?? 7 * 60 * 1000,
+      maxTokens: resolveMaxTokens(def, ctx),
+      ...(resolveReasoningEffort(def, ctx) !== undefined ? { reasoningEffort: resolveReasoningEffort(def, ctx) } : {})
+    })
   let text = await exec(sid, prompt())
   let result = def.parse(text, ctx)
   if (def.retry && def.retry.check(result)) {

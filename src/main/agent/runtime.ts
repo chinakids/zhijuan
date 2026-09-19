@@ -216,11 +216,14 @@ async function sessionHandle(key: string) {
  * isAborted：外部取消信号（如用户点停止）——每次事件后检查，为 true 立即收尾（不等待侧引擎收尾事件）。
  * maxTokens（2026-09-19 智能层）：本轮输出预算——dsh 会话懒创建于首次 prompt，这里用低阶
  * session/prompt 携带 maxTokens；server 侧 per-agent 应用（vendored 补丁 patch-server-maxtokens）。
- * 不携带时 = SDK 全局档（initialize 12288），runChat/runSync 等既有调用零行为变化。 */
+ * 不携带时 = SDK 全局档（initialize 12288），runChat/runSync 等既有调用零行为变化。
+ * reasoningEffort（2026-09-20 智能层）：本轮思考档位（'off'|'low'|'high'|'max'）——session/prompt 携带，
+ * server 侧经 createSession 的 setup 安装模型选择（vendored 补丁 patch-server-reasoning；dsh-headless 同款
+ * 公开模式）；不携带 = 模型默认档（不传参），既有调用零行为变化。 */
 export async function driveSession(
   sid: string,
   text: string,
-  opts?: { onEvent?: (n: DriveEvent) => void; maxMs?: number; isAborted?: () => boolean; maxTokens?: number }
+  opts?: { onEvent?: (n: DriveEvent) => void; maxMs?: number; isAborted?: () => boolean; maxTokens?: number; reasoningEffort?: string }
 ): Promise<string> {
   const err = await ensureHarness()
   if (err) throw new Error(err)
@@ -254,7 +257,8 @@ export async function driveSession(
     await client.request('session/prompt', {
       sessionId: sid,
       contentBlocks: [{ type: 'text', text }],
-      ...(opts?.maxTokens !== undefined ? { maxTokens: opts.maxTokens } : {})
+      ...(opts?.maxTokens !== undefined ? { maxTokens: opts.maxTokens } : {}),
+      ...(opts?.reasoningEffort !== undefined ? { reasoningEffort: opts.reasoningEffort } : {})
     })
     for await (const n of sub) {
       opts?.onEvent?.(n)

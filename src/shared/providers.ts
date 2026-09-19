@@ -23,7 +23,7 @@ export interface ProviderPreset {
 export interface ModelEntry {
   id: string
   note?: string
-  /** 声明模型支持的思考档位；false=非推理模型（请求不开启 thinking，直接出正文） */
+  /** 声明模型支持的思考档位；false=非推理模型（请求不开启 thinking，直接出正文）；对象=各档位 wire 值（off 可缺省=支持且不传参） */
   reasoningEfforts?: false | Record<string, string | null>
 }
 
@@ -41,12 +41,16 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
       supportsDeveloperRole: false,
       maxTokensField: 'max_tokens',
       // vLLM 上该模型模板默认开思考：实测单轮输出 1.5 万字 reasoning 才落笔（8 分钟驱动超时）。写作要快速产出，
-      // 显式 chat_template_kwargs.thinking=false 关思考；reasoningEfforts:false 只声明 off 档=不传参，vLLM 默认仍开，单独不够。
+      // 显式 chat_template_kwargs.thinking=false 关思考（双保险；reasoningEfforts 档位表只在按需选 low 时起作用）。
       chatTemplateKwargs: { thinking: false }
     },
     // 模型 id 以 127.0.0.1:8888 实际服务的为准（vLLM 于 2026-09 重启换为 vision-exp-uncensored；旧的 0731 id 已 404/空返）。
-    // reasoningEfforts:false = 按非推理模型处：该模型深度思考极长（实测单轮 1.5 万字 reasoning 才落笔），写作场景要快速产出，不开启 thinking。
-    models: [{ id: 'deepseek-v4-flash-vision-exp-uncensored', reasoningEfforts: false }]
+    // reasoningEfforts 声明各档位 wire 值（2026-09-19 21:00 智能层同场景直调实测：该模型 low 档=10.7× 提速/质量等价，
+    // 默认档（不选=不传参，vLLM 默认高思考）单轮 1.5 万字 reasoning 才落笔）。off 缺省=支持且不传参（现有默认行为不变）；
+    // 引擎请求走 agent/request 选低档（仅 revision/长检查类，见 audit.ts），聊天/短巡查不选=默认档零行为变化。
+    models: [
+      { id: 'deepseek-v4-flash-vision-exp-uncensored', reasoningEfforts: { low: 'low', high: 'high', max: 'max' } }
+    ]
   },
   {
     id: 'deepseek',

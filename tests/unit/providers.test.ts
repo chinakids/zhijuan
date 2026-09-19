@@ -3,17 +3,17 @@ import { activeProvider, buildLlmOverrideYml } from '../../src/shared/providers'
 import { DEFAULT_SETTINGS } from '../../src/shared/types'
 
 describe('providers（模型适配接入层：预设/活跃解析/override 生成）', () => {
-  it('local 预设把当前模型声明为非推理模型（reasoningEfforts:false）', () => {
+  it('local 预设声明模型思考档位表（low/high/max 各档 wire 值，off 缺省=支持且不传参）', () => {
     const p = activeProvider(DEFAULT_SETTINGS)
     expect(p.route).toBe('zj-local')
     expect(p.model).toBe('deepseek-v4-flash-vision-exp-uncensored')
-    expect(p.modelEntry?.reasoningEfforts).toBe(false)
+    expect(p.modelEntry?.reasoningEfforts).toMatchObject({ low: 'low', high: 'high', max: 'max' })
   })
 
-  it('buildLlmOverrideYml 把 reasoningEfforts:false 写进 models 条目', () => {
+  it('buildLlmOverrideYml 把 reasoningEfforts 档位表写进 models 条目', () => {
     const y = buildLlmOverrideYml(activeProvider(DEFAULT_SETTINGS))
     expect(y).toContain('deepseek-v4-flash-vision-exp-uncensored')
-    expect(y).toContain('reasoningEfforts: false')
+    expect(y).toContain('reasoningEfforts: {"low":"low","high":"high","max":"max"}')
     expect(y).toContain('http://127.0.0.1:8888/v1')
   })
 
