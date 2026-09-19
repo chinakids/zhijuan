@@ -109,9 +109,9 @@ export default function HealthBar({ projectId, refreshSignal = 0 }: Props) {
           : '规则体检进行中'
 
   return (
-    <footer
+    <div
       data-testid="health-bar"
-      className="flex h-7 shrink-0 items-center gap-2 border-t border-hair px-3 text-[11px] text-ink-3"
+      className="flex shrink-0 items-center gap-2 text-[11px] text-ink-3"
     >
       <button
         type="button"
@@ -171,6 +171,6 @@ export default function HealthBar({ projectId, refreshSignal = 0 }: Props) {
         }}
         toAgentBusy={streaming}
       />
-    </footer>
+    </div>
   )
 }

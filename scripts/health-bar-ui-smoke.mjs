@@ -90,27 +90,39 @@ const drawer = await ev(`(() => {
 })()`)
 ok(!!drawer, '点击状态图标打开详情抽屉（人物在场核查）')
 
-// 3.3 F-20260916-05 迁移完整性（㉞ 教训资产化）：抽屉 Tab 栏含迁移后补的 缺段/切片/混用 三类 + 「让 agent 改」入口存在
-const tabs = await ev(`(() => {
-  const dlg = document.querySelector('[role="dialog"]')
-  if (!dlg) return null
-  const btns = [...dlg.querySelectorAll('button')].map((b) => (b.textContent || '').trim())
-  return { que: btns.includes('缺段'), sli: btns.includes('切片'), mix: btns.includes('混用'), toAgent: btns.includes('让 agent 改') }
+// 3.3 F-20260916-05 迁移完整性（㉞ 教训资产化）：抽屉「切换」菜单含 缺段/切片/混用 三类 + 「让 agent 改」入口存在
+await ev(`(() => {
+  const b = document.querySelector('[data-testid="audit-kind-select"]')
+  if (!b) return false
+  b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+  b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
+  b.click()
+  return true
 })()`)
-ok(!!tabs && tabs.que && tabs.sli && tabs.mix, `抽屉 Tab 栏含 缺段/切片/混用（迁移完整性，实际 ${JSON.stringify(tabs)}）`)
+await sleep(600)
+const tabs = await ev(`(() => {
+  const items = [...document.querySelectorAll('[role="menuitem"]')].map((x) => (x.textContent || '').trim())
+  const dlg = document.querySelector('[role="dialog"]')
+  const btns = dlg ? [...dlg.querySelectorAll('button')].map((b) => (b.textContent || '').trim()) : []
+  return { que: items.includes('缺段'), sli: items.includes('切片'), mix: items.includes('混用'), toAgent: btns.includes('让 agent 改') }
+})()`)
+ok(!!tabs && tabs.que && tabs.sli && tabs.mix, `切换菜单含 缺段/切片/混用（迁移完整性，实际 ${JSON.stringify(tabs)}）`)
 ok(!!tabs && tabs.toAgent, '「让 agent 改」入口存在（onToAgent 已接线）')
 
-// 3.4 切「缺段」Tab 生效（标题=正文缺段核查）
+// 3.4 经菜单切「缺段」生效（标题=正文缺段核查）
 const clickedTab = await ev(`(() => {
-  const dlg = document.querySelector('[role="dialog"]')
-  const b = [...dlg.querySelectorAll('button')].find((x) => (x.textContent || '').trim() === '缺段')
-  b?.click()
+  const b = [...document.querySelectorAll('[role="menuitem"]')].find((x) => (x.textContent || '').trim() === '缺段')
+  if (b) {
+    b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse' }))
+    b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse' }))
+    b.click()
+  }
   return !!b
 })()`)
-ok(!!clickedTab, '抽屉「缺段」Tab 按钮可点')
-await sleep(800)
+ok(!!clickedTab, '抽屉「切换」菜单项缺段可点')
+await sleep(1200)
 const switched = await ev(`[...document.querySelectorAll('[role="dialog"] *')].some((el) => el.textContent?.includes('正文缺段核查'))`)
-ok(!!switched, '切「缺段」Tab 后标题=正文缺段核查')
+ok(!!switched, '切「缺段」后标题=正文缺段核查')
 await cmd('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
 await cmd('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
 await sleep(600)

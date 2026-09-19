@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, BookOpenCheck, Check, ChevronLeft, GitCompare, RefreshCw, Send, ShieldAlert, Sparkles, X } from 'lucide-react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { AlertTriangle, BookOpenCheck, Check, ChevronDown, ChevronLeft, GitCompare, RefreshCw, Send, ShieldAlert, Sparkles, X } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import type { AuditItem, AuditKind, AuditResult } from '../../../../shared/types'
 import { auditItemToAgentPrompt } from '../../../../shared/auditToAgent'
@@ -8,6 +8,25 @@ import { diffAuditReports, type AuditDiffResult } from '../../../../shared/audit
 import { cn } from '../../lib/utils'
 import { useModalA11y } from '../../lib/useModalA11y'
 import { toast } from '../../components/ui/toast'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '../../components/ui/dropdown-menu'
+
+/** 检查类短名（抽屉「切换」触发器/菜单项用，与 K_TITLE 全名互补） */
+const K_SHORT: Partial<Record<AuditKind, string>> = {
+  consistency: '巡查', review: '冷读', perspectives: '视角', presence: '在场', order: '时序',
+  unused: '档案', nameform: '称谓', actgaps: '缺段', sliceord: '切片', mixform: '混用'
+}
+/** 切换菜单分组：全卷巡读（模型级）在前，本地规则（秒级）在后（HIG Menus 分组） */
+const KIND_GROUPS: { label: string; kinds: AuditKind[] }[] = [
+  { label: '全卷巡读', kinds: ['consistency', 'review', 'perspectives'] },
+  { label: '本地规则', kinds: ['presence', 'order', 'unused', 'actgaps', 'sliceord', 'nameform', 'mixform'] }
+]
 
 const TYPE_TXT: Record<string, string> = {
   'setting-conflict': '设定冲突', timeline: '时间线', foreshadow: '伏笔', 'character-drift': '人物漂移',
@@ -287,66 +306,32 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
             {K_TITLE[tab] ?? '检查'}
           </span>
           <span className="flex-1" />
-          <button
-            onClick={() => onTab('consistency')}
-            className={cn('rounded-md px-2.5 py-1 text-xs', tab === 'consistency' ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface-2')}
-          >
-            巡查
-          </button>
-          <button
-            onClick={() => onTab('review')}
-            className={cn('rounded-md px-2.5 py-1 text-xs', tab === 'review' ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface-2')}
-          >
-            冷读
-          </button>
-          <button
-            onClick={() => onTab('perspectives')}
-            className={cn('rounded-md px-2.5 py-1 text-xs', tab === 'perspectives' ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface-2')}
-          >
-            视角
-          </button>
-          <button
-            onClick={() => onTab('presence')}
-            className={cn('rounded-md px-2.5 py-1 text-xs', tab === 'presence' ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface-2')}
-          >
-            在场
-          </button>
-          <button
-            onClick={() => onTab('order')}
-            className={cn('rounded-md px-2.5 py-1 text-xs', tab === 'order' ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface-2')}
-          >
-            时序
-          </button>
-          <button
-            onClick={() => onTab('unused')}
-            className={cn('rounded-md px-2.5 py-1 text-xs', tab === 'unused' ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface-2')}
-          >
-            档案
-          </button>
-          <button
-            onClick={() => onTab('nameform')}
-            className={cn('rounded-md px-2.5 py-1 text-xs', tab === 'nameform' ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface-2')}
-          >
-            称谓
-          </button>
-          <button
-            onClick={() => onTab('actgaps')}
-            className={cn('rounded-md px-2.5 py-1 text-xs', tab === 'actgaps' ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface-2')}
-          >
-            缺段
-          </button>
-          <button
-            onClick={() => onTab('sliceord')}
-            className={cn('rounded-md px-2.5 py-1 text-xs', tab === 'sliceord' ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface-2')}
-          >
-            切片
-          </button>
-          <button
-            onClick={() => onTab('mixform')}
-            className={cn('rounded-md px-2.5 py-1 text-xs', tab === 'mixform' ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface-2')}
-          >
-            混用
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                data-testid="audit-kind-select"
+                title={K_TITLE[tab] ?? '切换检查类别'}
+                aria-label="切换检查类别"
+                className={cn('flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs', 'text-ink-2 hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60')}
+              >
+                {K_SHORT[tab] ?? tab}
+                <ChevronDown className="h-3 w-3" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="max-h-[60vh] overflow-y-auto">
+              {KIND_GROUPS.map((g, gi) => (
+                <Fragment key={g.label}>
+                  {gi > 0 && <DropdownMenuSeparator />}
+                  <DropdownMenuLabel>{g.label}</DropdownMenuLabel>
+                  {g.kinds.map((k) => (
+                    <DropdownMenuItem key={k} title={K_TITLE[k]} onSelect={() => onTab(k)}>
+                      <span className={cn(tab === k && 'font-medium text-accent')}>{K_SHORT[k]}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </Fragment>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <button onClick={onClose} className="text-ink-3 hover:text-ink">
             <X className="h-4 w-4" />
           </button>

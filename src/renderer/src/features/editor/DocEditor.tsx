@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react'
 import { cn } from '../../lib/utils'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import Prose, { type ProseApi } from './Prose'
@@ -28,9 +28,11 @@ interface DocEditorProps {
   annotations?: AnnotationRow[]
   /** 批注入口（划词浮层/右键「写入批注」）可用性；批注管道只作用 `正文/**`，非正文语境传 false 隐藏（HIG：隐藏不可用项）。默认 true。 */
   anno?: boolean
+  /** 底部状态条右侧追加内容（如规则体检状态栏；主人 2026-09-17：与「历史/未保存」同排，不单独占行） */
+  statusExtra?: ReactNode
 }
 
-export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty, onSave, className, editorApiRef, annotations, anno }: DocEditorProps) {
+export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty, onSave, className, editorApiRef, annotations, anno, statusExtra }: DocEditorProps) {
   const innerApi = useRef<ProseApi | null>(null)
   const apiRef = editorApiRef ?? innerApi
   const rawRef = useRef('') // 磁盘上的原文（含约定头）
@@ -231,6 +233,7 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
         )}
         <span className={cn('font-medium', st.cls)}>{st.text}</span>
         <span className="flex-1" />
+        {statusExtra}
         <button onClick={() => void doSave()} disabled={!dirty || busy} className="text-xs text-ink-2 underline-offset-2 hover:underline disabled:opacity-40">保存 ⌘S</button>
       </div>
       <HistoryDrawer projectId={projectId} rel={rel} open={historyOpen} onClose={() => setHistoryOpen(false)} />

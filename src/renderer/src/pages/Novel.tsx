@@ -732,10 +732,10 @@ export default function Novel() {
         {sel ? (
           <>
             <div className="min-h-0 flex-1">
-              <DocEditor projectId={id} rel={chapterRel} withFm extVersion={extVersion} editorApiRef={apiRef} annotations={annotations} onSave={() => { void refresh(); void handleChapterSaved(chapterRel) }} />
+              <DocEditor projectId={id} rel={chapterRel} withFm extVersion={extVersion} editorApiRef={apiRef} annotations={annotations} onSave={() => { void refresh(); void handleChapterSaved(chapterRel) }}
+                statusExtra={<HealthBar projectId={id} refreshSignal={extVersion} />}
+              />
             </div>
-            {/* 规则体检状态栏（F-20260916-05）：本地规则常驻实时体检，图标即健康状态，点击看详情 */}
-            <HealthBar projectId={id} refreshSignal={extVersion} />
           </>
         ) : effectiveNarrow ? (
           <div className="flex h-full items-center justify-center">
