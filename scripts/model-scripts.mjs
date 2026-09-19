@@ -61,6 +61,10 @@ export const REVIEWED_NON_MODEL = new Set([
   // outline.ts/director.ts 真实现 + scripts/drive-mock-outline.mjs 驱动 mock，头注明示「驱动 mock（不依赖模型）」）；
   // 强特征 runDirector 命中的是 esbuild stdin 的 export 行（L29），非引擎/边车/模型调用——第九次全量审计实抓。
   'multiline-outline-director-smoke.mjs',
+  // 2026-09-19 19:3x 平台层轮核对：bodylen-smoke.mjs 是数据层冒烟（bundle engine.ts 真代码路径，
+  // 仅 stub 掉模型会话——头注 L1-3「driveSession 返回 '[]'=合法空」，/tmp/runtime-stub.mjs 无引擎/边车/模型调用）；
+  // 弱特征 runSync/driveSession 命中的是 stdin export 行与 stub 导入行——P1 bodyLen 取证字段数据层验证（9f13550 配套）。
+  'bodylen-smoke.mjs',
 ])
 
 export const MODEL_SKIP_REASON = '模型类：真模型驱动（依赖 vLLM 算力池），--all 门禁不包含——--live 或单独跑'
