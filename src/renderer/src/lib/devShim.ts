@@ -1898,7 +1898,10 @@ function applyAnchor(text: string, it: ProposalItem): string {
 
 /** 无头冒烟：`?zj-fail=<api>[,<api>…]`（首次调用 reject 一次，重试恢复）与
  *  `?zj-fail-x=<api>[,<api>…]`（每次都 reject，验证错误态本身；Workspace 计数调用会先吞掉一次，
- *  持续失败可保证页面层错误卡必然出现）。仅 devShim 存在；真机错误态是同一套 React 组件。 */
+ *  持续失败可保证页面层错误卡必然出现）。仅 devShim 存在；真机错误态是同一套 React 组件。
+ * `?zj-null=<api>:<needle>`（新增 2026-09-19 智能层）：匹配调用（args[1] 含 needle）返回 null——
+ *  模拟真机 readDoc「不存在/不可读」（返回 null 而非空串）——验证读取失败**显式呈现**、
+ *  不静默当空文档（DocEditor 2026-09-19 修改，P1 F-20260917-10 代码走查落地）。 */
 function buildFailProbe(base: typeof window.zhijuan): typeof window.zhijuan {
   const parse = (key: string) =>
     new Set(
@@ -1909,7 +1912,13 @@ function buildFailProbe(base: typeof window.zhijuan): typeof window.zhijuan {
     )
   const once = parse('zj-fail')
   const always = parse('zj-fail-x')
-  if (!once.size && !always.size) return base
+  const nullRules = [...parse('zj-null')]
+    .map((s) => {
+      const i = s.indexOf(':')
+      return i > 0 ? { api: s.slice(0, i).trim(), needle: s.slice(i + 1) } : null
+    })
+    .filter((r): r is { api: string; needle: string } => !!r && !!r.api && !!r.needle)
+  if (!once.size && !always.size && !nullRules.length) return base
   const src = base as unknown as Record<string, (...a: unknown[]) => unknown>
   const probe = { ...(base as unknown as Record<string, unknown>) }
   for (const name of new Set([...once, ...always])) {
@@ -1924,6 +1933,15 @@ function buildFailProbe(base: typeof window.zhijuan): typeof window.zhijuan {
         throw new Error('模拟瞬态失败：' + name)
       }
       return (src[name] as (...a: unknown[]) => unknown)(...args)
+    }
+  }
+  for (const r of nullRules) {
+    const orig = src[r.api]
+    if (typeof orig !== 'function') continue
+    probe[r.api] = async (...args: unknown[]) => {
+      const rel = String(args[1] ?? '')
+      if (rel.includes(r.needle)) return null
+      return orig(...args)
     }
   }
   return probe as unknown as typeof window.zhijuan

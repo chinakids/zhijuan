@@ -66,8 +66,17 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
     setConfirmEmpty(false) // 换文档/重试：清掉上文的「确要清空」待确认态
     ;(async () => {
       try {
-        const raw = (await window.zhijuan.readDoc(projectId, rel)) ?? ''
+        const raw = await window.zhijuan.readDoc(projectId, rel)
         if (cancel) return
+        // 读取失败显式呈现（2026-09-19 智能层，P1 F-20260917-10 代码走查共 ②）：readDoc 不存在/不可读时
+        // 返回 null，旧代码 `?? ''` 把它静默当空文档 → 编辑器显示空白（占位「开始写作…」），
+        // 用户一保存就把磁盘整篇覆盖成空——正是下方注释警告的副作用，null 分支却漏了。
+        // 与 states 体系（读取失败卡+重试，eac71e8）同口径：只有磁盘真空才显示空文档。
+        if (raw === null) {
+          setReadErr('读取文档失败：文件不存在或不可读')
+          setLoading(false)
+          return
+        }
         rawRef.current = raw
         const body = withFm ? splitFm(raw).body : raw
         savedMdRef.current = body
@@ -174,8 +183,20 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
     }
     let cancelled = false
     void (async () => {
-      const raw = (await window.zhijuan.readDoc(projectId, rel)) ?? ''
+      let raw: string | null
+      try {
+        raw = await window.zhijuan.readDoc(projectId, rel)
+      } catch {
+        // 2026-09-19 智能层（P1 代码走查共 ④）：重载读失败同样跳过（原代码无 catch=未处理拒绝，
+        // 且与 null 同型风险——不让「读不到」变「空的」）；保留当前内容等待下一次事件。
+        return
+      }
       if (cancelled) return
+      // 2026-09-19 智能层（P1 代码走查共 ③）：外部读回 null（文件被删/暂不可读）时**跳过重载**——
+      // 旧代码 `?? ''` 会把编辑器静默替换成空白（extVersion 重载竞态 → 空正文假象，
+      // F-20260917-10 疑点②「保存→清空」形态的候选机理之一）；宁可保留当前内容等待
+      // 下一次事件，也不把「读不到」渲染成「文档是空的」。
+      if (raw === null) return
       // await 期间编辑器可能已随换文件重建（epoch 驱动）：旧实例已被 destroy，
       // 若继续用 effect 开头捕获的旧 api 会抛 MilkdownError contextNotFound（2026-09-16 修，
       // 建章/切章后 console 报 headingAttr 错误即此）。重读 apiRef 且重查 dirty
