@@ -23,6 +23,7 @@ import { listChapterEntries } from '../shared/chapters'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, DOT_DIR } from '../shared/paths'
 import { sanitizeFile } from '../shared/paths'
 import { isVersionedRel, snapDirFor, writeSnapshot } from './history'
+import { appendWriteLog, HEAD_LEN } from './writeLog'
 import { migrateChapter, invalidateChapter, staleSliceSyncByChapter } from './proposals'
 import { libraryRoot } from './settings'
 import { applyTemplate } from './templates'
@@ -252,7 +253,12 @@ export function writeDoc(id: string, rel: string, content: string) {
   // 版本历史快照：写盘前把旧内容存档（仅版本化 rel——规则见 src/shared/versionedRel.ts：正文/、大纲/审读_*、大纲/ 下章卡与导演板分幕（索引.md 除外）；且内容有变化时）
   if (isVersionedRel(rel) && existsSync(f)) {
     const prev = readFileSync(f, 'utf-8')
-    if (prev !== content) writeSnapshot(projectDir(id), rel, prev)
+    if (prev !== content) {
+      writeSnapshot(projectDir(id), rel, prev)
+      // 写盘审计（P1 F-20260917-10 排查支撑，2026-09-19 创作层）：与快照同条件旁路留档——
+      // 谁/何时/旧长/新长/新内容头部，异常写盘（清空/截断）可从 write-log 直接可辨，不再靠快照时间戳推断。
+      appendWriteLog(id, { time: Date.now(), rel, prevLen: prev.length, newLen: content.length, head: content.slice(0, HEAD_LEN) })
+    }
   }
   writeFileSync(f, content, 'utf-8')
 }
