@@ -1594,6 +1594,17 @@ const mock = {
       if (v === '__empty__') return ''
       return v || '雾港夜'
     })()
+    // 严格性短路（与真机 runSync 同口径，2026-09-20 创作层）：正文为空=无设定可提取 →
+    // 直接返回 bodyEmpty 证据（零提案、不产「动向」噪音）；devShim 门判据=docs 实际正文体。
+    const bodyTxt = docs.get(id + '/' + rel) ?? ''
+    const bodyLenZ = extractFrontMatter(bodyTxt).body.length
+    if (bodyLenZ === 0) {
+      return {
+        ok: true,
+        items: [],
+        evidence: { slice: sliceName, castCount: 3, knownFiles: 5, unarchived: 1, bodyEmpty: true }
+      }
+    }
     // 失败注入（?zj-fail=agentSync 一次性 / ?zj-fail-x=agentSync 持续）：与真机 runSync 三处返回同口径——
     // 失败路径也先 appendSyncLog（ok:false + clipLogError 摘要）再让调用方收到失败，使「真实同步失败 → 日志失败条目 → 抽屉失败摘要」可断言
     const failAlways = parseFailFlag('zj-fail-x', 'agentSync')

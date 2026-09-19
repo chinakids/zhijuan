@@ -15,6 +15,9 @@ import type { SyncEvidence } from './types'
  */
 export function describeSyncEvidence(e?: SyncEvidence | null): string {
   if (!e) return ''
+  // 正文为空未比对（2026-09-20 创作层 strictness）：非「已比对」类，改示跳过事实——作者据此知道
+  // 同步器没有产出不是因为“没变化”，而是根本没有可提取的正文（空心保存/仅约定头）。
+  if (e.bodyEmpty) return ' · 正文为空，未比对'
   const hasAny = e.slice || e.knownFiles > 0 || e.castCount > 0 || e.unarchived > 0
   if (!hasAny) return ''
   const note: string[] = []

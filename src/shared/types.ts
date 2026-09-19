@@ -274,6 +274,8 @@ export interface SyncEvidence {
   knownFiles: number
   /** 约定头涉及但未建档的人数（比对盲区，作者需知情） */
   unarchived: number
+  /** 正文为空被本地短路：未比对、未调模型、零提案（2026-09-20 创作层；证据小字改示「正文为空，未比对」） */
+  bodyEmpty?: boolean
 }
 
 /** 切片同步历史日志单条（2026-09-16 创作层：.zhijuan/sync-log.jsonl 着一行一条，作者可回溯） */

@@ -242,7 +242,8 @@ function syncSystem(known: { files: string[]; cast: string[]; noFile: string[] }
     '你是织卷的「时间切片同步器」。根据章节正文，把这一章对应时间切片的人物状态、世界观变化、环境状态，写成一份设定补丁。\n' +
     '要求：\n' +
     '1. 当前章节与相关设定已作为【当前创作上下文】直接给出，据此判断变化；如需核对更完整内容，再用 zj_read_doc 读取对应文件。\n' +
-    '2. 只在正文确有变化时输出；没有任何变化就输出 []。\n' +
+    '2. 只在正文确有变化时输出；没有任何变化就输出 []。若当前章节正文为空（只有约定头），直接输出 []。\n' +
+    '   不得把人物档案/切片小节中已有的信息当作「新动向」复述——只有正文中发生了与已记录设定不同的新事态，才输出补丁。\n' +
     '3. 每条补丁为：{"target":"相对项目根的文件路径","anchor":"要写入的小节标题文本（不含#号）","kind":"upsert-section","before":"原状态的一句话要点（无则空串）","after":"本小节要写入的完整新内容（markdown 列表即可）","reason":"一句话理由"}\n' +
     '4. target 与 anchor 规则（重要）：\n' +
     '   - 人物状态：target=人物/<姓名>.md（只许用 人物/ 下真实存在的文件）；anchor 一律为「切片：<本片切片名>」——人物档案里该小节已存在则整节替换，不存在则作为新小节追加；**禁止把「基础档案」「基础设定」「成长轨迹」「定位」等长期小节当 anchor**（那是作者手动维护的只读区，你的产物写进去会覆盖别人的设定）。\n' +
@@ -273,6 +274,7 @@ export async function runSync(
   let sliceName = ''
   let castAll: string[] = []
   let bodyLen = 0
+  let bodyRead = false // 章节读取成功标记：短路门只在「确实读到正文为空」时生效，不掩盖读失败
   try {
     const ch = readFileSync(join(projectDir(projectId), chapterRel), 'utf-8')
     const fm = extractFrontMatter(ch).fm ?? {}
@@ -280,6 +282,7 @@ export async function runSync(
     castAll = Array.isArray(fm['涉及人物']) ? (fm['涉及人物'] as string[]) : []
     // P1 F-20260917-10 取证字段：同步时刻正文本体长度（剥约定头后；0=正文为空——「同步照跑但正文已被清空」的形态在 sync-log 一眼可辨）
     bodyLen = extractFrontMatter(ch).body.length
+    bodyRead = true
   } catch {
     // 章节读不到就不做切片文件；不影响同步本身
   }
@@ -294,6 +297,34 @@ export async function runSync(
   if (sliceName) ensureWorldSliceFile(projectDir(projectId), sliceName)
   // 未建档人物（比对盲区计数；与 syncSystem 提示词共用同一口径）
   const noFile = castAll.filter((c) => !knownFiles.includes(c))
+  // 严格性修复（2026-09-20 创作层；F-20260917-10 P1 现场形态实测）：正文为空=没有可提取的设定变化，
+  // 提示词「只在正文确有变化时输出」是软约束——P1 证据（92B 仅约定头 + 完整人物档案）模型仍会产出
+  // 基于档案/章卡的「动向」提案（设定流噪音）。本地短路（lazy-gate：廉价判据先于昂贵模型调用）：
+  // 零模型调用、零提案噪音；sync-log 照记（bodyLen=0 一眼可辨），证据小字明示「正文为空，未比对」。
+  if (bodyRead && bodyLen === 0) {
+    appendSyncLog(projectId, {
+      time: Date.now(),
+      chapter: chapterRel,
+      slice: sliceName,
+      castCount: castAll.length,
+      fileCount: knownFiles.length,
+      itemCount: 0,
+      guardCount: 0,
+      ok: true,
+      bodyLen
+    })
+    return {
+      ok: true,
+      items: [],
+      evidence: {
+        slice: sliceName,
+        castCount: castAll.length,
+        knownFiles: knownFiles.length,
+        unarchived: noFile.length,
+        bodyEmpty: true
+      }
+    }
+  }
   const parts: string[] = []
   parts.push(syncSystem({ files: knownFiles, cast: castAll, noFile }))
   parts.push(envBlock(projectId, chapterRel))
