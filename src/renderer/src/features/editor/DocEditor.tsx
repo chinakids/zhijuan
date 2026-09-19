@@ -251,7 +251,9 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
       const body = withFm ? splitFm(raw).body : raw
       savedMdRef.current = body
       api.setContent(body)
-      setStatus('idle')
+      // 已保存状态保留（1.8s 定时器自清）：真实链路 fs 事件会随本次保存回灌 extVersion，
+      // 若把 saved 立刻置 idle，用户看不到「✓ 已保存」确认（HIG 状态反馈即时、无歧义）。
+      setStatus((s) => (s === 'saved' ? s : 'idle'))
       setNote('')
     })()
     return () => {
@@ -295,6 +297,10 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
   }
   const st = stLabel[status]
   const busy = status === 'saving'
+  // 保存钮可用性（2026-09-20 体验层 HIG 走查修）：dirty/外部冲突/失败/待确认清空 都需要「保存」
+  // 动作可用——旧判据 !dirty 会在拦截提示「再按一次保存确认」与失败重试时把按钮禁掉（只剩 ⌘S 能走，
+  // 鼠标唯一入口失效）；saved/idle 保持禁用（无内容可存，防无谓写盘）。
+  const canSave = status === 'dirty' || status === 'external' || status === 'error' || confirmEmpty
 
   return (
     <div className={cn('flex h-full min-h-0 flex-col', className)}>
@@ -306,7 +312,12 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
           onEdit={(md) => {
             // 内容恢复非空：清掉「确要清空」待确认态（之后再次清空仍会被拦一次，防误放行）
             if (md) setConfirmEmpty(false)
-            setStatus(md === savedMdRef.current ? 'idle' : 'dirty')
+            // 内容与已保存一致时：saved 保留（外部重载会经 markdownUpdated 进这里，别把
+            // 「✓ 已保存」确认擦成 idle，HIG 即时反馈）；否则回到 dirty
+            setStatus((prev) => {
+              if (md === savedMdRef.current) return prev === 'saved' ? prev : 'idle'
+              return 'dirty'
+            })
           }}
           className="h-full w-full"
           annotations={annotations}
@@ -325,10 +336,24 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
             批注 {annotations!.length}
           </button>
         )}
-        <span className={cn('font-medium', st.cls)}>{st.text}</span>
+        <span
+          role="status"
+          className={cn('inline-flex min-w-0 items-center gap-1 font-medium', st.cls)}
+          title={st.text || undefined}
+        >
+          {status === 'saving' && <LoadingIndicator size={12} />}
+          <span className="truncate">{st.text}</span>
+        </span>
         <span className="flex-1" />
         {statusExtra}
-        <button onClick={() => void doSave()} disabled={!dirty || busy} className="text-xs text-ink-2 underline-offset-2 hover:underline disabled:opacity-40">保存 ⌘S</button>
+        <button
+          onClick={() => void doSave()}
+          disabled={busy || !canSave}
+          title={confirmEmpty ? '正文为空但磁盘上已有正文：再次保存将确认清空（⌘S 同）' : '保存正文（⌘S）'}
+          className="shrink-0 whitespace-nowrap text-xs text-ink-2 underline-offset-2 hover:underline disabled:opacity-40"
+        >
+          保存 ⌘S
+        </button>
       </div>
       <HistoryDrawer projectId={projectId} rel={rel} open={historyOpen} onClose={() => setHistoryOpen(false)} />
       <AnnoDrawer
