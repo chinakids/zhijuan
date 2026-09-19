@@ -83,22 +83,24 @@ const OPTIONAL_PORTS = new Set(['8810'])
 // ---------- 参数解析 ----------
 const args = process.argv.slice(2)
 const names = []
-let all = false, live = false, list = false, verbose = false, failFast = false
+let all = false, live = false, list = false, verbose = false, failFast = false, sweep = false
 let timeoutSec = 0
 for (let i = 0; i < args.length; i++) {
   const a = args[i]
   if (a === '--all') all = true
   else if (a === '--live') live = true
   else if (a === '--list') list = true
+  else if (a === '--sweep') sweep = true
   else if (a === '-v' || a === '--verbose') verbose = true
   else if (a === '-x' || a === '--fail-fast') failFast = true
   else if (a === '--timeout') timeoutSec = Number(args[++i]) || 0
   else if (a.startsWith('--timeout=')) timeoutSec = Number(a.split('=')[1]) || 0
   else names.push(a)
 }
-if (!all && names.length === 0) {
+if (!all && names.length === 0 && !sweep) {
   console.error('用法：node scripts/smoke-ui.mjs --all [--live] [--timeout <s>] [-x] [-v] [--list]')
   console.error('      node scripts/smoke-ui.mjs <name> [name2 ...]')
+  console.error('      node scripts/smoke-ui.mjs --sweep   # 仅回收 CDP 残留织卷 tab 后退出')
   process.exit(2)
 }
 
@@ -433,6 +435,22 @@ if (all) {
 
 const results = []
 const t0 = Date.now()
+// 显式回收模式（--sweep，2026-09-19 平台层轮）：仅回收 CDP 残留织卷本地页 tab 后退出——
+// 治理入口：原先只在 --all 实跑时隐式触发（下方 sweepStaleTabs），点名回归/长轮次累积后无操作入口；
+// 07:30 轮「尾态 55>40、下一全量轮前先回收 tab」待办机制化。
+if (sweep) {
+  const local = await cdpPagesLocal()
+  console.log(`CDP 织卷本地页 ${local.length} 个（阈值 ${CDP_TAB_HIGH}）`)
+  if (local.length > CDP_TAB_HIGH) {
+    for (const t of local) await cdpClose(t.id)
+    await new Promise((r) => setTimeout(r, 3000)) // 关闭异步生效（PUT 返回后 target 仍在列表短暂残留）
+    const left = (await cdpPagesLocal()).length
+    console.log(`🧹 CDP 起点清理：回收 ${local.length} 个残留织卷 tab，现余 ${left}`)
+  } else {
+    console.log('无需回收')
+  }
+  process.exit(0)
+}
 // CDP 起点清理（仅实跑模式）：跨轮残留的织卷本地页 tab 超过阈值即回收（2026-09-16 治理接入）
 let sweepInfo = { closed: 0, left: 0 }
 if (all && !list) {
