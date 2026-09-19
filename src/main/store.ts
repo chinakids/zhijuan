@@ -20,7 +20,7 @@ import { posixRel, toPosix } from '../shared/relpath'
 import { isOutlineCardRel, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterSliceInDoc } from '../shared/outline'
 import { isMaterialCard } from '../shared/materialCard'
 import { listChapterEntries } from '../shared/chapters'
-import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, DOT_DIR } from '../shared/paths'
+import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, SKELETON_TEMPLATES, DOT_DIR } from '../shared/paths'
 import { sanitizeFile } from '../shared/paths'
 import { isVersionedRel, snapDirFor, writeSnapshot } from './history'
 import { appendWriteLog, HEAD_LEN } from './writeLog'
@@ -75,11 +75,11 @@ export function ensureSkeleton(id: string) {
   const root = projectDir(id)
   ensureDir(root)
   for (const d of SKELETON_DIRS) ensureDir(join(root, d))
-  // 缺省模板文件（不覆盖已有内容）
+  // 缺省模板文件（不覆盖已有内容；模板文本单一权威源=shared/paths SKELETON_TEMPLATES）
   const templates: [string, string][] = [
-    [DEFAULT_FILES.charsOverview, '# 人物 · 总览\n\n> 本文件是人物目录：每个人物一个 `人物/<人物名>.md`。在正文创作里保存章节后，这里会通过提案制得到更新。\n'],
-    [DEFAULT_FILES.worldOverview, '# 世界观 · 总纲\n\n> 长期不变的世界设定写在这里；每个时间切片的世界状态写在 `世界观/切片_<切片名>.md`。\n'],
-    [DEFAULT_FILES.libIndex, '# 素材库 · 索引\n\n> 按类别分类存放，每个素材一个 `素材库/<类别>/<素材>.md`。采集任务先落 `素材库/采集池/`。\n']
+    [DEFAULT_FILES.charsOverview, SKELETON_TEMPLATES.charsOverview],
+    [DEFAULT_FILES.worldOverview, SKELETON_TEMPLATES.worldOverview],
+    [DEFAULT_FILES.libIndex, SKELETON_TEMPLATES.libIndex]
   ]
   for (const [rel, tpl] of templates) {
     const f = join(root, rel)

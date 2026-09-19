@@ -13,6 +13,7 @@ import { ColHideButton, ColShowBar } from '../common/colFold'
 import { useColFold, type ColFoldKey } from '../common/useColFold'
 import DocEditor from '../editor/DocEditor'
 import { useFsChanged, useFsEvents } from '../fs/useFsEvents'
+import { resolveDocSel } from './docSel'
 import { toast } from '../../store/toasts'
 
 interface DocSectionProps {
@@ -53,7 +54,8 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
       const list = await window.zhijuan.listDocs(id, relDir)
       setFiles(list)
       setLoadErr('')
-      setSel((s) => (s && list.some((f) => relDir + '/' + f.file === s) ? s : overviewFile ?? null))
+      // 选中项不在列表（如 overview 缺失/被删）→ 置空显示「选择左侧一个文档开始」，不再指向不存在文档挂空编辑器（docSel.ts）
+      setSel((s) => resolveDocSel(s, list, relDir))
     } catch (e) {
       setLoadErr(String((e as Error).message ?? e))
     } finally {

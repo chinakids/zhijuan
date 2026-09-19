@@ -10,7 +10,7 @@ import { listLinesFromEntries, chapterLine, DEFAULT_LINE } from '../../../shared
 import type { LineInfo } from '../../../shared/line'
 import { resolveLibraryRoot } from '../../../shared/settingsLogic'
 import { AGENT_PANEL_DEFAULT_WIDTH } from '../../../shared/uiPrefs'
-import { sanitizeFile } from '../../../shared/paths'
+import { sanitizeFile, DEFAULT_FILES, SKELETON_TEMPLATES } from '../../../shared/paths'
 import { clipLogError } from '../../../shared/syncLogShared'
 import { nextProjectId } from '../../../shared/projects'
 import { extractFrontMatter, setFrontMatterField } from '../../../shared/fmatter'
@@ -196,6 +196,8 @@ docs.set(
   'demo-aseya/正文/第05章_灯下.md',
   ['---', '章号: 5', '题名: 灯下', '切片: 第五幕_灯下', '涉及人物: [阿七]', '---', '', '# 灯下', '', '阿七拎着灯穿过泊船区。沈爷蹲在栈桥尽头，就着一盏马灯补渔网，听见脚步声也没抬头。', '阿七把灯搁在脚边，问他需不需要搭把手。沈爷摆摆手，把网线抽紧了一格。', '临走时沈爷叫住她，从怀里摸出一枚旧钥匙，说见她灯还亮着，明晚再来一趟。', ''].join('\n')
 )
+// dev 演示：人物目录总览（与真机 ensureSkeleton 同口径 SKELETON_TEMPLATES——2026-09-19 体验层轮补，修复人物页初始挂空编辑器）
+docs.set('demo-aseya/人物/总览.md', SKELETON_TEMPLATES.charsOverview)
 docs.set(
   'demo-aseya/人物/阿七.md',
   [
@@ -610,6 +612,10 @@ const mock = {
     const id = nextProjectId(name, (i) => projects.some((p) => p.id === i))
     const p: ProjectSummary = { id, name, description, createdAt: now, updatedAt: now, stats: { chapters: 0, characters: 0, worldviewFiles: 0, materials: 0 } }
     projects.unshift(p)
+    // 与真机 ensureSkeleton 同口径：骨架三模板（缺省不覆盖，2026-09-19 体验层轮补——否则人物/世界观页初始 sel 指向不存在的 overview 挂空编辑器）
+    if (!docs.has(id + '/' + DEFAULT_FILES.charsOverview)) docs.set(id + '/' + DEFAULT_FILES.charsOverview, SKELETON_TEMPLATES.charsOverview)
+    if (!docs.has(id + '/' + DEFAULT_FILES.worldOverview)) docs.set(id + '/' + DEFAULT_FILES.worldOverview, SKELETON_TEMPLATES.worldOverview)
+    if (!docs.has(id + '/' + DEFAULT_FILES.libIndex)) docs.set(id + '/' + DEFAULT_FILES.libIndex, SKELETON_TEMPLATES.libIndex)
     return p
   },
   listTemplates: async (): Promise<ProjectTemplate[]> => [
