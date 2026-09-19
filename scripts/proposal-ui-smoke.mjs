@@ -87,7 +87,7 @@ try {
 
   // ② 进入工作区页（首次挂载即 refresh 提案列表）→ 徽标出现 → 点开抽屉
   await page.eval(`(location.hash = '#/project/demo-aseya/novel', 1)`)
-  await evalUntil(page, `document.body.innerText.includes('待确认提案 2')`, (v) => v === true, 20000, '待确认徽标')
+  await evalUntil(page, `document.body.innerText.includes('待确认提案') && [...document.querySelectorAll('button')].some((x) => x.title && x.title.includes('待确认') && (x.innerText || '').includes('2'))`, (v) => v === true, 20000, '待确认徽标')
   await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.innerText.includes('待确认提案')); return b ? (b.click(), 'CLICKED') : 'NOT_FOUND' })()`)
 
   // ③ 抽屉里出现章/切片归属（卡片级选择器）

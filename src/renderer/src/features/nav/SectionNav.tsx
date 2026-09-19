@@ -8,7 +8,8 @@ import {
   History,
   Settings as SettingsIcon,
   ArrowLeft,
-  CloudDownload
+  CloudDownload,
+  ListChecks
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -24,6 +25,10 @@ interface Props {
   projectId: string
   projectName: string
   counts: NavCounts
+  /** 待确认/已过期提案（主人 2026-09-17：改从顶栏独立行移入导航底部，不占内容区行） */
+  pending?: number
+  stale?: number
+  onOpenProposals?: () => void
 }
 
 interface NavItem {
@@ -44,7 +49,7 @@ const items: NavItem[] = [
   { to: 'library', label: '素材库', icon: LibraryIcon, key: 'library' }
 ]
 
-export default function SectionNav({ projectId, projectName, counts }: Props) {
+export default function SectionNav({ projectId, projectName, counts, pending = 0, stale = 0, onOpenProposals }: Props) {
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-hair bg-surface">
       {/* 项目名 */}
@@ -83,6 +88,21 @@ export default function SectionNav({ projectId, projectName, counts }: Props) {
 
       {/* 底部 */}
       <div className="space-y-0.5 border-t border-hair p-3">
+        {(pending + stale) > 0 && (
+          <button
+            onClick={onOpenProposals}
+            className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm text-warn transition-colors hover:bg-warn-soft/50"
+            title="查看/处理待确认或已过期提案（过期也要可查看清除）"
+          >
+            <span className="flex items-center gap-2.5">
+              <ListChecks className="h-4 w-4" />
+              {pending > 0 ? '待确认提案' : '已过期提案'}
+            </span>
+            <span className="rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] leading-none text-warn">
+              {Math.max(pending, stale)}
+            </span>
+          </button>
+        )}
         {/* 模块设计 §五 B：底部「采集入口快捷方式、设置入口」——一键直达素材库页并自动打开采集表单 */}
         <NavLink
           to={`/project/${projectId}/library?collect=1`}

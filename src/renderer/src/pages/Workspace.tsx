@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, Outlet, useSearchParams } from 'react-router-dom'
 import type { FsEvent, ProjectSummary } from '../../../shared/types'
 import SectionNav, { type NavCounts } from '../features/nav/SectionNav'
-import { ListChecks } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { useProposalStore } from '../store/proposals'
 import ProposalDrawer from '../features/proposals/ProposalDrawer'
@@ -147,17 +146,8 @@ export default function Workspace() {
 
   return (
     <div className="flex h-full">
-      <SectionNav projectId={project.id} projectName={project.name} counts={counts} />
+      <SectionNav projectId={project.id} projectName={project.name} counts={counts} pending={pending} stale={stale} onOpenProposals={() => setDrawerOpen(true)} />
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* 顶栏：不再放区块标题标签（左侧导航已有高亮）；有待确认/已过期提案时出一行入口（过期也要可查看清除） */}
-        {(pending + stale) > 0 && (
-          <header className="flex h-10 shrink-0 items-center justify-end border-b border-hair bg-surface px-4">
-            <button onClick={() => setDrawerOpen(true)} className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-warn-soft px-2.5 py-1 text-xs text-warn transition-colors hover:brightness-95">
-              <ListChecks className="h-3.5 w-3.5" />
-              {pending > 0 ? `待确认提案 ${pending}` : `已过期提案 ${stale}`}
-            </button>
-          </header>
-        )}
         <div className="min-h-0 flex-1">
           <Outlet context={{ newChapterReq }} />
         </div>
