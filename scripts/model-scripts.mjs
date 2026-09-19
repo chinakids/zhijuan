@@ -65,6 +65,10 @@ export const REVIEWED_NON_MODEL = new Set([
   // 仅 stub 掉模型会话——头注 L1-3「driveSession 返回 '[]'=合法空」，/tmp/runtime-stub.mjs 无引擎/边车/模型调用）；
   // 弱特征 runSync/driveSession 命中的是 stdin export 行与 stub 导入行——P1 bodyLen 取证字段数据层验证（9f13550 配套）。
   'bodylen-smoke.mjs',
+  // 2026-09-20 04:3x 平台层轮核对：bodyempty-ui-smoke.mjs 是无头 UI 冒烟（CDP 9224 + devShim 内存 mock 页面，
+  // 断言浮条证据小字与 proposal 文件数；无 127.0.0.1/dsh-runtime/引擎 fetch 引用——grep 零命中）；
+  // 弱特征 runSync 命中=头注背景描述与 devShim 短路语义，非模型调用——6117b68 配套严格性短路验证（创作层 8/8 自证）。
+  'bodyempty-ui-smoke.mjs',
 ])
 
 export const MODEL_SKIP_REASON = '模型类：真模型驱动（依赖 vLLM 算力池），--all 门禁不包含——--live 或单独跑'
