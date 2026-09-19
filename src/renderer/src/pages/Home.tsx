@@ -291,7 +291,7 @@ export default function Home() {
                 role="button"
                 tabIndex={0}
                 aria-label={`打开项目 ${p.name}`}
-                className="group zj-card-lift cursor-pointer overflow-hidden hover:-translate-y-1 hover:border-hair-strong hover:shadow-[var(--shadow)]"
+                className="group zj-card-lift cursor-pointer overflow-hidden hover:-translate-y-1 hover:border-hair-strong hover:shadow-[var(--shadow)] active:brightness-95"
                 onClick={() => openProject(p.id)}
                 onKeyDown={(e) => {
                   // 键盘等价（HIG Focus and selection「Keyboard equivalence」）：仅卡片自身聚焦时触发，
@@ -312,16 +312,16 @@ export default function Home() {
                   />
                   {/* 居中文本排版：书名 + 装饰线 + 元信息（纯文本封面） */}
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 px-6 text-center">
-                    <h2 className="line-clamp-2 font-serif text-xl font-semibold leading-snug text-white drop-shadow-sm">{p.name}</h2>
+                    <h2 className="line-clamp-2 font-serif text-xl font-semibold leading-snug text-white drop-shadow-sm" title={p.name}>{p.name}</h2>
                     <span className="h-px w-8 bg-white/35" />
-                    <p className="truncate text-[11px] text-white/60" data-testid="zj-card-stats">{p.stats.chapters} 章 · 人物 {p.stats.characters} · 素材 {p.stats.materials}</p>
+                    <p className="truncate text-[11px] text-white/60" data-testid="zj-card-stats" title={`${p.stats.chapters} 章 · 人物 ${p.stats.characters} · 素材 ${p.stats.materials}`}>{p.stats.chapters} 章 · 人物 {p.stats.characters} · 素材 {p.stats.materials}</p>
                   </div>
                 </div>
                 {/* 信息区 */}
                 <div className="flex items-start gap-2 border-t border-hair bg-surface-2/60 px-3 py-2.5">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs text-ink-2">{p.description || '（无简介）'}</p>
-                    <p className="mt-1 truncate text-[11px] text-ink-3">
+                    <p className="truncate text-xs text-ink-2" title={p.description || '（无简介）'}>{p.description || '（无简介）'}</p>
+                    <p className="mt-1 truncate text-[11px] text-ink-3" title={`${p.lastChapter ? `最近：${p.lastChapter}` : '还没有章节'} · ${new Date(p.updatedAt).toLocaleDateString('zh-CN')}`}>
                       {p.lastChapter ? `最近：${p.lastChapter}` : '还没有章节'} · {new Date(p.updatedAt).toLocaleDateString('zh-CN')}
                     </p>
                   </div>

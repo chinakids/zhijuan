@@ -66,6 +66,9 @@ console.log('TAB:', tab.id)
 const page = await attach(tab.webSocketDebuggerUrl)
 
 try {
+  // 竞态防护（2026-09-19 实踩 flaky）：attach 后立即 eval 会跑在导航完成前，
+  // 页面加载会重置 window —— 错误收集注入被清掉，④ 表现为 __zjErr undefined。
+  await evalUntil(page, 'document.readyState', (v) => v === 'complete', 15000, '页面加载完成')
   await page.eval(`(() => {
     window.__zjErr = []
     window.addEventListener('error', (e) => window.__zjErr.push(String(e.message || e)))
@@ -102,7 +105,7 @@ try {
   else ok('③ 回归：卡片文本含「章」「人物」')
 
   // ④ 零 JS 异常
-  const errs = await page.eval(`window.__zjErr`)
+  const errs = await page.eval(`window.__zjErr || []`)
   if (errs.length > 0) bad('④ 零 JS 异常', JSON.stringify(errs))
   else ok('④ 全程零 JS 异常')
 
