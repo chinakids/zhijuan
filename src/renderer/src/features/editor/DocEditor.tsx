@@ -82,9 +82,19 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
   const doSave = useCallback(async () => {
     const api = apiRef.current
     if (!api) return
+    // P1 防线（F-20260917-10，2026-09-19 智能层）：编辑器内容为空但磁盘正文非空 → 拒绝写盘。
+    // 现场形态=正文被写成「仅约定头」（92B）：能产出该形态的调用只有 doSave 且 getMarkdown() 为空
+    // （Cmd+S / 菜单保存不检查 dirty，编辑器空态也会触发写盘）。空编辑器+非空磁盘=异常态
+    // （正常首存=磁盘也为空，不受影响）；拦截并提示，防「编辑器被清空→保存扩散到磁盘」。
     setStatus('saving')
     try {
       const md = api.getMarkdown()
+      const curBody = withFm ? splitFm(rawRef.current).body : rawRef.current
+      if (md === '' && curBody !== '') {
+        setStatus('external')
+        setNote('正文疑似为空：磁盘上已有正文，但编辑器当前没有任何内容——本次未保存；若确要清空请先在编辑器里删除')
+        return
+      }
       const content = withFm ? withBody(rawRef.current, md) : md
       await window.zhijuan.writeDoc(projectId, rel, content)
       rawRef.current = content
