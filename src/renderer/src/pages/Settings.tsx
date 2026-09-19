@@ -210,8 +210,8 @@ export default function Settings() {
               {s.label.slice(0, 1)}
             </span>
             <span className="min-w-0">
-              <span className={cn('block truncate text-sm', section === s.key ? 'font-medium text-accent' : 'text-ink')}>{s.label}</span>
-              <span className="block truncate text-[10px] text-ink-3">{s.hint}</span>
+              <span className={cn('block truncate text-sm', section === s.key ? 'font-medium text-accent' : 'text-ink')} title={s.label}>{s.label}</span>
+              <span className="block truncate text-[10px] text-ink-3" title={s.hint}>{s.hint}</span>
             </span>
           </button>
         ))}
@@ -270,7 +270,7 @@ export default function Settings() {
         </Field>
         <div className="flex items-center justify-between rounded-lg border border-hair bg-surface-2 px-3 py-2">
           <div className="min-w-0">
-            <p className="truncate text-xs text-ink-2">当前：{wsInfo ? wsInfo.dir : '读取中…'}</p>
+            <p className="truncate text-xs text-ink-2" title={wsInfo ? wsInfo.dir : undefined}>当前：{wsInfo ? wsInfo.dir : '读取中…'}</p>
             <p className="text-[11px] text-ink-3">
               {wsInfo ? (wsInfo.inited ? `已落档 ${wsInfo.docs.length} 篇说明文档` : '尚未落档说明文档') : ''}
             </p>
@@ -306,7 +306,7 @@ export default function Settings() {
           </Field>
           <div className="flex items-center justify-between rounded-lg border border-hair bg-surface-2 px-3 py-2">
             <div className="min-w-0">
-              <p className="truncate text-xs text-ink-2">当前：{libPath ?? '读取中…'}</p>
+              <p className="truncate text-xs text-ink-2" title={libPath ?? undefined}>当前：{libPath ?? '读取中…'}</p>
               <p className="text-[11px] text-ink-3">项目实际保存在这里（生效库根）。</p>
             </div>
           </div>

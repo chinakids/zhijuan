@@ -243,7 +243,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
               )}
             >
               <Folder className="h-3.5 w-3.5 shrink-0 text-ink-3" />
-              <span className={cn('min-w-0 flex-1 truncate text-sm', selCat === node.name && !editorRel ? 'font-medium text-accent' : 'text-ink')}>
+              <span className={cn('min-w-0 flex-1 truncate text-sm', selCat === node.name && !editorRel ? 'font-medium text-accent' : 'text-ink')} title={node.name}>
                 {node.name}
               </span>
               <span className="shrink-0 text-[10px] text-ink-3">{node.count}</span>
@@ -365,12 +365,12 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
                       >
                         <div className="flex items-center gap-2">
                           <FileText className="h-3.5 w-3.5 shrink-0 text-ink-3" />
-                          <span className="truncate text-sm font-medium text-ink">{h.name}</span>
+                          <span className="truncate text-sm font-medium text-ink" title={h.name}>{h.name}</span>
                           <span className="shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-2">
                             {h.field === 'name' ? '文件名' : '正文'}
                           </span>
                         </div>
-                        <p className="mt-1 line-clamp-2 whitespace-pre-wrap break-all text-[11px] text-ink-3">{h.snippet}</p>
+                        <p className="mt-1 line-clamp-2 whitespace-pre-wrap break-all text-[11px] text-ink-3" title={h.snippet}>{h.snippet}</p>
                       </button>
                     ))}
                   </>
@@ -397,7 +397,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
                     >
                       <div className="flex items-center gap-2">
                         <FileText className="h-3.5 w-3.5 shrink-0 text-ink-3" />
-                        <span className="truncate text-sm font-medium text-ink">{f.name.replace(/\.md$/, '')}</span>
+                        <span className="truncate text-sm font-medium text-ink" title={f.name.replace(/\.md$/, '')}>{f.name.replace(/\.md$/, '')}</span>
                         {sub && <span className="shrink-0 text-[10px] text-ink-3">{sub}/</span>}
                         <span className="ml-auto shrink-0 text-[11px] text-ink-3">
                           {new Date(f.mtime).toLocaleDateString('zh-CN')}
@@ -412,7 +412,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
                           ))}
                         </div>
                       )}
-                      {meta && meta.preview && <p className="mt-1 line-clamp-2 whitespace-pre-wrap break-all text-[11px] text-ink-3">{meta.preview}</p>}
+                      {meta && meta.preview && <p className="mt-1 line-clamp-2 whitespace-pre-wrap break-all text-[11px] text-ink-3" title={meta.preview}>{meta.preview}</p>}
                     </button>
                   )
                 })
@@ -429,7 +429,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
               >
                 <ChevronLeft className="h-3.5 w-3.5" /> 返回
               </button>
-              <span className="truncate text-sm font-medium text-ink">
+              <span className="truncate text-sm font-medium text-ink" title={editorRel.replace(/^素材库\//, '').replace(/\.md$/, '')}>
                 {editorRel.replace(/^素材库\//, '').replace(/\.md$/, '')}
               </span>
               <span className="flex-1" />

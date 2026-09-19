@@ -181,7 +181,7 @@ export default function CommandPalette() {
                   onSelect={() => go(`/project/${projectId}/library?doc=${encodeURIComponent(m.file)}`)}
                 >
                   <FileText className="h-4 w-4 shrink-0 text-ink-3" />
-                  <span className="min-w-0 truncate">
+                  <span className="min-w-0 truncate" title={`${libraryCategoryOf(m.file) ? libraryCategoryOf(m.file) + '/' : ''}${m.name}`}>
                     {libraryCategoryOf(m.file) ? <span className="text-ink-3">{libraryCategoryOf(m.file)}/</span> : null}
                     {m.name}
                   </span>
@@ -210,7 +210,7 @@ export default function CommandPalette() {
                   onSelect={() => go(`/project/${projectId}/novel?ch=${encodeURIComponent(c.file)}`)}
                 >
                   <BookOpen className="h-4 w-4 text-ink-3" />
-                  <span className="truncate">{c.fm ? `第${c.fm['章号'] ?? '?'}章 · ${c.fm['题名'] ?? c.name}` : c.name}</span>
+                  <span className="truncate" title={c.fm ? `第${c.fm['章号'] ?? '?'}章 · ${c.fm['题名'] ?? c.name}` : c.name}>{c.fm ? `第${c.fm['章号'] ?? '?'}章 · ${c.fm['题名'] ?? c.name}` : c.name}</span>
                   {c.fm?.['切片'] ? (
                     <span className="ml-auto max-w-28 shrink-0 truncate rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-3" title={`时间切片：${c.fm['切片']}`}>
                       切片：{c.fm['切片']}
@@ -243,7 +243,7 @@ export default function CommandPalette() {
                   onSelect={() => go(`/project/${projectId}/library?doc=${encodeURIComponent(h.file)}`)}
                 >
                   <FileText className="h-4 w-4 shrink-0 text-ink-3" />
-                  <span className="min-w-0 truncate">
+                  <span className="min-w-0 truncate" title={`${libraryCategoryOf(h.file) ? libraryCategoryOf(h.file) + '/' : ''}${h.name}`}>
                     {libraryCategoryOf(h.file) ? <span className="text-ink-3">{libraryCategoryOf(h.file)}/</span> : null}
                     {h.name}
                   </span>
@@ -264,8 +264,8 @@ export default function CommandPalette() {
               {projects.map((p) => (
                 <CommandItem key={p.id} value={`项目 ${p.name}`} keywords={[p.name, p.description ?? '']} onSelect={() => go(`/project/${p.id}`)}>
                   <FolderOpen className="h-4 w-4 text-ink-3" />
-                  <span className="truncate">{p.name}</span>
-                  {p.description ? <span className="ml-auto max-w-40 truncate text-[11px] text-ink-3">{p.description}</span> : null}
+                  <span className="truncate" title={p.name}>{p.name}</span>
+                  {p.description ? <span className="ml-auto max-w-40 truncate text-[11px] text-ink-3" title={p.description}>{p.description}</span> : null}
                 </CommandItem>
               ))}
             </CommandGroup>

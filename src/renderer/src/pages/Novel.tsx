@@ -611,7 +611,7 @@ export default function Novel() {
             sel === c.file ? 'bg-accent-soft' : 'hover:bg-surface'
           )}
         >
-          <p className={cn('truncate text-sm', sel === c.file ? 'font-medium text-accent' : 'text-ink')}>
+          <p className={cn('truncate text-sm', sel === c.file ? 'font-medium text-accent' : 'text-ink')} title={c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}>
             {c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}
           </p>
           <p className="mt-0.5 flex items-center gap-1 text-[11px] text-ink-3">
@@ -619,7 +619,7 @@ export default function Novel() {
               <span className="shrink-0 rounded bg-well px-1 py-px text-[10px] text-ink-3">{chapterLine(c.fm)}</span>
             )}
             <BookOpen className="h-3 w-3 shrink-0" />
-            <span className="min-w-0 truncate">{c.fm?.['切片'] ?? '未设切片'} · {c.wordCount} 字</span>
+            <span className="min-w-0 truncate" title={`${c.fm?.['切片'] ?? '未设切片'} · ${c.wordCount} 字`}>{c.fm?.['切片'] ?? '未设切片'} · {c.wordCount} 字</span>
           </p>
         </button>
       ))}

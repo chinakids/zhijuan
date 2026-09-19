@@ -89,7 +89,7 @@ export default function AnnoDrawer({ annotations, open, onClose, jump, onHoverRo
                 </div>
                 <p className="mt-1.5 whitespace-pre-wrap text-xs leading-relaxed text-ink-2">{a.note || '（无批注意图）'}</p>
                 {a.before.length > 0 && (
-                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-ink-3">「{a.before}」</p>
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-ink-3" title={a.before}>「{a.before}」</p>
                 )}
               </button>
             )

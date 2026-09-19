@@ -181,16 +181,14 @@ export default function Timeline() {
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="flex items-center gap-2 text-sm font-medium text-ink">
-                          <span className="truncate">
-                            {no ? `第${no}章` : s.chapter} · {s.name}
-                          </span>
+                          <span className="truncate" title={`${no ? `第${no}章` : s.chapter} · ${s.name}`}>{no ? `第${no}章` : s.chapter} · {s.name}</span>
                           {multi && (
                             <span className="shrink-0 rounded bg-well px-1.5 py-px text-[10px] font-normal text-ink-3">
                               {s.line}
                             </span>
                           )}
                         </p>
-                        <p className="mt-0.5 truncate text-xs text-ink-2">{s.chapter}</p>
+                        <p className="mt-0.5 truncate text-xs text-ink-2" title={s.chapter}>{s.chapter}</p>
                       </div>
                       <Link to="../novel" className="shrink-0 rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:bg-well">
                         打开正文

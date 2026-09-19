@@ -54,7 +54,7 @@ export default function CommandMenu({
           {c.kind === 'action' && (
             <span className="shrink-0 rounded bg-accent-soft px-1 py-0.5 text-[9px] leading-4 text-accent">直连</span>
           )}
-          <span className="min-w-0 flex-1 truncate text-[11px] text-ink-3">{c.desc}</span>
+          <span className="min-w-0 flex-1 truncate text-[11px] text-ink-3" title={c.desc}>{c.desc}</span>
           {c.argHint && <span className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-3">{c.argHint}</span>}
         </button>
       ))}

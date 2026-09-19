@@ -56,7 +56,7 @@ export default function SectionNav({ projectId, projectName, counts, pending = 0
       <div className="px-4 pb-3 pt-4">
         <NavLink to={`/project/${projectId}`} className="block rounded-lg px-3 py-2 transition-colors hover:bg-well" title="回到项目首页">
           <p className="text-[11px] font-medium uppercase tracking-wide text-ink-3">项目</p>
-          <p className="truncate text-sm font-semibold">{projectName}</p>
+          <p className="truncate text-sm font-semibold" title={projectName}>{projectName}</p>
         </NavLink>
       </div>
 

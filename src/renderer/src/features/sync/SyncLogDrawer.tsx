@@ -114,14 +114,14 @@ export default function SyncLogDrawer({ projectId, open, onClose }: Props) {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
                       <span className="shrink-0 font-medium text-ink">{fmtTime(e.time)}</span>
-                      <span className="min-w-0 truncate text-ink-2">{fmtChapter(e.chapter)}</span>
+                      <span className="min-w-0 truncate text-ink-2" title={fmtChapter(e.chapter)}>{fmtChapter(e.chapter)}</span>
                       {e.slice && <span className="shrink-0 text-ink-3">切片「{e.slice}」</span>}
                     </div>
                     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-ink-3">
                       <span>人档 {e.fileCount}</span>
                       <span>提案 {e.itemCount}</span>
                       {e.guardCount > 0 && <span className="text-warn">守卫 {e.guardCount}</span>}
-                      {!e.ok && <span className="min-w-0 truncate text-danger">失败{e.error ? '：' + e.error : ''}</span>}
+                      {!e.ok && <span className="min-w-0 truncate text-danger" title={e.error ? '失败：' + e.error : '失败'}>失败{e.error ? '：' + e.error : ''}</span>}
                     </div>
                   </div>
                 </div>

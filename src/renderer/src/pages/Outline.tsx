@@ -401,7 +401,7 @@ export default function Outline() {
                     ) : (
                       <CircleDashed className="h-3.5 w-3.5 shrink-0 text-ink-3" />
                     )}
-                    <span className={cn('truncate text-sm', sel === cardRel(c) ? 'font-medium text-accent' : 'text-ink')}>
+                    <span className={cn('truncate text-sm', sel === cardRel(c) ? 'font-medium text-accent' : 'text-ink')} title={c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}>
                       {c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}
                     </span>
                     {!done && <span className="ml-auto rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn">待回建</span>}
@@ -484,7 +484,7 @@ export default function Outline() {
                     title="全卷检查自动存档，可点击回看；重跑会覆盖本文件（旧版点右侧「历史」按钮可回看/恢复）"
                   >
                     <FileText className="h-3 w-3 shrink-0" />
-                    <span className="min-w-0 flex-1 truncate">{f.replace('大纲/审读_', '').replace(/\.md$/, '')}</span>
+                    <span className="min-w-0 flex-1 truncate" title={f.replace('大纲/审读_', '').replace(/\.md$/, '')}>{f.replace('大纲/审读_', '').replace(/\.md$/, '')}</span>
                   </button>
                   <button
                     onClick={() => setHistoryRel(f)}
@@ -509,11 +509,11 @@ export default function Outline() {
         )}
         <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hair px-4">
           <ListTree className="h-3.5 w-3.5 text-ink-3" />
-          <span className="truncate text-sm font-medium text-ink">
+          <span className="truncate text-sm font-medium text-ink" title={sel === '大纲/索引.md' ? '章卡索引' : sel?.replace('大纲/', '').replace(/\.md$/, '').replace(/_(导演|分幕)$/, '').replace(/^审读_/, '')}>
             {sel === '大纲/索引.md' ? '章卡索引' : sel?.replace('大纲/', '').replace(/\.md$/, '').replace(/_(导演|分幕)$/, '').replace(/^审读_/, '')}
           </span>
           <span className="flex-1" />
-          {msg && <span className={cn('max-w-[40vw] truncate rounded-full px-2.5 py-0.5 text-[11px]', msg.startsWith('✓') ? 'bg-success-soft text-success' : msg.startsWith('✗') ? 'bg-danger-soft text-danger' : 'bg-accent-soft text-accent')}>{msg}</span>}
+          {msg && <span className={cn('max-w-[40vw] truncate rounded-full px-2.5 py-0.5 text-[11px]', msg.startsWith('✓') ? 'bg-success-soft text-success' : msg.startsWith('✗') ? 'bg-danger-soft text-danger' : 'bg-accent-soft text-accent')} title={msg}>{msg}</span>}
           {guardIssues.length > 0 && <GuardIssuesNote issues={guardIssues} projectId={id} className="shrink-0" />}
           {building && (
             <span className="flex items-center gap-1 text-[11px] text-accent">
@@ -622,7 +622,7 @@ export default function Outline() {
         {selChapter && staleBoards.has(selChapter.name) && (
           <div className="flex shrink-0 items-center gap-1.5 border-b border-hair bg-warn-soft px-4 py-1 text-[11px] text-warn">
             <Clapperboard className="h-3 w-3 shrink-0" />
-            <span className="truncate">本章导演板早于正文：兑现检查对照的是旧承诺，正文有改动建议点「导演本章」重导。</span>
+            <span className="truncate" title="本章导演板早于正文：兑现检查对照的是旧承诺，正文有改动建议点「导演本章」重导。">本章导演板早于正文：兑现检查对照的是旧承诺，正文有改动建议点「导演本章」重导。</span>
           </div>
         )}
         <div className="min-h-0 flex-1">

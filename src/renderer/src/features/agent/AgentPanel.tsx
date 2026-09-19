@@ -417,7 +417,7 @@ function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
     <div className="rounded-xl border border-accent/30 bg-surface p-3">
       <div className="flex items-center gap-1.5">
         <FileText className="h-3.5 w-3.5 shrink-0 text-accent" />
-        <span className="min-w-0 flex-1 truncate text-xs font-medium">{file}</span>
+        <span className="min-w-0 flex-1 truncate text-xs font-medium" title={file}>{file}</span>
         {st === 'applied' && <span className="rounded-full bg-success-soft px-2 py-0.5 text-[10px] text-success">已采纳，已写入</span>}
         {st === 'rejected' && <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] text-ink-3">已拒绝</span>}
         {st === 'error' && <span className="rounded-full bg-danger-soft px-2 py-0.5 text-[10px] text-danger">采纳失败</span>}
@@ -1178,7 +1178,7 @@ export default function AgentPanel(props: AgentPanelProps) {
         {atRefs.length > 0 && (
           <span className="opacity-60">· @注入 {atRefs.length}条 ≤{fmtCtx(injectBudget)}</span>
         )}
-        {cmdHint && <span className="truncate text-accent/80">· /{cmdHint}</span>}
+        {cmdHint && <span className="truncate text-accent/80" title={`/${cmdHint}`}>· /{cmdHint}</span>}
       </div>
       {/* 悬浮发送按钮 */}
       <div className="absolute bottom-2 right-2">
@@ -1290,7 +1290,7 @@ export default function AgentPanel(props: AgentPanelProps) {
                 ).map((g, i) => (
                   <li key={i} data-testid="agent-empty-guide" className="flex min-w-0 items-center gap-1.5">
                     <g.icon aria-hidden="true" className="h-3 w-3 shrink-0 text-accent" />
-                    <span className="truncate text-[11px] leading-4 text-ink-2">{g.text}</span>
+                    <span className="truncate text-[11px] leading-4 text-ink-2" title={g.text}>{g.text}</span>
                   </li>
                 ))}
               </ul>
@@ -1386,7 +1386,7 @@ export default function AgentPanel(props: AgentPanelProps) {
           {quote && (
             <div className="mb-2 flex items-start gap-1.5 rounded bg-surface px-2 py-1.5 text-[11px] text-ink-2">
               <Quote className="mt-0.5 h-3 w-3 shrink-0" />
-              <span className="line-clamp-2 flex-1">{quote}</span>
+              <span className="line-clamp-2 flex-1" title={quote}>{quote}</span>
               <button onClick={() => useAgentStore.getState().setQuote(null)} className="text-ink-3 hover:text-ink">×</button>
             </div>
           )}

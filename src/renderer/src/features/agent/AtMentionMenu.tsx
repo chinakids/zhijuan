@@ -59,7 +59,7 @@ export default function AtMentionMenu({
             )}
           >
             <Icon className={cn('h-3.5 w-3.5 shrink-0', i === active ? 'text-accent' : 'text-ink-3')} />
-            <span className="max-w-[45%] shrink-0 truncate text-xs font-medium">{c.name}</span>
+            <span className="max-w-[45%] shrink-0 truncate text-xs font-medium" title={c.name}>{c.name}</span>
             <span className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-3">{c.type}</span>
             <span className="min-w-0 flex-1 break-all text-[10px] leading-4 text-ink-3">{c.file}</span>
           </button>

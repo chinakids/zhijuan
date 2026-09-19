@@ -131,7 +131,7 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
               )}
             >
               <FileText className={cn('h-3.5 w-3.5 shrink-0', sel === relDir + '/' + f.file ? 'text-accent' : 'text-ink-3')} />
-              <span className={cn('truncate text-sm', sel === relDir + '/' + f.file ? 'font-medium text-accent' : 'text-ink')}>
+              <span className={cn('truncate text-sm', sel === relDir + '/' + f.file ? 'font-medium text-accent' : 'text-ink')} title={fileTitle ? fileTitle(f.name) : f.name}>
                 {fileTitle ? fileTitle(f.name) : f.name}
               </span>
               {staleDocFiles?.has(f.file) && (
@@ -155,7 +155,7 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
         {sel ? (
           <>
             <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hair px-4">
-              <span className="truncate text-sm font-medium text-ink">{fileTitle ? fileTitle(sel.split('/').pop()!.replace(/\.md$/, '')) : sel}</span>
+              <span className="truncate text-sm font-medium text-ink" title={sel}>{fileTitle ? fileTitle(sel.split('/').pop()!.replace(/\.md$/, '')) : sel}</span>
               <span className="flex-1" />
               <span className="text-[11px] text-ink-3">设定由正文保存时的切片同步维护（S4） · ⌘S 保存</span>
             </div>

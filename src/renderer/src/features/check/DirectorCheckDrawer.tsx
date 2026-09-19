@@ -109,7 +109,7 @@ export default function DirectorCheckDrawer({ projectId, chapter, open, onClose,
       <div ref={panelRef} tabIndex={-1} role="dialog" aria-label="兑现检查" className="flex h-full w-[460px] max-w-[94vw] flex-col border-l border-hair bg-surface shadow-[var(--shadow)] animate-in fade-in slide-in-from-right-3" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
           <Clapperboard className="h-4 w-4 text-accent" />
-          <span className="truncate text-sm font-semibold">导演兑现检查 · {chapter?.name ?? '-'}</span>
+          <span className="truncate text-sm font-semibold" title={`导演兑现检查 · ${chapter?.name ?? '-'}`}>导演兑现检查 · {chapter?.name ?? '-'}</span>
           <span className="flex-1" />
           <button onClick={onClose} className="text-ink-3 hover:text-ink">
             <X className="h-4 w-4" />

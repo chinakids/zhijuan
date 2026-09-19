@@ -174,15 +174,15 @@ function ItemCard({ p, projectId, onChanged, err, onErr }: { p: Proposal; projec
     <div className="mb-2 rounded-xl border border-hair bg-surface p-3">
       <div className="flex items-center gap-2">
         <FileText className="h-3.5 w-3.5 shrink-0 text-accent" />
-        <span className="truncate text-sm font-medium">{it?.target}</span>
+        <span className="truncate text-sm font-medium" title={it?.target}>{it?.target}</span>
         <span className="flex-1" />
         <span className={cn('rounded-full px-2 py-0.5 text-[10px]', st.cls)}>{st.text}</span>
       </div>
       <p className="mt-1.5 text-xs text-ink-2">理由：{it?.reason}</p>
       {(p.chapter || p.slice) && (
         <p className="mt-1 flex items-center gap-2 text-[10px] text-ink-3">
-          {p.chapter && <span className="truncate">章：{p.chapter}</span>}
-          {p.slice && <span className="truncate">切片：{p.slice}</span>}
+          {p.chapter && <span className="truncate" title={p.chapter}>章：{p.chapter}</span>}
+          {p.slice && <span className="truncate" title={p.slice}>切片：{p.slice}</span>}
         </p>
       )}
       <button onClick={() => setShowDiff((v) => !v)} className="mt-2 flex items-center gap-1 text-[11px] text-ink-3 hover:text-ink">
@@ -193,7 +193,7 @@ function ItemCard({ p, projectId, onChanged, err, onErr }: { p: Proposal; projec
         <div className="mt-2 grid gap-2 text-[11px]">
           <div className="rounded-lg bg-surface-2 p-2">
             <div className="mb-1 font-medium text-ink-3">原状（摘要）</div>
-            <div className="line-clamp-3 whitespace-pre-wrap text-ink-2">{it?.before || '（新小节）'}</div>
+            <div className="line-clamp-3 whitespace-pre-wrap text-ink-2" title={it?.before || '（新小节）'}>{it?.before || '（新小节）'}</div>
           </div>
           <div className="rounded-lg border border-accent/30 bg-accent-soft/50 p-2">
             <div className="mb-1 font-medium text-accent">将写入</div>

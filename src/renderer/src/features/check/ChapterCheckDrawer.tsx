@@ -127,7 +127,7 @@ export default function ChapterCheckDrawer({ projectId, chapter, chapterTitle, o
       <div ref={panelRef} tabIndex={-1} role="dialog" aria-label="本章小环" className="flex h-full w-[460px] max-w-[94vw] flex-col border-l border-hair bg-surface shadow-[var(--shadow)] animate-in fade-in slide-in-from-right-3" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-hair px-4 py-3">
           <ShieldAlert className="h-4 w-4 text-accent" />
-          <span className="truncate text-sm font-semibold">本章小环 · {chapterTitle || '未打开章节'}</span>
+          <span className="truncate text-sm font-semibold" title={`本章小环 · ${chapterTitle || '未打开章节'}`}>本章小环 · {chapterTitle || '未打开章节'}</span>
           <span className="flex-1" />
           <button
             onClick={() => setTab('chapter')}

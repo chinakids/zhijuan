@@ -205,7 +205,7 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
                   停滞 {staleDays(t.mtime, Date.now())} 天
                 </span>
               )}
-              <span className="max-w-[220px] truncate text-[11px] text-ink">{t.summary}</span>
+              <span className="max-w-[220px] truncate text-[11px] text-ink" title={t.summary}>{t.summary}</span>
               <span className="text-[10px] text-ink-3">{new Date(t.mtime).toLocaleString('sv')}</span>
             </button>
           ))}
@@ -259,7 +259,7 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
       <Dialog open={!!view} onOpenChange={(v) => !v && setView(null)}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="truncate">{view?.summary ?? ''}</DialogTitle>
+            <DialogTitle className="truncate" title={view?.summary ?? ''}>{view?.summary ?? ''}</DialogTitle>
             <p className="text-xs text-ink-3">{view?.file}</p>
           </DialogHeader>
           {view && (
@@ -371,7 +371,7 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
           </DialogHeader>
           {confirmDelete && (
             <div className="space-y-2 py-1 text-xs leading-relaxed text-ink-2">
-              <p className="truncate font-medium text-ink">{confirmDelete.summary}</p>
+              <p className="truncate font-medium text-ink" title={confirmDelete.summary}>{confirmDelete.summary}</p>
               {confirmDelete.status === 'done' || confirmDelete.status === 'failed' ? (
                 <p>这张卡已终态。删除后可在系统废纸篓找回；已回填的素材草稿不受影响。</p>
               ) : (
