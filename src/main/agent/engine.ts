@@ -72,9 +72,9 @@ export interface ChatInput {
   focus?: boolean
 }
 
-/** 常规对话预算 8min；「让 agent 改」类焦点任务放宽到 12min（行业按任务类型分层预算，见档案 09-15 轮调研） */
-const CHAT_MAX_MS = 8 * 60 * 1000
-const FOCUS_MAX_MS = 12 * 60 * 1000
+/** 常规对话预算 12min（主人 2026-09-18：长正文输出耗时较长，8min 会误超时；重试机制由 ErrorNotice 提供）；「让 agent 改」类焦点任务放宽到 15min */
+const CHAT_MAX_MS = 12 * 60 * 1000
+const FOCUS_MAX_MS = 15 * 60 * 1000
 
 export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void): Promise<void> {
   // 登记本请求——abortRequest 依赖 active 里的条目置位；sid 提前创建供真中断使用（2026-09-14）

@@ -40,6 +40,7 @@ import {
 } from '../../components/ui/dropdown-menu'
 import { syncAfterChapterEdit } from '../sync/editSync'
 import { GuardIssuesNote } from '../sync/GuardIssues'
+import { toast } from '../../components/ui/toast'
 import { describeSyncEvidence } from '../../../../shared/syncEvidence'
 import type { SyncIssue } from '../../../../shared/types'
 import type { SliceSyncResult } from '../sync/sliceSync'
@@ -518,11 +519,21 @@ function useSender(props: AgentPanelProps) {
   const setStreaming = useAgentStore((s) => s.setStreaming)
   const streaming = useAgentStore((s) => s.streaming)
   const abortRef = useRef<{ rid: string } | null>(null)
+  // 多轮会话（主人 2026-09-18，F-20260917-12）：生成中再发消息=排队自动续发，不再静默丢弃
+  const streamingRef = useRef(false)
+  const pendingRef = useRef<{ raw: string; quote: string | null; focus: boolean }[]>([])
 
   const send = useCallback(
     async (raw: string, quote: string | null, focus = false) => {
       const { projectId, chapterRel } = props
-      if (streaming || !raw.trim()) return
+      if (streamingRef.current) {
+        if (!raw.trim()) return
+        pendingRef.current.push({ raw, quote, focus })
+        toast.add({ kind: 'info', title: '消息已排队', description: '上一条还在生成中，完成之后会自动发送这条。' })
+        return
+      }
+      if (!raw.trim()) return
+      streamingRef.current = true
       const content = quote ? `（引用自《${props.chapterTitle}》选中段落）\n> ${quote.replace(/\n/g, '\n> ')}\n\n${raw}` : raw
       useAgentStore.getState().append({ role: 'user', content, quote: quote ?? undefined })
       useAgentStore.getState().append({ role: 'assistant', content: '' })
@@ -638,8 +649,12 @@ function useSender(props: AgentPanelProps) {
       } finally {
         settleTrailingTools()
         setStreaming(false)
+        streamingRef.current = false
         abortRef.current = null
         useAgentStore.getState().setQuote(null)
+        // 队列续发：上一条收尾后自动发送下一条排队消息（F-20260917-12）
+        const nxt = pendingRef.current.shift()
+        if (nxt) setTimeout(() => void send(nxt.raw, nxt.quote, nxt.focus), 80)
       }
     },
     [props, streaming]
