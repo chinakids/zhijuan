@@ -69,6 +69,11 @@ export const REVIEWED_NON_MODEL = new Set([
   // 断言浮条证据小字与 proposal 文件数；无 127.0.0.1/dsh-runtime/引擎 fetch 引用——grep 零命中）；
   // 弱特征 runSync 命中=头注背景描述与 devShim 短路语义，非模型调用——6117b68 配套严格性短路验证（创作层 8/8 自证）。
   'bodyempty-ui-smoke.mjs',
+  // 2026-09-20 07:3x 平台层轮核对：audit-empty-archive-smoke.mjs 是数据层冒烟（bundle 主进程真代码路径，
+  // 仅 stub 掉模型会话——头注 L4「仅 stub 掉模型会话 driveSession（bodylen-smoke 同模式）」，
+  // /tmp/runtime-stub-auditempty.mjs 无引擎/边车/模型调用）；弱特征 driveSession 命中=stub 导入行——
+  // fc89b85 配套审读存档空结果保护验证（提取失败不覆盖好存档/真零发现照常落盘）。
+  'audit-empty-archive-smoke.mjs',
 ])
 
 export const MODEL_SKIP_REASON = '模型类：真模型驱动（依赖 vLLM 算力池），--all 门禁不包含——--live 或单独跑'
