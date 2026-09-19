@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams, useOutletContext } from 'react-router-dom'
-import { Plus, BookOpen, PanelLeftOpen, PanelLeftClose, X } from 'lucide-react'
+import { Plus, BookOpen, PanelLeftOpen, PanelLeftClose, X, MoreHorizontal } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import type { ChapterEntry, ChapterCheckKind, UnlistedHit, MissingHit } from '../../../shared/types'
 import { serializeFrontMatter, addFrontMatterListItem, removeFrontMatterListItem } from '../../../shared/fmatter'
@@ -29,6 +29,8 @@ import AgentPanel from '../features/agent/AgentPanel'
 import ChapterCheckDrawer from '../features/check/ChapterCheckDrawer'
 import { useFsChanged, useFsEvents } from '../features/fs/useFsEvents'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog'
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '../components/ui/context-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/dropdown-menu'
 import { FieldError, fieldInvalidClass } from '../components/ui/field-error'
 import { toast } from '../store/toasts'
 import type { AnnotationRow } from '../../../shared/annotations'
@@ -106,8 +108,7 @@ export default function Novel() {
   const [checkOpen, setCheckOpen] = useState(false)
   // 本章小环 tab（短巡查/分层修订）：AgentPanel 命令行 /巡查 [修订] 可切换后打开
   const [checkTab, setCheckTab] = useState<ChapterCheckKind>('chapter')
-  // 章节列表右键菜单（§6.2：重命名/导出单章 md/删除）
-  const [menu, setMenu] = useState<{ c: ChapterEntry; x: number; y: number } | null>(null)
+  // 章列行项操作（⋯菜单 与 右键菜单 共享同一入口集；HIG Context menus「items available in the main interface, too」）
   const [renaming, setRenaming] = useState<ChapterEntry | null>(null)
   const [renameVal, setRenameVal] = useState('')
   // 重命名字段级错误（HIG 就近反馈；输入即清、修正后消失；取代右上角 toast 一闪而过）
@@ -152,21 +153,8 @@ export default function Novel() {
     return () => window.removeEventListener('keydown', onKey)
   }, [chapOpen])
   // 菜单收起：点击菜单外任意处 / Esc；菜单项操作后各自关闭
-  useEffect(() => {
-    if (!menu) return
-    const onDown = (ev: PointerEvent) => {
-      if (menuRef.current && !menuRef.current.contains(ev.target as Node)) setMenu(null)
-    }
-    const onKey = (ev: KeyboardEvent) => {
-      if (ev.key === 'Escape') setMenu(null)
-    }
-    document.addEventListener('pointerdown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('pointerdown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [menu])
+  // （自研 div 菜单已被 Radix ContextMenu/DropdownMenu 取代：外部点击/Esc/键盘导航由 Radix 自带）
+
   // 项目引导「现在新建第一章」：Workspace 经 Outlet context 发信号（递增计数），打开建章对话框
   const outletCtx = useOutletContext<{ newChapterReq?: number }>()
   const newChapterReq = outletCtx?.newChapterReq ?? 0
@@ -542,6 +530,35 @@ export default function Novel() {
     else toast.add({ kind: 'success', title: '已导出单章', description: r.path })
   }
 
+  // 章列行操作菜单（「⋯」下拉 与 右键 共源渲染）：HIG Context menus——两个菜单形态一致、动作一致，
+  // 破坏性项（删除）置末 + danger 红字（HIG「list them at the end and identify them as destructive」）
+  const renderRowMenu = (Item: React.ElementType, Sep: React.ElementType, c: ChapterEntry) => (
+    <>
+      <Item
+        onSelect={() => {
+          setRenaming(c)
+          setRenameVal(String(c.fm?.['题名'] ?? ''))
+          setRenameErr('')
+        }}
+      >
+        重命名
+      </Item>
+      <Item
+        onSelect={() => {
+          setSliceEditing(c)
+          setSliceVal(String(c.fm?.['切片'] ?? ''))
+        }}
+      >
+        修改切片名
+      </Item>
+      <Item onSelect={() => void doExport(c)}>导出 md</Item>
+      <Sep />
+      <Item className="text-danger focus:bg-danger/10 focus:text-danger" onSelect={() => setDeleting(c)}>
+        删除
+      </Item>
+    </>
+  )
+
   const cur = chapters.find((c) => c.file === sel)
   // 章卡的 file 是相对 正文/ 的裸名；凡要当项目根相对路径传给主进程处，统一在此拼前缀（见本技能 listDocs 坑）
   const chapterRel = sel ? '正文/' + sel : ''
@@ -609,29 +626,54 @@ export default function Novel() {
         />
       )}
       {chapters.map((c) => (
-        <button
-          key={c.file}
-          onClick={() => setSel(c.file)}
-          onContextMenu={(e) => {
-            e.preventDefault()
-            setMenu({ c, x: e.clientX, y: e.clientY })
-          }}
-          className={cn(
-            'mb-0.5 flex w-full flex-col gap-0.5 rounded-lg px-3 py-2 text-left transition-colors',
-            sel === c.file ? 'bg-accent-soft' : 'hover:bg-surface'
-          )}
-        >
-          <p className={cn('truncate text-sm', sel === c.file ? 'font-medium text-accent' : 'text-ink')} title={c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}>
-            {c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}
-          </p>
-          <p className="mt-0.5 flex items-center gap-1 text-[11px] text-ink-3">
-            {multiLine && c.fm && (
-              <span className="shrink-0 rounded bg-well px-1 py-px text-[10px] text-ink-3">{chapterLine(c.fm)}</span>
-            )}
-            <BookOpen className="h-3 w-3 shrink-0" />
-            <span className="min-w-0 truncate" title={`${c.fm?.['切片'] ?? '未设切片'} · ${c.wordCount} 字`}>{c.fm?.['切片'] ?? '未设切片'} · {c.wordCount} 字</span>
-          </p>
-        </button>
+        <ContextMenu key={c.file}>
+          <ContextMenuTrigger asChild>
+            <div className="group relative mb-0.5">
+              <button
+                onClick={() => setSel(c.file)}
+                className={cn(
+                  'flex w-full flex-col gap-0.5 rounded-lg py-2 pl-3 pr-8 text-left transition-colors',
+                  sel === c.file ? 'bg-accent-soft' : 'hover:bg-surface'
+                )}
+              >
+                <p className={cn('truncate text-sm', sel === c.file ? 'font-medium text-accent' : 'text-ink')} title={c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}>
+                  {c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}
+                </p>
+                <p className="mt-0.5 flex items-center gap-1 text-[11px] text-ink-3">
+                  {multiLine && c.fm && (
+                    <span className="shrink-0 rounded bg-well px-1 py-px text-[10px] text-ink-3">{chapterLine(c.fm)}</span>
+                  )}
+                  <BookOpen className="h-3 w-3 shrink-0" />
+                  <span className="min-w-0 truncate" title={`${c.fm?.['切片'] ?? '未设切片'} · ${c.wordCount} 字`}>{c.fm?.['切片'] ?? '未设切片'} · {c.wordCount} 字</span>
+                </p>
+              </button>
+              {/* 行操作入口（HIG Context menus「Always make context menu items available in the main interface, too」+「Support context menus consistently」）：
+                  「⋯」下拉与右键菜单同内容同动作；选中行常显，其他行 hover/键盘焦点时显示 */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="章节操作"
+                    aria-label="章节操作"
+                    className={cn(
+                      'absolute right-1.5 top-1/2 h-6 w-6 -translate-y-1/2 text-ink-3 hover:text-ink data-[state=open]:bg-well data-[state=open]:text-ink',
+                      sel === c.file ? 'opacity-100' : 'opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100'
+                    )}
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {renderRowMenu(DropdownMenuItem, DropdownMenuSeparator, c)}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            {renderRowMenu(ContextMenuItem, ContextMenuSeparator, c)}
+          </ContextMenuContent>
+        </ContextMenu>
       ))}
     </div>
   )
@@ -652,60 +694,13 @@ export default function Novel() {
         </aside>
       )}
 
-      {/* 章节右键菜单（§6.2）：重命名 / 导出单章 md / 删除（进废纸篓可恢复） */}
-      {menu && (
-        <div
-          ref={menuRef}
-          className="fixed z-50 w-44 overflow-hidden rounded-lg border border-hair bg-surface py-1 shadow-[var(--shadow)]"
-          style={{ left: Math.max(8, Math.min(menu.x, window.innerWidth - 190)), top: Math.max(8, Math.min(menu.y, window.innerHeight - 150)) }}
-        >
-          <button
-            className="block w-full shrink-0 whitespace-nowrap px-3 py-1.5 text-left text-xs text-ink hover:bg-surface-2"
-            onClick={() => {
-              setRenaming(menu.c)
-              setRenameVal(String(menu.c.fm?.['题名'] ?? ''))
-              setRenameErr('')
-              setMenu(null)
-            }}
-          >
-            重命名
-          </button>
-          <button
-            className="block w-full shrink-0 whitespace-nowrap px-3 py-1.5 text-left text-xs text-ink hover:bg-surface-2"
-            onClick={() => {
-              setSliceEditing(menu.c)
-              setSliceVal(String(menu.c.fm?.['切片'] ?? ''))
-              setMenu(null)
-            }}
-          >
-            修改切片名
-          </button>
-          <button
-            className="block w-full shrink-0 whitespace-nowrap px-3 py-1.5 text-left text-xs text-ink hover:bg-surface-2"
-            onClick={() => {
-              void doExport(menu.c)
-              setMenu(null)
-            }}
-          >
-            导出 md
-          </button>
-          <button
-            className="block w-full shrink-0 whitespace-nowrap px-3 py-1.5 text-left text-xs text-danger hover:bg-danger/10"
-            onClick={() => {
-              setDeleting(menu.c)
-              setMenu(null)
-            }}
-          >
-            删除
-          </button>
-        </div>
-      )}
+      {/* 章列行操作：右键菜单（Radix ContextMenu）与行尾「⋯」下拉（Radix DropdownMenu）共源，见 chapterList */}
 
       <main
         className="relative flex min-w-0 flex-1 flex-col"
         onMouseDown={(e) => {
-          // 浮层为临时层：点其外任意处关闭（HIG Popovers）；右键菜单打开时放行（菜单项点击不关浮层）
-          if (chapOpen && !chapRef.current?.contains(e.target as Node) && !menuRef.current?.contains(e.target as Node)) {
+          // 浮层为临时层：点其外任意处关闭（HIG Popovers）；Radix 菜单 portal 在 body，事件不经过本容器
+          if (chapOpen && !chapRef.current?.contains(e.target as Node)) {
             setChapOpen(false)
           }
         }}

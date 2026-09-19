@@ -68,6 +68,16 @@ const clickBtn = (text, inDialog = false) => `(() => {
   return true
 })()`
 
+// Radix 菜单项是 [role=menuitem] 而非 button，且程序化 click 不触发 onSelect——须 pointer 三连
+const menuItemClick = (text) => `(() => {
+  const el = [...document.querySelectorAll('[role=menuitem]')].find(b => (b.innerText || '').trim() === ${JSON.stringify(text)})
+  if (!el) return false
+  for (const t of ['pointerdown', 'pointerup', 'click']) {
+    el.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, pointerType: 'mouse' }))
+  }
+  return true
+})()`
+
 const fill = (selector, value) => `(() => {
   const el = document.querySelector(${JSON.stringify(selector)})
   if (!el) return false
@@ -127,7 +137,7 @@ try {
   ok('预置 pending slice-sync 提案', !!seedP, JSON.stringify(seed).slice(0, 140))
 
   // ③ 点「修改切片名」→ Dialog 预填当前切片名
-  await page.eval(clickBtn('修改切片名', false))
+  await page.eval(menuItemClick('修改切片名'))
   await evalUntil(page, pageHas('时间切片名'), (v) => v === true, 8000, '修改切片名对话框')
   const prefill = await page.eval(`document.querySelector('input[placeholder="如：第二幕_台风夜"]')?.value ?? ''`)
   ok('Dialog 预填当前切片名', prefill === '第一幕_雾港之夜', 'prefill=' + prefill)

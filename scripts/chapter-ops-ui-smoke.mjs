@@ -68,6 +68,16 @@ const clickBtn = (text, inDialog = false) => `(() => {
   return true
 })()`
 
+// Radix 菜单项是 [role=menuitem] 而非 button，且程序化 click 不触发 onSelect——须 pointer 三连
+const menuItemClick = (text) => `(() => {
+  const el = [...document.querySelectorAll('[role=menuitem]')].find(b => (b.innerText || '').trim() === ${JSON.stringify(text)})
+  if (!el) return false
+  for (const t of ['pointerdown', 'pointerup', 'click']) {
+    el.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, pointerType: 'mouse' }))
+  }
+  return true
+})()`
+
 const fill = (selector, value) => `(() => {
   const el = document.querySelector(${JSON.stringify(selector)})
   if (!el) return false
@@ -117,7 +127,7 @@ try {
   await shot(page, 'zj-chop-menu.png')
 
   // ③ 重命名「雾港」→「新雾都」：菜单项 → Dialog 输入 + 确认
-  await page.eval(clickBtn('重命名', false))
+  await page.eval(menuItemClick('重命名'))
   await evalUntil(page, pageHas('新题名'), (v) => v === true, 8000, '重命名对话框')
   await page.eval(fill('input[placeholder="新题名"]', '新雾都'))
   await sleep(150)
@@ -143,14 +153,14 @@ try {
   // ④ 导出第 2 章（devShim mock 直接回执）
   ok('右键第2章', (await page.eval(ctxMenuOn('第2章 · 灯塔'))) === true)
   await evalUntil(page, pageHas('导出 md'), (v) => v === true, 8000, '菜单出现(2)')
-  await page.eval(clickBtn('导出 md', false))
+  await page.eval(menuItemClick('导出 md'))
   await evalUntil(page, pageHas('已导出单章'), (v) => v === true, 10000, '导出回执')
   ok('导出回执出现', true)
 
   // ⑤ 删除第 3 章（含确认框）：菜单删除 → dialog「移入废纸篓」→ 列表消失 + 文件清空
   ok('右键第3章', (await page.eval(ctxMenuOn('第3章 · 码头'))) === true)
   await evalUntil(page, pageHas('删除'), (v) => v === true, 8000, '菜单出现(3)')
-  await page.eval(clickBtn('删除', false))
+  await page.eval(menuItemClick('删除'))
   await evalUntil(page, pageHas('移入废纸篓'), (v) => v === true, 8000, '删除确认框')
   await page.eval(clickBtn('移入废纸篓', true))
   await evalUntil(page, pageHas('已移入废纸篓'), (v) => v === true, 10000, '删除回执')
