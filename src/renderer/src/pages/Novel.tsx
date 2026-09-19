@@ -452,6 +452,16 @@ export default function Novel() {
     setSel(name)
   }
 
+  // 建章对话框：单行字段 Enter=创建（HIG Buttons「primary button responds to the Return key」+ 2a7dfd0 新建文档先例；
+  // IME 组合期 Enter 只确认候选不提交，ime.ts 单一来源守卫；多行 Textarea 保持换行语义不接）
+  const fieldEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isImeComposing(e)) return
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (title.trim()) void createChapter()
+    }
+  }
+
   // ---- 章节右键菜单操作（§6.2）----
   async function doRename() {
     if (!id || !renaming) return
@@ -892,11 +902,11 @@ export default function Novel() {
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
               <Label>题名 *</Label>
-              <Input autoFocus placeholder="如：夏夜的信" value={title} onChange={(e) => setTitle(e.target.value)} />
+              <Input autoFocus placeholder="如：夏夜的信" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={fieldEnter} />
             </div>
             <div className="space-y-1.5">
               <Label>时间切片名</Label>
-              <Input placeholder="如：第二幕_台风夜（留空则用章号）" value={slice} onChange={(e) => setSlice(e.target.value)} />
+              <Input placeholder="如：第二幕_台风夜（留空则用章号）" value={slice} onChange={(e) => setSlice(e.target.value)} onKeyDown={fieldEnter} />
             </div>
             <div className="space-y-1.5">
               <Label>时间线</Label>
@@ -905,6 +915,7 @@ export default function Novel() {
                 placeholder={`如：过去线（留空默认${DEFAULT_LINE}）`}
                 value={timeLine}
                 onChange={(e) => setTimeLine(e.target.value)}
+                onKeyDown={fieldEnter}
               />
               {lineOpts.length > 1 && (
                 <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="已有时间线">
@@ -930,7 +941,7 @@ export default function Novel() {
             </div>
             <div className="space-y-1.5">
               <Label>涉及人物（逗号分隔）</Label>
-              <Input placeholder="如：林晚，顾知远" value={cast} onChange={(e) => setCast(e.target.value)} />
+              <Input placeholder="如：林晚，顾知远" value={cast} onChange={(e) => setCast(e.target.value)} onKeyDown={fieldEnter} />
             </div>
             <div className="space-y-1.5">
               <Label>本章目标</Label>
