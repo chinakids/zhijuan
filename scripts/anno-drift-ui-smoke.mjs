@@ -133,8 +133,9 @@ const mut = await page.eval(`window.zhijuan.readDoc('${PID}', ${JSON.stringify(t
 })`)
 ok('写盘模拟作者手动编辑（before 漂移）', mut === 'OK', String(mut))
 
-// ④ 打开提案抽屉
-await page.eval(clickBtn('待确认提案 2'))
+// ④ 打开提案抽屉（F-20260917-07 后入口在侧栏底部：title 含待确认 + 计数徽标）
+await evalUntil(page, `[...document.querySelectorAll('button')].some((x) => x.title && x.title.includes('待确认') && (x.innerText || '').includes('2'))`, Boolean, 10000, '待确认提案入口')
+await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.innerText || '').includes('待确认提案')); return b ? (b.click(), 'CLICKED') : 'NOT_FOUND' })()`)
 await evalUntil(page, bodyHas('扫描批注'), Boolean, 10000, '抽屉打开')
 ok('抽屉打开（含「扫描批注」按钮）', true)
 

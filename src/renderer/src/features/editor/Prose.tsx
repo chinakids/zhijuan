@@ -323,6 +323,10 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
   bubbleRef.current = bubble
   const bubbleElRef = useRef<HTMLDivElement | null>(null)
   const [bubbleSize, setBubbleSize] = useState<FloatSize | null>(null)
+  /** 程序化定位（批注跳转）后的划词浮层抑制窗口：PM 同步 DOM 选区会触发 selectionchange，
+   * 不能把「定位选中」当成「用户划词」弹浮层（HIG Popovers：一次只显示一个浮层；定位动作不弹编辑菜单）。
+   * 跳转动作设锁并清浮层，onSel 见锁内则保持关闭；用户手动划词超窗即恢复（600ms 足够宽）。 */
+  const progSelLockRef = useRef(0)
   // 挂载后实测浮层尺寸并回写 state（useLayoutEffect：paint 前完成，首帧估计位不闪烁）
   useLayoutEffect(() => {
     if (!bubble) {
@@ -346,6 +350,11 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
     const onSel = () => {
       const host = hostRef.current
       const s = window.getSelection()
+      // 程序化定位（批注跳转）后 600ms 内：PM 同步 DOM 选区引起的 selectionchange 不弹划词浮层
+      if (progSelLockRef.current && performance.now() - progSelLockRef.current < 600) {
+        setBubble(null)
+        return
+      }
       if (!host || !s || s.rangeCount === 0 || s.isCollapsed) {
         setBubble(null)
         return
@@ -363,6 +372,9 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
       const rect = r.getBoundingClientRect()
       // below 仅作首帧意图（贴近顶部）；权威方位由 computeFloatingPos 按实测尺寸与视口空间判定
       const below = rect.top < 120
+      // 用户主动划词 → 收起批注气泡（HIG Popovers：同一时点只保留一个浮层；键盘划词不经过 mousedown，
+      // 气泡的“点外关闭”监听不到，须在此收口——2026-09-20 联动走查实锤：气泡开着时 Shift+↓ 双浮层同屏）
+      setAnnoPop(null)
       setBubble({ text: t, cx: rect.left + rect.width / 2, top: rect.top, bottom: rect.bottom, below })
     }
     const onDown = (e: MouseEvent) => {
@@ -582,6 +594,9 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const gotoGutterRow = (row: number) => {
+    // 定位动作≠用户划词：抑制 PM 同步 DOM 选区引发的 selectionchange 弹浮层（2026-09-20 联动走查）
+    progSelLockRef.current = performance.now()
+    setBubble(null)
     try {
       edRef.current?.action((ctx: any) => {
         const view = ctx.get(editorViewCtx)
@@ -1079,7 +1094,10 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
         focus: () => e.action((ctx) => ctx.get(editorViewCtx).focus()),
         setAnnoActive: (row) =>
           setGutterActive(typeof row === 'number' && Number.isFinite(row) && row >= 1 ? row : null),
-        jumpToAnnotation: (idx = 0, row?: number) =>
+        jumpToAnnotation: (idx = 0, row?: number) => {
+          // 定位动作≠用户划词：抑制浮层（PM 同步 DOM 选区触发 selectionchange）
+          progSelLockRef.current = performance.now()
+          setBubble(null)
           e.action((ctx) => {
             const view = ctx.get(editorViewCtx)
             // row 优先：按 csv 行号精确定位（批注导航列表用；无 before 或 findInDoc 未命中则不动）
@@ -1093,7 +1111,8 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
               tr.setSelection(TextSelection.create(view.state.doc, f.from, f.to))
               tr.scrollIntoView()
               view.dispatch(tr)
-              view.focus()
+              // 不调 view.focus()：抽屉是模态（role=dialog + 焦点圈闭 + 遮罩），焦点留在抽屉内，
+              // 否则键盘输入会绕过遮罩直改正文（2026-09-20 联动走查实锤：模态开着时按 x 正文被删改）。
               return
             }
             let seen = -1
@@ -1108,11 +1127,11 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
                 tr.setSelection(TextSelection.create(view.state.doc, f.from, f.to))
                 tr.scrollIntoView()
                 view.dispatch(tr)
-                view.focus()
                 return
               }
             }
-          }),
+          })
+        },
         destroy: () => e.destroy()
       }
       if (apiRef) apiRef.current = api
@@ -1254,7 +1273,7 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
           </ContextMenuContent>
         </ContextMenu>
         {gutter.length > 0 && (
-          <div className="zj-anno-gutter" aria-hidden="true">
+          <div className="zj-anno-gutter">
             {gutter.map((g) => (
               <button
                 key={`g${g.rows[0]}`}

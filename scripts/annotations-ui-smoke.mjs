@@ -113,12 +113,12 @@ await evalUntil(
 const propCount = await page.eval(`window.zhijuan.listProposals('demo-aseya').then((ps) => ps.length)`)
 ok('自动首扫生成提案且未重复（恰 2 条）', propCount === 2, 'count=' + propCount)
 
-// ③ 顶栏出现待确认入口
-await evalUntil(page, bodyHas('待确认提案 2'), Boolean, 10000, '待确认提案入口')
-ok('顶栏显示「待确认提案 2」', true)
+// ③ 侧栏底部出现待确认入口（F-20260917-07：已从顶栏独立行移入导航底部，title+计数徽标口径）
+await evalUntil(page, `[...document.querySelectorAll('button')].some((x) => x.title && x.title.includes('待确认') && (x.innerText || '').includes('2'))`, Boolean, 10000, '待确认提案入口')
+ok('侧栏底部「待确认提案」入口（计数 2）', true)
 
 // ④ 打开抽屉：来源=批注同步、有「扫描批注」按钮
-await page.eval(clickBtn('待确认提案 2'))
+await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find((x) => (x.innerText || '').includes('待确认提案')); return b ? (b.click(), 'CLICKED') : 'NOT_FOUND' })()`)
 await evalUntil(page, bodyHas('扫描批注'), Boolean, 10000, '抽屉扫描按钮')
 ok('抽屉含「扫描批注」按钮', true)
 const srcTxt = await page.eval(`document.body.innerText.includes('来自：批注同步')`)
