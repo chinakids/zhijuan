@@ -1032,7 +1032,7 @@ const mock = {
       if (p.source === 'slice-sync' && p.status === 'rejected') settled.push(...p.items)
     }
     const deduped = dedupeRejectedSliceItems(items, settled)
-    const sameChapter = mock.proposals.filter((p) => p.chapter === chapter)
+    const sameChapter = mock.proposals.filter((p) => p.chapter === chapter && p.source === 'slice-sync')
     const protectIds = new Set<string>()
     const restore: Proposal[] = []
     let kept = 0
@@ -1046,6 +1046,11 @@ const mock = {
       if ('pending' in m) protectIds.add(m.pending.id)
       else restore.push(m.restore)
       kept++
+    }
+    // 与真机同口径（2026-09-20 候选 3「不同款置 stale 语义精化」）：同章 slice-sync 的 pending 一律保护，
+    // 正文保存/新动向不是未处置提案的失效信号；置 stale 只留给显式失效（切片改名/删章）。
+    for (const p of sameChapter) {
+      if (p.status === 'pending') protectIds.add(p.id)
     }
     const created = await mock.createProposals(id, 'slice-sync', chapter, sliceName, toCreate, undefined, undefined, protectIds)
     for (const p of restore) p.status = 'pending'

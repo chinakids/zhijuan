@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { applyAnchor, applyProposal, createProposals, invalidateChapter, listProposals, migrateChapter, rejectProposal, discardProposal, staleSliceSyncByChapter } from '../../src/main/proposals'
+import { applyAnchor, applyProposal, createProposals, createSliceProposals, invalidateChapter, listProposals, migrateChapter, rejectProposal, discardProposal, staleSliceSyncByChapter } from '../../src/main/proposals'
 import type { ProposalItem } from '../../src/shared/types'
 
 let root: string
@@ -356,5 +356,26 @@ describe('staleSliceSyncByChapter（切片名修改时过期旧切片提案）',
     expect(staleSliceSyncByChapter(root, 'p', '正文/第99章_不存在.md')).toBe(0)
     rmSync(join(root, 'p', '.zhijuan', 'proposals'), { recursive: true, force: true })
     expect(staleSliceSyncByChapter(root, 'p', '正文/第01章_雾港.md')).toBe(0)
+  })
+})
+
+describe('createSliceProposals（未处置语义精化：正文保存不是失效信号）', () => {
+  it('同章不同款 pending 在再次同步后保持 pending，新不同款照建', () => {
+    const [pA] = createProposals(root, 'p', 'slice-sync', '正文/第01章_雾港.md', '雾港夜', [item({ after: '旧动向A' })])
+    const r = createSliceProposals(root, 'p', '正文/第01章_雾港.md', '雾港夜', [item({ after: '新动向B' })])
+    expect(r.created.length).toBe(1)
+    expect(r.kept).toBe(0)
+    expect(listProposals(root, 'p').find((x) => x.id === pA.id)?.status).toBe('pending')
+    expect(listProposals(root, 'p').filter((x) => x.status === 'pending').length).toBe(2)
+  })
+  it('同款被「已拒绝历史」先行抑制时，同章旧 pending 不被作废（漏保护修复）', () => {
+    // 构造：先造一条 rejected 同款历史（显式裁决），再造同款 pending（作者未处置的旧卡）
+    const [pr] = createProposals(root, 'p', 'slice-sync', '正文/第02章_灯塔.md', '雾港夜', [item({ after: '动向X' })])
+    expect(rejectProposal(root, 'p', pr.id)).toBe(true)
+    const [p2] = createProposals(root, 'p', 'slice-sync', '正文/第02章_灯塔.md', '雾港夜', [item({ after: '动向X' })])
+    const r = createSliceProposals(root, 'p', '正文/第02章_灯塔.md', '雾港夜', [item({ after: '动向X' })])
+    expect(r.suppressed).toBe(1)
+    expect(r.created.length).toBe(0)
+    expect(listProposals(root, 'p').find((x) => x.id === p2.id)?.status).toBe('pending')
   })
 })

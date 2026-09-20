@@ -79,7 +79,7 @@ export function createSliceProposals(root: string, projectId: string, chapter: s
   const { kept: keptItems, suppressed } = dedupeRejectedSliceItems(items, settled)
   // 未处置同款（2026-09-20 候选 3）：同章已有同款 pending/stale=作者已见过未裁决——
   // 复用旧卡（pending 保护不置 stale 不新建 / stale 恢复 pending），与 GitHub「未处置 alert 保持 open」同构。
-  const sameChapter = all.filter((p) => p.chapter === chapter)
+  const sameChapter = all.filter((p) => p.chapter === chapter && p.source === 'slice-sync')
   const protectIds = new Set<string>()
   const restore: Proposal[] = []
   let kept = 0
@@ -93,6 +93,16 @@ export function createSliceProposals(root: string, projectId: string, chapter: s
     if ('pending' in m) protectIds.add(m.pending.id)
     else restore.push(m.restore)
     kept++
+  }
+  // 同章 slice-sync 的 pending 一律保护（2026-09-20 候选 3「不同款置 stale 语义精化」）：
+  // 正文保存/产生新动向不是未处置提案的失效信号——提案 target=设定文件（人物档/世界切片），
+  // 其锚点/before 不随正文变化失效（apply 仍有锚点/漂移校验兜底）；未处置实体不因无关事件作废
+  // （GitHub「未处置 alert 保持 open」/Sentry「同一 issue 实体」/stale bot「无活动才标 stale、一有活动即恢复」同构）。
+  // 置 stale 只留给显式失效：切片改名（staleSliceSyncByChapter）、删章（invalidateChapter）。
+  // 顺带修复边角：同款同时命中「已拒绝历史」被 dedupe 先行抑制时，unsettledSameOf 不再执行、
+  // 旧 pending 会被误置 stale——本循环全量保护后该漏保护不复存在。
+  for (const p of sameChapter) {
+    if (p.status === 'pending') protectIds.add(p.id)
   }
   const created = createProposals(root, projectId, 'slice-sync', chapter, slice, toCreate, undefined, undefined, protectIds)
   for (const p of restore) {

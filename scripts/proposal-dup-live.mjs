@@ -102,14 +102,14 @@ console.log('C accepted 同款不抑制（回滚/新发生应重提）')
   // 清理：把这条 accepted 从库中移除，避免影响后续场景（不删文件则后续场景 D/E 不涉阿七，可留）
 }
 
-console.log('D 同款全抑制时同章旧 pending 仍置 stale')
+console.log('D 同款被「已拒绝历史」抑制时同章旧 pending 不被作废（漏保护修复）')
 {
   const r = createProposals(lib, 'demo', 'slice-sync', '正文/第02章_灯塔.md', '雾港夜', [itemSame()])
   ok(r.length === 1, '预置 pending')
   const r2 = createSliceProposals(lib, 'demo', '正文/第02章_灯塔.md', '雾港夜', [itemSame()])
-  ok(r2.created.length === 0 && r2.suppressed === 1, '同款被抑制')
+  ok(r2.created.length === 0 && r2.suppressed === 1, '同款被抑制（已拒绝历史）')
   const st = listProposals(lib, 'demo').find((p) => p.id === r[0].id)?.status
-  ok(st === 'stale', '旧 pending 已置 stale（createProposals 语义不受影响）')
+  ok(st === 'pending', '旧 pending 不被作废（未处置=保持 open；旧实现这里会置 stale）')
 }
 
 console.log('E 跨章同款也抑制')
@@ -144,17 +144,20 @@ console.log('G 同章同款 stale（技术性过期）→ 恢复为 pending 复�
   ok(listProposals(lib, 'demo').find((p) => p.id === p1[0].id)?.status === 'pending', 'stale 卡已恢复为 pending')
 }
 
-console.log('H 同款 pending + 另一不同款 → 同款复用、不同款照建（旧 pending 置 stale 语义保留）')
+console.log('H 同款/不同款 pending 并存 + 新不同款 → 同款复用、不同款照建且旧卡均不作废（语义精化）')
 {
   const hSame = () => itemSame({ target: '人物/阿六.md', after: '## 切片：雾港夜\n\n- 阿六登上栈桥' })
   const hOther = () => itemSame({ target: '人物/阿六.md', after: '## 切片：雾港夜\n\n- 阿六登灯：新动向不同款' })
+  const hOld = () => itemSame({ target: '人物/阿六.md', after: '## 切片：雾港夜\n\n- 阿六旧动向：完全不同的款' })
   const p1 = createProposals(lib, 'demo', 'slice-sync', '正文/第06章_登灯.md', '雾港夜', [hSame()])
-  ok(p1.length === 1, '预置同款 pending')
+  const p2 = createProposals(lib, 'demo', 'slice-sync', '正文/第06章_登灯.md', '雾港夜', [hOld()])
+  ok(p1.length === 1 && p2.length === 1, '预置同款+不同款两条 pending')
   const before = countFiles()
   const r = createSliceProposals(lib, 'demo', '正文/第06章_登灯.md', '雾港夜', [hSame(), hOther()])
-  ok(r.created.length === 1 && r.kept === 1 && r.suppressed === 0, '同款复用(kept=1)+不同款新建(created=1)')
+  ok(r.created.length === 1 && r.kept === 1 && r.suppressed === 0, '同款复用(kept=1)+新不同款新建(created=1)')
   ok(listProposals(lib, 'demo').find((p) => p.id === p1[0].id)?.status === 'pending', '同款旧卡仍 pending')
-  ok(countFiles() === before + 1, '仅不同款新建 1 条')
+  ok(listProposals(lib, 'demo').find((p) => p.id === p2[0].id)?.status === 'pending', '不同款旧卡仍 pending（正文保存不是失效信号）')
+  ok(countFiles() === before + 1, '仅新不同款新建 1 条')
 }
 
 rmSync(tmp, { recursive: true, force: true })
