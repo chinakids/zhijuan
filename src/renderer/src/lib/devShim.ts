@@ -20,6 +20,7 @@ import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceChe
 import { nameFormCheck, nameMixCheck } from '../../../shared/nameform'
 import { actGapsCheck } from '../../../shared/actGaps'
 import { sliceSectionOrderCheck } from '../../../shared/sliceorder'
+import { overuseItems } from '../../../shared/wordfreq'
 import { chapterOrderCheck } from '../../../shared/chapterorder'
 import { findAnchorLine, normalizeAnchor } from '../../../shared/anchor'
 import { extractSectionBody } from '../../../shared/proposalSection'
@@ -302,6 +303,21 @@ docs.set(
   'demo-order/人物/苏晚.md',
   ['---', '姓名: 苏晚', '身份: 远行客', '---', '', '# 苏晚', '', '- 外貌：瘦高，常穿灰蓝布衫，随身一只旧帆布包', '- 性格：寡言，认路却认不出人心', ''].join('\n')
 )
+// ===== 用词重复核查演示项目（2026-09-20 智能层：overuse 接线后新增） =====
+// 专供「用词重复核查」真算演示：正文含高频口头禅（微微/慢慢地）→ 命中条目；
+// 约定头涉及人物与正文自洽（林遥）→ 不引 presence 等其它本地规则噪音，健康栏首类=用词重复。
+docs.set(
+  'demo-overuse/正文/第01章_试笔.md',
+  ['---', '章号: 1', '题名: 试笔', '切片: 第一幕_灯下', '涉及人物: [林遥]', '---', '', '# 试笔', '', '林遥在灯下翻那本旧册子。她微微皱眉，又把纸页捻起一角，轻轻放下，笑了一下。窗外雨丝斜斜地落，她微微抬头，没说话。风从门缝钻进来，她微微缩了缩肩，仍盯着那页纸。', ''].join('\n')
+)
+docs.set(
+  'demo-overuse/正文/第02章_长堤.md',
+  ['---', '章号: 2', '题名: 长堤', '切片: 第二幕_长堤', '涉及人物: [林遥]', '---', '', '# 长堤', '', '第二天，林遥慢慢地走在长堤上，浪一下一下拍着石阶。她微微眯眼，把手里的信又看了一遍，慢慢放回怀里。风把她的头发吹乱，她慢慢地蹲下，把信纸在水面抚平。远处有船，她微微扬起下巴。', ''].join('\n')
+)
+docs.set(
+  'demo-overuse/人物/林遥.md',
+  ['---', '姓名: 林遥', '身份: 旧册收藏者', '---', '', '# 林遥', '', '- 外貌：清瘦，常穿素色衫子', '- 性格：沉静，认定的事不回头', ''].join('\n')
+)
 docs.set(
   'demo-order/人物/老周.md',
   ['---', '姓名: 老周', '身份: 灯塔看守', '---', '', '# 老周', '', '- 外貌：络腮胡，右手虎口有旧疤', '- 性格：爱把话绕三圈才说透', ''].join('\n')
@@ -495,6 +511,13 @@ const projects: Omit<ProjectSummary, 'stats' | 'lastChapter'>[] = [
     name: '空白示例',
     description: '示例：尚未写正文的项目（空态演示）',
     createdAt: now - 86400_000,
+    updatedAt: now - 3600_000
+  },
+  {
+    id: 'demo-overuse',
+    name: '口头禅笔记',
+    description: '示例：正文含高频口头禅（用词重复核查演示）',
+    createdAt: now - 3600_000,
     updatedAt: now - 3600_000
   }
 ]
@@ -1490,7 +1513,7 @@ const mock = {
       return { ok: false, error: '检查没有完成：写作引擎没有给出有效报告（输出可能被中断）。为保护已有存档，本次未覆盖上次报告，请稍后重试。' }
     }
     // 与主进程同语义：审计成功后把结论落盘 大纲/审读_<名>.md（供无头 UI 冒烟断言「已存档」与大纲区「审读存档」）
-    const name = kind === 'consistency' ? '一致性巡查' : kind === 'perspectives' ? '多视角审视' : kind === 'presence' ? '人物在场核查' : kind === 'order' ? '切片时序核查' : kind === 'unused' ? '人物档案腐坏核查' : kind === 'actgaps' ? '正文缺段核查' : kind === 'sliceord' ? '档案切片核查' : kind === 'nameform' ? '称谓发现核查' : kind === 'mixform' ? '称谓混用核查' : '冷读报告'
+    const name = kind === 'consistency' ? '一致性巡查' : kind === 'perspectives' ? '多视角审视' : kind === 'presence' ? '人物在场核查' : kind === 'order' ? '切片时序核查' : kind === 'unused' ? '人物档案腐坏核查' : kind === 'actgaps' ? '正文缺段核查' : kind === 'sliceord' ? '档案切片核查' : kind === 'nameform' ? '称谓发现核查' : kind === 'mixform' ? '称谓混用核查' : kind === 'overuse' ? '用词重复核查' : '冷读报告'
     const res =
       kind === 'presence'
         ? (() => {
@@ -1588,6 +1611,11 @@ const mock = {
             const chapters = volumeChaptersOf(projectId)
             return { ok: true as const, result: nameMixCheck({ knownChars: names, aliasMap, chapters, rawChars }) }
           })()
+        : kind === 'overuse'
+        ? (() => {
+            // 与主进程同语义：词表式扫正文（演示项目正文无高频口头禅 → 零命中空态；命中路径由单测/数据层冒烟覆盖）
+            return { ok: true as const, result: { summary: '', items: overuseItems(volumeChaptersOf(projectId)) } }
+          })()
         : kind === 'consistency'
         ? {
             ok: true as const,
@@ -1622,8 +1650,8 @@ const mock = {
                 ]
               }
             }
-    // 人物在场核查 / 切片时序核查 / 档案腐坏核查 / 正文缺段核查 / 档案切片核查 / 称谓发现核查：主进程同语义——本地规则结果，不落盘（高频重跑噪音大）
-    if (kind === 'presence' || kind === 'order' || kind === 'unused' || kind === 'actgaps' || kind === 'sliceord' || kind === 'nameform') return res
+    // 人物在场核查 / 切片时序核查 / 档案腐坏核查 / 正文缺段核查 / 档案切片核查 / 称谓发现核查 / 用词重复核查：主进程同语义——本地规则结果，不落盘（高频重跑噪音大）
+    if (kind === 'presence' || kind === 'order' || kind === 'unused' || kind === 'actgaps' || kind === 'sliceord' || kind === 'nameform' || kind === 'overuse') return res
     const rel = '大纲/审读_' + name + '.md'
     // 与真机 auditToMarkdown 同源模板（shared/auditDoc.ts）——dev 报告可被 parseAuditMarkdown 解析出条目
     const md = auditDocMarkdown(res.result, name)

@@ -4,6 +4,7 @@
 import { readDoc, listChapters, listDocs, writeDoc } from '../store'
 import { presenceCheck, unusedAliasCheck, parseAliases, listedFrom, unlistedInBody, chapterMissingFromRaw } from '../../shared/presence'
 import { nameFormCheck, nameMixCheck } from '../../shared/nameform'
+import { overuseItems } from '../../shared/wordfreq'
 import { actGapsCheck } from '../../shared/actGaps'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { chapterOrderCheck } from '../../shared/chapterorder'
@@ -40,7 +41,8 @@ const AUDIT_NAMES: Record<AuditKind, string> = {
   actgaps: '正文缺段核查',
   sliceord: '档案切片核查',
   nameform: '称谓发现核查',
-  mixform: '称谓混用核查'
+  mixform: '称谓混用核查',
+  overuse: '用词重复核查'
 }
 
 /** 审计结果存档的相对路径：大纲/审读_<名>.md */
@@ -229,6 +231,20 @@ export function runNameMix(
   }
 }
 
+// ===== 用词重复核查（本地规则层，零模型、秒级） =====
+// 词表式扫全卷正文，报口头禅/AI 腔短语频次与分布（2026-09-20 智能层；口径见 shared/wordfreq.ts）——
+// 与 presence/order/unused 同策略：不落盘、高频可重跑；复用 readVolumeChapters 一次扫描。
+export function runOveruse(
+  projectId: string
+): { ok: true; result: AuditResult } | { ok: false; error: string } {
+  try {
+    const items = overuseItems(readVolumeChapters(projectId))
+    return { ok: true, result: { summary: '', items } }
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message ?? e) }
+  }
+}
+
 /** 审计结果 → 可入 git 的 markdown 存档（纯函数，可单测；模板单源在 shared/auditDoc.ts，devShim 同用） */
 export function auditToMarkdown(
   result: AuditResult,
@@ -366,6 +382,7 @@ export async function runAudit(
   if (kind === 'sliceord') return runSliceOrder(projectId)
   if (kind === 'nameform') return runNameForms(projectId)
   if (kind === 'mixform') return runNameMix(projectId)
+  if (kind === 'overuse') return runOveruse(projectId)
   // 多视角审视是独立能力，参数不同（无 kind），单独路由
   const r =
     kind === 'perspectives'

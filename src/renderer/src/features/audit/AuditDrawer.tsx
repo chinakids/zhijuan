@@ -20,12 +20,12 @@ import {
 /** 检查类短名（抽屉「切换」触发器/菜单项用，与 K_TITLE 全名互补） */
 const K_SHORT: Partial<Record<AuditKind, string>> = {
   consistency: '巡查', review: '冷读', perspectives: '视角', presence: '在场', order: '时序',
-  unused: '档案', nameform: '称谓', actgaps: '缺段', sliceord: '切片', mixform: '混用'
+  unused: '档案', nameform: '称谓', actgaps: '缺段', sliceord: '切片', mixform: '混用', overuse: '用词'
 }
 /** 切换菜单分组：全卷巡读（模型级）在前，本地规则（秒级）在后（HIG Menus 分组） */
 const KIND_GROUPS: { label: string; kinds: AuditKind[] }[] = [
   { label: '全卷巡读', kinds: ['consistency', 'review', 'perspectives'] },
-  { label: '本地规则', kinds: ['presence', 'order', 'unused', 'actgaps', 'sliceord', 'nameform', 'mixform'] }
+  { label: '本地规则', kinds: ['presence', 'order', 'unused', 'actgaps', 'sliceord', 'nameform', 'mixform', 'overuse'] }
 ]
 
 const TYPE_TXT: Record<string, string> = {
@@ -33,10 +33,10 @@ const TYPE_TXT: Record<string, string> = {
   structure: '结构', pacing: '节奏', character: '人物', prose: '行文', setting: '设定', misc: '其他'
 }
 const K_TITLE: Partial<Record<AuditKind, string>> = {
-  consistency: '一致性巡查', review: '冷读报告', perspectives: '多视角审视', presence: '人物在场核查', order: '切片时序核查', unused: '人物档案腐坏核查', actgaps: '正文缺段核查', sliceord: '档案切片核查', nameform: '称谓发现核查', mixform: '称谓混用核查'
+  consistency: '一致性巡查', review: '冷读报告', perspectives: '多视角审视', presence: '人物在场核查', order: '切片时序核查', unused: '人物档案腐坏核查', actgaps: '正文缺段核查', sliceord: '档案切片核查', nameform: '称谓发现核查', mixform: '称谓混用核查', overuse: '用词重复核查'
 }
 /** 本地规则检查（零模型·秒级）：不走写作引擎、不落盘、高频重跑（与主进程 runAudit 分支同口径） */
-const LOCAL_KINDS: AuditKind[] = ['presence', 'order', 'unused', 'actgaps', 'sliceord', 'nameform', 'mixform']
+const LOCAL_KINDS: AuditKind[] = ['presence', 'order', 'unused', 'actgaps', 'sliceord', 'nameform', 'mixform', 'overuse']
 const VIEWER_TXT: Record<string, string> = {
   '角色粉': '角色粉视角', '设定党': '设定党视角', '节奏读者': '节奏读者视角'
 }

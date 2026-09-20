@@ -12,8 +12,8 @@ import AuditDrawer from './AuditDrawer'
 import { useAgentStore } from '../agent/store'
 import type { AuditKind } from '../../../../shared/types'
 
-/** 本地规则 7 项（与 AgentPanel 曾用菜单/本小环同组；零模型、秒级、不落盘） */
-const LOCAL_KINDS: AuditKind[] = ['presence', 'order', 'unused', 'actgaps', 'sliceord', 'nameform', 'mixform']
+/** 本地规则 8 项（与 AgentPanel 曾用菜单/本小环同组；零模型、秒级、不落盘） */
+const LOCAL_KINDS: AuditKind[] = ['presence', 'order', 'unused', 'actgaps', 'sliceord', 'nameform', 'mixform', 'overuse']
 
 type Health = 'checking' | 'ok' | 'issues' | 'error'
 
@@ -89,7 +89,7 @@ export default function HealthBar({ projectId, refreshSignal = 0 }: Props) {
   }, [run])
 
   const firstIssue = (LOCAL_KINDS as AuditKind[]).find((k) => (counts[k] ?? 0) > 0) ?? 'presence'
-  const K_LABEL: Partial<Record<AuditKind, string>> = { presence: '人物在场', order: '切片时序', unused: '档案腐坏', actgaps: '正文缺段', sliceord: '档案切片', nameform: '称谓发现', mixform: '称谓混用' }
+  const K_LABEL: Partial<Record<AuditKind, string>> = { presence: '人物在场', order: '切片时序', unused: '档案腐坏', actgaps: '正文缺段', sliceord: '档案切片', nameform: '称谓发现', mixform: '称谓混用', overuse: '用词重复' }
   const detail = (LOCAL_KINDS as AuditKind[]).filter((k) => (counts[k] ?? 0) > 0).map((k) => `${K_LABEL[k] ?? k} ${counts[k]}`).join('、')
   const healthTitle =
     health === 'ok'
