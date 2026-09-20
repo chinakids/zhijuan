@@ -144,9 +144,26 @@ try {
   await evalUntil(page, bodyHas('扫描批注'), Boolean, 10000, '抽屉打开')
   ok('抽屉打开（待确认 2 条）', await page.eval(bodyHas('待确认 2')), '')
 
-  // ⑤ 点击「全部接受」→ 首条（漂移）失败、次条生效
+  // ⑤ 点击「全部接受」→ **2026-09-21 前置预检**：dry-run 发现首条 before 漂移 → 弹带信息确认（不是直接执行）；
+  //    先点「取消」验证零执行，再点「仍全部接受」进入既有批量逻辑
   const clicked = await page.eval(clickBtn('全部接受'))
   ok('点击「全部接受」', clicked === true, String(clicked))
+  await evalUntil(page, bodyHas('部分提案的目标已变化'), Boolean, 10000, '预检确认框出现')
+  const preDlg = await page.eval(`(() => {
+    const b = document.body.innerText
+    return { dlg: b.includes('部分提案的目标已变化'), desc: b.includes('将接受 2 条提案，其中 1 条的目标内容已变化') }
+  })()`)
+  ok('预检确认框带信息（N/M 计数可见）', preDlg.dlg && preDlg.desc, JSON.stringify(preDlg))
+  // ⑤a 取消：确认框关闭、提案全部保持 pending（零执行）
+  await page.eval(clickBtn('取消'))
+  await evalUntil(page, `!document.body.innerText.includes('部分提案的目标已变化')`, Boolean, 6000, '取消后确认框关闭')
+  const pendAfterCancel = await page.eval(`window.zhijuan.listProposals('${PID}').then((ps) => ps.filter((p) => p.source === 'annotation-sync' && p.status === 'pending').length)`)
+  ok('取消后全部仍 pending（零执行）', pendAfterCancel === 2, String(pendAfterCancel))
+  // ⑤b 再点并确认：预检再次出现 →「仍全部接受」→ 批量执行
+  await page.eval(clickBtn('全部接受'))
+  await evalUntil(page, bodyHas('部分提案的目标已变化'), Boolean, 10000, '预检确认框再次出现')
+  const confirmed = await page.eval(clickBtn('仍全部接受'))
+  ok('点击「仍全部接受」', confirmed === true, String(confirmed))
 
   // ⑥ 批量汇总 toast：title「1 条提案未应用」+ description「其余 1 条已接受」+「请人工确认」
   const toastSeen = await page.eval(`(async () => {

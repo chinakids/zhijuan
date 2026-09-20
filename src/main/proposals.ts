@@ -6,6 +6,7 @@ import type { Proposal, ProposalItem } from '../shared/types'
 import { DOT_DIR } from '../shared/paths'
 import { findAnchorLine, normalizeAnchor } from '../shared/anchor'
 import { extractSectionBody } from '../shared/proposalSection'
+import { precheckApply } from '../shared/proposalPrecheck'
 import { isIoFailure } from '../shared/proposalApply'
 import { dedupeRejectedSliceItems, unsettledSameOf } from '../shared/proposalDup'
 
@@ -277,42 +278,20 @@ export function staleSliceSyncByChapter(root: string, projectId: string, chapter
 
 /** 按锚点把 item.after 写进文档；upsert-section 做「同节替换 / 无节追加」。
  *  锚点匹配＝归一化后精确相等（shared/anchor.ts，与 devShim 同口径）：不做 includes——
- *  「切片：第一幕_夜」不得误命中「切片：第一幕_夜雨」并整节替换（2026-09-11 锚点精确化）。 */
+ *  「切片：第一幕_夜」不得误命中「切片：第一幕_夜雨」并整节替换（2026-09-11 锚点精确化）。
+ *  所有失败分支集中在 shared/proposalPrecheck.precheckApply（2026-09-21：渲染层「全部接受」
+ *  前置预检与真实应用共用同一判据）；本函数只做「预检通过后的执行」。 */
 export function applyAnchor(text: string, it: ProposalItem): { ok: boolean; out?: string; msg?: string } {
+  const pre = precheckApply(text, it)
+  if (!pre.ok) return { ok: false, msg: pre.msg }
   if (it.kind === 'append') return { ok: true, out: text + '\n\n' + it.after }
-  if (it.kind === 'replace-text') {
-    // 批注同步：按原文文段精确替换（before 校验——原文被手动编辑过则失败，提示人工确认）
-    if (!it.before) return { ok: false, msg: 'replace-text 缺少 before 文段' }
-    if (!text.includes(it.before)) return { ok: false, msg: '原文段已变（可能被手动编辑），请人工确认' }
-    return { ok: true, out: text.replace(it.before, it.after) }
-  }
+  if (it.kind === 'replace-text') return { ok: true, out: text.replace(it.before as string, it.after) }
   const anchor = normalizeAnchor(it.anchor || '')
   if (!anchor) return { ok: true, out: text + '\n\n## 切片状态\n\n' + it.after }
   const lines = text.split('\n')
+  // precheck ok 时未命中+有基线已 fail、无基线走追加——这里 hit 要么命中、要么（无基线）追加后返回
   const hit = findAnchorLine(lines, anchor)
-  if (!hit) {
-    // 接受时一致性校验（2026-09-20 候选 3）：有基线（beforeExact 为字符串=生成时该节存在）
-    // 而现在找不到该节 = 生成后节被删/改名 → 提案过时，失败而非静默文末追加（后者会堆积
-    // 近重复小节）；beforeExact===null（生成时本无节）或 undefined（旧档/agent-chat 转提案）
-    // → 维持既有追加行为。
-    if (it.beforeExact !== undefined && it.beforeExact !== null) {
-      return { ok: false, msg: '目标小节已不存在（可能被改名或删除），请先核对' }
-    }
-    return { ok: true, out: text + '\n\n## ' + anchor + '\n\n' + it.after }
-  }
-  // 生成后有基线而现在命中：内容与生成时刻一致才允许替换——不一致=节被作者手动编辑或
-  // 被其他提案更新，整节替换会覆盖后写内容（人物/世界观档无版本历史可回滚）→ 拒绝，
-  // 文案与 replace-text「原文段已变（可能被手动编辑），请人工确认」同族（内容校验失败→rejected 不可重试）。
-  if (it.beforeExact !== undefined) {
-    if (it.beforeExact === null) {
-      // 生成时无该节、现在却有同名节 = 作者后建/其他提案新建 → 避免覆盖，请先核对
-      return { ok: false, msg: '该小节生成时不存在、现已存在（可能为作者新建），为避免覆盖请先核对' }
-    }
-    const cur = extractSectionBody(text, it.anchor || '')
-    if (cur.body !== it.beforeExact) {
-      return { ok: false, msg: '该小节内容在本提案生成后已被修改（可能手动编辑或被其他提案更新），为避免覆盖请先核对' }
-    }
-  }
+  if (!hit) return { ok: true, out: text + '\n\n## ' + anchor + '\n\n' + it.after }
   let end = lines.length
   for (let i = hit.line + 1; i < lines.length; i++) {
     const m = lines[i].match(/^(#{1,6})\s+/)

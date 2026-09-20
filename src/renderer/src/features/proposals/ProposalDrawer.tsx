@@ -11,6 +11,8 @@ import { formatGuardIssuesText } from '../sync/guardText'
 import { isUnfiledIssue } from '../sync/guardCreate'
 import { bulkQuickCreate } from '../sync/guardBulk'
 import { describeSyncEvidence } from '../../../../shared/syncEvidence'
+import { precheckApply } from '../../../../shared/proposalPrecheck'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '../../components/ui/dialog'
 import { useProposalStore } from '../../store/proposals'
 import { isChapterTarget } from '../../../../shared/editSyncGate'
 import type { SliceSyncResult } from '../sync/sliceSync'
@@ -30,6 +32,13 @@ const STATUS: Record<string, { text: string; cls: string }> = {
   accepted: { text: '已接受', cls: 'bg-success-soft text-success' },
   rejected: { text: '已拒绝', cls: 'bg-danger-soft text-danger' },
   stale: { text: '已过期', cls: 'bg-surface-2 text-ink-3' }
+}
+
+/** 提案生成时间（候选 3 过时感知补全：createdAt 一直有、卡片未展示——作者无法判断这批提案多老） */
+function fmtCreated(ts: number): string {
+  const d = new Date(ts)
+  const p2 = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`
 }
 
 /** toast 同步结果的描述 + 可处置的未建档条目（批注接受入口：守卫明细在 toast 就地可处置，与四入口 GuardIssuesNote 同能力）
@@ -191,6 +200,7 @@ function ItemCard({ p, projectId, onChanged, err, onErr, focused }: { p: Proposa
         <p className="mt-1 flex items-center gap-2 text-[10px] text-ink-3">
           {p.chapter && <span className="truncate" title={p.chapter}>章：{p.chapter}</span>}
           {p.slice && <span className="truncate" title={p.slice}>切片：{p.slice}</span>}
+          <span className="shrink-0" title={`生成于 ${new Date(p.createdAt).toLocaleString('zh-CN')}`}>生成于 {fmtCreated(p.createdAt)}</span>
         </p>
       )}
       <button onClick={() => setShowDiff((v) => !v)} className="mt-2 flex items-center gap-1 text-[11px] text-ink-3 hover:text-ink">
@@ -245,7 +255,9 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
   const panelRef = useRef<HTMLDivElement>(null)
   useModalA11y(true, panelRef, onClose)
   const [allBusy, setAllBusy] = useState(false)
-  async function allApply() {
+  const [precheckOpen, setPrecheckOpen] = useState(false)
+  const [staleCount, setStaleCount] = useState(0)
+  async function doAllApply() {
     // 批量动作失败可见性（2026-09-16 00:45 轮；21:45 观察③）：旧实现 `if (r.ok)` 静默吞失败——
     // 与单卡 doApply（toast 兜底 + errMap 卡片红字）不对齐。SAP Fiori「Processing Multiple Items」：
     // 部分处理 = 汇总（成功 N / 失败 M + 首条原因）+ 逐条明细；NN/g：错误须可诊断、可恢复。
@@ -284,6 +296,36 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
       })
     }
     for (const t of targets) toastAfterChapterApply(projectId, t)
+  }
+  async function allApply() {
+    // 2026-09-21 候选 3「全部接受」前置预检：dry-run 每条「是否会因目标内容已变失败」——
+    // 与真实应用同判据（shared/proposalPrecheck，applyAnchor 共用）；有风险先弹带信息确认
+    // （kubectl --dry-run「只报告会发生什么、不改变状态」+ NN/g「确认必须携带新信息」；
+    // 纯确认=伪防错，预检结果=真实新信息）。目标文件按 target 去重读一次（本地毫秒级）。
+    setAllBusy(true)
+    const cache = new Map<string, string>()
+    let stale = 0
+    try {
+      for (const p of pending) {
+        const it = p.items[0]
+        const t = it?.target ?? ''
+        let text = cache.get(t)
+        if (text === undefined) {
+          const doc = t ? await window.zhijuan.readDoc(projectId, t) : null
+          text = doc ?? ''
+          cache.set(t, text)
+        }
+        if (it && !precheckApply(text, it).ok) stale++
+      }
+    } finally {
+      setAllBusy(false)
+    }
+    if (stale > 0) {
+      setStaleCount(stale)
+      setPrecheckOpen(true)
+      return
+    }
+    await doAllApply()
   }
   async function doScan() {
     try {
@@ -332,6 +374,20 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
           )}
         </ScrollArea>
       </div>
+      {/* 2026-09-21 候选 3：全部接受前置预检——有会失败（目标内容已变）的条目前先弹带信息确认；
+          M=0 时零打扰直接执行。取消=完全不执行；仍全部接受=按既有 doAllApply（部分失败仍逐条可见） */}
+      <Dialog open={precheckOpen} onOpenChange={(v) => { if (!v) { setPrecheckOpen(false); setAllBusy(false) } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>部分提案的目标已变化</DialogTitle>
+            <DialogDescription>将接受 {pending.length} 条提案，其中 {staleCount} 条的目标内容已变化、可能已过时。接受后旧内容将被覆盖，确定仍要全部接受吗？</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setPrecheckOpen(false); setAllBusy(false) }}>取消</Button>
+            <Button onClick={() => { setPrecheckOpen(false); void doAllApply() }}>仍全部接受</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
