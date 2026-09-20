@@ -6,7 +6,7 @@ import type { Proposal, ProposalItem } from '../shared/types'
 import { DOT_DIR } from '../shared/paths'
 import { findAnchorLine, normalizeAnchor } from '../shared/anchor'
 import { isIoFailure } from '../shared/proposalApply'
-import { dedupeRejectedSliceItems } from '../shared/proposalDup'
+import { dedupeRejectedSliceItems, unsettledSameOf } from '../shared/proposalDup'
 
 function dir(root: string, projectId: string): string {
   return join(root, projectId, DOT_DIR, 'proposals')
@@ -42,10 +42,10 @@ export function listProposals(root: string, projectId: string): Proposal[] {
   return readAll(root, projectId)
 }
 
-/** 同章旧的 pending 一律 stale；每个 item 一条提案（便于逐条接受/拒绝）；metas 与 items 对齐（逐条独立 meta） */
-export function createProposals(root: string, projectId: string, source: Proposal['source'], chapter: string, slice: string, items: ProposalItem[], meta?: Proposal['meta'], metas?: Proposal['meta'][]): Proposal[] {
+/** 同章旧的 pending 一律 stale（protectIds 除外）；每个 item 一条提案（便于逐条接受/拒绝）；metas 与 items 对齐（逐条独立 meta） */
+export function createProposals(root: string, projectId: string, source: Proposal['source'], chapter: string, slice: string, items: ProposalItem[], meta?: Proposal['meta'], metas?: Proposal['meta'][], protectIds?: Set<string>): Proposal[] {
   for (const old of readAll(root, projectId)) {
-    if (old.chapter === chapter && old.status === 'pending') {
+    if (old.chapter === chapter && old.status === 'pending' && !protectIds?.has(old.id)) {
       old.status = 'stale'
       write(root, projectId, old)
     }
@@ -68,16 +68,38 @@ export function createProposals(root: string, projectId: string, source: Proposa
  * 返回 { created, suppressed }：suppressed 供 UI 反馈「同款 N 条此前已拒绝，未重复提案」，
  * 不能把「已被裁决的同款」报成「无设定变化」（破坏反馈真实性）。
  */
-export function createSliceProposals(root: string, projectId: string, chapter: string, slice: string, items: ProposalItem[]): { created: Proposal[]; suppressed: number } {
+export function createSliceProposals(root: string, projectId: string, chapter: string, slice: string, items: ProposalItem[]): { created: Proposal[]; suppressed: number; kept: number } {
+  const all = readAll(root, projectId)
   const settled: ProposalItem[] = []
-  for (const p of readAll(root, projectId)) {
+  for (const p of all) {
     if (p.source === 'slice-sync' && p.status === 'rejected') {
       for (const it of p.items) settled.push(it)
     }
   }
-  const { kept, suppressed } = dedupeRejectedSliceItems(items, settled)
-  const created = createProposals(root, projectId, 'slice-sync', chapter, slice, kept)
-  return { created, suppressed }
+  const { kept: keptItems, suppressed } = dedupeRejectedSliceItems(items, settled)
+  // 未处置同款（2026-09-20 候选 3）：同章已有同款 pending/stale=作者已见过未裁决——
+  // 复用旧卡（pending 保护不置 stale 不新建 / stale 恢复 pending），与 GitHub「未处置 alert 保持 open」同构。
+  const sameChapter = all.filter((p) => p.chapter === chapter)
+  const protectIds = new Set<string>()
+  const restore: Proposal[] = []
+  let kept = 0
+  const toCreate: ProposalItem[] = []
+  for (const it of keptItems) {
+    const m = unsettledSameOf(it, sameChapter)
+    if (!m) {
+      toCreate.push(it)
+      continue
+    }
+    if ('pending' in m) protectIds.add(m.pending.id)
+    else restore.push(m.restore)
+    kept++
+  }
+  const created = createProposals(root, projectId, 'slice-sync', chapter, slice, toCreate, undefined, undefined, protectIds)
+  for (const p of restore) {
+    p.status = 'pending'
+    write(root, projectId, p)
+  }
+  return { created, suppressed, kept }
 }
 
 /**

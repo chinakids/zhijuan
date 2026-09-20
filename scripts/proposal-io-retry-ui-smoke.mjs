@@ -82,9 +82,9 @@ await evalUntil(page, `document.body.innerText.includes('雾港')`, (v) => v ===
 const created = await page.eval(`window.zhijuan.createProposals('demo-aseya', 'agent-chat', '第1章', 's', [{ target: '人物/冒烟测试.md', kind: 'append', anchor: '', before: '', after: '冒烟写入：IO 失败重试闭环', reason: '冒烟注入' }])`)
 ok('createProposals 注入 pending 提案', Array.isArray(created) && created.length === 1 && created[0].status === 'pending', JSON.stringify(created))
 
-// ② 顶栏出现「待确认提案 1」→ 点开抽屉
-await evalUntil(page, `document.body.innerText.includes('待确认提案 1')`, (v) => v === true, 10000, '提案入口出现')
-await page.eval(clickBtn('待确认提案 1'))
+// ② 左导航底部「待确认提案」入口（2026-09-17 F-20260917-09 起从顶栏移入 SectionNav 底部）→ 点开抽屉
+await evalUntil(page, `document.body.innerText.includes('待确认提案')`, (v) => v === true, 10000, '提案入口出现')
+await page.eval(clickBtn('待确认提案'))
 await evalUntil(page, `document.body.innerText.includes('提案') && document.body.innerText.includes('待确认')`, (v) => v === true, 10000, '抽屉打开')
 await sleep(300)
 
@@ -104,7 +104,7 @@ ok('③ 卡片红字含「系统写入失败，可直接重试」指路', s1.has
 // ③.5 跨开合保留（2026-09-17 创作层：errMap 迁 useProposalStore）——收起抽屉重开，失败红字不能丢
 await page.eval(clickBtn('收起', true))
 await evalUntil(page, `!document.body.innerText.includes('全部接受')`, (v) => v === true, 10000, '抽屉收起')
-await page.eval(clickBtn('待确认提案 1'))
+await page.eval(clickBtn('待确认提案'))
 await evalUntil(page, `document.body.innerText.includes('提案') && document.body.innerText.includes('待确认')`, (v) => v === true, 10000, '抽屉重开')
 await sleep(300)
 const s15 = await page.eval(`(() => {

@@ -26,7 +26,7 @@ await esbuild({
   logLevel: 'warning'
 })
 const mod = await import(pathToFileURL(out).href)
-const { createProposals, createSliceProposals, rejectProposal, applyProposal, listProposals } = mod
+const { createProposals, createSliceProposals, rejectProposal, applyProposal, listProposals, staleSliceSyncByChapter } = mod
 
 const lib = join(tmp, 'lib')
 mkdirSync(join(lib, 'demo'), { recursive: true })
@@ -116,6 +116,45 @@ console.log('E 跨章同款也抑制')
 {
   const r = createSliceProposals(lib, 'demo', '正文/第03章_码头.md', '雾港夜', [itemSame()])
   ok(r.created.length === 0 && r.suppressed === 1, '另一章同步同款：suppressed=1（切片设定项目级）')
+}
+
+console.log('F 同章同款 pending 未处置 → 复用旧卡（不置 stale 不新建）')
+{
+  const fItem = () => itemSame({ target: '人物/阿四.md', after: '## 切片：雾港夜\n\n- 阿四开始回望灯楼' })
+  const p1 = createProposals(lib, 'demo', 'slice-sync', '正文/第04章_溯流.md', '雾港夜', [fItem()])
+  ok(p1.length === 1, '预置同款 pending')
+  const before = countFiles()
+  const r = createSliceProposals(lib, 'demo', '正文/第04章_溯流.md', '雾港夜', [fItem()])
+  ok(r.created.length === 0 && r.suppressed === 0 && r.kept === 1, '同款再次同步：created=0/kept=1（复用旧卡核心承诺）')
+  ok(countFiles() === before, '提案文件数不变（未新建）')
+  ok(listProposals(lib, 'demo').find((p) => p.id === p1[0].id)?.status === 'pending', '旧卡仍 pending（未被置 stale）')
+}
+
+console.log('G 同章同款 stale（技术性过期）→ 恢复为 pending 复用旧卡')
+{
+  const gItem = () => itemSame({ target: '人物/阿五.md', after: '## 切片：雾港夜\n\n- 阿五接手夜巡' })
+  const p1 = createProposals(lib, 'demo', 'slice-sync', '正文/第05章_夜巡.md', '雾港夜', [gItem()])
+  ok(p1.length === 1, '预置同款 pending')
+  const staled = staleSliceSyncByChapter(lib, 'demo', '正文/第05章_夜巡.md')
+  ok(staled === 1, 'staleSliceSyncByChapter 置 stale（模拟「同章再保存旧卡过期」）')
+  const before = countFiles()
+  const r = createSliceProposals(lib, 'demo', '正文/第05章_夜巡.md', '雾港夜', [gItem()])
+  ok(r.created.length === 0 && r.kept === 1, '同款 stale 再次同步：created=0/kept=1（恢复核心承诺）')
+  ok(countFiles() === before, '提案文件数不变（复用旧卡未新建）')
+  ok(listProposals(lib, 'demo').find((p) => p.id === p1[0].id)?.status === 'pending', 'stale 卡已恢复为 pending')
+}
+
+console.log('H 同款 pending + 另一不同款 → 同款复用、不同款照建（旧 pending 置 stale 语义保留）')
+{
+  const hSame = () => itemSame({ target: '人物/阿六.md', after: '## 切片：雾港夜\n\n- 阿六登上栈桥' })
+  const hOther = () => itemSame({ target: '人物/阿六.md', after: '## 切片：雾港夜\n\n- 阿六登灯：新动向不同款' })
+  const p1 = createProposals(lib, 'demo', 'slice-sync', '正文/第06章_登灯.md', '雾港夜', [hSame()])
+  ok(p1.length === 1, '预置同款 pending')
+  const before = countFiles()
+  const r = createSliceProposals(lib, 'demo', '正文/第06章_登灯.md', '雾港夜', [hSame(), hOther()])
+  ok(r.created.length === 1 && r.kept === 1 && r.suppressed === 0, '同款复用(kept=1)+不同款新建(created=1)')
+  ok(listProposals(lib, 'demo').find((p) => p.id === p1[0].id)?.status === 'pending', '同款旧卡仍 pending')
+  ok(countFiles() === before + 1, '仅不同款新建 1 条')
 }
 
 rmSync(tmp, { recursive: true, force: true })

@@ -23,7 +23,7 @@ import { sliceSectionOrderCheck } from '../../../shared/sliceorder'
 import { chapterOrderCheck } from '../../../shared/chapterorder'
 import { findAnchorLine, normalizeAnchor } from '../../../shared/anchor'
 import { isIoFailure } from '../../../shared/proposalApply'
-import { dedupeRejectedSliceItems } from '../../../shared/proposalDup'
+import { dedupeRejectedSliceItems, unsettledSameOf } from '../../../shared/proposalDup'
 import { auditDocMarkdown } from '../../../shared/auditDoc'
 import { parseAnnotationCsv, segmentFromText, escapeCsvField } from '../../../shared/annotations'
 import { scrollMemorySnapshot } from '../features/editor/scrollMemory'
@@ -997,11 +997,11 @@ const mock = {
   // 提案（S4）
   proposals: [] as Proposal[],
   listProposals: async () => mock.proposals.slice(),
-  createProposals: async (_id: string, source: 'slice-sync' | 'agent-chat' | 'annotation-sync', chapter: string, sliceName: string, items: ProposalItem[], meta?: { annotations?: { file: string; rows: number[] }[]; note?: string }, metas?: { annotations?: { file: string; rows: number[] }[]; note?: string }[]) => {
+  createProposals: async (_id: string, source: 'slice-sync' | 'agent-chat' | 'annotation-sync', chapter: string, sliceName: string, items: ProposalItem[], meta?: { annotations?: { file: string; rows: number[] }[]; note?: string }, metas?: { annotations?: { file: string; rows: number[] }[]; note?: string }[], protectIds?: Set<string>) => {
     console.log('[sync] items', JSON.stringify(items))
-    // 与真机 createProposals 同口径：同章旧 pending 一律置 stale（2026-09-12 补）
+    // 与真机 createProposals 同口径：同章旧 pending 一律置 stale（protectIds 除外，2026-09-20 候选 3）
     for (const old of mock.proposals) {
-      if (old.chapter === chapter && old.status === 'pending') old.status = 'stale'
+      if (old.chapter === chapter && old.status === 'pending' && !protectIds?.has(old.id)) old.status = 'stale'
     }
     const nowT = Date.now()
     const created = items.map((it, idx) => {
@@ -1023,16 +1023,33 @@ const mock = {
     return created
   },
   // 切片同步专用建提案（2026-09-20 候选 3）：与真机 createSliceProposals 同口径——
-  // 先滤掉「与已拒绝提案同款」（source=slice-sync && status=rejected），再走 createProposals 同款置 stale 语义；
-  // 返回 {created, suppressed}（suppressed>0=作者已裁决，UI 明示而非报「无设定变化」）
+  // 先滤掉「与已拒绝提案同款」（source=slice-sync && status=rejected），再复用「未处置同款」
+  // 旧卡（同章 pending 保护 / stale 恢复），最后走 createProposals 置 stale 语义；
+  // 返回 {created, suppressed, kept}（suppressed=已裁决、kept=未处置，均 UI 明示而非报「无设定变化」）
   createSliceProposals: async (id: string, chapter: string, sliceName: string, items: ProposalItem[]) => {
     const settled: ProposalItem[] = []
     for (const p of mock.proposals) {
       if (p.source === 'slice-sync' && p.status === 'rejected') settled.push(...p.items)
     }
     const deduped = dedupeRejectedSliceItems(items, settled)
-    const created = await mock.createProposals(id, 'slice-sync', chapter, sliceName, deduped.kept)
-    return { created, suppressed: deduped.suppressed }
+    const sameChapter = mock.proposals.filter((p) => p.chapter === chapter)
+    const protectIds = new Set<string>()
+    const restore: Proposal[] = []
+    let kept = 0
+    const toCreate: ProposalItem[] = []
+    for (const it of deduped.kept) {
+      const m = unsettledSameOf(it, sameChapter)
+      if (!m) {
+        toCreate.push(it)
+        continue
+      }
+      if ('pending' in m) protectIds.add(m.pending.id)
+      else restore.push(m.restore)
+      kept++
+    }
+    const created = await mock.createProposals(id, 'slice-sync', chapter, sliceName, toCreate, undefined, undefined, protectIds)
+    for (const p of restore) p.status = 'pending'
+    return { created, suppressed: deduped.suppressed, kept }
   },
   applyProposal: async (_id: string, pid: string) => {
     const p = mock.proposals.find((x) => x.id === pid)

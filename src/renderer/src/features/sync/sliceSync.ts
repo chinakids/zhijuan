@@ -11,6 +11,9 @@ export interface SliceSyncResult {
   /** 与已拒绝提案同款而被抑制的条数（>0 时 UI 应明示「同款 N 条此前已拒绝，未重复提案」，
    * 而不是报「无设定变化」——「已被作者裁决」与「无新动向」是两种事实，2026-09-20 候选 3） */
   suppressed?: number
+  /** 与未处置同款（同章已有 pending/stale）复用旧卡的条数（>0 时 UI 明示「同款 N 条待确认，
+   * 未重复提案」——作者已见过但未裁决，2026-09-20 候选 3「stale 同款重弹」） */
+  kept?: number
   /** 产物守卫（target 存在性防线）拦截/纠正的记录；有内容即作者需知道的处置 */
   issues?: SyncIssue[]
   /** 本次比对基准（无设定变化时的可信呈现；runSync 随 ok:true 返回） */
@@ -29,7 +32,7 @@ export async function runSliceSync(projectId: string, chapterRel: string): Promi
     if (!clean.length) return { ok: true, items: 0, issues, evidence: r.evidence }
     const created = await window.zhijuan.createSliceProposals(projectId, chapterRel, slice, clean)
     useProposalStore.getState().refresh(projectId)
-    return { ok: true, items: created.created.length, suppressed: created.suppressed, issues, evidence: r.evidence }
+    return { ok: true, items: created.created.length, suppressed: created.suppressed, kept: created.kept, issues, evidence: r.evidence }
   } catch (e) {
     return { ok: false, items: 0, error: String((e as Error).message || e) }
   }

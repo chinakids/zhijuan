@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { sliceItemKey, isRejectedDuplicate, dedupeRejectedSliceItems } from '../../src/shared/proposalDup'
-import type { ProposalItem } from '../../src/shared/types'
+import { sliceItemKey, isRejectedDuplicate, dedupeRejectedSliceItems, unsettledSameOf } from '../../src/shared/proposalDup'
+import type { Proposal, ProposalItem } from '../../src/shared/types'
 
 function it2(over?: Partial<ProposalItem>): ProposalItem {
   return {
@@ -63,5 +63,44 @@ describe('dedupeRejectedSliceItems', () => {
     const { kept, suppressed } = dedupeRejectedSliceItems([it2(), it2()], [it2()])
     expect(suppressed).toBe(2)
     expect(kept).toHaveLength(0)
+  })
+})
+
+describe('unsettledSameOf（未处置同款：pending 保护 / stale 恢复）', () => {
+  const prop = (over: Partial<Proposal> & { status: Proposal['status'] }): Proposal => ({
+    id: 'p1',
+    source: 'slice-sync',
+    chapter: '正文/第01章.md',
+    slice: '雾港夜',
+    createdAt: 1,
+    items: [it2()],
+    ...over
+  })
+  it('同章同款 pending -> pending 保护', () => {
+    const m = unsettledSameOf(it2(), [prop({ status: 'pending' })])
+    expect(m).toEqual({ pending: expect.objectContaining({ status: 'pending' }) })
+  })
+  it('仅同款 stale -> restore 恢复', () => {
+    const m = unsettledSameOf(it2(), [prop({ status: 'stale' })])
+    expect(m).toEqual({ restore: expect.objectContaining({ status: 'stale' }) })
+  })
+  it('pending 优先于 stale（并存时不恢复 stale）', () => {
+    const m = unsettledSameOf(it2(), [prop({ id: 'a', status: 'stale' }), prop({ id: 'b', status: 'pending' })])
+    expect(m).toEqual({ pending: expect.objectContaining({ id: 'b' }) })
+  })
+  it('非 slice-sync / 不同款 / 已裁决（rejected/accepted）→ null', () => {
+    // 注：sameChapter 由调用方收集（createSliceProposals 里 all.filter(chapter)），函数不再筛章
+    const same = [
+      prop({ status: 'pending', source: 'agent-chat' }),
+      prop({ status: 'pending', items: [it2({ after: '别的状态' })] }),
+      prop({ status: 'rejected' }),
+      prop({ status: 'accepted' })
+    ]
+    expect(unsettledSameOf(it2(), same)).toBeNull()
+    expect(unsettledSameOf(it2(), [])).toBeNull()
+  })
+  it('items 多条时命中任一同款', () => {
+    const p = prop({ status: 'pending', items: [it2({ after: '无关' }), it2()] })
+    expect(unsettledSameOf(it2(), [p])).not.toBeNull()
   })
 })
