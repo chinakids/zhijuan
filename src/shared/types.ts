@@ -251,6 +251,10 @@ export interface ProposalItem {
   before: string
   after: string
   reason: string
+  /** 接受时一致性校验基线（2026-09-20 候选 3）：切片同步生成端由代码提取的「该小节生成时刻
+   * 完整内容」（trim 归一化）。undefined=无校验基线（旧档 / agent-chat 转提案等非 slice-sync 路径）
+   * → apply 维持既有行为；null=生成时刻该节不存在；string=生成时刻节内容（含 ''=空节）。 */
+  beforeExact?: string | null
 }
 
 /** 切片同步产物守卫（候选 2e：target 存在性防线）的单条处置记录 */

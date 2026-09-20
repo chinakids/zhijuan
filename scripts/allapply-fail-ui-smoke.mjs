@@ -134,8 +134,13 @@ try {
   })`)
   ok('写盘模拟作者手动编辑（首条 before 漂移）', mut === 'OK', String(mut))
 
-  // ④ 打开提案抽屉
-  await page.eval(clickBtn('待确认提案 2'))
+  // ④ 打开提案抽屉（入口=左侧导航底部「待确认提案」徽标按钮；09-17 fc82c58 起文案与计数分离为徽标，
+  //     按 title 锚点点击——旧「待确认提案 2」带空格文案已不存在）
+  await page.eval(`(() => {
+    const btn = [...document.querySelectorAll('button')].find((b) => (b.title || '').includes('查看/处理待确认') || (b.innerText || '').includes('待确认提案'))
+    if (btn) btn.click()
+    return !!btn
+  })()`)
   await evalUntil(page, bodyHas('扫描批注'), Boolean, 10000, '抽屉打开')
   ok('抽屉打开（待确认 2 条）', await page.eval(bodyHas('待确认 2')), '')
 

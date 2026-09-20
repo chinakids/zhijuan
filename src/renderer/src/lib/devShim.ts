@@ -22,6 +22,7 @@ import { actGapsCheck } from '../../../shared/actGaps'
 import { sliceSectionOrderCheck } from '../../../shared/sliceorder'
 import { chapterOrderCheck } from '../../../shared/chapterorder'
 import { findAnchorLine, normalizeAnchor } from '../../../shared/anchor'
+import { extractSectionBody } from '../../../shared/proposalSection'
 import { isIoFailure } from '../../../shared/proposalApply'
 import { dedupeRejectedSliceItems, unsettledSameOf } from '../../../shared/proposalDup'
 import { auditDocMarkdown } from '../../../shared/auditDoc'
@@ -1060,6 +1061,15 @@ const mock = {
     for (const p of sameChapter) {
       if (p.status === 'pending') protectIds.add(p.id)
     }
+    // 接受时一致性校验基线（与真机 createSliceProposals 同口径）：upsert-section 由代码提取
+    // 生成时刻小节完整内容写入 beforeExact（无该节=null），applyAnchor 据此拒绝「节已被改动」的过时提案
+    for (const it of toCreate) {
+      if (it.kind !== 'upsert-section') continue
+      const cur = docs.get(id + '/' + it.target)
+      if (cur == null) continue
+      const r = extractSectionBody(cur, it.anchor || '')
+      it.beforeExact = r.found ? r.body : null
+    }
     const created = await mock.createProposals(id, 'slice-sync', chapter, sliceName, toCreate, undefined, undefined, protectIds)
     for (const p of restore) p.status = 'pending'
     return { created, suppressed: deduped.suppressed, kept, keptIds }
@@ -1997,7 +2007,16 @@ function applyAnchor(text: string, it: ProposalItem): string {
   const lines = text.split('\n')
   if (!anchor) return text.trimEnd() + '\n\n## 切片状态\n\n' + it.after + '\n'
   const hit = findAnchorLine(lines, anchor)
-  if (!hit) return text.trimEnd() + '\n\n## ' + anchor + '\n\n' + it.after + '\n'
+  if (!hit) {
+    // 与主进程同口径（2026-09-20 候选 3）：beforeExact=字符串（生成时该节存在）而现在找不到=节被删/改名 → 过时失败
+    if (it.beforeExact !== undefined && it.beforeExact !== null) throw new Error('目标小节已不存在（可能被改名或删除），请先核对')
+    return text.trimEnd() + '\n\n## ' + anchor + '\n\n' + it.after + '\n'
+  }
+  if (it.beforeExact !== undefined) {
+    if (it.beforeExact === null) throw new Error('该小节生成时不存在、现已存在（可能为作者新建），为避免覆盖请先核对')
+    const cur = extractSectionBody(text, it.anchor || '')
+    if (cur.body !== it.beforeExact) throw new Error('该小节内容在本提案生成后已被修改（可能手动编辑或被其他提案更新），为避免覆盖请先核对')
+  }
   let end = lines.length
   for (let i = hit.line + 1; i < lines.length; i++) {
     const m = lines[i].match(/^(#{1,6})\s+/)

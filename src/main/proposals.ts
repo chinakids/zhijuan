@@ -5,6 +5,7 @@ import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync, rmSync
 import type { Proposal, ProposalItem } from '../shared/types'
 import { DOT_DIR } from '../shared/paths'
 import { findAnchorLine, normalizeAnchor } from '../shared/anchor'
+import { extractSectionBody } from '../shared/proposalSection'
 import { isIoFailure } from '../shared/proposalApply'
 import { dedupeRejectedSliceItems, unsettledSameOf } from '../shared/proposalDup'
 
@@ -70,6 +71,23 @@ export function createProposals(root: string, projectId: string, source: Proposa
  * 供浮条「查看提案」直达定位（2026-09-20 候选 3 可行动性：跨章聚合后提示在章 B、卡可能在章 A）。
  */
 export function createSliceProposals(root: string, projectId: string, chapter: string, slice: string, items: ProposalItem[]): { created: Proposal[]; suppressed: number; kept: number; keptIds: string[] } {
+  // 接受时一致性校验的生成端基线（2026-09-20 候选 3「全部接受过时风险」）：
+  // upsert-section 的 before=模型的一句话要点（不可比），而 applyAnchor 对 upsert-section 原先只做
+  // 锚点查找——锚点命中即整节替换、未命中即文末追加，提案生成后该节被作者手写/其他提案更新的
+  // 内容会被静默覆盖（人物/世界观档无版本历史可回滚）。此处由代码提取生成时刻的小节完整内容
+  // 写入 it.beforeExact（无该节=null），applyAnchor 见 beforeExact!==undefined 时做精确校验：
+  // 漂移→拒绝并提示（与 replace-text before 校验同语义、同 isIoFailure 分类=内容校验失败不可重试）。
+  for (const it of items) {
+    if (it.kind !== 'upsert-section') continue
+    const abs = join(root, projectId, it.target)
+    if (!existsSync(abs)) continue // 目标文件不存在：apply 本就 IO 失败，基线无意义
+    try {
+      const r = extractSectionBody(readFileSync(abs, 'utf-8'), it.anchor || '')
+      it.beforeExact = r.found ? r.body : null
+    } catch {
+      /* 读盘异常：跳过基线，apply 走旧行为兜底 */
+    }
+  }
   const all = readAll(root, projectId)
   const settled: ProposalItem[] = []
   for (const p of all) {
@@ -272,7 +290,29 @@ export function applyAnchor(text: string, it: ProposalItem): { ok: boolean; out?
   if (!anchor) return { ok: true, out: text + '\n\n## 切片状态\n\n' + it.after }
   const lines = text.split('\n')
   const hit = findAnchorLine(lines, anchor)
-  if (!hit) return { ok: true, out: text + '\n\n## ' + anchor + '\n\n' + it.after }
+  if (!hit) {
+    // 接受时一致性校验（2026-09-20 候选 3）：有基线（beforeExact 为字符串=生成时该节存在）
+    // 而现在找不到该节 = 生成后节被删/改名 → 提案过时，失败而非静默文末追加（后者会堆积
+    // 近重复小节）；beforeExact===null（生成时本无节）或 undefined（旧档/agent-chat 转提案）
+    // → 维持既有追加行为。
+    if (it.beforeExact !== undefined && it.beforeExact !== null) {
+      return { ok: false, msg: '目标小节已不存在（可能被改名或删除），请先核对' }
+    }
+    return { ok: true, out: text + '\n\n## ' + anchor + '\n\n' + it.after }
+  }
+  // 生成后有基线而现在命中：内容与生成时刻一致才允许替换——不一致=节被作者手动编辑或
+  // 被其他提案更新，整节替换会覆盖后写内容（人物/世界观档无版本历史可回滚）→ 拒绝，
+  // 文案与 replace-text「原文段已变（可能被手动编辑），请人工确认」同族（内容校验失败→rejected 不可重试）。
+  if (it.beforeExact !== undefined) {
+    if (it.beforeExact === null) {
+      // 生成时无该节、现在却有同名节 = 作者后建/其他提案新建 → 避免覆盖，请先核对
+      return { ok: false, msg: '该小节生成时不存在、现已存在（可能为作者新建），为避免覆盖请先核对' }
+    }
+    const cur = extractSectionBody(text, it.anchor || '')
+    if (cur.body !== it.beforeExact) {
+      return { ok: false, msg: '该小节内容在本提案生成后已被修改（可能手动编辑或被其他提案更新），为避免覆盖请先核对' }
+    }
+  }
   let end = lines.length
   for (let i = hit.line + 1; i < lines.length; i++) {
     const m = lines[i].match(/^(#{1,6})\s+/)

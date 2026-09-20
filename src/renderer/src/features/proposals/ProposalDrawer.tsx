@@ -201,7 +201,9 @@ function ItemCard({ p, projectId, onChanged, err, onErr, focused }: { p: Proposa
         <div className="mt-2 grid gap-2 text-[11px]">
           <div className="rounded-lg bg-surface-2 p-2">
             <div className="mb-1 font-medium text-ink-3">原状（摘要）</div>
-            <div className="line-clamp-3 whitespace-pre-wrap text-ink-2" title={it?.before || '（新小节）'}>{it?.before || '（新小节）'}</div>
+            {/* 原状优先显示生成端基线（beforeExact=完整节内容，作者可对照「将写入」判断是否过时；
+                基线缺失（旧档/agent-chat 转提案）则回退模型的一句话要点；2026-09-20 候选 3 */}
+            <div className="line-clamp-3 whitespace-pre-wrap text-ink-2" title={it.beforeExact !== undefined ? (it.beforeExact || '（新小节）') : it.before || '（新小节）'}>{it.beforeExact !== undefined ? (it.beforeExact || '（新小节）') : it.before || '（新小节）'}</div>
           </div>
           <div className="rounded-lg border border-accent/30 bg-accent-soft/50 p-2">
             <div className="mb-1 font-medium text-accent">将写入</div>
