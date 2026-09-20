@@ -42,6 +42,12 @@
 
 ## 五、迭代记录
 
+### 2026-09-20 21:00–21:3x（新调研候选①收口：用词频率/口头禅检查成本评估 + 核心纯函数落地，提交 a599735，详见 01-智能层.md 21:00 轮；接线=01-智能层.md 候选 1）
+
+- 调研：Novelcrafter Codex Features（novelcrafter.com/features/codex）「Usage Frequency=Identify overused words, crutch phrases, and repetitive metaphors」+ 官方 FAQ AI-isms（novelcrafter.com/help/faq/ai-and-prompting/ai-isms，2025-06-13）「训练数据高频复用词=AI 写作 tells，用户 codex entry+aliases 高亮跟踪」；本机真数据实测（都市短篇合集 19 章 16.3 万字）：「一下」643 次/3.83 每千字、「一下一下」129、「小小的」217、「整个人」169——免分词 n-gram 可浮现真实口头禅，无需分词器。
+- 落地：`src/shared/wordfreq.ts`＝`overuseCheck/overuseItems/countPhraseInText/visibleBodyOf/BUILTIN_OVERUSE`（52 条中文口头禅/AI 腔词表，opts.dict 可扩展）——词表式频率报告（count/perK/章分布/severity≥50 high/≥15 med/≥3 low 实据注释）；15 单测绿 + 真数据命中 18 条（high 7 全书级口头禅/零虚词误报）；三道门 970 例绿；无 UI 变化（纯函数轮不言）。
+- 交接：接线（audit/AuditKind/AuditDrawer/HealthBar/devShim/冒烟适配/截图）=01-智能层.md 候选 1；「对白声线一致性」仍待成本评估（候选 2）；核心=纯函数，不在线 A 上下文管理范围（检查域），线 A 候选顺位不变（1 真机核对锁屏顺延 → 2 zj 工具描述补大纲示例触发制 → 3 embedding 触发制 → 4 前文衰减摘要不立项）。
+
 ### 2026-09-20 18:00–18:3x（子任务系验证面补缺：subtasks-smoke 补 audit(consistency) 单步并入仓后真机复验；提交 d43bf41，详见 01-智能层.md 18:00 轮）
 
 - 15:00 轮（2cff4a0）auditDef 启用 reasoningEffort:'low' 后，完整链只复验了 perspectives——audit 单步缺口（15:00 轮交接⑥）本轮补齐：`scripts/subtasks-smoke.mjs` step 列表加「全卷一致性巡查 audit」（`runAudit(PJ,'consistency')`，EMPTY 判定复用，ZJ_STEPS 名尾词 audit）。
