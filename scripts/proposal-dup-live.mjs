@@ -126,6 +126,7 @@ console.log('F 同章同款 pending 未处置 → 复用旧卡（不置 stale �
   const before = countFiles()
   const r = createSliceProposals(lib, 'demo', '正文/第04章_溯流.md', '雾港夜', [fItem()])
   ok(r.created.length === 0 && r.suppressed === 0 && r.kept === 1, '同款再次同步：created=0/kept=1（复用旧卡核心承诺）')
+  ok(Array.isArray(r.keptIds) && r.keptIds.length === 1 && r.keptIds[0] === p1[0].id, `keptIds=[旧卡 id]（浮条定位数据源，${JSON.stringify(r.keptIds)}）`)
   ok(countFiles() === before, '提案文件数不变（未新建）')
   ok(listProposals(lib, 'demo').find((p) => p.id === p1[0].id)?.status === 'pending', '旧卡仍 pending（未被置 stale）')
 }

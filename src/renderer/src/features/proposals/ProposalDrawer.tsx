@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, X, FileText, GitCompare, Inbox, ChevronDown, Trash2, RefreshCw } from 'lucide-react'
 import type { Proposal, SyncIssue } from '../../../../shared/types'
 import { Button } from '../../components/ui/button'
@@ -20,6 +20,9 @@ interface Props {
   list: Proposal[]
   onChanged: () => void
   onClose: () => void
+  /** 浮条「查看提案」直达定位：打开时滚动并高亮这张卡（跨章同款聚合后提示与卡可能异章，
+   * 2026-09-20 候选 3 可行动性）。undefined=普通打开零行为。 */
+  focusId?: string
 }
 
 const STATUS: Record<string, { text: string; cls: string }> = {
@@ -128,10 +131,15 @@ function toastAfterChapterApply(projectId: string, target: string) {
     })
 }
 
-function ItemCard({ p, projectId, onChanged, err, onErr }: { p: Proposal; projectId: string; onChanged: () => void; err?: string; onErr: (id: string, msg: string) => void }) {
+function ItemCard({ p, projectId, onChanged, err, onErr, focused }: { p: Proposal; projectId: string; onChanged: () => void; err?: string; onErr: (id: string, msg: string) => void; focused?: boolean }) {
   const it = p.items[0]
   const [showDiff, setShowDiff] = useState(false)
   const [busy, setBusy] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
+  // 浮条「查看提案」直达定位：focusId 命中时滚动进视野（居中）并高亮（ring）——2026-09-20 候选 3
+  useEffect(() => {
+    if (focused) cardRef.current?.scrollIntoView({ block: 'center' })
+  }, [focused])
   async function doApply() {
     setBusy(true)
     onErr(p.id, '')
@@ -171,7 +179,7 @@ function ItemCard({ p, projectId, onChanged, err, onErr }: { p: Proposal; projec
   }
   const st = STATUS[p.status] ?? STATUS.pending
   return (
-    <div className="mb-2 rounded-xl border border-hair bg-surface p-3">
+    <div ref={cardRef} data-pid={p.id} data-focused={focused ? 'true' : undefined} className={cn('mb-2 rounded-xl border border-hair bg-surface p-3', focused && 'ring-2 ring-accent/60')}>
       <div className="flex items-center gap-2">
         <FileText className="h-3.5 w-3.5 shrink-0 text-accent" />
         <span className="truncate text-sm font-medium" title={it?.target}>{it?.target}</span>
@@ -220,7 +228,7 @@ function ItemCard({ p, projectId, onChanged, err, onErr }: { p: Proposal; projec
   )
 }
 
-export default function ProposalDrawer({ projectId, list, onChanged, onClose }: Props) {
+export default function ProposalDrawer({ projectId, list, onChanged, onClose, focusId }: Props) {
   // 提案级错误（proposalId→err）：ItemCard 在 pending→done 换组时会卸载重挂，组件本地错误态
   // 会丢失（15:45 轮实锤）——挂抽屉级 Map，换组后卡片内红字仍可见；2026-09-17 再迁 store：
   // IO 失败保持 pending 后失败卡是「可恢复资源」，关抽屉重开红字不能丢（只靠 toast 记忆作者
@@ -312,12 +320,12 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose }: 
               <p className="text-xs">还没有提案。保存正文后，切片同步会在这里提出设定更新。</p>
             </div>
           )}
-          {pending.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} />)}
-          {done.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} />)}
+          {pending.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} focused={focusId === p.id} />)}
+          {done.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} focused={focusId === p.id} />)}
           {stale.length > 0 && (
             <div className="mt-3 border-t border-hair pt-2">
               <p className="mb-2 text-[11px] text-ink-3">已过期 {stale.length} 条（章节被删除或再次保存，不可接受，可查看后清除）</p>
-              {stale.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} />)}
+              {stale.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} focused={focusId === p.id} />)}
             </div>
           )}
         </ScrollArea>

@@ -65,10 +65,11 @@ export function createProposals(root: string, projectId: string, source: Proposa
  * 拒绝=作者显式裁决（GitHub code scanning dismiss 同构：显式否决后同款不再重提），
  * 只收集 status=rejected 且 source=slice-sync 的历史（accepted 不抑制：
  * 已应用后若档案回滚/正文新发生同一事态，重提是正确行为；跨章收集——切片设定是项目级进度）。
- * 返回 { created, suppressed }：suppressed 供 UI 反馈「同款 N 条此前已拒绝，未重复提案」，
- * 不能把「已被裁决的同款」报成「无设定变化」（破坏反馈真实性）。
+ * 返回 { created, suppressed, kept, keptIds }：suppressed 供 UI 反馈「同款 N 条此前已拒绝，未重复提案」，
+ * 不能把「已被裁决的同款」报成「无设定变化」（破坏反馈真实性）；keptIds=未处置复用旧卡的提案 id，
+ * 供浮条「查看提案」直达定位（2026-09-20 候选 3 可行动性：跨章聚合后提示在章 B、卡可能在章 A）。
  */
-export function createSliceProposals(root: string, projectId: string, chapter: string, slice: string, items: ProposalItem[]): { created: Proposal[]; suppressed: number; kept: number } {
+export function createSliceProposals(root: string, projectId: string, chapter: string, slice: string, items: ProposalItem[]): { created: Proposal[]; suppressed: number; kept: number; keptIds: string[] } {
   const all = readAll(root, projectId)
   const settled: ProposalItem[] = []
   for (const p of all) {
@@ -86,6 +87,7 @@ export function createSliceProposals(root: string, projectId: string, chapter: s
   const sameChapter = all.filter((p) => p.chapter === chapter && p.source === 'slice-sync')
   const protectIds = new Set<string>()
   const restore: Proposal[] = []
+  const keptIds: string[] = []
   let kept = 0
   const toCreate: ProposalItem[] = []
   for (const it of keptItems) {
@@ -94,8 +96,13 @@ export function createSliceProposals(root: string, projectId: string, chapter: s
       toCreate.push(it)
       continue
     }
-    if ('pending' in m) protectIds.add(m.pending.id)
-    else restore.push(m.restore)
+    if ('pending' in m) {
+      protectIds.add(m.pending.id)
+      keptIds.push(m.pending.id)
+    } else {
+      restore.push(m.restore)
+      keptIds.push(m.restore.id)
+    }
     kept++
   }
   // 同章 slice-sync 的 pending 一律保护（2026-09-20 候选 3「不同款置 stale 语义精化」）：
@@ -113,7 +120,7 @@ export function createSliceProposals(root: string, projectId: string, chapter: s
     p.status = 'pending'
     write(root, projectId, p)
   }
-  return { created, suppressed, kept }
+  return { created, suppressed, kept, keptIds }
 }
 
 /**

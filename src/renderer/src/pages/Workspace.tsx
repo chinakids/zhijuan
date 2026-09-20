@@ -105,6 +105,18 @@ export default function Workspace() {
   const pending = proposals.filter((p) => p.status === 'pending').length
   const stale = proposals.filter((p) => p.status === 'stale').length
   const [drawerOpen, setDrawerOpen] = useState(false)
+  // 浮条「查看提案」直达定位（2026-09-20 候选 3 可行动性）：Novel 等子页经 zj:open-proposals
+  // 事件请求打开抽屉并定位某张卡（跨章同款聚合后提示与卡可能异章）
+  const [focusId, setFocusId] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    const h = (e: Event) => {
+      const d = (e as CustomEvent<{ focusId?: string }>).detail
+      setDrawerOpen(true)
+      setFocusId(d?.focusId)
+    }
+    window.addEventListener('zj:open-proposals', h)
+    return () => window.removeEventListener('zj:open-proposals', h)
+  }, [])
   const refreshProposals = useCallback(() => {
     if (id) void useProposalStore.getState().refresh(id)
   }, [id])
@@ -153,7 +165,7 @@ export default function Workspace() {
         </div>
       </div>
       {drawerOpen && (
-        <ProposalDrawer projectId={project.id} list={proposals} onChanged={refreshProposals} onClose={() => setDrawerOpen(false)} />
+        <ProposalDrawer projectId={project.id} list={proposals} onChanged={refreshProposals} focusId={focusId} onClose={() => { setDrawerOpen(false); setFocusId(undefined) }} />
       )}
       <ProjectGuide
         projectId={project.id}

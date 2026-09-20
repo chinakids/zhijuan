@@ -378,4 +378,17 @@ describe('createSliceProposals（未处置语义精化：正文保存不是失�
     expect(r.created.length).toBe(0)
     expect(listProposals(root, 'p').find((x) => x.id === p2.id)?.status).toBe('pending')
   })
+  it('未处置同款复用旧卡时返回 keptIds（命中的旧卡 id，供浮条「查看提案」定位）', () => {
+    const [p2] = createProposals(root, 'p', 'slice-sync', '正文/第01章_雾港.md', '雾港夜', [item({ after: '动向Y' })])
+    const r = createSliceProposals(root, 'p', '正文/第01章_雾港.md', '雾港夜', [item({ after: '动向Y' })])
+    expect(r.kept).toBe(1)
+    expect(r.keptIds).toEqual([p2.id])
+    expect(r.created.length).toBe(0)
+  })
+  it('无同款命中时 keptIds 为空数组（新提案正常创建）', () => {
+    const r = createSliceProposals(root, 'p', '正文/第01章_雾港.md', '雾港夜', [item({ after: '全新动向Z' })])
+    expect(r.kept).toBe(0)
+    expect(r.keptIds).toEqual([])
+    expect(r.created.length).toBe(1)
+  })
 })

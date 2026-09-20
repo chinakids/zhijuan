@@ -1026,7 +1026,8 @@ const mock = {
   // 先滤掉「与已拒绝提案同款」（source=slice-sync && status=rejected），再复用「未处置同款」
   // 旧卡（项目级收集：同章/跨章 pending 保护 / stale 恢复，15:45 起与真机同放宽），
   // 最后走 createProposals 置 stale 语义；
-  // 返回 {created, suppressed, kept}（suppressed=已裁决、kept=未处置，均 UI 明示而非报「无设定变化」）
+  // 返回 {created, suppressed, kept, keptIds}（suppressed=已裁决、kept=未处置，均 UI 明示而非报
+  // 「无设定变化」；keptIds=复用旧卡 id，供浮条「查看提案」直达定位——与真机同字段）
   createSliceProposals: async (id: string, chapter: string, sliceName: string, items: ProposalItem[]) => {
     const settled: ProposalItem[] = []
     for (const p of mock.proposals) {
@@ -1036,6 +1037,7 @@ const mock = {
     const sameChapter = mock.proposals.filter((p) => p.chapter === chapter && p.source === 'slice-sync')
     const protectIds = new Set<string>()
     const restore: Proposal[] = []
+    const keptIds: string[] = []
     let kept = 0
     const toCreate: ProposalItem[] = []
     for (const it of deduped.kept) {
@@ -1044,8 +1046,13 @@ const mock = {
         toCreate.push(it)
         continue
       }
-      if ('pending' in m) protectIds.add(m.pending.id)
-      else restore.push(m.restore)
+      if ('pending' in m) {
+        protectIds.add(m.pending.id)
+        keptIds.push(m.pending.id)
+      } else {
+        restore.push(m.restore)
+        keptIds.push(m.restore.id)
+      }
       kept++
     }
     // 与真机同口径（2026-09-20 候选 3「不同款置 stale 语义精化」）：同章 slice-sync 的 pending 一律保护，
@@ -1055,7 +1062,7 @@ const mock = {
     }
     const created = await mock.createProposals(id, 'slice-sync', chapter, sliceName, toCreate, undefined, undefined, protectIds)
     for (const p of restore) p.status = 'pending'
-    return { created, suppressed: deduped.suppressed, kept }
+    return { created, suppressed: deduped.suppressed, kept, keptIds }
   },
   applyProposal: async (_id: string, pid: string) => {
     const p = mock.proposals.find((x) => x.id === pid)

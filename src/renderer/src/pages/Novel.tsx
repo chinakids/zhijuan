@@ -111,6 +111,9 @@ export default function Novel() {
   const [syncIssues, setSyncIssues] = useState<SyncIssue[]>([])
   // 切片同步失败后的就地重试（03:45 观察②→06:45 候选 2）：失败浮条不随 6s 自动清，留「重试同步」按钮
   const [syncRetry, setSyncRetry] = useState<{ rel: string } | null>(null)
+  // 「同款待确认」直达定位（2026-09-20 候选 3 可行动性）：未处置复用旧卡的提案 id——
+  // 跨章聚合后提示在章 B、卡可能在章 A，浮条「查看提案」按钮打开提案抽屉并定位该卡
+  const [keptFocus, setKeptFocus] = useState<string | undefined>(undefined)
   const [checkOpen, setCheckOpen] = useState(false)
   // 本章小环 tab（短巡查/分层修订）：AgentPanel 命令行 /巡查 [修订] 可切换后打开
   const [checkTab, setCheckTab] = useState<ChapterCheckKind>('chapter')
@@ -244,6 +247,7 @@ export default function Novel() {
       setSyncMsg('切片同步中…')
       setSyncRetry(null)
       setSyncIssues([])
+      setKeptFocus(undefined)
       const r = await runSliceSync(id, rel)
       if (r.ok) {
         setSyncIssues(r.issues ?? [])
@@ -261,6 +265,7 @@ export default function Novel() {
               ? `✓ 无新动向${supNote}${keptNote}${describeSyncEvidence(r.evidence)}`
               : `✓ 无设定变化${describeSyncEvidence(r.evidence)}`
         )
+        if (kept > 0) setKeptFocus(r.keptIds?.[0])
         useProposalStore.getState().bump()
         syncTimer.current = window.setTimeout(() => {
           setSyncMsg('')
@@ -799,6 +804,15 @@ export default function Novel() {
                 className="shrink-0 rounded-full border border-hair px-1.5 py-0.5 text-[10px] text-accent transition-colors hover:bg-accent-soft"
               >
                 重试同步
+              </button>
+            )}
+            {keptFocus && (
+              <button
+                data-testid="zj-goto-proposals"
+                onClick={() => window.dispatchEvent(new CustomEvent('zj:open-proposals', { detail: { focusId: keptFocus } }))}
+                className="pointer-events-auto shrink-0 rounded-full border border-hair px-1.5 py-0.5 text-[10px] text-accent transition-colors hover:bg-accent-soft"
+              >
+                查看提案
               </button>
             )}
           </div>
