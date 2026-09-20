@@ -29,6 +29,8 @@ interface Props {
   pending?: number
   stale?: number
   onOpenProposals?: () => void
+  /** 加载占位（Workspace 加载/错误/项目未知态）：项目名与计数徽标以同尺寸骨架占位，保证加载后布局零移位（HIG Layout remain familiar） */
+  placeholder?: boolean
 }
 
 interface NavItem {
@@ -49,15 +51,22 @@ const items: NavItem[] = [
   { to: 'library', label: '素材库', icon: LibraryIcon, key: 'library' }
 ]
 
-export default function SectionNav({ projectId, projectName, counts, pending = 0, stale = 0, onOpenProposals }: Props) {
+export default function SectionNav({ projectId, projectName, counts, pending = 0, stale = 0, onOpenProposals, placeholder = false }: Props) {
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-hair bg-surface">
       {/* 项目名 */}
       <div className="px-4 pb-3 pt-4">
-        <Link to={`/project/${projectId}`} className="block rounded-lg px-3 py-2 transition-colors hover:bg-well" title="回到正文创作">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-ink-3">项目</p>
-          <p className="truncate text-sm font-semibold" title={projectName}>{projectName}</p>
-        </Link>
+        {placeholder ? (
+          <div className="rounded-lg px-3 py-2" aria-hidden="true">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-ink-3">项目</p>
+            <div data-testid="zs-nav-name-skeleton" className="mt-1.5 h-4 w-28 animate-pulse rounded bg-well" />
+          </div>
+        ) : (
+          <Link to={`/project/${projectId}`} className="block rounded-lg px-3 py-2 transition-colors hover:bg-well" title="回到正文创作">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-ink-3">项目</p>
+            <p className="truncate text-sm font-semibold" title={projectName}>{projectName}</p>
+          </Link>
+        )}
       </div>
 
       {/* 板块导航 */}
@@ -77,11 +86,14 @@ export default function SectionNav({ projectId, projectName, counts, pending = 0
               <it.icon className="h-4 w-4" />
               {it.label}
             </span>
-            {!it.plain && (
-              <span className="rounded-full bg-well px-1.5 py-0.5 text-[10px] leading-none text-ink-3">
-                {counts[it.key as keyof NavCounts] ?? 0}
-              </span>
-            )}
+            {!it.plain &&
+              (placeholder ? (
+                <span aria-hidden="true" data-testid="zs-nav-count-skeleton" className="h-[18px] w-7 animate-pulse rounded-full bg-well/80" />
+              ) : (
+                <span className="rounded-full bg-well px-1.5 py-0.5 text-[10px] leading-none text-ink-3">
+                  {counts[it.key as keyof NavCounts] ?? 0}
+                </span>
+              ))}
           </NavLink>
         ))}
       </nav>

@@ -126,33 +126,42 @@ export default function Workspace() {
 
   if (loadState === 'loading') {
     return (
-      <div className="flex h-full items-center justify-center gap-2 text-sm text-ink-3">
-        <LoadingIndicator size={16} />
-        <span>正在打开项目…</span>
+      <div className="flex h-full">
+        <SectionNav projectId={id ?? ''} projectName="" counts={emptyCounts} placeholder />
+        <div className="flex min-w-0 flex-1 items-center justify-center gap-2 text-sm text-ink-3">
+          <LoadingIndicator size={16} />
+          <span>正在打开项目…</span>
+        </div>
       </div>
     )
   }
   if (loadState === 'error') {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-sm">
-        <p className="text-danger">打开项目失败</p>
-        <p className="max-w-md break-all text-center text-xs text-ink-3">{loadErr}</p>
-        <button
-          className="text-xs text-accent underline-offset-2 hover:underline"
-          onClick={() => {
-            readyRef.current = false
-            setLoadState('loading')
-            void refreshAll()
-          }}
-        >
-          重试
-        </button>
+      <div className="flex h-full">
+        <SectionNav projectId={id ?? ''} projectName="" counts={emptyCounts} placeholder />
+        <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-2 text-sm">
+          <p className="text-danger">打开项目失败</p>
+          <p className="max-w-md break-all text-center text-xs text-ink-3">{loadErr}</p>
+          <button
+            className="text-xs text-accent underline-offset-2 hover:underline"
+            onClick={() => {
+              readyRef.current = false
+              setLoadState('loading')
+              void refreshAll()
+            }}
+          >
+            重试
+          </button>
+        </div>
       </div>
     )
   }
   if (!project) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-ink-3">项目不存在或已被删除。</div>
+      <div className="flex h-full">
+        <SectionNav projectId={id ?? ''} projectName="" counts={emptyCounts} placeholder />
+        <div className="flex min-w-0 flex-1 items-center justify-center text-sm text-ink-3">项目不存在或已被删除。</div>
+      </div>
     )
   }
 

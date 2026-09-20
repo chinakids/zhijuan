@@ -2062,7 +2062,9 @@ function applyAnchor(text: string, it: ProposalItem): string {
  *  持续失败可保证页面层错误卡必然出现）。仅 devShim 存在；真机错误态是同一套 React 组件。
  * `?zj-null=<api>:<needle>`（新增 2026-09-19 智能层）：匹配调用（args[1] 含 needle）返回 null——
  *  模拟真机 readDoc「不存在/不可读」（返回 null 而非空串）——验证读取失败**显式呈现**、
- *  不静默当空文档（DocEditor 2026-09-19 修改，P1 F-20260917-10 代码走查落地）。 */
+ *  不静默当空文档（DocEditor 2026-09-19 修改，P1 F-20260917-10 代码走查落地）。
+ * `?zj-delay=<api>:<ms>[,<api>:<ms>…]`（新增 2026-09-21 体验层）：调用前延迟 ms——验证加载态骨架/占位
+ *  （如 listProjects 延迟 1200 使 Workspace loading 稳态可断言；可叠加 zj-fail 测延迟后失败）。 */
 function buildFailProbe(base: typeof window.zhijuan): typeof window.zhijuan {
   const parse = (key: string) =>
     new Set(
@@ -2073,21 +2075,29 @@ function buildFailProbe(base: typeof window.zhijuan): typeof window.zhijuan {
     )
   const once = parse('zj-fail')
   const always = parse('zj-fail-x')
+  const delays = [...parse('zj-delay')]
+    .map((s) => {
+      const i = s.indexOf(':')
+      return i > 0 ? { api: s.slice(0, i).trim(), ms: Number(s.slice(i + 1)) } : null
+    })
+    .filter((d): d is { api: string; ms: number } => !!d && d.api.length > 0 && Number.isFinite(d.ms) && d.ms > 0)
   const nullRules = [...parse('zj-null')]
     .map((s) => {
       const i = s.indexOf(':')
       return i > 0 ? { api: s.slice(0, i).trim(), needle: s.slice(i + 1) } : null
     })
     .filter((r): r is { api: string; needle: string } => !!r && !!r.api && !!r.needle)
-  if (!once.size && !always.size && !nullRules.length) return base
+  if (!once.size && !always.size && !nullRules.length && !delays.length) return base
   const src = base as unknown as Record<string, (...a: unknown[]) => unknown>
   const probe = { ...(base as unknown as Record<string, unknown>) }
-  for (const name of new Set([...once, ...always])) {
+  for (const name of new Set([...once, ...always, ...delays.map((d) => d.api)])) {
     if (typeof src[name] !== 'function') continue
     // agentSync 的失败注入由 mock 内部处理（先记失败日志再抛，与真机 runSync 失败路径同口径）；
     // 若在此外层包装，探针先 throw、mock 内部 devAppendSyncLog 不会执行，失败条目就测不到。
     if (name === 'agentSync') continue
+    const d = delays.find((x) => x.api === name)
     probe[name] = async (...args: unknown[]) => {
+      if (d) await new Promise((r) => setTimeout(r, d.ms))
       if (always.has(name)) throw new Error('模拟失败：' + name)
       if (once.has(name)) {
         once.delete(name)
