@@ -206,7 +206,7 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
                 </span>
               )}
               <span className="max-w-[220px] truncate text-[11px] text-ink" title={t.summary}>{t.summary}</span>
-              <span className="text-[10px] text-ink-3">{new Date(t.mtime).toLocaleString('sv')}</span>
+              <span className="text-[10px] text-ink-3" title={new Date(t.mtime).toLocaleString('sv')}>{new Date(t.mtime).toLocaleDateString('zh-CN')}</span>
             </button>
           ))}
         </div>

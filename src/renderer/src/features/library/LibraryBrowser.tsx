@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import { ChevronLeft, FileText, Folder, FolderPlus, Library as LibraryIcon, Plus, Search, X } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
@@ -32,9 +32,11 @@ function materialTemplate(name: string): string {
 interface LibraryBrowserProps {
   /** 外部请求打开某个素材（相对项目根路径，如 素材库/人物/x.md；来自 ⌘K 面板搜索跳转） */
   openDoc?: string | null
+  /** 搜索行工具条右侧附加动作（如页面层构造的「升格助手」按钮）——避免素材库页顶部因单入口再占一整行（F-20260917-07 不单独占行） */
+  searchActions?: ReactNode
 }
 
-export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
+export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowserProps = {}) {
   const { id = '' } = useParams()
   const [categories, setCategories] = useState<LibraryCategory[]>([])
   const [files, setFiles] = useState<LibraryFileItem[]>([])
@@ -331,6 +333,7 @@ export default function LibraryBrowser({ openDoc }: LibraryBrowserProps = {}) {
               >
                 <Plus /> 新建素材
               </Button>
+              {searchActions}
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
               {!loading && loadErr ? (

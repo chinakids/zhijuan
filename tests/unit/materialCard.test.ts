@@ -18,10 +18,10 @@ describe('shared/materialCard（2026-09-18 从 LibraryBrowser 抽取：素材卡
     expect(materialTags('无约定头')).toEqual([])
   })
 
-  it('materialPreview：第一个非空行（含标题行——采集草稿题名在 H1 里，与文件名不同源）；截 max 字符', () => {
+  it('materialPreview：第一个非空行（含标题行——采集草稿题名在 H1 里，与文件名不同源）；剥 Markdown 标记后截 max 字符', () => {
     const doc = ['---', '标签: [环境]', '---', '', '# 雾海夜航', '', '大雾的夜里，港口的能见度往往不足五十米。', ''].join('\n')
-    expect(materialPreview(doc)).toContain('# 雾海夜航') // 首非空行=标题行（原语义，UI 卡片预览零回归）
-    expect(materialPreview('---\ntags: [x]\n---\n\n# 唯一标题行\n')).toBe('# 唯一标题行')
+    expect(materialPreview(doc)).toBe('雾海夜航') // 首非空行=标题行；UI 预览剥 `# ` 标记（2026-09-20 体验层走查）
+    expect(materialPreview('---\ntags: [x]\n---\n\n# 唯一标题行\n')).toBe('唯一标题行')
     const long = '长'.repeat(100)
     const got = materialPreview('---\ntags: []\n---\n\n' + long, 48)
     expect(got).toHaveLength(48 + 1) // 48 字 + '…'

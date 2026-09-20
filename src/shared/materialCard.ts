@@ -20,19 +20,23 @@ export function materialTags(text: string): string[] {
 
 /** 首段预览：第一个非空行（含标题行——采集草稿的 H1 是内容题名，与文件名不同源，最有辨识度）；截 max 字符。
  *  2026-09-18 抽取时曾试「跳过 H1」——被采集草稿实锤打回：素材模板 H1=素材名（与文件名重复）但
- *  采集回填卡的 H1=内容题名（如「校园老图书馆（采集草稿）」），跳过会丢真实题名；原语义是对的。 */
+ *  采集回填卡的 H1=内容题名（如「校园老图书馆（采集草稿）」），跳过会丢真实题名；原语义是对的。
+ *  2026-09-20 体验层走查补：UI 展示侧剥掉 Markdown 标题标记（`# ` 前缀），卡片预览显示干净题名
+ *  （模型侧 materialContextPreview 同样受益：H1=素材名的模板素材经此剥除后能正确识别「与文件名相同」而取正文行）。 */
 export function materialPreview(text: string, max = 72): string {
   const { body } = extractFrontMatter(text)
   for (const line of body.split('\n')) {
     const t = line.trim()
     if (!t) continue
-    return t.length > max ? t.slice(0, max) + '…' : t
+    const clean = t.replace(/^#+\s*/, '').trim()
+    if (!clean) continue
+    return clean.length > max ? clean.slice(0, max) + '…' : clean
   }
   return ''
 }
 
-/** 上下文路标预览（2026-09-18 素材注入修复）：在 materialPreview（含标题行）基础上做增量判别——
- *  首行（剥 # 后）若与素材文件名相同（模板素材 H1=素材名，无信息增量）→ 改取正文行（第一个非 # 非空行）；
+/** 上下文路标预览（2026-09-18 素材注入修复）：在 materialPreview（含标题行，已剥 Markdown 标记）基础上做增量判别——
+ *  首行若与素材文件名相同（模板素材 H1=素材名，无信息增量）→ 改取正文行（第一个非 # 非空行）；
  *  否则沿用首行（采集草稿题名≠文件名→题名即是信号）；取不到任何行→空（路标只留文件名+标签）。 */
 export function materialContextPreview(text: string, name: string, max = 48): string {
   const first = materialPreview(text, 999).replace(/^#+\s*/, '').trim()
