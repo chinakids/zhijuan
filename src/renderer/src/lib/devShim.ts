@@ -1726,7 +1726,7 @@ const mock = {
           }
         },
   // 大纲回建（dev 模式：写 mock 的 大纲/ 文件并返回卡片）
-  agentOutlineRebuild: async (projectId: string) => {
+  agentOutlineRebuild: async (projectId: string, only?: string[]) => {
     let cards = [
       {
         file: '正文/第01章_雾港.md',
@@ -1767,14 +1767,33 @@ const mock = {
         wordCount: c.wordCount
       }))
     }
+    // 与真机 runOutlineRebuild 同口径：only 过滤指定章（2026-09-20 体验层补——此前 mock 忽略 only，单章回建入口无法演示）；
+    // 重建后与既有旧卡合并（只回建缺失时别丢旧卡）、按章号排序写索引
+    const want = only?.length ? new Set(only.map((f) => f.replace(/^正文\//, ''))) : null
+    let target = cards
+    if (want) target = cards.filter((c) => want.has(c.file.replace(/^正文\//, '')))
     const writes: string[] = []
-    for (const c of cards) {
+    for (const c of target) {
       const rel = '大纲/' + c.file.replace(/^正文\//, '')
       await devWriteDoc(projectId, rel, outlineCardDoc(c, c.file))
       writes.push(rel)
     }
-    await devWriteDoc(projectId, '大纲/索引.md', outlineIndexDoc(cards))
-    return { ok: true, cards, written: writes }
+    const merged = [...target]
+    if (want) {
+      const done = new Set(target.map((cc) => cc.file.replace(/^正文\//, '')))
+      for (const c of await mock.listChapters(projectId)) {
+        const rel = '大纲/' + c.name + '.md'
+        if (done.has(c.file)) continue
+        const raw = docs.get(projectId + '/' + rel)
+        if (raw) {
+          const old = parseOutlineCard(raw, rel)
+          if (old) merged.push(old)
+        }
+      }
+    }
+    merged.sort((a, b) => (a.no ?? 1e9) - (b.no ?? 1e9))
+    await devWriteDoc(projectId, '大纲/索引.md', outlineIndexDoc(merged))
+    return { ok: true, cards: merged, written: writes }
   },
   // 章节导演（dev 模式：写 mock 的 大纲/<章>_导演.md 并返回导演板；与真机同口径支持取消）
   agentDirector: async (projectId: string, chapterRel: string, _requirement?: string, cancelToken?: string) => {

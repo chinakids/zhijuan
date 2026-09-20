@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { BookMarked, CheckCheck, CheckCircle2, CircleDashed, Clapperboard, FileText, Hammer, History, ListTree, PenLine, RefreshCw, ScrollText, ShieldCheck, Wrench } from 'lucide-react'
+import { BookMarked, CheckCheck, CheckCircle2, CircleDashed, Clapperboard, FileText, Hammer, History, ListTree, MoreHorizontal, PenLine, RefreshCw, ScrollText, ShieldCheck, Wrench } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '../components/ui/context-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/dropdown-menu'
 import type { ChapterEntry } from '../../../shared/types'
 import { cn } from '../lib/utils'
 import { EmptyState } from '../components/EmptyState'
@@ -135,19 +137,16 @@ export default function Outline() {
     }
   }
 
-  const direct = async () => {
+  // 针对指定章节的导演（行菜单与顶栏共源，HIG Context menus「主界面可达」）：
+  const directFor = async (c: ChapterEntry) => {
     if (!id || directing) return
-    if (!selChapter) {
-      setMsg('先在左侧选中一章（章卡或导演板），再点「导演本章」')
-      return
-    }
     setDirecting(true)
     setMsg('')
     try {
-      const r = await window.zhijuan.agentDirector(id, '正文/' + selChapter.file)
+      const r = await window.zhijuan.agentDirector(id, '正文/' + c.file)
       if (r.ok) {
-        setMsg(`✓ 已为「${selChapter.name}」生成本章导演板（${r.written}），可重导覆盖`)
-        toast.add({ kind: 'success', title: '导演板已生成', description: `「${selChapter.name}」落 ${r.written}，可重导覆盖` })
+        setMsg(`✓ 已为「${c.name}」生成本章导演板（${r.written}），可重导覆盖`)
+        toast.add({ kind: 'success', title: '导演板已生成', description: `「${c.name}」落 ${r.written}，可重导覆盖` })
       } else {
         setMsg('✗ ' + r.error)
         toast.add({ kind: 'error', title: '导演板生成失败', description: r.error })
@@ -161,29 +160,35 @@ export default function Outline() {
     }
   }
 
-  const act = async () => {
-    if (!id || acting) return
+  const direct = async () => {
+    if (!id || directing) return
     if (!selChapter) {
-      setMsg('先在左侧选中一章（章卡或导演板），再点「分幕生成」')
+      setMsg('先在左侧选中一章（章卡或导演板），再点「导演本章」')
       return
     }
-    if (!hasBoard(selChapter)) {
+    await directFor(selChapter)
+  }
+
+  // 针对指定章节的分幕（行菜单与顶栏共源）：
+  const actFor = async (c: ChapterEntry) => {
+    if (!id || acting) return
+    if (!hasBoard(c)) {
       setMsg('本章还没有导演板，先点「导演本章」生成一张，再来分幕。')
       return
     }
     setActing(true)
     setMsg('')
     try {
-      const r = await window.zhijuan.agentActs(id, '正文/' + selChapter.file)
+      const r = await window.zhijuan.agentActs(id, '正文/' + c.file)
       if (r.ok) {
         if (r.failed?.length) {
           setMsg(
-            `⚠ 「${selChapter.name}」第 ${r.failed.join('、')} 段没写成，草稿只有 ${r.acts} 段（缺段处会断戏）：右上角会出现「补写缺段」，只重写失败段；落 ${r.written}`
+            `⚠ 「${c.name}」第 ${r.failed.join('、')} 段没写成，草稿只有 ${r.acts} 段（缺段处会断戏）：右上角会出现「补写缺段」，只重写失败段；落 ${r.written}`
           )
-          toast.add({ kind: 'warning', title: '分幕草稿有缺段', description: `「${selChapter.name}」第 ${r.failed.join('、')} 段没写成，可点「补写缺段」；落 ${r.written}` })
+          toast.add({ kind: 'warning', title: '分幕草稿有缺段', description: `「${c.name}」第 ${r.failed.join('、')} 段没写成，可点「补写缺段」；落 ${r.written}` })
         } else {
-          setMsg(`✓ 已按导演板分 ${r.acts} 段起草「${selChapter.name}」，草稿约 ${r.words} 字，落 ${r.written}`)
-          toast.add({ kind: 'success', title: '分幕草稿已生成', description: `「${selChapter.name}」共 ${r.acts} 段约 ${r.words} 字，落 ${r.written}` })
+          setMsg(`✓ 已按导演板分 ${r.acts} 段起草「${c.name}」，草稿约 ${r.words} 字，落 ${r.written}`)
+          toast.add({ kind: 'success', title: '分幕草稿已生成', description: `「${c.name}」共 ${r.acts} 段约 ${r.words} 字，落 ${r.written}` })
         }
       } else {
         setMsg('✗ ' + r.error)
@@ -196,6 +201,15 @@ export default function Outline() {
     } finally {
       setActing(false)
     }
+  }
+
+  const act = async () => {
+    if (!id || acting) return
+    if (!selChapter) {
+      setMsg('先在左侧选中一章（章卡或导演板），再点「分幕生成」')
+      return
+    }
+    await actFor(selChapter)
   }
 
   // 补写缺段：只重写草稿里未写成的段（已写成的段原样保留），不重跑全章
@@ -337,6 +351,28 @@ export default function Outline() {
     }
   }
 
+  // 行操作菜单（「⋯」下拉 与 右键 ContextMenu 共源，Novel 章列同款；HIG Context menus：
+  // 「Support context menus consistently」+「Always make context menu items available in the main interface, too」+「Hide unavailable items」）
+  // 动作都走主进程真实通道；待回建章卡无旧版可看 → 「版本历史」隐藏（不可用项隐藏不置灰）
+  const rowCardMenu = (Item: React.ElementType, c: ChapterEntry) => (
+    <>
+      <Item onSelect={() => void build([c.file])}>{hasCard(c) ? '重新回建本章' : '回建本章'}</Item>
+      {hasCard(c) && <Item onSelect={() => setHistoryRel(cardRel(c))}>版本历史</Item>}
+    </>
+  )
+  const rowBoardMenu = (Item: React.ElementType, c: ChapterEntry) => (
+    <>
+      <Item onSelect={() => void directFor(c)}>重新导演本章</Item>
+      <Item onSelect={() => setHistoryRel(boardRel(c))}>版本历史</Item>
+    </>
+  )
+  const rowActsMenu = (Item: React.ElementType, c: ChapterEntry) => (
+    <>
+      <Item onSelect={() => void actFor(c)}>重新分幕</Item>
+      <Item onSelect={() => setHistoryRel(actsRel(c))}>版本历史</Item>
+    </>
+  )
+
   return (
     <div className="flex h-full min-h-0">
       {!colHidden && (
@@ -359,6 +395,7 @@ export default function Outline() {
             <ScrollText className="h-3.5 w-3.5" />
             章卡索引（全书）
           </button>
+          {!loading && !loadErr && chapters.length > 0 && <div className="mx-2 mb-1 border-t border-hair" />}
           {loading && !loadErr && (
             <div className="flex items-center justify-center gap-2 px-2 py-6 text-xs text-ink-3">
               <LoadingIndicator size={16} />
@@ -388,84 +425,130 @@ export default function Outline() {
             const done = hasCard(c)
             return (
               <div key={c.file} className="mb-0.5">
-                <div className="flex items-center">
-                  <button
-                    onClick={() => setSel(cardRel(c))}
-                    className={cn(
-                      'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors',
-                      sel === cardRel(c) ? 'bg-accent-soft' : 'hover:bg-surface'
-                    )}
-                  >
-                    {done ? (
-                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
-                    ) : (
-                      <CircleDashed className="h-3.5 w-3.5 shrink-0 text-ink-3" />
-                    )}
-                    <span className={cn('truncate text-sm', sel === cardRel(c) ? 'font-medium text-accent' : 'text-ink')} title={c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}>
-                      {c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}
-                    </span>
-                    {!done && <span className="ml-auto rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn">待回建</span>}
-                  </button>
-                  {done && (
-                    <button
-                      onClick={() => setHistoryRel(cardRel(c))}
-                      className="mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-3 transition-colors hover:bg-surface hover:text-accent"
-                      title="版本历史（章卡被重跑覆盖时旧版自动留档，可回看/恢复）"
-                      aria-label="版本历史"
-                      data-testid="card-history"
-                    >
-                      <History className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
+                <ContextMenu>
+                  <ContextMenuTrigger asChild>
+                    <div className="group relative flex items-center">
+                      <button
+                        onClick={() => setSel(cardRel(c))}
+                        className={cn(
+                          'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors',
+                          sel === cardRel(c) ? 'bg-accent-soft' : 'hover:bg-surface'
+                        )}
+                      >
+                        {done ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
+                        ) : (
+                          <CircleDashed className="h-3.5 w-3.5 shrink-0 text-ink-3" />
+                        )}
+                        <span className={cn('truncate text-sm', sel === cardRel(c) ? 'font-medium text-accent' : 'text-ink')} title={c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}>
+                          {c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}
+                        </span>
+                        {!done && <span className="ml-auto rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn">待回建</span>}
+                      </button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <button
+                            className={cn(
+                              'mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-3 transition-opacity hover:bg-surface hover:text-accent',
+                              sel === cardRel(c) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
+                            )}
+                            title="章卡操作"
+                            aria-label="章卡操作"
+                            data-testid="card-row-menu"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {rowCardMenu(DropdownMenuItem, c)}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    {rowCardMenu(ContextMenuItem, c)}
+                  </ContextMenuContent>
+                </ContextMenu>
                 {hasBoard(c) && (
-                  <div className="ml-5 flex items-center">
-                    <button
-                      onClick={() => setSel(boardRel(c))}
-                      className={cn(
-                        'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors',
-                        sel === boardRel(c) ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface'
-                      )}
-                    >
-                      <Clapperboard className="h-3 w-3 shrink-0" />
-                      <span className="min-w-0 flex-1 truncate">导演板</span>
-                      {staleBoards.has(c.name) && (
-                        <span className="shrink-0 rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn">偏旧</span>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setHistoryRel(boardRel(c))}
-                      className="mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-3 transition-colors hover:bg-surface hover:text-accent"
-                      title="版本历史（导演板被重导覆盖时旧版自动留档，可对照旧承诺后重导）"
-                      aria-label="版本历史"
-                      data-testid="board-history"
-                    >
-                      <History className="h-3 w-3" />
-                    </button>
-                  </div>
+                  <ContextMenu>
+                    <ContextMenuTrigger asChild>
+                      <div className="group relative ml-5 flex items-center">
+                        <button
+                          onClick={() => setSel(boardRel(c))}
+                          className={cn(
+                            'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors',
+                            sel === boardRel(c) ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface'
+                          )}
+                        >
+                          <Clapperboard className="h-3 w-3 shrink-0" />
+                          <span className="min-w-0 flex-1 truncate">导演板</span>
+                          {staleBoards.has(c.name) && (
+                            <span className="shrink-0 rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn">偏旧</span>
+                          )}
+                        </button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <button
+                              className={cn(
+                                'mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-3 transition-opacity hover:bg-surface hover:text-accent',
+                                sel === boardRel(c) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
+                              )}
+                              title="导演板操作"
+                              aria-label="导演板操作"
+                              data-testid="board-row-menu"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {rowBoardMenu(DropdownMenuItem, c)}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent>
+                      {rowBoardMenu(ContextMenuItem, c)}
+                    </ContextMenuContent>
+                  </ContextMenu>
                 )}
                 {hasActs(c) && (
-                  <div className="ml-5 flex items-center">
-                    <button
-                      onClick={() => setSel(actsRel(c))}
-                      className={cn(
-                        'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors',
-                        sel === actsRel(c) ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface'
-                      )}
-                    >
-                      <PenLine className="h-3 w-3 shrink-0" />
-                      <span className="min-w-0 flex-1 truncate">分幕草稿</span>
-                    </button>
-                    <button
-                      onClick={() => setHistoryRel(actsRel(c))}
-                      className="mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-3 transition-colors hover:bg-surface hover:text-accent"
-                      title="版本历史（分幕草稿被重写/补写覆盖时旧版自动留档，可回看/恢复）"
-                      aria-label="版本历史"
-                      data-testid="acts-history"
-                    >
-                      <History className="h-3 w-3" />
-                    </button>
-                  </div>
+                  <ContextMenu>
+                    <ContextMenuTrigger asChild>
+                      <div className="group relative ml-5 flex items-center">
+                        <button
+                          onClick={() => setSel(actsRel(c))}
+                          className={cn(
+                            'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors',
+                            sel === actsRel(c) ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface'
+                          )}
+                        >
+                          <PenLine className="h-3 w-3 shrink-0" />
+                          <span className="min-w-0 flex-1 truncate">分幕草稿</span>
+                        </button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <button
+                              className={cn(
+                                'mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-ink-3 transition-opacity hover:bg-surface hover:text-accent',
+                                sel === actsRel(c) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
+                              )}
+                              title="分幕草稿操作"
+                              aria-label="分幕草稿操作"
+                              data-testid="acts-row-menu"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {rowActsMenu(DropdownMenuItem, c)}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent>
+                      {rowActsMenu(ContextMenuItem, c)}
+                    </ContextMenuContent>
+                  </ContextMenu>
                 )}
               </div>
             )

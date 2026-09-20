@@ -1,7 +1,7 @@
 // 织卷无头冒烟 · 写作副产物版本化（2026-09-14 智能层）：章卡/导演板/分幕草稿入史 + 大纲区「历史」入口
 // 用法：node scripts/outline-history-ui-smoke.mjs
 // 前置：npm run build；node scripts/serve-renderer.mjs 8123（或 node scripts/serve-renderer.mjs）；CDP 127.0.0.1:9224
-// 验收：① seed 章卡/导演板 → 对应「历史」按钮存在、分幕未生成时无 acts-history；
+// 验收：① seed 章卡/导演板 → 对应「行操作菜单」（⋯ 下拉）存在、分幕未生成时无 acts 行菜单；
 //       ② 导演本章覆盖 seed → 旧版入史（共 1 版）+ 抽屉 diff 可见；③ writeDoc 再改版 → 共 2 版 + 恢复可走（两击确认）；
 //       ④ 章卡/分幕：writeDoc 改版 → 对应历史共 1 版（首次无旧版 → 空态）；⑤ 索引行无历史按钮（不入史）；
 //       ⑥ 无 JS 异常；⑦ 截图存档。
@@ -84,7 +84,21 @@ const clickAria = (label) => page.eval(`(() => {
   return false
 })()`)
 const hasTestId = (tid) => page.eval(`!!document.querySelector('[data-testid="${tid}"]')`)
-const clickHistory = (tid) => page.eval(`(() => { const b = document.querySelector('[data-testid="${tid}"]'); if (b) { b.click(); return true } return false })()`)
+// 行操作菜单（2026-09-20 体验层：历史按钮并入「⋯」行菜单，Radix Dropdown——pointer 三连开菜单、再点「版本历史」项）
+const pointerSeq = (sel) => `(() => {
+  const el = ${sel}
+  if (!el) return false
+  for (const t of ['pointerdown', 'pointerup', 'click']) {
+    el.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, pointerType: 'mouse' }))
+  }
+  return true
+})()`
+const clickRowMenuHistory = async (tid) => {
+  await page.eval(pointerSeq(`document.querySelector('[data-testid="${tid}"]')`))
+  await evalUntil(page, `[...document.querySelectorAll('[role=menuitem]')].some((b) => (b.innerText || '').trim() === '版本历史')`, (v) => v === true, 8000, '行菜单打开 ' + tid)
+  await page.eval(pointerSeq(`[...document.querySelectorAll('[role=menuitem]')].find((b) => (b.innerText || '').trim() === '版本历史')`))
+  await sleep(250)
+}
 const drawerClose = async (label) => {
   await clickBtn('收起')
   await evalUntil(page, `!document.body.innerText.includes('版本历史')`, (v) => v === true, 8000, '抽屉收起 ' + label)
@@ -95,18 +109,18 @@ try {
   await evalUntil(page, `document.body.innerText.includes('章卡索引')`, (v) => v === true, 25000, '大纲页就绪')
   console.log('OK 大纲页就绪')
 
-  // ① 入口存在性：seed 章卡/导演板 → card/board 历史按钮存在；分幕未生成 → 无 acts-history
-  ok('初始 card-history 存在（seed 章卡）', (await hasTestId('card-history')) === true)
-  ok('初始 board-history 存在（seed 导演板）', (await hasTestId('board-history')) === true)
-  ok('初始无 acts-history', (await hasTestId('acts-history')) === false)
+  // ① 入口存在性：seed 章卡/导演板 → 对应行操作菜单存在；分幕未生成 → 无 acts 行菜单
+  ok('初始 card-row-menu 存在（seed 章卡）', (await hasTestId('card-row-menu')) === true)
+  ok('初始 board-row-menu 存在（seed 导演板）', (await hasTestId('board-row-menu')) === true)
+  ok('初始无 acts-row-menu', (await hasTestId('acts-row-menu')) === false)
 
   // ② 章卡历史：seed 直接入内存未入史 → 抽屉空态；writeDoc 改版 → 共 1 版
-  await clickHistory('card-history')
+  await clickRowMenuHistory('card-row-menu')
   await evalUntil(page, `document.body.innerText.includes('版本历史')`, (v) => v === true, 15000, '章卡历史抽屉打开')
   ok('章卡未重跑过 → 空态提示', await page.eval(`document.body.innerText.includes('还没有历史版本')`))
   await drawerClose('card-1')
   await writeV2(CARD, '# 章卡 v2\n\n## 一句话定位\n\n（冒烟二版）定位改写。\n\n## 关键事件\n\n- 事件 A（v2）\n')
-  await clickHistory('card-history')
+  await clickRowMenuHistory('card-row-menu')
   await evalUntil(page, `document.body.innerText.includes('共 1 版')`, (v) => v === true, 15000, '章卡入史 1 版')
   ok('章卡被覆盖时旧版自动留档（共 1 版）', true)
   await drawerClose('card-2')
@@ -119,7 +133,7 @@ try {
   await evalUntil(page, `document.body.innerText.includes('生成本章导演板') || document.body.innerText.includes('演示数据')`, (v) => v === true, 20000, '第一次导演完成')
   const firstBoardText = await page.eval(`window.zhijuan.readDoc(${JSON.stringify(ID)}, ${JSON.stringify(BOARD)})`)
   ok('第一次导演后导演板已落盘', !!firstBoardText && firstBoardText.includes('导演板'))
-  await clickHistory('board-history')
+  await clickRowMenuHistory('board-row-menu')
   await evalUntil(page, `document.body.innerText.includes('版本历史')`, (v) => v === true, 15000, '历史抽屉打开')
   const c1 = await page.eval(`(() => { const m = document.body.innerText.match(/共 (\\d+) 版/) ; return m ? Number(m[1]) : -1 })()`)
   ok('导演覆盖 seed 后旧版入史：共 1 版', c1 === 1, 'count=' + c1)
@@ -133,7 +147,7 @@ try {
   // ④ writeDoc 再改版（模拟模型重跑输出不同）→ 共 2 版；恢复可走（两击确认 → 内容回 v1）
   const boardV2 = (await page.eval(`window.zhijuan.readDoc(${JSON.stringify(ID)}, ${JSON.stringify(BOARD)})`)) + '\n\n（导演板 v2：新增一条红线）\n'
   await writeV2(BOARD, boardV2)
-  await clickHistory('board-history')
+  await clickRowMenuHistory('board-row-menu')
   await evalUntil(page, `document.body.innerText.includes('版本历史') && document.body.innerText.includes('共 2 版')`, (v) => v === true, 15000, '共 2 版')
   await clickBtn('恢复此版本')
   await evalUntil(page, `document.body.innerText.includes('再次点击确认恢复')`, (v) => v === true, 5000, '两击确认态')
@@ -144,19 +158,24 @@ try {
   ok('恢复后导演板内容已回旧版（与恢复前 v2 不同）', afterRestore !== null && afterRestore !== boardV2 && afterRestore.includes('导演板'))
   await drawerClose('board-2')
 
-  // ⑤ 分幕：生成 → acts-history 出现；writeDoc 改版 → 共 1 版（首次无旧版 → 先经空态）
+  // ⑤ 分幕：生成 → acts 行菜单出现；writeDoc 改版 → 共 1 版（首次无旧版 → 先经空态）
   await clickBtn('分幕生成')
   await evalUntil(page, `document.body.innerText.includes('分幕草稿已生成')`, (v) => v === true, 25000, '分幕生成完成')
-  ok('分幕后 acts-history 出现', (await hasTestId('acts-history')) === true)
+  ok('分幕后 acts-row-menu 出现', (await hasTestId('acts-row-menu')) === true)
   await writeV2(ACTS, '# 分幕草稿 v2\n\n> 冒烟：模拟重写后的草稿\n\n## 第 1 段\n\n（v2 段文本）\n')
-  await clickHistory('acts-history')
+  await clickRowMenuHistory('acts-row-menu')
   await evalUntil(page, `document.body.innerText.includes('共 1 版')`, (v) => v === true, 15000, '分幕入史 1 版')
   ok('分幕草稿被覆盖时旧版自动留档（共 1 版）', true)
   await drawerClose('acts-1')
 
-  // ⑥ 索引行不入史：历史按钮恰 3 个（章卡/导演板/分幕），无 index-history
-  const histCount = await page.eval(`document.querySelectorAll('[data-testid$="-history"]').length`)
-  ok('历史按钮共 3 个（章卡/导演板/分幕），索引无入口', histCount === 3, 'count=' + histCount)
+  // ⑥ 索引行无操作菜单（路标项）；各类型行菜单=card 5/board 1/acts 1
+  const menuKinds = await page.eval(`(() => ({
+    card: document.querySelectorAll('[data-testid="card-row-menu"]').length,
+    board: document.querySelectorAll('[data-testid="board-row-menu"]').length,
+    acts: document.querySelectorAll('[data-testid="acts-row-menu"]').length,
+    index: document.querySelectorAll('[data-testid*="index-row-menu"]').length
+  }))()`)
+  ok('行操作菜单布局：card 5/board 1/acts 1，索引行无菜单', menuKinds.card === 5 && menuKinds.board === 1 && menuKinds.acts === 1 && menuKinds.index === 0, JSON.stringify(menuKinds))
 
   // ⑦ 无 JS 异常
   ok('无 JS 异常', page.errors.length === 0, page.errors.join(' | ').slice(0, 300))
