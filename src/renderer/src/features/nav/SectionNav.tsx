@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { Link, NavLink } from 'react-router-dom'
 import {
   PenLine,
   Users,
@@ -54,10 +54,10 @@ export default function SectionNav({ projectId, projectName, counts, pending = 0
     <aside className="flex w-60 shrink-0 flex-col border-r border-hair bg-surface">
       {/* 项目名 */}
       <div className="px-4 pb-3 pt-4">
-        <NavLink to={`/project/${projectId}`} className="block rounded-lg px-3 py-2 transition-colors hover:bg-well" title="回到项目首页">
+        <Link to={`/project/${projectId}`} className="block rounded-lg px-3 py-2 transition-colors hover:bg-well" title="回到正文创作">
           <p className="text-[11px] font-medium uppercase tracking-wide text-ink-3">项目</p>
           <p className="truncate text-sm font-semibold" title={projectName}>{projectName}</p>
-        </NavLink>
+        </Link>
       </div>
 
       {/* 板块导航 */}
@@ -103,19 +103,15 @@ export default function SectionNav({ projectId, projectName, counts, pending = 0
             </span>
           </button>
         )}
-        {/* 模块设计 §五 B：底部「采集入口快捷方式、设置入口」——一键直达素材库页并自动打开采集表单 */}
-        <NavLink
+        {/* 模块设计 §五 B：底部「采集入口快捷方式、设置入口」——一键直达素材库页并自动打开采集表单。
+            用 Link 不用 NavLink：它是动作快捷项不是板块，不参与「当前页」选中态（避免与素材库双高亮/双 aria-current 冲突） */}
+        <Link
           to={`/project/${projectId}/library?collect=1`}
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
-              isActive ? 'bg-accent-soft font-medium text-accent' : 'text-ink-2 hover:bg-well hover:text-ink'
-            )
-          }
+          className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-ink-2 transition-colors hover:bg-well hover:text-ink"
         >
           <CloudDownload className="h-4 w-4" />
           发起采集
-        </NavLink>
+        </Link>
         <NavLink
           to="settings"
           className={({ isActive }) =>
