@@ -382,6 +382,25 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
           {diffView && renderDiffView()}
           {!diffView && (
             <>
+          {/* 检查失败态（agentAudit ok:false / 异常）：正文区「检查没有完成」+重试——与本章小环/兑现检查弱结果同口径
+              （2026-09-20 智能层；重跑按钮条件 cur && !running 在失败态不满足=旧态无入口，作者只能关抽屉重开） */}
+          {err && !cur && (
+            <div className="py-10 text-center text-xs text-ink-3" data-testid="zj-audit-fail">
+              <AlertTriangle className="mx-auto mb-2 h-6 w-6 text-danger" />
+              <p className="mx-auto mb-3 max-w-[300px] leading-relaxed">{err}</p>
+              <button
+                data-testid="zj-audit-retry"
+                onClick={() => {
+                  setRes((m) => ({ ...m, [tab]: undefined }))
+                  setErr('')
+                  void run()
+                }}
+                className="inline-flex items-center gap-1 rounded-md border border-hair px-2.5 py-1 text-[11px] text-ink-2 hover:border-accent hover:text-accent"
+              >
+                <RefreshCw className="h-3 w-3" /> 重试
+              </button>
+            </div>
+          )}
           {!err && cur && cur.summary && (
             <p className="mb-3 rounded-lg border border-hair bg-surface-2 px-3 py-2 text-xs leading-relaxed text-ink-2">
               {cur.summary}
