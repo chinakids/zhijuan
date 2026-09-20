@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { FileText, Plus } from 'lucide-react'
+import { FileText, MoreHorizontal, Plus } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import { Button } from '../../components/ui/button'
 import { EmptyState } from '../../components/EmptyState'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog'
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '../../components/ui/context-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../components/ui/dropdown-menu'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import { cn } from '../../lib/utils'
@@ -42,6 +44,8 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
   const [sel, setSel] = useState<string | null>(overviewFile ?? null)
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
+  // 删除确认对象（文档列行操作；deleteDoc 走系统废纸篓可恢复，与章节删除同先例）
+  const [deleting, setDeleting] = useState<{ file: string; name: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
   // 宽窗手动折叠（HIG Sidebars show/hide；与 Novel 5376f30 同机制；折叠态持久化=AppSettings 跨重启记住侧栏；按导航页分键）
@@ -86,6 +90,34 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
     }
   }
 
+  async function doDelete() {
+    if (!id || !deleting) return
+    const rel = `${relDir}/${deleting.file}`
+    try {
+      const r = await window.zhijuan.deleteDoc(id, rel)
+      if (!r.ok) {
+        toast.add({ kind: 'error', title: '删除失败', description: r.error })
+        setDeleting(null)
+        return
+      }
+      toast.add({ kind: 'success', title: '已移入废纸篓（可恢复）', description: fileTitle ? fileTitle(deleting.name) : deleting.name })
+      setDeleting(null)
+      if (sel === rel) setSel(null)
+      await refresh()
+    } catch (e) {
+      toast.add({ kind: 'error', title: '删除失败', description: String((e as Error).message ?? e) })
+      setDeleting(null)
+    }
+  }
+
+  // 文档列行操作菜单（「⋯」下拉 与 右键 共源渲染）：HIG Context menus——两个菜单形态一致、动作一致；
+  // 破坏性项置末 + danger 红字（HIG「list them at the end and identify them as destructive」）；先例=Novel.renderRowMenu
+  const renderDocMenu = (Item: React.ElementType, f: { file: string; name: string }) => (
+    <Item className="text-danger focus:bg-danger/10 focus:text-danger" onSelect={() => setDeleting(f)}>
+      删除
+    </Item>
+  )
+
   return (
     <div className="flex h-full min-h-0">
       {!colHidden && (
@@ -124,27 +156,55 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
           )}
           {!loading && !loadErr && files.length === 0 && <EmptyState compact hint={emptyHint} dataTestId="empty-docs" />}
           {files.map((f) => (
-            <button
-              key={f.file}
-              onClick={() => setSel(relDir + '/' + f.file)}
-              className={cn(
-                'mb-0.5 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors',
-                sel === relDir + '/' + f.file ? 'bg-accent-soft' : 'hover:bg-surface'
-              )}
-            >
-              <FileText className={cn('h-3.5 w-3.5 shrink-0', sel === relDir + '/' + f.file ? 'text-accent' : 'text-ink-3')} />
-              <span className={cn('truncate text-sm', sel === relDir + '/' + f.file ? 'font-medium text-accent' : 'text-ink')} title={fileTitle ? fileTitle(f.name) : f.name}>
-                {fileTitle ? fileTitle(f.name) : f.name}
-              </span>
-              {staleDocFiles?.has(f.file) && (
-                <span
-                  title="切片已改名：此文件保留为历史，不再参与后续同步与创作上下文"
-                  className="ml-auto shrink-0 rounded bg-amber-500/15 px-1 py-px text-[10px] leading-tight text-amber-700 dark:text-amber-300"
-                >
-                  历史
-                </span>
-              )}
-            </button>
+            <ContextMenu key={f.file}>
+              <ContextMenuTrigger asChild>
+                <div className="group relative mb-0.5">
+                  <button
+                    onClick={() => setSel(relDir + '/' + f.file)}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-lg py-2 pl-3 pr-8 text-left transition-colors',
+                      sel === relDir + '/' + f.file ? 'bg-accent-soft' : 'hover:bg-surface'
+                    )}
+                  >
+                    <FileText className={cn('h-3.5 w-3.5 shrink-0', sel === relDir + '/' + f.file ? 'text-accent' : 'text-ink-3')} />
+                    <span className={cn('truncate text-sm', sel === relDir + '/' + f.file ? 'font-medium text-accent' : 'text-ink')} title={fileTitle ? fileTitle(f.name) : f.name}>
+                      {fileTitle ? fileTitle(f.name) : f.name}
+                    </span>
+                    {staleDocFiles?.has(f.file) && (
+                      <span
+                        title="切片已改名：此文件保留为历史，不再参与后续同步与创作上下文"
+                        className="ml-auto mr-1 shrink-0 rounded bg-amber-500/15 px-1 py-px text-[10px] leading-tight text-amber-700 dark:text-amber-300"
+                      >
+                        历史
+                      </span>
+                    )}
+                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="文档操作"
+                        aria-label="文档操作"
+                        data-testid="doc-row-menu"
+                        className={cn(
+                          'absolute right-1.5 top-1/2 h-6 w-6 -translate-y-1/2 text-ink-3 hover:text-ink data-[state=open]:bg-well data-[state=open]:text-ink',
+                          sel === relDir + '/' + f.file ? 'opacity-100' : 'opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100'
+                        )}
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {renderDocMenu(DropdownMenuItem, f)}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                {renderDocMenu(ContextMenuItem, f)}
+              </ContextMenuContent>
+            </ContextMenu>
           ))}
         </div>
         </aside>
@@ -159,7 +219,7 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
             <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hair px-4">
               <span className="truncate text-sm font-medium text-ink" title={sel}>{fileTitle ? fileTitle(sel.split('/').pop()!.replace(/\.md$/, '')) : sel}</span>
               <span className="flex-1" />
-              <span className="text-[11px] text-ink-3">设定由正文保存时的切片同步维护（S4） · ⌘S 保存</span>
+              <span className="text-[11px] text-ink-3">设定由正文保存时的切片同步维护</span>
             </div>
             <div className="min-h-0 flex-1">
               <DocEditor projectId={id} rel={sel} withFm={withFm} extVersion={extVersion} onSave={() => void refresh()} anno={false} />
@@ -194,6 +254,22 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreating(false)}>取消</Button>
             <Button onClick={() => void createDoc()} disabled={!name.trim()}>创建</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 文档删除确认：移入系统废纸篓（可恢复）——与章节删除同先例；删当前选中项后置空回「选择左侧一个文档开始」 */}
+      <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>删除文档</DialogTitle>
+            <DialogDescription>
+              {fileTitle ? fileTitle(deleting?.name ?? '') : deleting?.name ?? ''}将移入系统废纸篓（可恢复）。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleting(null)}>取消</Button>
+            <Button className="text-danger" onClick={() => void doDelete()}>移入废纸篓</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
