@@ -89,7 +89,7 @@ describe('unsettledSameOf（未处置同款：pending 保护 / stale 恢复）',
     expect(m).toEqual({ pending: expect.objectContaining({ id: 'b' }) })
   })
   it('非 slice-sync / 不同款 / 已裁决（rejected/accepted）→ null', () => {
-    // 注：sameChapter 由调用方收集（createSliceProposals 里 all.filter(chapter)），函数不再筛章
+    // 注：候选集合由调用方传项目级 slice-sync 全集（15:45 起跨章聚合），函数按 source/status/key 自行判定
     const same = [
       prop({ status: 'pending', source: 'agent-chat' }),
       prop({ status: 'pending', items: [it2({ after: '别的状态' })] }),
@@ -102,5 +102,18 @@ describe('unsettledSameOf（未处置同款：pending 保护 / stale 恢复）',
   it('items 多条时命中任一同款', () => {
     const p = prop({ status: 'pending', items: [it2({ after: '无关' }), it2()] })
     expect(unsettledSameOf(it2(), [p])).not.toBeNull()
+  })
+  it('跨章同款 pending 命中（项目级收集，不再限定同章）', () => {
+    const p = prop({ status: 'pending', chapter: '正文/第02章_灯塔.md' })
+    const m = unsettledSameOf(it2(), [prop({ status: 'pending', chapter: '正文/第01章_雾港.md' }), p])
+    expect(m).toEqual({ pending: expect.objectContaining({ id: 'p1' }) })
+  })
+  it('跨章同款 stale 恢复（仅其他章存在同款 stale）', () => {
+    const m = unsettledSameOf(it2(), [prop({ status: 'stale', chapter: '正文/第03章_码头.md' })])
+    expect(m).toEqual({ restore: expect.objectContaining({ status: 'stale' }) })
+  })
+  it('跨章命中不误合并：不同切片名（anchor 不同）的同款不算同款', () => {
+    const m = unsettledSameOf(it2({ anchor: '切片：第二幕_灯塔' }), [prop({ status: 'pending', chapter: '正文/第02章_灯塔.md' })])
+    expect(m).toBeNull()
   })
 })

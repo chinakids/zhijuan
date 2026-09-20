@@ -38,23 +38,28 @@ export function dedupeRejectedSliceItems(items: ProposalItem[], settled: Proposa
 }
 
 /**
- * 未处置同款匹配（2026-09-20 候选 3「stale 同款重弹语义」）：
+ * 未处置同款匹配（2026-09-20 候选 3「stale 同款重弹语义」，15:45 起项目级收集）：
  * 作者见过某条 pending 切片提案但未处置（没接受没拒绝），正文再次保存后模型产出同款
  * 动向——既有语义=同章旧 pending 置 stale + 新同款照建（「刚看又弹」+ 旧卡变「已过期」）。
  * 业界对照：GitHub code scanning「未处置 alert 保持 open、不因再次扫描重开新实例」、
- * Sentry fingerprint 聚合（同一问题=同一 issue；resolved 后再现=regressed 回原实体，非新建）——
- * 未处置=同一实体继续等待作者裁决，不应复制。
- * 判据=同章 + source=slice-sync + 全字段归一化精确相等（与 isRejectedDuplicate 同 key，保守防误杀）。
+ * Sentry fingerprint 聚合（同一问题=同一 issue；resolved 后再现=regressed 回原实体，非新建）、
+ * Tripl-i problem grouping「a repeat of a still-open problem becomes an occurrence of that
+ * problem instead of a new row」（未处置问题保持一条记录，重复触发=occurrence 非新行，
+ * grouping 无时间窗）——未处置=同一实体继续等待作者裁决，不应复制。
+ * 判据=source=slice-sync + 全字段归一化精确相等（与 isRejectedDuplicate 同 key，保守防误杀）；
+ * sliceItemKey 含 anchor（切片名）——不同时间切片的「凑巧同款」天然不匹配，不会误合并不同切片小节。
  * 返回 { pending }=存在同款 pending（应保护：不置 stale、不新建）；
  *     { restore }=仅存在同款 stale（应恢复为 pending 复用旧卡，stale=技术性过期非作者裁决）。
- * sameChapter 由调用方收集（chapter 相同）；无同款返回 null。
+ * allSlice 由调用方传项目级 slice-sync 提案全集（2026-09-20 15:45 起不再限定同章：
+ * 跨章同款=同一补丁实体，作者在后写章节命中同一未落档事件时复用旧卡、处置一次全局生效）；
+ * 无同款返回 null。
  */
-export function unsettledSameOf(it: ProposalItem, sameChapter: Proposal[]): { pending: Proposal } | { restore: Proposal } | null {
+export function unsettledSameOf(it: ProposalItem, allSlice: Proposal[]): { pending: Proposal } | { restore: Proposal } | null {
   const k = sliceItemKey(it)
   const same = (p: Proposal) => p.source === 'slice-sync' && p.items.some((x) => sliceItemKey(x) === k)
-  const pend = sameChapter.find((p) => p.status === 'pending' && same(p))
+  const pend = allSlice.find((p) => p.status === 'pending' && same(p))
   if (pend) return { pending: pend }
-  const stale = sameChapter.find((p) => p.status === 'stale' && same(p))
+  const stale = allSlice.find((p) => p.status === 'stale' && same(p))
   if (stale) return { restore: stale }
   return null
 }

@@ -160,6 +160,43 @@ console.log('H 同款/不同款 pending 并存 + 新不同款 → 同款复用�
   ok(countFiles() === before + 1, '仅新不同款新建 1 条')
 }
 
+console.log('I 跨章同款 pending → 复用旧卡（项目级收集，不再各章各建）')
+{
+  const iItem = () => itemSame({ target: '人物/阿八.md', after: '## 切片：雾港夜\\n\\n- 阿八接过渔船钥匙' })
+  const p1 = createProposals(lib, 'demo', 'slice-sync', '正文/第07章_归航.md', '雾港夜', [iItem()])
+  ok(p1.length === 1, '预置同款 pending（第07章）')
+  const before = countFiles()
+  const r = createSliceProposals(lib, 'demo', '正文/第08章_渡口.md', '雾港夜', [iItem()])
+  ok(r.created.length === 0 && r.kept === 1 && r.suppressed === 0, '另一章同步同款：created=0/kept=1（跨章复用核心承诺）')
+  ok(countFiles() === before, '提案文件数不变（未跨章另建）')
+  ok(listProposals(lib, 'demo').find((p) => p.id === p1[0].id)?.status === 'pending', '第07章旧卡仍 pending（未被置 stale）')
+}
+
+console.log('J 跨章同款 + 不同款混合 → 同款复用、不同款照建')
+{
+  const jSame = () => itemSame({ target: '人物/阿九.md', after: '## 切片：雾港夜\\n\\n- 阿九补完渔网' })
+  const jOther = () => itemSame({ target: '人物/阿九.md', after: '## 切片：雾港夜\\n\\n- 阿九弃船上岸：不同款新动向' })
+  const p1 = createProposals(lib, 'demo', 'slice-sync', '正文/第09章_残灯.md', '雾港夜', [jSame()])
+  ok(p1.length === 1, '预置同款 pending（第09章）')
+  const before = countFiles()
+  const r = createSliceProposals(lib, 'demo', '正文/第10章_晨雾.md', '雾港夜', [jSame(), jOther()])
+  ok(r.created.length === 1 && r.kept === 1, '跨章同步：同款复用(kept=1)+不同款新建(created=1)')
+  ok(listProposals(lib, 'demo').find((p) => p.id === p1[0].id)?.status === 'pending', '第09章旧卡仍 pending（不被误置 stale）')
+  ok(countFiles() === before + 1, '仅新不同款新建 1 条')
+}
+
+console.log('K 跨章同款 stale → 恢复为 pending 复用旧卡')
+{
+  const kItem = () => itemSame({ target: '人物/阿十.md', after: '## 切片：雾港夜\\n\\n- 阿十把灯挂回桅杆' })
+  const p1 = createProposals(lib, 'demo', 'slice-sync', '正文/第11章_桅杆.md', '雾港夜', [kItem()])
+  ok(p1.length === 1, '预置同款 pending（第11章）')
+  const staled = staleSliceSyncByChapter(lib, 'demo', '正文/第11章_桅杆.md')
+  ok(staled === 1, 'staleSliceSyncByChapter 置 stale')
+  const r = createSliceProposals(lib, 'demo', '正文/第12章_港外.md', '雾港夜', [kItem()])
+  ok(r.created.length === 0 && r.kept === 1, '跨章同款 stale 再次同步：created=0/kept=1（恢复核心承诺）')
+  ok(listProposals(lib, 'demo').find((p) => p.id === p1[0].id)?.status === 'pending', 'stale 卡已恢复为 pending')
+}
+
 rmSync(tmp, { recursive: true, force: true })
 console.log(`\nPROPOSAL-DUP LIVE ${fails === 0 ? 'OK' : 'FAIL'} (${checks} checks, ${fails} fails)`)
 process.exit(fails === 0 ? 0 : 1)

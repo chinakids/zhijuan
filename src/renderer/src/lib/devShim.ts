@@ -1024,7 +1024,8 @@ const mock = {
   },
   // 切片同步专用建提案（2026-09-20 候选 3）：与真机 createSliceProposals 同口径——
   // 先滤掉「与已拒绝提案同款」（source=slice-sync && status=rejected），再复用「未处置同款」
-  // 旧卡（同章 pending 保护 / stale 恢复），最后走 createProposals 置 stale 语义；
+  // 旧卡（项目级收集：同章/跨章 pending 保护 / stale 恢复，15:45 起与真机同放宽），
+  // 最后走 createProposals 置 stale 语义；
   // 返回 {created, suppressed, kept}（suppressed=已裁决、kept=未处置，均 UI 明示而非报「无设定变化」）
   createSliceProposals: async (id: string, chapter: string, sliceName: string, items: ProposalItem[]) => {
     const settled: ProposalItem[] = []
@@ -1038,7 +1039,7 @@ const mock = {
     let kept = 0
     const toCreate: ProposalItem[] = []
     for (const it of deduped.kept) {
-      const m = unsettledSameOf(it, sameChapter)
+      const m = unsettledSameOf(it, mock.proposals)
       if (!m) {
         toCreate.push(it)
         continue

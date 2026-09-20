@@ -79,13 +79,17 @@ export function createSliceProposals(root: string, projectId: string, chapter: s
   const { kept: keptItems, suppressed } = dedupeRejectedSliceItems(items, settled)
   // 未处置同款（2026-09-20 候选 3）：同章已有同款 pending/stale=作者已见过未裁决——
   // 复用旧卡（pending 保护不置 stale 不新建 / stale 恢复 pending），与 GitHub「未处置 alert 保持 open」同构。
+  // 15:45 起收集放宽为项目级（unsettledSameOf 传 all）：跨章同款=同一补丁实体（作者在后写章节命中
+  // 同一未落档事件，不另建卡处置两次——Tripl-i problem grouping「repeat of a still-open problem
+  // becomes an occurrence... instead of a new row」同构）；判据=sliceItemKey 全字段精确（anchor 含
+  // 切片名，不同时间切片的同款天然不匹配）；卡归属=最早触发章不变，处置一次全局生效。
   const sameChapter = all.filter((p) => p.chapter === chapter && p.source === 'slice-sync')
   const protectIds = new Set<string>()
   const restore: Proposal[] = []
   let kept = 0
   const toCreate: ProposalItem[] = []
   for (const it of keptItems) {
-    const m = unsettledSameOf(it, sameChapter)
+    const m = unsettledSameOf(it, all)
     if (!m) {
       toCreate.push(it)
       continue
