@@ -51,6 +51,7 @@ writeFileSync(
     '',
     "await step('本章短巡查 chapter', () => runChapterCheck(PJ, CH, 'chapter'), 'audit')",
     "await step('分层修订 revision', () => runChapterCheck(PJ, CH, 'revision'), 'audit')",
+    "await step('全卷一致性巡查 audit', () => runAudit(PJ, 'consistency'), 'audit')",
     "await step('多视角审视 perspectives', () => runAudit(PJ, 'perspectives'), 'audit')",
     "await step('大纲回建 outline', () => runOutlineRebuild(PJ), 'outline')",
     "await step('素材升格 triage', () => runMaterialTriage(PJ), 'triage')",
