@@ -4,6 +4,7 @@ import {
   countPhraseInText,
   overuseCheck,
   overuseItems,
+  normalizeOveruseDict,
   BUILTIN_OVERUSE
 } from '../../src/shared/wordfreq'
 
@@ -88,6 +89,19 @@ describe('overuseCheck（词表式频率报告）', () => {
     })
     expect(r.map((e) => e.phrase)).toContain('器材室里')
     expect(new Set(r.map((e) => e.phrase)).size).toBe(r.length)
+  })
+  it('normalizeOveruseDict：trim/滤空串/滤纯空白/去重/非字符串过滤', () => {
+    expect(normalizeOveruseDict([' 生死之交 ', '', '   ', '生死之交', 42 as any, ' 只见他 ']))
+      .toEqual(['生死之交', '只见他'])
+    expect(normalizeOveruseDict()).toEqual([])
+    expect(normalizeOveruseDict([])).toEqual([])
+  })
+  it('自定义词表含空串/纯空白不产生误报条目（经 overuseCheck 合并清洗）', () => {
+    const r = overuseCheck([ch('正文/第01章.md', '他点了点头。')], {
+      minCount: 1,
+      dict: ['', '  ', undefined as any]
+    })
+    expect(r.every((e) => e.phrase.length > 1 && !/\s/.test(e.phrase))).toBe(true)
   })
   it('空输入/零长度正文零条目', () => {
     expect(overuseCheck([])).toHaveLength(0)

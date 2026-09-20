@@ -1613,8 +1613,8 @@ const mock = {
           })()
         : kind === 'overuse'
         ? (() => {
-            // 与主进程同语义：词表式扫正文（演示项目正文无高频口头禅 → 零命中空态；命中路径由单测/数据层冒烟覆盖）
-            return { ok: true as const, result: { summary: '', items: overuseItems(volumeChaptersOf(projectId)) } }
+            // 与主进程同语义：词表式扫正文 + 自定义词表（settings.overuseDict，2026-09-21 同口径）
+            return { ok: true as const, result: { summary: '', items: overuseItems(volumeChaptersOf(projectId), { dict: settings.overuseDict }) } }
           })()
         : kind === 'consistency'
         ? {

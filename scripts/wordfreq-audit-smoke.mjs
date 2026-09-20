@@ -1,6 +1,7 @@
 // 织卷 · 用词重复核查（overuse）接线数据层冒烟——runOveruse 真读盘
 // 断言：① 真实项目「织卷smoke」ok:true 且条目结构合法（type=overuse / what 含频次 / suggest 非空）；
-//       ② 构造项目（含「一下」×25 的章节）命中 1 条；③ 构造项目（零命中文本）返回空 items；
+//       ② 构造项目（含「一下」×25 的章节）命中 1 条 + 自定义词表（settings.overuseDict）命中「生死之交」；
+//       ③ 构造项目（零命中文本）返回空 items；
 //       ④ 与主进程同口径：本地规则不落盘（不产生 大纲/审读_用词重复核查.md）。
 // 用法：cd ~/Desktop/织卷 && node scripts/wordfreq-audit-smoke.mjs
 import { build as esbuild } from 'esbuild'
@@ -13,6 +14,13 @@ const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = '/tmp/zj-smoke-wordfreq'
 rmSync(process.env.ZJ_USERDATA, { recursive: true, force: true })
+mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
+// 2026-09-21：自定义词表数据链——settings.overuseDict 与内置合并（readSettings 在模块加载时读取，须先写盘）
+writeFileSync(
+  join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'),
+  JSON.stringify({ overuseDict: ['生死之交', '  ', '生死之交'] }),
+  'utf-8'
+)
 const out = '/tmp/wordfreq-audit-bundle.mjs'
 
 await esbuild({
@@ -51,7 +59,7 @@ if (r1.ok) {
   throw new Error('runAudit overuse 失败: ' + r1.error)
 }
 
-console.log('=== ② 构造项目（口头禅命中）===')
+console.log('=== ② 构造项目（口头禅命中 + 自定义词表命中）===')
 const lib = join(process.env.HOME, 'Documents/织卷项目库')
 const pid = 'zj-wordfreq-smoke'
 const dir = join(lib, pid)
@@ -60,7 +68,7 @@ mkdirSync(join(dir, '正文'), { recursive: true })
 const body20 = '她笑了一下，又笑了一下，最后小声呢喃了一句，转身慢慢走开。'.repeat(2) // 含「一下」×4
 writeFileSync(
   join(dir, '正文/第01章_试写.md'),
-  '---\n章号: 1\n题名: 试写\n切片: 初秋\n涉及人物: 无\n---\n\n' + body20 + '她轻轻「一下」也没用，' + '他愣了一下。'.repeat(20) + '\n'
+  '---\n章号: 1\n题名: 试写\n切片: 初秋\n涉及人物: 无\n---\n\n' + body20 + '她轻轻「一下」也没用，' + '他愣了一下。'.repeat(20) + '生死之交，生死之交，生死之交，生死之交，生死之交。\n'
 )
 const r2 = await runAudit(pid, 'overuse')
 assert('构造项目 ok:true', r2.ok === true)
@@ -69,6 +77,10 @@ if (r2.ok) {
   assert('命中「一下」条目且含频次', !!hit && /全卷出现 \d+ 次/.test(hit.what))
   assert('命中条目 severity 合法', hit && ['high', 'medium', 'low'].includes(hit.severity))
   console.log('  what=' + hit.what)
+  const custom = r2.result.items.find((it) => it.what.includes('「生死之交」'))
+  assert('自定义词表（settings.overuseDict）命中「生死之交」×5', !!custom && custom.what.includes('5 次'))
+  console.log('  what=' + custom.what)
+  assert('自定义词表空串/空白条目不出现（normalizeOveruseDict 已清洗）', !r2.result.items.some((it) => it.what.includes('「 」')))
 } else {
   throw new Error('构造项目 overuse 失败: ' + r2.error)
 }

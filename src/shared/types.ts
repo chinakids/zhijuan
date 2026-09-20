@@ -123,6 +123,10 @@ export interface AppSettings {
   agentTools?: { todo?: boolean; askUser?: boolean }
   /** agent 能力开关（模块 J / E3）：缺省 = 全开；值为 false 即关闭该能力 */
   capabilities?: Record<string, boolean>
+  /** 自定义用词词表（2026-09-21 智能层，候选「用词词表二期」；缺省=undefined=仅内置词表）。
+   *  与 BUILTIN_OVERUSE 合并扫全卷正文（shared/wordfreq.normalizeOveruseDict 清洗），只报频次不判对错；
+   *  设置页增删改/导入导出=体验层/平台层接线（本轮智能层只完成字段+透传+口径）。 */
+  overuseDict?: string[]
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {

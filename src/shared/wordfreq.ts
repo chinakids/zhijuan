@@ -54,6 +54,22 @@ export function visibleBodyOf(raw: string): string {
   return t.replace(/[`*_~#>]/g, '').replace(/^[-+]\s+/gm, '')
 }
 
+/** 清洗作者自定义词表：trim、去空串、去重（保持输入顺序）。
+ *  设置页自定义词表（2026-09-21 智能层，候选「用词词表二期」）与 devShim 同用——空串/纯空白
+ *  会导致 indexOf 误计（空串恒 0 位命中/空格全篇命中），必须在此滤掉；与内置词表合并去重在 overuseCheck。 */
+export function normalizeOveruseDict(list?: string[]): string[] {
+  if (!list || list.length === 0) return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of list) {
+    const p = (typeof raw === 'string' ? raw : '').trim()
+    if (!p || seen.has(p)) continue
+    seen.add(p)
+    out.push(p)
+  }
+  return out
+}
+
 export interface OveruseOpts {
   /** 只报出现次数 ≥ 此值的短语（防刷屏；默认 3） */
   minCount?: number
@@ -83,7 +99,7 @@ export function overuseCheck(
   opts: OveruseOpts = {}
 ): OveruseEntry[] {
   const minCount = opts.minCount ?? 3
-  const dict = [...new Set([...BUILTIN_OVERUSE, ...(opts.dict ?? [])])]
+  const dict = [...new Set([...BUILTIN_OVERUSE, ...normalizeOveruseDict(opts.dict)])]
   const totalChars =
     opts.totalChars ?? chapters.reduce((s, c) => s + visibleBodyOf(c.raw).length, 0)
   const perKBase = totalChars > 0 ? totalChars / 1000 : 1

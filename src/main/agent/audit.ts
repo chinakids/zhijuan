@@ -10,6 +10,7 @@ import { extractFrontMatter } from '../../shared/fmatter'
 import { chapterOrderCheck } from '../../shared/chapterorder'
 import { sliceSectionOrderCheck } from '../../shared/sliceorder'
 import { registerCapability, runSubtask, extractJson, type SubtaskDef } from './subtask'
+import { getSettings } from '../settings'
 import { auditDocMarkdown } from '../../shared/auditDoc'
 import { WCTX_CAPS } from '../../shared/contextCaps'
 import type {
@@ -234,11 +235,14 @@ export function runNameMix(
 // ===== 用词重复核查（本地规则层，零模型、秒级） =====
 // 词表式扫全卷正文，报口头禅/AI 腔短语频次与分布（2026-09-20 智能层；口径见 shared/wordfreq.ts）——
 // 与 presence/order/unused 同策略：不落盘、高频可重跑；复用 readVolumeChapters 一次扫描。
+// 2026-09-21：自定义词表（settings.overuseDict）与内置合并（候选「用词词表二期」数据链）。
 export function runOveruse(
   projectId: string
 ): { ok: true; result: AuditResult } | { ok: false; error: string } {
   try {
-    const items = overuseItems(readVolumeChapters(projectId))
+    const items = overuseItems(readVolumeChapters(projectId), {
+      dict: getSettings().overuseDict
+    })
     return { ok: true, result: { summary: '', items } }
   } catch (e: any) {
     return { ok: false, error: String(e?.message ?? e) }
