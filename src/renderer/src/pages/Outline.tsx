@@ -15,6 +15,7 @@ import { isBoardStale } from '../../../shared/boardAge'
 import { parseActsWarn } from '../../../shared/actsSeg'
 import { ColHideButton, ColShowBar } from '../features/common/colFold'
 import { useColFold } from '../features/common/useColFold'
+import { useUiStore } from '../store/ui'
 import { runSliceSync, type SliceSyncResult } from '../features/sync/sliceSync'
 import { describeSyncEvidence } from '../../../shared/syncEvidence'
 import { GuardIssuesNote } from '../features/sync/GuardIssues'
@@ -98,6 +99,9 @@ export default function Outline() {
   // 当前选中对应的章节（章卡或导演板都可映射回），供「导演本章」定位
   const selName = sel?.replace(/^大纲\//, '').replace(/\.md$/, '').replace(/_(导演|分幕)$/, '') ?? ''
   const selChapter = chapters.find((c) => c.name === selName) ?? null
+  // 应用级「当前写作章」（2026-09-20 体验层）：正文页正在写的章（useUiStore 单一源），章卡行「正在写」徽标依据；
+  // 仅同项目且该章存在时生效；跨路由切回正文页的恢复也读同一份状态。
+  const currentChapter = useUiStore((s) => s.currentChapter)
 
   // 选中章的分幕草稿若有缺段警示（> ⚠️ 第 X 段未按导演板写成…），显示「补写缺段」入口
   useEffect(() => {
@@ -423,6 +427,7 @@ export default function Outline() {
           )}
           {chapters.map((c) => {
             const done = hasCard(c)
+            const isCurrent = currentChapter?.projectId === id && currentChapter.file === c.file
             return (
               <div key={c.file} className="mb-0.5">
                 <ContextMenu>
@@ -443,7 +448,16 @@ export default function Outline() {
                         <span className={cn('truncate text-sm', sel === cardRel(c) ? 'font-medium text-accent' : 'text-ink')} title={c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}>
                           {c.fm ? `第${c.fm['章号']}章 · ${c.fm['题名']}` : c.name}
                         </span>
-                        {!done && <span className="ml-auto rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn">待回建</span>}
+                        <span className="ml-auto flex shrink-0 items-center gap-1">
+                          {isCurrent && (
+                            <span
+                              className="shrink-0 rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] text-accent"
+                              data-testid="current-badge"
+                              title="正文页正在写的章"
+                            >正在写</span>
+                          )}
+                          {!done && <span className="shrink-0 rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] text-warn">待回建</span>}
+                        </span>
                       </button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>

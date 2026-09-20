@@ -38,7 +38,13 @@ import type { AnnotationRow } from '../../../shared/annotations'
 export default function Novel() {
   const { id = '' } = useParams()
   const [chapters, setChapters] = useState<ChapterEntry[]>([])
-  const [sel, setSel] = useState<string | null>(null)
+  // 应用级「当前写作章」（2026-09-20 体验层）：sel 直接从 useUiStore 派生——单一源无本地镜像，
+  // 跨路由/跨项目切回自然恢复（store 记最近上下文，按 projectId 过滤；写入统一走 setSel）。
+  const chapterSel = useUiStore((s) => s.currentChapter)
+  const sel = chapterSel && chapterSel.projectId === id ? chapterSel.file : null
+  const setSel = useCallback((v: string | null) => {
+    useUiStore.getState().setCurrentChapter(v ? { projectId: id, file: v } : null)
+  }, [id])
   // 多线项目章项线徽标（多时间线叙事 2026-09-16）：线数 >1 才显示（单线零打扰）；章节线名权威口径 shared/line.chapterLine
   const multiLine = useMemo(() => {
     const s = new Set<string>()
@@ -295,7 +301,11 @@ export default function Novel() {
       const list = await window.zhijuan.listChapters(id)
       setChapters(list)
       setLoadErr('')
-      setSel((s) => (s && list.some((c) => c.file === s) ? s : null))
+      // 校正 store 中记录的当前章（派生 sel 无本地态）：本项目的记录若已不在列表（被删/外部变更）则清空
+      const cur = useUiStore.getState().currentChapter
+      if (cur && cur.projectId === id && !list.some((c) => c.file === cur.file)) {
+        useUiStore.getState().setCurrentChapter(null)
+      }
     } catch (e) {
       setLoadErr(String((e as Error).message ?? e))
     } finally {
