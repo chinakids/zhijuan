@@ -332,6 +332,12 @@ const auditDef: SubtaskDef<AuditResult> = {
   // →重试又同额截断→结果空。revision 同型已升 20480（09:00 轮），检查域输出=长 think+多条目 JSON，一并对齐；
   // 改回 12288 前先看会话日志 outputTokens/text 占比。
   maxTokens: 20480,
+  // 思考档位（2026-09-20 智能层，effort-audit-probe 两现场实测）：consistency default 279.1s/7726 completion
+  // （hit 2 条含陈默身份冲突）vs low 138.7s/4518（hit 同款 high 站位矛盾+衣着，发现集单样本有差异）；
+  // perspectives default 303.9s/10257/6 条 vs low 110.5s/3760/7 条（发现集更全、额外命中总纲片区职责冲突）——
+  // 检查类=枚举发现问题，命中质量对 think 深度不敏感（与 revision「改」类不同），low 档把 15min 超时风险窗口缩半；
+  // 改回默认前先看本探针数据。生效链路=resolveReasoningEffort→driveSession→patch-server-reasoning。
+  reasoningEffort: 'low',
   buildParts: (c) => {
     const kind = c.args?.kind as AuditKind
     return [auditSystem(kind), volumeBrief(c.projectId), kind === 'consistency' ? '请给出巡查报告 JSON。' : '请给出冷读报告 JSON。']
@@ -455,6 +461,9 @@ const perspectiveDef: SubtaskDef<AuditResult> = {
   // 输出预算同 auditDef（2026-09-20 智能层）：本任务为本次复跑唯一失败步——两次会话 outputTokens=12288
   // 硬上限、text 0/649 字符（think 吃光），提取失败重试又同额截断=结果空且覆盖掉上次好存档。
   maxTokens: 20480,
+  // 思考档位同 auditDef（2026-09-20 智能层，effort-audit-probe 实测见 auditDef 注释）：low 档发现集更全、
+  // 3.8K vs 10.3K completion；三重立场枚举对 think 深度不敏感，改回默认前先跑本探针。
+  reasoningEffort: 'low',
   buildParts: (c) => [perspectiveSystem(), volumeBrief(c.projectId), '请给出多视角审读报告 JSON。'],
   parse: (text, c) => extractPerspective(text, new Set(settingList(c.projectId))),
   retry: {
