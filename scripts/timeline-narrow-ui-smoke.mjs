@@ -85,7 +85,7 @@ const snapExpr = `(() => {
     const lineP = card.querySelector('p.flex')
     const mainLine = lineP ? lineP.querySelector('span.truncate') : null
     const badge = lineP ? [...lineP.querySelectorAll('span')].find((s) => s.className.includes('shrink-0')) : null
-    const link = card.querySelector('a[href$="/novel"]')
+    const link = card.querySelector('a[href*="/novel"]')
     const meta = card.querySelector('div.mt-3')
     return {
       h: Math.round(card.getBoundingClientRect().height),

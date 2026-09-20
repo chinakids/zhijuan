@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Clock, Users, History } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
@@ -35,6 +36,25 @@ export default function Timeline() {
       .filter((g) => g.entries.length > 0)
   }, [slices, lines, multi])
   const visibleGroups = useMemo(() => (filter === '__all__' ? groups : groups.filter((g) => g.line === filter)), [groups, filter])
+
+  // 筛选 chips 键盘（ARIA tabs pattern；HIG Segmented controls 2023-06-21「Segments become selected when focus moves to them」）：
+  // ←/→ 循环移动并选中、Home/End 首尾；roving tabindex（仅当前选段参与 Tab 序），选中即焦点。
+  const onTablistKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(e.key)) return
+    const keys = ['__all__', ...lines.map((ln) => ln.name)]
+    if (!keys.length) return
+    const nodes = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role=tab]'))
+    if (!nodes.length) return
+    const cur = Math.max(0, keys.indexOf(filter))
+    let next = cur
+    if (e.key === 'ArrowRight') next = (cur + 1) % keys.length
+    else if (e.key === 'ArrowLeft') next = (cur - 1 + keys.length) % keys.length
+    else if (e.key === 'Home') next = 0
+    else next = keys.length - 1
+    e.preventDefault()
+    setFilter(keys[next])
+    nodes[next]?.focus()
+  }
 
   useEffect(() => {
     if (!id) return
@@ -124,11 +144,12 @@ export default function Timeline() {
         </Button>
       </div>
       {multi && (
-        <div className="mb-5 flex flex-wrap items-center gap-1.5" role="tablist" aria-label="时间线筛选">
+        <div className="mb-5 flex flex-wrap items-center gap-1.5" role="tablist" aria-label="时间线筛选" onKeyDown={onTablistKeyDown}>
           <button
             role="tab"
             aria-selected={filter === '__all__'}
             data-line="__all__"
+            tabIndex={filter === '__all__' ? 0 : -1}
             onClick={() => setFilter('__all__')}
             className={cn(
               'rounded-full border px-2.5 py-0.5 text-[11px] transition-colors',
@@ -145,6 +166,7 @@ export default function Timeline() {
               role="tab"
               aria-selected={filter === ln.name}
               data-line={ln.name}
+              tabIndex={filter === ln.name ? 0 : -1}
               onClick={() => setFilter(ln.name)}
               className={cn(
                 'rounded-full border px-2.5 py-0.5 text-[11px] transition-colors',
@@ -190,7 +212,10 @@ export default function Timeline() {
                         </p>
                         <p className="mt-0.5 truncate text-xs text-ink-2" title={s.chapter}>{s.chapter}</p>
                       </div>
-                      <Link to="../novel" className="shrink-0 rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:bg-well">
+                      <Link
+                        to={`../novel?ch=${encodeURIComponent(s.chapter + '.md')}`}
+                        className="shrink-0 rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:bg-well"
+                      >
                         打开正文
                       </Link>
                     </div>
