@@ -74,6 +74,11 @@ export const REVIEWED_NON_MODEL = new Set([
   // /tmp/runtime-stub-auditempty.mjs 无引擎/边车/模型调用）；弱特征 driveSession 命中=stub 导入行——
   // fc89b85 配套审读存档空结果保护验证（提取失败不覆盖好存档/真零发现照常落盘）。
   'audit-empty-archive-smoke.mjs',
+  // 2026-09-20 10:3x 平台层轮核对：check-incomplete-ui-smoke.mjs 是无头 UI 冒烟（CDP 9224 + devShim 内存 mock 页面，
+  // 用 ?zj-checkfail/?zj-checkempty/?zj-dcheckfail 注入弱结果/空结果，断言「检查未完成」+重试语义；
+  // 无 127.0.0.1/dsh-runtime/模型 fetch 引用——grep 零命中）；弱特征 runSubtask 命中=头注背景描述——
+  // 33d3591 配套「提取失败≠零发现」语义验证（智能层 15 断言 3 tab 自证）。
+  'check-incomplete-ui-smoke.mjs',
 ])
 
 export const MODEL_SKIP_REASON = '模型类：真模型驱动（依赖 vLLM 算力池），--all 门禁不包含——--live 或单独跑'
