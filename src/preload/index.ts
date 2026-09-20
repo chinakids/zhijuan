@@ -183,7 +183,7 @@ const api = {
     >,
   agentChapterCheck: (projectId: string, chapterRel: string, kind: ChapterCheckKind) =>
     ipcRenderer.invoke('agent:chapterCheck', projectId, chapterRel, kind) as Promise<
-      | { ok: true; result: ChapterCheckResult }
+      | { ok: true; result: ChapterCheckResult; lastRaw?: string }
       | { ok: false; error: string }
     >,
   agentOutlineRebuild: (projectId: string, only?: string[]) =>
@@ -199,7 +199,7 @@ const api = {
   agentDirectorCancel: (token: string) => ipcRenderer.invoke('agent:directorCancel', token) as Promise<boolean>,
   agentDirectorCheck: (projectId: string, chapterRel: string) =>
     ipcRenderer.invoke('agent:directorCheck', projectId, chapterRel) as Promise<
-      | { ok: true; result: DirectorCheckResult }
+      | { ok: true; result: DirectorCheckResult; lastRaw?: string }
       | { ok: false; error: string }
     >,
   agentActs: (projectId: string, chapterRel: string, opts?: { only?: number[]; onlyFailed?: boolean }) =>

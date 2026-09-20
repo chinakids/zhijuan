@@ -46,6 +46,9 @@ export default function ChapterCheckDrawer({ projectId, chapter, chapterTitle, o
     }
   }, [open, initialTab])
   const [res, setRes] = useState<Partial<Record<ChapterCheckKind, ChapterCheckResult>>>({})
+  // 弱结果标记（按 tab）：提取失败（runSubtask 带 lastRaw）≠ 真零发现——显示「检查未完成」而非「没有发现问题」
+  // （2026-09-20 智能层；与 runAudit 空结果保护 fc89b85 同语义：结论必落资产，不能把「没跑出来」假装成「没问题」）
+  const [weak, setWeak] = useState<Partial<Record<ChapterCheckKind, boolean>>>({})
   const [running, setRunning] = useState(false)
   const [err, setErr] = useState('')
   const [made, setMade] = useState<Set<string>>(new Set())
@@ -69,10 +72,15 @@ export default function ChapterCheckDrawer({ projectId, chapter, chapterTitle, o
       const r = await window.zhijuan.agentChapterCheck(projectId, chapter, tab)
       if (r.ok) {
         setRes((m) => ({ ...m, [tab]: r.result }))
+        setWeak((m) => ({ ...m, [tab]: r.lastRaw !== undefined }))
         if (!openRef.current) {
-          const n = r.result.items.length
-          if (n > 0)
-            toast.add({ kind: 'warning', title: `本章小环发现 ${n} 条`, description: '结果已保留，重开「本章小环」抽屉可查看' })
+          if (r.lastRaw !== undefined) {
+            toast.add({ kind: 'error', title: '本章检查未完成', description: '写作引擎没有给出有效结果（输出可能被中断），重开「本章小环」可重试' })
+          } else {
+            const n = r.result.items.length
+            if (n > 0)
+              toast.add({ kind: 'warning', title: `本章小环发现 ${n} 条`, description: '结果已保留，重开「本章小环」抽屉可查看' })
+          }
         }
       } else {
         setErr(r.error ?? '本章检查失败')
@@ -164,6 +172,8 @@ export default function ChapterCheckDrawer({ projectId, chapter, chapterTitle, o
                 ) : (
                   <span className="text-danger">{err}</span>
                 )
+              ) : weak[tab] ? (
+                <span className="text-warn">检查未完成：写作引擎没有给出有效结果（输出可能被中断），可重试。</span>
               ) : (
                 <span>
                   {tab === 'chapter'
@@ -176,6 +186,7 @@ export default function ChapterCheckDrawer({ projectId, chapter, chapterTitle, o
                 <button
                   onClick={() => {
                     setRes((m) => ({ ...m, [tab]: undefined }))
+                    setWeak((m) => ({ ...m, [tab]: undefined }))
                     setErr('')
                     void run()
                   }}
@@ -187,10 +198,27 @@ export default function ChapterCheckDrawer({ projectId, chapter, chapterTitle, o
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
-              {!err && cur && cur.summary && (
+              {!err && cur && !weak[tab] && cur.summary && (
                 <p className="mb-3 rounded-lg border border-hair bg-surface-2 px-3 py-2 text-xs leading-relaxed text-ink-2">{cur.summary}</p>
               )}
-              {!err && cur && cur.items.length === 0 && (
+              {!err && cur && weak[tab] && (
+                <div className="py-10 text-center text-xs text-ink-3">
+                  <AlertTriangle className="mx-auto mb-2 h-6 w-6 text-warn" />
+                  <p>检查未完成：写作引擎没有给出有效结果（输出可能被中断）。</p>
+                  <button
+                    onClick={() => {
+                      setRes((m) => ({ ...m, [tab]: undefined }))
+                      setWeak((m) => ({ ...m, [tab]: undefined }))
+                      setErr('')
+                      void run()
+                    }}
+                    className="mt-3 inline-flex items-center gap-1 rounded-md border border-hair px-2.5 py-1 text-[11px] text-ink-2 hover:border-accent hover:text-accent"
+                  >
+                    <RefreshCw className="h-3 w-3" /> 重试
+                  </button>
+                </div>
+              )}
+              {!err && cur && !weak[tab] && cur.items.length === 0 && (
                 <p className="py-10 text-center text-xs text-ink-3">
                   <Sparkles className="mx-auto mb-2 h-6 w-6" /> 这一遍没有发现问题。
                 </p>

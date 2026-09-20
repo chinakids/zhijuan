@@ -1702,8 +1702,14 @@ const mock = {
   agentSetCapability: async () => true,
 
   // 本章级小环（每章短巡查 / 分层修订）— dev 模式给固定演示数据
-  agentChapterCheck: async (_projectId: string, _chapterRel: string, kind: string) =>
-    kind === 'chapter'
+  agentChapterCheck: async (_projectId: string, _chapterRel: string, kind: string) => {
+    // 失败态注入（?zj-checkfail=1）：模拟真机 runSubtask「提取失败」弱结果（ok:true+lastRaw、空结果）——
+    // 渲染层据此显示「检查未完成」而非「这一遍没有发现问题」（2026-09-20 智能层，与 ?zj-auditfail 同族群）。
+    // ?zj-checkempty=1：合法空 JSON（真零发现）——仍显示「这一遍没有发现问题」（语义区分守卫）。
+    const chk = new URLSearchParams(location.search)
+    if (chk.get('zj-checkfail')) return { ok: true, result: { summary: '', items: [] }, lastRaw: '（演示）模型未按格式回复：这不是要求的 JSON' }
+    if (chk.get('zj-checkempty')) return { ok: true, result: { summary: '', items: [] } }
+    return kind === 'chapter'
       ? {
           ok: true,
           result: {
@@ -1724,7 +1730,8 @@ const mock = {
               { severity: 'low', layer: 'prose', type: 'prose', where: '“雨把港口淋成一片灰”', what: '开场白线带说明腔', suggest: '改成从阿七的手指、灯笼光写起，让雨退到背景', target: '' }
             ]
           }
-        },
+        }
+  },
   // 大纲回建（dev 模式：写 mock 的 大纲/ 文件并返回卡片）
   agentOutlineRebuild: async (projectId: string, only?: string[]) => {
     let cards = [
@@ -1826,6 +1833,11 @@ const mock = {
   },
   // 导演兑现检查（dev 模式：固定演示核对报告，对照上面的演示导演板）
   agentDirectorCheck: async (_projectId: string, chapterRel: string) => {
+    // 失败态注入（?zj-dcheckfail=1）：模拟真机 runSubtask「提取失败」弱结果（ok:true+lastRaw、零条目）——
+    // 渲染层据此显示「检查未完成」而非「这一遍没有核对出值得写下的条目」（2026-09-20 智能层，与 ?zj-checkfail 同族群）。
+    if (new URLSearchParams(location.search).get('zj-dcheckfail')) {
+      return { ok: true, result: { summary: '', arcs: [], axes: [], redlines: [], hooks: [] }, lastRaw: '（演示）模型未按格式回复：这不是要求的 JSON' }
+    }
     const name = chapterRel.replace(/^正文\//, '').replace(/\.md$/, '')
     const rel = '大纲/' + name + '_导演.md'
     if (!docs.has(_projectId + '/' + rel)) {

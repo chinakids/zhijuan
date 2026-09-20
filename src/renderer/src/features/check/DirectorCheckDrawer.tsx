@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, Clapperboard, RefreshCw, ShieldCheck, X } from 'lucide-react'
+import { AlertTriangle, Check, Clapperboard, RefreshCw, ShieldCheck, X } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import type { DirectorCheckResult } from '../../../../shared/types'
 import { cn } from '../../lib/utils'
@@ -56,6 +56,9 @@ interface Props {
 /** 导演兑现检查：写完一章后对照导演板核对承诺兑没兑现（情绪弧 / 行为轴 / 红线 / 钩子） */
 export default function DirectorCheckDrawer({ projectId, chapter, open, onClose, actsExists = false, onRewriteSeg, rewriting = false }: Props) {
   const [res, setRes] = useState<DirectorCheckResult | null>(null)
+  // 弱结果标记：提取失败（runSubtask 带 lastRaw）≠ 零条目——显示「检查未完成」而非「没有核对出值得写下的条目」
+  // （2026-09-20 智能层；与 ChapterCheckDrawer 同口径——结论必落资产，不能把「没跑出来」假装成「没问题」）
+  const [weak, setWeak] = useState(false)
   const [running, setRunning] = useState(false)
   const [err, setErr] = useState('')
 
@@ -77,10 +80,15 @@ export default function DirectorCheckDrawer({ projectId, chapter, open, onClose,
       const r = await window.zhijuan.agentDirectorCheck(projectId, '正文/' + chapter.file)
       if (r.ok) {
         setRes(r.result)
+        setWeak(r.lastRaw !== undefined)
         if (!openRef.current) {
-          const n = countTrouble(r.result)
-          if (n > 0)
-            toast.add({ kind: 'warning', title: `兑现检查：${n} 处未兑现`, description: '重开「兑现检查」抽屉可看明细' })
+          if (r.lastRaw !== undefined) {
+            toast.add({ kind: 'error', title: '兑现检查未完成', description: '写作引擎没有给出有效结果（输出可能被中断），重开「兑现检查」可重试' })
+          } else {
+            const n = countTrouble(r.result)
+            if (n > 0)
+              toast.add({ kind: 'warning', title: `兑现检查：${n} 处未兑现`, description: '重开「兑现检查」抽屉可看明细' })
+          }
         }
       } else {
         setErr(r.error ?? '兑现检查失败')
@@ -128,6 +136,8 @@ export default function DirectorCheckDrawer({ projectId, chapter, open, onClose,
                 <span className="flex items-center gap-1 text-accent"><LoadingIndicator size={12} /> 写作引擎对照导演板核本章…（一两分钟）</span>
               ) : err ? (
                 <span className="text-danger">{err}</span>
+              ) : weak ? (
+                <span className="text-warn">检查未完成：写作引擎没有给出有效结果（输出可能被中断），可重试。</span>
               ) : (
                 <span>对照导演板 {res?.arcs.length ?? 0} 段弧 / {res?.redlines.length ?? 0} 条红线核对完成。</span>
               )}
@@ -136,6 +146,7 @@ export default function DirectorCheckDrawer({ projectId, chapter, open, onClose,
                 <button
                   onClick={() => {
                     setRes(null)
+                    setWeak(false)
                     setErr('')
                     void run()
                   }}
@@ -194,7 +205,24 @@ export default function DirectorCheckDrawer({ projectId, chapter, open, onClose,
                   </div>
                 )
               })}
-              {!err && res && !res.summary && !res.arcs.length && !res.axes.length && !res.redlines.length && !res.hooks.length && (
+              {!err && res && weak && (
+                <div className="py-10 text-center text-xs text-ink-3">
+                  <AlertTriangle className="mx-auto mb-2 h-6 w-6 text-warn" />
+                  <p>检查未完成：写作引擎没有给出有效结果（输出可能被中断）。</p>
+                  <button
+                    onClick={() => {
+                      setRes(null)
+                      setWeak(false)
+                      setErr('')
+                      void run()
+                    }}
+                    className="mt-3 inline-flex items-center gap-1 rounded-md border border-hair px-2.5 py-1 text-[11px] text-ink-2 hover:border-accent hover:text-accent"
+                  >
+                    <RefreshCw className="h-3 w-3" /> 重试
+                  </button>
+                </div>
+              )}
+              {!err && res && !weak && !res.summary && !res.arcs.length && !res.axes.length && !res.redlines.length && !res.hooks.length && (
                 <p className="py-10 text-center text-xs text-ink-3">这一遍没有核对出值得写下的条目。</p>
               )}
             </div>
