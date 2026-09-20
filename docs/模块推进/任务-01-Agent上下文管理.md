@@ -42,6 +42,12 @@
 
 ## 五、迭代记录
 
+### 2026-09-20 18:00–18:3x（子任务系验证面补缺：subtasks-smoke 补 audit(consistency) 单步并入仓后真机复验；提交 d43bf41，详见 01-智能层.md 18:00 轮）
+
+- 15:00 轮（2cff4a0）auditDef 启用 reasoningEffort:'low' 后，完整链只复验了 perspectives——audit 单步缺口（15:00 轮交接⑥）本轮补齐：`scripts/subtasks-smoke.mjs` step 列表加「全卷一致性巡查 audit」（`runAudit(PJ,'consistency')`，EMPTY 判定复用，ZJ_STEPS 名尾词 audit）。
+- 真机单步 `ZJ_STEPS=audit` PASS：438.4s、ok:true/items 1（林晓第1章裹大衣 vs 第2章白裙同夜装束漂移，target=正文/第02章_灯下.md）+存档 大纲/审读_一致性巡查.md 1254B 落盘实锤+exit 0 非弱结果——**auditDef low 档完整链复验通过，检查类三件套（consistency/review/perspectives）后置验证闭环**；三道门 953 例绿。
+- 交接：改 auditDef/audit 装配后固定后置=`ZJ_STEPS=audit` 单步复跑（旧「无 audit 单步需临时 entry/直调」作废）；线 A 候选顺位不变（1 真机核对锁屏顺延 → 2 zj 工具描述补大纲示例触发制 → 3 embedding 触发制 → 4 前文衰减摘要不立项）；新调研候选（用词频率/对白声线）登记 智能层档案 候选 8。
+
 ### 2026-09-19 06:00–06:5x（subtaskEnvBlock 坐标修复效果量化收口：子任务系真模型复跑零破坏+工具行为对比；提交 2f4f215，详见智能层档案 06:00 轮）
 
 - 背景：cab8caf 注入 `subtaskEnvBlock`（【作品根目录】坐标+禁止编 base 提示）改变了所有子任务 prompt 前缀——线 A「子任务上下文」面：既有真模型冒烟注入后未复跑、工具行为未量化。
