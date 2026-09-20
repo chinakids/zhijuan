@@ -113,8 +113,11 @@ function resolveName(param) {
   if (param.includes('/') || param.includes('\\') || param.endsWith('.mjs')) {
     const p = param.startsWith('scripts/') ? param.slice('scripts/'.length) : param
     if (allFiles.includes(p)) return p
-    if (p.endsWith('.mjs') && allFiles.includes(p)) return p
   }
+  // ㊷：不带 .mjs 后缀的完整脚本名（如 `guide-ui` = guide-ui-smoke.mjs）先精确匹配再走子串，
+  // 否则会与 fail-guide-ui-smoke.mjs 等子串撞车报「匹配 N 个脚本」歧义（2026-09-19/20 连踩）。
+  const exact = allFiles.find((f) => f === param + '.mjs')
+  if (exact) return exact
   const hits = allFiles.filter((f) => f.includes(param))
   if (hits.length === 1) return hits[0]
   if (hits.length > 1) throw new Error(`「${param}」匹配 ${hits.length} 个脚本：${hits.join(', ')}`)
