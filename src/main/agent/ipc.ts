@@ -1,5 +1,5 @@
 // ===== 织卷 · agent IPC 路由（主进程） =====
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, dialog } from 'electron'
 import { runChat, runSync, abortRequest, type AgentOutEvent } from './engine'
 import { listSyncLog } from './syncLog'
 import { runAudit, runChapterCheck, type AuditKind } from './audit'
@@ -15,8 +15,9 @@ import { listSkills, createSkill, updateSkill, deleteSkill, setSkillDisabled, im
 import type { SkillDraft } from '../../shared/skills'
 import { activeProvider } from '../../shared/providers'
 import { getSettings, setSettings } from '../settings'
-import { mkdirSync, writeFileSync } from 'fs'
+import { mkdirSync, writeFileSync, readFileSync } from 'fs'
 import { dirname, join } from 'path'
+import { writeFileAtomic } from '../fsutil'
 import type { AskAnswer } from '../../shared/types'
 
 export interface AgentSendInput {
@@ -125,6 +126,39 @@ export function registerAgentIpc() {
   ipcMain.handle('skills:setDisabled', (_e, name: string, disabled: boolean) => setSkillDisabled(name, disabled))
   ipcMain.handle('skills:import', (_e, mdText: string) => importSkill(mdText))
   ipcMain.handle('skills:export', (_e, name: string) => exportSkill(name))
+  // 设置页「技能包」导入 / 导出（系统文件对话框：选 SKILL.md 读入导入；另存为 .md 写出——与 settings:importOveruseTxt/exportOveruseTxt 同范式）
+  ipcMain.handle('skills:importPicker', async () => {
+    const r = await dialog.showOpenDialog({
+      title: '导入技能包（.md 文件，含 --- 约定头）',
+      buttonLabel: '导入',
+      properties: ['openFile'],
+      filters: [{ name: 'Markdown', extensions: ['md'] }]
+    })
+    if (r.canceled || !r.filePaths[0]) return { ok: false, cancelled: true }
+    try {
+      return importSkill(readFileSync(r.filePaths[0], 'utf-8'))
+    } catch (e) {
+      return { ok: false, error: String((e as Error).message ?? e) }
+    }
+  })
+  ipcMain.handle('skills:exportFile', async (e, name: string) => {
+    const r = exportSkill(name)
+    if (!r.ok) return r
+    const opts = {
+      title: `导出技能包「${name}」（.md）`,
+      defaultPath: `${name}.md`,
+      filters: [{ name: 'Markdown', extensions: ['md'] }]
+    } as Electron.SaveDialogOptions
+    const win = BrowserWindow.fromWebContents(e.sender)
+    const s = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts)
+    if (s.canceled || !s.filePath) return { ok: false, cancelled: true }
+    try {
+      writeFileAtomic(s.filePath, r.text)
+      return { ok: true, path: s.filePath }
+    } catch (err) {
+      return { ok: false, error: String((err as Error).message ?? err) }
+    }
+  })
 }
 
 export function shutdownAgent() {

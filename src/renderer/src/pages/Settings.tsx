@@ -13,6 +13,7 @@ import ShortcutHelp from '../features/command/ShortcutHelp'
 import { PROVIDER_PRESETS, providerById } from '../../../shared/providers'
 import { normalizeOveruseDict } from '../../../shared/wordfreq'
 import { isImeComposing } from '../lib/ime'
+import SkillSettingsCard from '../features/skills/SkillSettingsCard'
 import type { LlmProviderId } from '../../../shared/types'
 import type { SettingsPaneKey } from '../../../shared/types'
 
@@ -471,6 +472,7 @@ export default function Settings() {
           )}
         </div>
       </Card>
+      <SkillSettingsCard />
             </>
           )}
 

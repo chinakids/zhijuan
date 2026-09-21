@@ -186,6 +186,11 @@ const api = {
   setSkillDisabled: (name: string, disabled: boolean) => ipcRenderer.invoke('skills:setDisabled', name, disabled) as Promise<SkillWriteResult>,
   importSkill: (mdText: string) => ipcRenderer.invoke('skills:import', mdText) as Promise<SkillWriteResult>,
   exportSkill: (name: string) => ipcRenderer.invoke('skills:export', name) as Promise<{ ok: true; text: string } | { ok: false; error: string }>,
+  // 设置页「技能包」导入 / 导出（系统文件对话框；2026-09-21 体验层接线）
+  importSkillPicker: () =>
+    ipcRenderer.invoke('skills:importPicker') as Promise<SkillWriteResult & { cancelled?: boolean }>,
+  exportSkillFile: (name: string) =>
+    ipcRenderer.invoke('skills:exportFile', name) as Promise<{ ok: true; path: string } | { ok: false; error?: string; cancelled?: boolean }>,
   agentCancel: (requestId: string) => ipcRenderer.invoke('agent:cancel', requestId) as Promise<boolean>,
   agentSync: (projectId: string, chapterRel: string) =>
     ipcRenderer.invoke('agent:sync', projectId, chapterRel) as Promise<{ ok: boolean; items: ProposalItem[]; guard?: { issues: SyncIssue[] }; evidence?: SyncEvidence; error?: string }>,

@@ -1024,6 +1024,20 @@ const mock = {
       })
     }
   },
+  // 设置页技能包导入/导出（系统对话框 mock：dev 无对话框，导入固定演示技能、导出返回虚拟路径——与 importOveruseTxt/exportOveruseTxt 同口径）
+  importSkillPicker: async (): Promise<SkillWriteResult & { cancelled?: boolean }> => {
+    const text = '---\nname: 名字命名法\ndescription: 按身份定姓：让小说人物名字有来处，读者一眼记住\n---\n\n步骤：\n1. 依据身份与时代取姓\n'
+    const meta = parseSkillFile(text)
+    if (!meta) return { ok: false, error: '导入失败：不是合法的 SKILL.md（需 --- 约定头且 name/description 必填）' }
+    if (!skillNameValid(meta.name)) return { ok: false, error: `导入失败：name「${meta.name}」不合法` }
+    if (devSkills.some((s) => s.name === meta.name)) return { ok: false, error: `导入失败：技能「${meta.name}」已存在` }
+    devSkills.push(meta)
+    return { ok: true }
+  },
+  exportSkillFile: async (name: string): Promise<{ ok: true; path: string } | { ok: false; error?: string; cancelled?: boolean }> => {
+    if (!devSkills.some((s) => s.name === name)) return { ok: false, error: `技能「${name}」不存在` }
+    return { ok: true, path: `/tmp/技能包/${name}.md` }
+  },
   listSlices: async (id: string): Promise<SliceEntry[]> => {
     // 解析/排序口径在 shared/slices（与真机 main/slices.listSlices 同一实现，2026-09-12）；
     // updatedAt 与真机 statSync mtimeMs 同语义——docsOf 的 devMtime 稳定模拟（正文=现在/导演板=一天前等）
