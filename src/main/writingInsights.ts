@@ -219,12 +219,15 @@ export function listDrafts(): DraftEntry[] {
   return out
 }
 
-/** 整目录备份（转正重名先备份旧技能：整个技能目录 rename 为 <名>.bak-<HHMMSS>，防转正覆盖丢 references/） */
+/** 整目录备份（转正重名先备份旧技能：整个技能目录 rename 到 skills/_backups/<名>.bak-<HHMMSS>，
+ *  防转正覆盖丢 references/；_backups 下划线目录与 _drafts 同约定=扫描器只扫一级目录，备份永不进技能清单） */
 function backupSkillDir(skillsRoot: string, name: string): void {
   const now = new Date()
   const hhmmss = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`
   try {
-    renameSync(join(skillsRoot, name), join(skillsRoot, `${name}.bak-${hhmmss}`))
+    const bakRoot = join(skillsRoot, '_backups')
+    mkdirSync(bakRoot, { recursive: true })
+    renameSync(join(skillsRoot, name), join(bakRoot, `${name}.bak-${hhmmss}`))
   } catch {
     /* 备份失败不阻断（尽力而为） */
   }
