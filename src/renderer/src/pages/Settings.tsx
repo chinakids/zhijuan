@@ -7,10 +7,12 @@ import { Separator } from '../components/ui/separator'
 import { Switch } from '../components/ui/switch'
 import { Card } from '../components/ui/card'
 import { cn } from '../lib/utils'
-import { Keyboard } from 'lucide-react'
+import { Keyboard, Plus, Trash2, FileUp, FileDown } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import ShortcutHelp from '../features/command/ShortcutHelp'
 import { PROVIDER_PRESETS, providerById } from '../../../shared/providers'
+import { normalizeOveruseDict } from '../../../shared/wordfreq'
+import { isImeComposing } from '../lib/ime'
 import type { LlmProviderId } from '../../../shared/types'
 import type { SettingsPaneKey } from '../../../shared/types'
 
@@ -56,6 +58,9 @@ export default function Settings() {
   const [tools, setTools] = useState({ todo: true, askUser: true })
   const [caps, setCaps] = useState<Record<string, boolean>>({})
   const [capsMeta, setCapsMeta] = useState<{ id: string; title: string; description?: string }[]>([])
+  const [overuseList, setOveruseList] = useState<string[]>([])
+  const [overuseDraft, setOveruseDraft] = useState('')
+  const [overuseMsg, setOveruseMsg] = useState('')
   const [saved, setSaved] = useState(false)
   const [saveErr, setSaveErr] = useState('')
   const [section, setSection] = useState<SectionKey>('workspace')
@@ -113,6 +118,7 @@ export default function Settings() {
     setTypewriter(settings.typewriterEnabled ?? false)
     setTools({ todo: settings.agentTools?.todo ?? true, askUser: settings.agentTools?.askUser ?? true })
     setCaps(settings.capabilities ?? {})
+    setOveruseList(normalizeOveruseDict(settings.overuseDict))
     void window.zhijuan.agentListCapabilities().then(setCapsMeta).catch(() => {})
     void refreshWorkspace()
     void refreshLibrary()
@@ -124,6 +130,54 @@ export default function Settings() {
     const next = { ...caps, [id]: on }
     setCaps(next)
     void updateSettings({ capabilities: next })
+  }
+
+  // ===== 自定义用词词表（智能层数据链 2026-09-21 移交：清洗闸=normalizeOveruseDict，勿另写） =====
+  /** 写入即生效（与本区开关族同口径）；统一走 normalizeOveruseDict 清洗 */
+  function writeOveruseList(next: string[]) {
+    const norm = normalizeOveruseDict(next)
+    setOveruseList(norm)
+    void updateSettings({ overuseDict: norm }).catch(() => setOveruseMsg('保存失败，请重试'))
+  }
+  function addOveruse() {
+    const p = overuseDraft.trim()
+    if (!p) return
+    if (overuseList.includes(p)) {
+      setOveruseMsg(`「${p}」已在词表中`)
+      return
+    }
+    writeOveruseList([...overuseList, p])
+    setOveruseDraft('')
+    setOveruseMsg(`已添加「${p}」，下次「用词重复核查」生效`)
+  }
+  function removeOveruse(p: string) {
+    writeOveruseList(overuseList.filter((x) => x !== p))
+  }
+  function clearOveruse() {
+    writeOveruseList([])
+    setOveruseMsg('已清空自定义词条，仅使用内置词表')
+  }
+  async function importOveruse() {
+    const r = await window.zhijuan.importOveruseTxt()
+    if (r.cancelled) return
+    if (!r.ok || !r.lines) {
+      setOveruseMsg(`导入失败：${r.error ?? '未知错误'}`)
+      return
+    }
+    const merged = normalizeOveruseDict([...overuseList, ...r.lines])
+    const added = merged.length - overuseList.length
+    writeOveruseList(merged)
+    setOveruseMsg(added > 0 ? `已导入 ${added} 条短语（按每行一条读取）` : '没有新增（导入内容与现有重复）')
+  }
+  async function exportOveruse() {
+    if (!overuseList.length) return
+    const r = await window.zhijuan.exportOveruseTxt(overuseList)
+    if (r.cancelled) return
+    if (!r.ok) {
+      setOveruseMsg(`导出失败：${r.error ?? '未知错误'}`)
+      return
+    }
+    setOveruseMsg(`已导出 ${overuseList.length} 条 → ${r.path}`)
   }
 
   function selectProvider(id: LlmProviderId) {
@@ -516,6 +570,93 @@ export default function Settings() {
                     }}
                   />
                 </div>
+              </Card>
+              <Card className="mt-4 p-6">
+                <h3 className="text-sm font-semibold text-ink-2">自定义用词词表</h3>
+                <Separator className="my-4" />
+                <p className="pb-3 text-xs text-ink-3">
+                  追踪作者自己的复用语（口头禅、AI 腔等），与内置词表一起供「用词重复核查」统计；只报频次，不改正文。留空则仅用内置词表。
+                </p>
+                {overuseList.length > 0 ? (
+                  <ul className="mb-3 space-y-1">
+                    {overuseList.map((p) => (
+                      <li
+                        key={p}
+                        className="flex items-center justify-between rounded-md border border-hair bg-surface-2 px-3 py-1.5"
+                      >
+                        <span className="min-w-0 truncate text-sm text-ink-2" title={p}>
+                          {p}
+                        </span>
+                        <button
+                          className="ml-2 shrink-0 rounded p-1 text-ink-3 hover:bg-hair hover:text-ink-1"
+                          aria-label={`删除词条 ${p}`}
+                          title={`删除词条 ${p}`}
+                          onClick={() => removeOveruse(p)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mb-3 text-xs text-ink-3">还没有自定义短语，先添加或导入；当前仅使用内置词表。</p>
+                )}
+                <div className="flex gap-2">
+                  <Input
+                    value={overuseDraft}
+                    placeholder="输入短语，如：整个人"
+                    onChange={(e) => setOveruseDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !isImeComposing(e)) {
+                        e.preventDefault()
+                        addOveruse()
+                      }
+                    }}
+                    className="h-8"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 shrink-0"
+                    onClick={addOveruse}
+                    disabled={!overuseDraft.trim()}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span className="ml-1">添加</span>
+                  </Button>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Button variant="ghost" size="sm" className="h-7" onClick={() => void importOveruse()}>
+                    <FileUp className="h-3.5 w-3.5" />
+                    <span className="ml-1">导入 .txt</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7"
+                    onClick={() => void exportOveruse()}
+                    disabled={!overuseList.length}
+                  >
+                    <FileDown className="h-3.5 w-3.5" />
+                    <span className="ml-1">导出 .txt</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7"
+                    onClick={clearOveruse}
+                    disabled={!overuseList.length}
+                    aria-label="清空词表"
+                    title="清空词表"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                {overuseMsg && (
+                  <p className="mt-2 break-all text-xs text-ink-3" role="status">
+                    {overuseMsg}
+                  </p>
+                )}
               </Card>
             </>
           )}

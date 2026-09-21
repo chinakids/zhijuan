@@ -984,6 +984,13 @@ const mock = {
     settings.libraryRoot = '/tmp/织卷-dev-项目库'
     return settings.libraryRoot
   },
+  // 设置页「自定义用词词表」导入/导出：dev=内存模拟（导入返回含脏行的样例行供清洗演示；导出返回虚拟路径）
+  importOveruseTxt: async (): Promise<{ ok: boolean; cancelled?: boolean; lines?: string[]; error?: string }> => {
+    return { ok: true, lines: ['生死之交', '定格', '  ', '生死之交'] }
+  },
+  exportOveruseTxt: async (): Promise<{ ok: boolean; cancelled?: boolean; path?: string; error?: string }> => {
+    return { ok: true, path: '/tmp/用词词表.txt' }
+  },
 
   // dev 演示的人物索引：与主进程 readCharIndex 同口径（档案题名 + 登记别名）
   _charIndexOf: (id: string) => {

@@ -1,6 +1,6 @@
 // ===== 织卷 V2 · IPC 路由（renderer 唯一入口） =====
 import { ipcMain, shell, BrowserWindow, dialog, app } from 'electron'
-import { writeFileSync } from 'fs'
+import { writeFileSync, readFileSync } from 'fs'
 import { join } from 'path'
 import type { AppSettings, FsEvent, ProposalItem, EditItem, Proposal, SaveTraceEntry } from '../shared/types'
 import { adoptActsChapter } from '../shared/actsAdopt'
@@ -67,6 +67,38 @@ export function registerIpc() {
     if (r.canceled || !r.filePaths[0]) return null
     setSettings({ libraryRoot: r.filePaths[0] })
     return libraryRoot()
+  })
+  // 设置页「自定义用词词表」：导入 / 导出 .txt（每行一条短语；系统文件对话框，与 chapter:export 同范式）
+  ipcMain.handle('settings:importOveruseTxt', async () => {
+    const r = await dialog.showOpenDialog({
+      title: '导入用词词表（.txt，每行一条短语）',
+      buttonLabel: '导入',
+      properties: ['openFile'],
+      filters: [{ name: '文本文件', extensions: ['txt'] }]
+    })
+    if (r.canceled || !r.filePaths[0]) return { ok: false, cancelled: true }
+    try {
+      const text = readFileSync(r.filePaths[0], 'utf-8')
+      return { ok: true, lines: text.split(/\r?\n/) }
+    } catch (e) {
+      return { ok: false, error: String((e as Error).message ?? e) }
+    }
+  })
+  ipcMain.handle('settings:exportOveruseTxt', async (e, lines: string[]) => {
+    const opts = {
+      title: '导出用词词表（.txt，每行一条短语）',
+      defaultPath: '用词词表.txt',
+      filters: [{ name: '文本文件', extensions: ['txt'] }]
+    } as Electron.SaveDialogOptions
+    const win = BrowserWindow.fromWebContents(e.sender)
+    const r = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts)
+    if (r.canceled || !r.filePath) return { ok: false, cancelled: true }
+    try {
+      writeFileSync(r.filePath, lines.join('\n') + '\n', 'utf-8')
+      return { ok: true, path: r.filePath }
+    } catch (err) {
+      return { ok: false, error: String((err as Error).message ?? err) }
+    }
   })
 
   // 项目

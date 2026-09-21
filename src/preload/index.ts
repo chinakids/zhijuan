@@ -53,6 +53,11 @@ const api = {
   getPaths: () => ipcRenderer.invoke('app:getPaths') as Promise<{ documents: string; defaultLibrary: string }>,
   // 首页「更改库根路径」：系统目录选择器 → 写入设置 → 返回新生效库根（模块设计 §四 A「库根路径（可改）」）
   pickLibrary: () => ipcRenderer.invoke('settings:pickLibrary') as Promise<string | null>,
+  // 设置页「自定义用词词表」：导入 / 导出 .txt（每行一条短语；系统文件对话框）
+  importOveruseTxt: () =>
+    ipcRenderer.invoke('settings:importOveruseTxt') as Promise<{ ok: boolean; cancelled?: boolean; lines?: string[]; error?: string }>,
+  exportOveruseTxt: (lines: string[]) =>
+    ipcRenderer.invoke('settings:exportOveruseTxt', lines) as Promise<{ ok: boolean; cancelled?: boolean; path?: string; error?: string }>,
 
   // 项目
   listProjects: () => ipcRenderer.invoke('project:list') as Promise<ProjectSummary[]>,
