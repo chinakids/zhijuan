@@ -1,7 +1,28 @@
 // 数据层冒烟：writingInsights 纯函数 × 织卷smoke 真实数据（只读，零副作用）
+// 用法：cd ~/Desktop/织卷 && node scripts/writing-insights-datasmoke.mjs
+// （仓库标准模式：esbuild bundle shared 纯函数 → node 直跑；与本脚本头注同规格）
 import { readFileSync, readdirSync, statSync } from 'fs'
-import { join } from 'path'
-import {
+import { join, resolve } from 'path'
+import { pathToFileURL } from 'url'
+import { build as esbuild } from 'esbuild'
+
+const root = resolve(import.meta.dirname, '..')
+const out = '/tmp/zj-writinginsights-datasmoke.mjs'
+await esbuild({
+  stdin: {
+    contents: `export * from ${JSON.stringify(resolve(root, 'src/shared/writingInsights.ts'))};`,
+    resolveDir: root,
+    loader: 'ts'
+  },
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  target: 'node20',
+  outfile: out,
+  external: ['node:*'],
+  logLevel: 'warning'
+})
+const {
   extractVersionRules,
   summarizeProposals,
   syntaxStats,
@@ -9,7 +30,7 @@ import {
   draftSkillFromStats,
   reportFromStats,
   shouldRunInsights
-} from '/Users/USER/Desktop/织卷/src/shared/writingInsights'
+} = await import(pathToFileURL(out).href)
 
 const PJ = process.env.ZJ_PJ || '/Users/USER/Documents/织卷项目库/织卷smoke'
 

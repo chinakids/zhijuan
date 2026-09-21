@@ -83,7 +83,7 @@ export function textCandidatesOf(quote) {
   return s
 }
 // 已知与 src 字面量无关的短文本（类型=输入值/demo 数据/或分支残留；失配≠结构断链，明示豁免可解释）
-const DATA_LEXICON = ['单线回归章', '测试类别', '帮我再改一段', '我的项目', '需要一段描写', '模板冒烟项目']
+const DATA_LEXICON = ['单线回归章', '测试类别', '帮我再改一段', '我的项目', '需要一段描写', '模板冒烟项目', '（修订）'] // （修订）=skill-settings-ui-smoke D3 编辑回显的输入值尾缀（2026-09-22 人工核：setField 写入描述「…（修订）」后沿行回显断言，非徽标断链）
 
 // ---------- 扫描 ----------
 function scan() {
