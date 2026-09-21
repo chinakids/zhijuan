@@ -121,7 +121,7 @@ const created = await evalUntil(
   8000,
   '档案落盘'
 )
-ok('档案落盘：约定头 + H1 + 定位占位', created.includes('别名: []') && created.includes('# 新角色1') && created.includes('（身份 / 职业）') && created.includes('## 基础档案'), created.slice(0, 80))
+ok('档案落盘：约定头 + H1 + 定位占位', created.includes('别名: []') && created.includes('# 新角色1') && created.includes('（待补充：身份 / 职业）') && created.includes('## 基础档案'), created.slice(0, 80))
 const d2 = await evalUntil(page, detailExpr, (d) => d && d.items[1].includes('已建档'), 8000, 'UI 标记已建档')
 ok('明细行变为「已建档」状态', d2.items[1].includes('已建档'), JSON.stringify(d2.items[1]))
 ok('已建档行不再出现「建档案」按钮（可重复点击已禁用）', d2.btnCount === 0, JSON.stringify(d2.btnCount))

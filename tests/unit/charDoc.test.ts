@@ -23,11 +23,11 @@ describe('charDocMarkdown（人物档案模板单一权威源，2026-09-15 从 P
     expect(md).toContain('> 关键特征：热心')
   })
 
-  it('quickCharDocMarkdown：role/traits 用括号占位（作者待填项），其余同构', () => {
+  it('quickCharDocMarkdown：role/traits 用「（待补充：…）」占位（作者待填项显式标注，2026-09-21 候选 3），其余同构', () => {
     const md = quickCharDocMarkdown('新角色1')
     expect(md.startsWith('---\n别名: []\n---\n# 新角色1\n')).toBe(true)
-    expect(md).toContain('> 定位：（身份 / 职业）')
-    expect(md).toContain('> 关键特征：（关键特征，待补充）')
+    expect(md).toContain('> 定位：（待补充：身份 / 职业）')
+    expect(md).toContain('> 关键特征：（待补充：关键特征）')
     expect(md).toContain('## 基础档案')
     expect(md).toContain('<!-- 正文保存时')
   })

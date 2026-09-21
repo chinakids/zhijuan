@@ -114,7 +114,7 @@ async function driveQuickCreate(page, label) {
     8000,
     label + ' 档案落盘'
   )
-  ok(label + ' 档案按模板落盘（约定头/H1/占位/基础档案）', created.includes('别名: []') && created.includes('# 新角色1') && created.includes('（身份 / 职业）') && created.includes('## 基础档案'), created.slice(0, 80))
+  ok(label + ' 档案按模板落盘（约定头/H1/占位/基础档案）', created.includes('别名: []') && created.includes('# 新角色1') && created.includes('（待补充：身份 / 职业）') && created.includes('## 基础档案'), created.slice(0, 80))
   const d2 = await evalUntil(page, detailExpr, (d) => d && d.items[1] && d.items[1].includes('已建档'), 8000, label + ' 已建档标记')
   ok(label + ' 明细行转「已建档」', d2.items[1].includes('已建档'), JSON.stringify(d2.items[1]))
   ok(label + ' 「建档案」按钮消失（已建档不可重复处置）', d2.btnCount === 0, 'btn=' + d2.btnCount)

@@ -147,7 +147,7 @@ try {
     8000,
     '新角色2 档案落盘'
   )
-  ok('③ 两名人档案均落盘（约定头+模板占位）', c1.includes('别名: []') && c1.includes('# 新角色1') && c2.includes('# 新角色2') && c1.includes('（身份 / 职业）'))
+  ok('③ 两名人档案均落盘（约定头+模板占位）', c1.includes('别名: []') && c1.includes('# 新角色1') && c2.includes('# 新角色2') && c1.includes('（待补充：身份 / 职业）'))
 
   // ⑤ toast 更新为「已建档案」+ 按钮摘除
   await evalUntil(page, bodyHas('已为 2 名人物建档案'), Boolean, 10000, 'toast 更新已建档案')
