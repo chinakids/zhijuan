@@ -36,3 +36,9 @@
 - id: tool-todo
   config:
     allowParallelInProgress: false
+# 织卷技能（<工作区>/skills 中文名技能包）由织卷注入面单通道提供：runChat 注入【可用技能】清单 +
+# 激活块（正文明示无需再读技能文件）——引擎自带 skill 工具指向 dsh 自有 catalog（~/.dsh、~/.agents、
+# 项目 .dsh，name 须 kebab-case，织卷中文技能名不兼容），模型被它诱导去磁盘 seek 技能文件，
+# 显式 /技能名 场景实测三次超时（2026-09-21 12:00 智能层轮）→ 关闭，防脱轨（注入面已闭环）。
+- id: tool-skill
+  disabled: true
