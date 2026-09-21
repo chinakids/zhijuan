@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it, vi } from 'vitest'
-import { mkdirSync, rmSync } from 'fs'
+import { mkdirSync, rmSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
 const holder = vi.hoisted(() => {
@@ -15,7 +15,7 @@ vi.mock('electron', () => ({
   shell: {}
 }))
 
-import { normalizeSettings, setSettings, workspaceDir, libraryRoot } from '../../src/main/settings'
+import { normalizeSettings, readSettings, setSettings, workspaceDir, libraryRoot } from '../../src/main/settings'
 
 afterAll(() => {
   rmSync(holder.tmp, { recursive: true, force: true })
@@ -36,6 +36,26 @@ describe('normalizeSettings（老设置平滑迁移）', () => {
   it('已知厂商 active 保留；未知值回落到 local', () => {
     expect(normalizeSettings({ llm: { active: 'glm', providers: {} } } as never).llm.active).toBe('glm')
     expect(normalizeSettings({ llm: { active: '老板牌', providers: {} } } as never).llm.active).toBe('local')
+  })
+})
+
+describe('readSettings 缺省合并（增量 4b 口径：老配置无 writingInsightsEnabled → 默认 false）', () => {
+  it('老配置文件（无该字段）→ 合并 DEFAULT_SETTINGS 后为 false', () => {
+    // 模拟 4b 之前的老配置：只有 workspace/libraryRoot/theme，无 writingInsightsEnabled
+    mkdirSync(holder.userData, { recursive: true })
+    writeFileSync(
+      join(holder.userData, 'zhijuan-settings.json'),
+      JSON.stringify({ workspace: '', libraryRoot: '', theme: 'paper' })
+    )
+    expect(readSettings().writingInsightsEnabled).toBe(false)
+  })
+
+  it('显式开启 → 保留 true（读盘不回退默认）', () => {
+    writeFileSync(
+      join(holder.userData, 'zhijuan-settings.json'),
+      JSON.stringify({ writingInsightsEnabled: true })
+    )
+    expect(readSettings().writingInsightsEnabled).toBe(true)
   })
 })
 

@@ -473,7 +473,8 @@ const settings: AppSettings = {
   agentPanelWidth: AGENT_PANEL_DEFAULT_WIDTH,
   foldedCols: { novel: false, characters: false, worldview: false, outline: false, library: false },
   settingsPane: 'workspace',
-  agentTools: { todo: true, askUser: true }
+  agentTools: { todo: true, askUser: true },
+  writingInsightsEnabled: false
 }
 
 // 工作区落档文档（dev 示范；真机由主进程写盘）

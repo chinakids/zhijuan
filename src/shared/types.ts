@@ -127,6 +127,10 @@ export interface AppSettings {
    *  与 BUILTIN_OVERUSE 合并扫全卷正文（shared/wordfreq.normalizeOveruseDict 清洗），只报频次不判对错；
    *  设置页增删改/导入导出=体验层/平台层接线（本轮智能层只完成字段+透传+口径）。 */
   overuseDict?: string[]
+  /** 写作习惯学习（F-20260917-06 / D-L-4：默认关；开启=打开项目检查距上次分析≥7 天时后台生成 skill 草稿+报告；
+   *  批注定时优化开关先例口径——新增自动化行为一律默认关，设置页「外观与数据」开关 UI=体验层/平台层接线（增量 4c））。
+   *  分析执行=main/writingInsights.ts（增量 4b，智能层），纯函数/template=shared/writingInsights.ts（增量 4a）。 */
+  writingInsightsEnabled: boolean
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -141,7 +145,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   agentPanelWidth: AGENT_PANEL_DEFAULT_WIDTH,
   foldedCols: { novel: false, characters: false, worldview: false, outline: false, library: false },
   settingsPane: 'workspace',
-  agentTools: { todo: true, askUser: true }
+  agentTools: { todo: true, askUser: true },
+  writingInsightsEnabled: false
 }
 
 /** todo 清单项（模型通过 todo_write 维护的全量列表） */
