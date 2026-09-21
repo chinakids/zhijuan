@@ -1976,6 +1976,45 @@ const mock = {
       }
     }
   },
+  // 双线结构点巡检（dev 模式：固定演示报告——与真机同语义：线分布+早线收束检查）
+  agentStructureCheck: async (_projectId: string) => {
+    // 弱结果注入（?zj-structurefail=1）：模拟真机「提取失败」（ok:true+lastRaw、零条目）→ 渲染层显示「检查未完成」
+    if (new URLSearchParams(location.search).get('zj-structurefail')) {
+      return { ok: true, result: { summary: '', lines: [], ends: [] }, lastRaw: '（演示）模型未按格式回复：这不是要求的 JSON' }
+    }
+    return {
+      ok: true,
+      result: {
+        summary: '（演示）主线三章完成开局—转折—高潮，过去线在第4章先于主线高潮收束，早线无悬债。',
+        lines: [
+          {
+            name: '主线',
+            points: [
+              { chapter: '第1章 夜航', role: '开局', note: '旧灯与船票登场，把主角拖回往事' },
+              { chapter: '第3章 灯塔', role: '转折', note: '真相揭开一半，主角由怀疑转逼问' },
+              { chapter: '第5章 破晓', role: '高潮', note: '全部真相说出，主线闭环' }
+            ],
+            pacingNote: '主线三章各承一个关键节点，节奏紧凑。'
+          },
+          {
+            name: '过去线',
+            points: [
+              { chapter: '第2章 旧信', role: '开局', note: '旧信立下约定，埋下收束之钩' },
+              { chapter: '第4章 雨夜', role: '收束', note: '回信送达，旧信之谜收束，早线结束' }
+            ]
+          }
+        ],
+        ends: [
+          {
+            line: '过去线',
+            status: 'settled',
+            evidence: '收束端：第4章章卡「旧信之谜已收束」；波峰端：第4章导演板波峰「风暴夜灯塔亮起」，先于晚线高潮（第5章破晓）。'
+          }
+        ],
+        notes: ['（演示）第4章「老灯塔第一次亮起」与第5章「破晓前最后熄灭」构成镜像。']
+      }
+    }
+  },
   // 分幕生成（dev 模式：有导演板就写一份演示分幕草稿；opts.only 只重写指定段、其余段保留——与主进程同语义的简化实现）
   agentActs: async (projectId: string, chapterRel: string, _opts?: { only?: number[]; onlyFailed?: boolean }) => {
     const name = chapterRel.replace(/^正文\//, '').replace(/\.md$/, '')

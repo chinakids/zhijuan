@@ -7,6 +7,7 @@ import { runOutlineRebuild } from './outline'
 import { runMaterialTriage } from './triage'
 import { runDirector, cancelDirector } from './director'
 import { runDirectorCheck } from './director-check'
+import { runStructureCheck } from './structure-check'
 import { runActs, type ActsRunOpts } from './acts'
 import { ensureHarness, closeHarness, answerDir } from './runtime'
 import { listCapabilities } from './subtask'
@@ -81,6 +82,7 @@ export function registerAgentIpc() {
   })
   // 导演兑现检查（动笔后对照导演板核对本章，结果回 UI 不落盘）
   ipcMain.handle('agent:directorCheck', (_e, projectId: string, chapterRel: string) => runDirectorCheck(projectId, chapterRel))
+  ipcMain.handle('agent:structureCheck', (_e, projectId: string) => runStructureCheck(projectId))
   // 分幕生成（按导演板情绪弧分段逐段起草整章，拼成定稿草稿落 大纲/<章>_分幕.md；
   // opts.onlyFailed 补写缺段：只重写草稿里未写成的段，已写成段原样保留）
   ipcMain.handle('agent:acts', (_e, projectId: string, chapterRel: string, opts?: ActsRunOpts) =>

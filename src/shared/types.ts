@@ -500,6 +500,43 @@ export interface DirectorCheckResult {
   hooks: DirectorCheckItem[]
 }
 
+/** 结构点巡检：一条线的一个结构点（模型直判章卡自然语义；role 为自由文本，不强约束枚举） */
+export interface StructureLinePoint {
+  /** 章节（章号或题名，取自章卡） */
+  chapter: string
+  /** 结构角色：开局/转折/中点/高潮/收束 等（参考 25/50/75% 比例线的描述性判定） */
+  role: string
+  /** 一句自然话：为什么判它是这个结构点 */
+  note: string
+}
+export interface StructureLineReport {
+  /** 线名（章头「时间线」归一后；不写=主线） */
+  name: string
+  /** 该线结构点分布（≤8 条） */
+  points: StructureLinePoint[]
+  /** 可选：该线节奏/分布的一句话观察 */
+  pacingNote?: string
+}
+export interface StructureEnd {
+  /** 早线名 */
+  line: string
+  /** settled=晚线高潮前已收束 / loose=仍悬着（Weiland 双线法则⑥） */
+  status: 'settled' | 'loose'
+  /** 两端证据：钩子/关键事件收束 + 导演板波峰位置 */
+  evidence: string
+  /** 一句话建议/说明 */
+  note?: string
+}
+export interface StructureCheckResult {
+  summary: string
+  /** 各线结构点分布 */
+  lines: StructureLineReport[]
+  /** 早线收束检查（≤4 条） */
+  ends: StructureEnd[]
+  /** 其他发现（≤8 条） */
+  notes?: string[]
+}
+
 /** 系统菜单自定义动作 id（docs/系统菜单-设计口径.md 首期 10 个自定义通道；主进程 menu.ts + 渲染层 App.tsx 分发共用） */
 export type MenuActionId =
   | 'settings'

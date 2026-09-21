@@ -23,6 +23,7 @@ import type {
   SliceEntry,
   DirectorSheet,
   DirectorCheckResult,
+  StructureCheckResult,
   UnlistedHit,
   MissingHit,
   HistorySnapshot,
@@ -208,6 +209,11 @@ const api = {
   agentDirectorCheck: (projectId: string, chapterRel: string) =>
     ipcRenderer.invoke('agent:directorCheck', projectId, chapterRel) as Promise<
       | { ok: true; result: DirectorCheckResult; lastRaw?: string }
+      | { ok: false; error: string }
+    >,
+  agentStructureCheck: (projectId: string) =>
+    ipcRenderer.invoke('agent:structureCheck', projectId) as Promise<
+      | { ok: true; result: StructureCheckResult; lastRaw?: string }
       | { ok: false; error: string }
     >,
   agentActs: (projectId: string, chapterRel: string, opts?: { only?: number[]; onlyFailed?: boolean }) =>

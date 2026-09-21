@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { BookMarked, CheckCheck, CheckCircle2, CircleDashed, Clapperboard, FileText, Hammer, History, ListTree, MoreHorizontal, PenLine, RefreshCw, ScrollText, ShieldCheck, Wrench } from 'lucide-react'
+import { BookMarked, CheckCheck, CheckCircle2, CircleDashed, Clapperboard, FileText, Hammer, History, ListTree, MoreHorizontal, PenLine, RefreshCw, ScrollText, ShieldCheck, Waypoints, Wrench } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '../components/ui/context-menu'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/dropdown-menu'
@@ -10,6 +10,7 @@ import { EmptyState } from '../components/EmptyState'
 import DocEditor from '../features/editor/DocEditor'
 import HistoryDrawer from '../features/editor/HistoryDrawer'
 import DirectorCheckDrawer from '../features/check/DirectorCheckDrawer'
+import StructureCheckDrawer from '../features/check/StructureCheckDrawer'
 import { useFsChanged, useFsEvents } from '../features/fs/useFsEvents'
 import { isBoardStale } from '../../../shared/boardAge'
 import { parseActsWarn } from '../../../shared/actsSeg'
@@ -37,6 +38,7 @@ export default function Outline() {
   const [adopting, setAdopting] = useState(false)
   const [confirmAdopt, setConfirmAdopt] = useState(false)
   const [checkOpen, setCheckOpen] = useState(false)
+  const [structureOpen, setStructureOpen] = useState(false)
   // 审读存档条目旁的「历史」抽屉（复用正文 HistoryDrawer，rel=审读报告路径）
   const [historyRel, setHistoryRel] = useState<string | null>(null)
   const [msg, setMsg] = useState('')
@@ -649,6 +651,15 @@ export default function Outline() {
           >
             <ShieldCheck className="h-3.5 w-3.5" />
           </button>
+          <button
+            onClick={() => setStructureOpen(true)}
+            disabled={!chapters.some(hasCard)}
+            className="flex h-7 shrink-0 items-center justify-center rounded-md border border-hair px-1.5 text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+            title={chapters.some(hasCard) ? '按时间线核对全书结构点分布与早线收束状态（只读不改稿，需章卡）' : '还没有章卡：先点「回建」生成章卡'}
+            aria-label="结构点巡检"
+          >
+            <Waypoints className="h-3.5 w-3.5" />
+          </button>
           {(acting || repairing) && (
             <span className="flex items-center gap-1 text-[11px] text-accent">
               <LoadingIndicator size={12} />
@@ -745,6 +756,7 @@ export default function Outline() {
         onRewriteSeg={(seg) => void rewriteSeg(seg)}
         rewriting={rewriting}
       />
+      <StructureCheckDrawer projectId={id} open={structureOpen} onClose={() => setStructureOpen(false)} />
       <HistoryDrawer projectId={id} rel={historyRel ?? ''} open={historyRel !== null} onClose={() => setHistoryRel(null)} />
     </div>
   )
