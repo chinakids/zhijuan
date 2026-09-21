@@ -35,7 +35,7 @@ import type {
 } from '../shared/types'
 import type { RecentEntry } from '../shared/projects'
 import type { LineInfo } from '../shared/line'
-import type { SkillMeta } from '../shared/skills'
+import type { SkillMeta, SkillDraft, SkillWriteResult } from '../shared/skills'
 
 const api = {
   // 平台（renderer 据此做平台差异 UI，如自定义标题栏）
@@ -179,6 +179,13 @@ const api = {
     ipcRenderer.invoke('agent:send', input) as Promise<{ ok: boolean }>,
   // 技能包清单（2026-09-21 skill 运行层：/ 命令菜单合并技能命令；主进程注入按共享 skills 纯函数）
   listSkills: () => ipcRenderer.invoke('skills:list') as Promise<SkillMeta[]>,
+  // 技能包写面（2026-09-21 设置管理增量；只回 ok/error，操作后重新 listSkills 拉取）
+  createSkill: (draft: SkillDraft) => ipcRenderer.invoke('skills:create', draft) as Promise<SkillWriteResult>,
+  updateSkill: (name: string, draft: SkillDraft) => ipcRenderer.invoke('skills:update', name, draft) as Promise<SkillWriteResult>,
+  deleteSkill: (name: string) => ipcRenderer.invoke('skills:delete', name) as Promise<SkillWriteResult>,
+  setSkillDisabled: (name: string, disabled: boolean) => ipcRenderer.invoke('skills:setDisabled', name, disabled) as Promise<SkillWriteResult>,
+  importSkill: (mdText: string) => ipcRenderer.invoke('skills:import', mdText) as Promise<SkillWriteResult>,
+  exportSkill: (name: string) => ipcRenderer.invoke('skills:export', name) as Promise<{ ok: true; text: string } | { ok: false; error: string }>,
   agentCancel: (requestId: string) => ipcRenderer.invoke('agent:cancel', requestId) as Promise<boolean>,
   agentSync: (projectId: string, chapterRel: string) =>
     ipcRenderer.invoke('agent:sync', projectId, chapterRel) as Promise<{ ok: boolean; items: ProposalItem[]; guard?: { issues: SyncIssue[] }; evidence?: SyncEvidence; error?: string }>,

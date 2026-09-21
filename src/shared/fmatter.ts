@@ -97,6 +97,22 @@ export function addFrontMatterListItem(text: string, key: string, value: string)
 }
 
 /**
+ * 移除约定头里的标量键（如 disabled）：键存在 → 删那一行（保其他行原样）；
+ * 键不存在 / 无约定头 → 原样返回。
+ */
+export function removeFrontMatterField(text: string, key: string): string {
+  const m = text.match(FM_RE)
+  if (!m) return text
+  const block = m[1]
+  const lines = block.split('\n')
+  const keyRe = new RegExp('^\\s*' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*:')
+  const idx = lines.findIndex((l) => keyRe.test(l))
+  if (idx < 0) return text
+  lines.splice(idx, 1)
+  return '---\n' + lines.join('\n') + text.slice(4 + block.length)
+}
+
+/**
  * 从约定头里的列表键（如「涉及人物」）移除一项：键存在则只改那一行（保其他行原样），
  * 移除后列表为空 → 删除该键行（约定头整洁，与「未列」等价）；项不存在 / 键不存在 / 无约定头 → 原样返回。
  */

@@ -31,7 +31,8 @@ import { parseAnnotationCsv, segmentFromText, escapeCsvField } from '../../../sh
 import { scrollMemorySnapshot } from '../features/editor/scrollMemory'
 import { isVersionedRel } from '../../../shared/versionedRel'
 import type { RecentEntry } from '../../../shared/projects'
-import type { SkillMeta } from '../../../shared/skills'
+import type { SkillMeta, SkillDraft, SkillWriteResult } from '../../../shared/skills'
+import { parseSkillFile, validateSkillDraft, renderSkillFile, skillNameValid } from '../../../shared/skills'
 import { toast } from '../store/toasts'
 import { useProposalStore } from '../store/proposals'
 
@@ -605,6 +606,29 @@ function devRefreshOutlineIndex(id: string): void {
   fsEmit(id, '大纲/索引.md')
 }
 
+// 技能包种子（devShim 内存态；与真机 main/skills.ts 写面同语义：返回值只 ok/error，状态由 listSkills 拉取）
+const devSkills: SkillMeta[] = [
+  {
+    name: '倒叙开篇法',
+    description: '从人物高光时刻落笔再回叙起因，制造悬念与代入感',
+    whenToUse: '开篇或重写开头，想用倒叙制造悬念时',
+    triggers: ['倒叙', '开篇'],
+    arguments: '[要点]',
+    dir: '倒叙开篇法',
+    body: '步骤：\n1. 先写人物最高光的一幕（结果/冲突顶点），用一句留白切回起因\n2. 回叙中埋下与高光呼应的细节（物象、台词、天气）\n3. 结尾回到高光时刻，用一个动作收束，不解释\n参考：references/示例.md',
+    invalid: undefined
+  },
+  {
+    name: '禁用示例',
+    description: 'disabled 技能演示：不出现在清单与匹配',
+    triggers: ['禁用触发'],
+    dir: '禁用示例',
+    body: '不应被激活的正文',
+    disabled: true,
+    invalid: undefined
+  }
+]
+
 const mock = {
   // 平台（devShim 默认当作 mac，好让自定义标题栏在无头截图也能看到）
   platform: 'darwin',
@@ -940,27 +964,66 @@ const mock = {
   },
   listChapters: async (id: string): Promise<ChapterEntry[]> => devChapterEntries(id),
   // 技能包清单（2026-09-21 skill 运行层）：演示种子=倒叙开篇法（正例）+禁用示例（disabled 排除证明）
-  listSkills: async (): Promise<SkillMeta[]> => [
-    {
-      name: '倒叙开篇法',
-      description: '从人物高光时刻落笔再回叙起因，制造悬念与代入感',
-      whenToUse: '开篇或重写开头，想用倒叙制造悬念时',
-      triggers: ['倒叙', '开篇'],
-      arguments: '[要点]',
-      dir: '倒叙开篇法',
-      body: '步骤：\n1. 先写人物最高光的一幕（结果/冲突顶点），用一句留白切回起因\n2. 回叙中埋下与高光呼应的细节（物象、台词、天气）\n3. 结尾回到高光时刻，用一个动作收束，不解释\n参考：references/示例.md',
-      invalid: undefined
-    },
-    {
-      name: '禁用示例',
-      description: 'disabled 技能演示：不出现在清单与匹配',
-      triggers: ['禁用触发'],
-      dir: '禁用示例',
-      body: '不应被激活的正文',
-      disabled: true,
-      invalid: undefined
+  listSkills: async (): Promise<SkillMeta[]> => devSkills.map((s) => ({ ...s })),
+  // 技能包写面 mock（2026-09-21 设置管理增量）：与真机 main/skills.ts 同语义（只回 ok/error；状态由 listSkills 拉取）
+  createSkill: async (draft: SkillDraft): Promise<SkillWriteResult> => {
+    const err = validateSkillDraft(draft)
+    if (err) return { ok: false, error: err }
+    const name = draft.name.trim()
+    if (devSkills.some((s) => s.name === name)) return { ok: false, error: `技能「${name}」已存在` }
+    const meta = parseSkillFile(renderSkillFile(draft))
+    if (!meta) return { ok: false, error: '技能内容不合法' }
+    devSkills.push(meta)
+    return { ok: true }
+  },
+  updateSkill: async (name: string, draft: SkillDraft): Promise<SkillWriteResult> => {
+    const err = validateSkillDraft(draft)
+    if (err) return { ok: false, error: err }
+    if (draft.name.trim() !== name) return { ok: false, error: '技能不改名（改名请用删除+新建）' }
+    const i = devSkills.findIndex((s) => s.name === name)
+    if (i < 0) return { ok: false, error: `技能「${name}」不存在` }
+    const meta = parseSkillFile(renderSkillFile(draft))
+    if (!meta) return { ok: false, error: '技能内容不合法' }
+    devSkills[i] = meta
+    return { ok: true }
+  },
+  deleteSkill: async (name: string): Promise<SkillWriteResult> => {
+    const i = devSkills.findIndex((s) => s.name === name)
+    if (i < 0) return { ok: false, error: `技能「${name}」不存在` }
+    devSkills.splice(i, 1)
+    return { ok: true }
+  },
+  setSkillDisabled: async (name: string, disabled: boolean): Promise<SkillWriteResult> => {
+    const s = devSkills.find((x) => x.name === name)
+    if (!s) return { ok: false, error: `技能「${name}」不存在` }
+    s.disabled = disabled
+    return { ok: true }
+  },
+  importSkill: async (mdText: string): Promise<SkillWriteResult> => {
+    const text = (mdText ?? '').replace(/^\uFEFF/, '')
+    const meta = parseSkillFile(text)
+    if (!meta) return { ok: false, error: '导入失败：不是合法的 SKILL.md（需 --- 约定头且 name/description 必填）' }
+    if (!skillNameValid(meta.name)) return { ok: false, error: `导入失败：name「${meta.name}」不合法` }
+    if (devSkills.some((s) => s.name === meta.name)) return { ok: false, error: `导入失败：技能「${meta.name}」已存在` }
+    devSkills.push(meta)
+    return { ok: true }
+  },
+  exportSkill: async (name: string): Promise<{ ok: true; text: string } | { ok: false; error: string }> => {
+    const s = devSkills.find((x) => x.name === name)
+    if (!s) return { ok: false, error: `技能「${name}」不存在` }
+    return {
+      ok: true,
+      text: renderSkillFile({
+        name: s.name,
+        description: s.description,
+        whenToUse: s.whenToUse,
+        triggers: s.triggers,
+        arguments: s.arguments,
+        disabled: s.disabled,
+        body: s.body
+      })
     }
-  ],
+  },
   listSlices: async (id: string): Promise<SliceEntry[]> => {
     // 解析/排序口径在 shared/slices（与真机 main/slices.listSlices 同一实现，2026-09-12）；
     // updatedAt 与真机 statSync mtimeMs 同语义——docsOf 的 devMtime 稳定模拟（正文=现在/导演板=一天前等）

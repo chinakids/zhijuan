@@ -11,7 +11,8 @@ import { runStructureCheck } from './structure-check'
 import { runActs, type ActsRunOpts } from './acts'
 import { ensureHarness, closeHarness, answerDir } from './runtime'
 import { listCapabilities } from './subtask'
-import { listSkills } from '../skills'
+import { listSkills, createSkill, updateSkill, deleteSkill, setSkillDisabled, importSkill, exportSkill } from '../skills'
+import type { SkillDraft } from '../../shared/skills'
 import { activeProvider } from '../../shared/providers'
 import { getSettings, setSettings } from '../settings'
 import { mkdirSync, writeFileSync } from 'fs'
@@ -117,6 +118,13 @@ export function registerAgentIpc() {
       invalid: s.invalid
     }))
   )
+  // 技能包写面（2026-09-21 设置管理增量 · 智能层数据链）：只回 ok/error，操作后状态一律重新 skills:list 拉取
+  ipcMain.handle('skills:create', (_e, draft: SkillDraft) => createSkill(draft))
+  ipcMain.handle('skills:update', (_e, name: string, draft: SkillDraft) => updateSkill(name, draft))
+  ipcMain.handle('skills:delete', (_e, name: string) => deleteSkill(name))
+  ipcMain.handle('skills:setDisabled', (_e, name: string, disabled: boolean) => setSkillDisabled(name, disabled))
+  ipcMain.handle('skills:import', (_e, mdText: string) => importSkill(mdText))
+  ipcMain.handle('skills:export', (_e, name: string) => exportSkill(name))
 }
 
 export function shutdownAgent() {

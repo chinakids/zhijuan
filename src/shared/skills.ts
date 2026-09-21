@@ -2,7 +2,7 @@
 // 设计基线：docs/skill-运行层-产品规划-2026-09-21.md（§3 格式 / §5 注入与触发 / §7 验收）。
 // 业界共识：技能=作者资产；渐进披露（描述常驻、正文按需激活）；显式 /技能名 + 关键词匹配双路。
 // 本文件只放纯函数（可单测）；fs 扫描在主进程（main/skills.ts listSkills）。
-import { extractFrontMatter } from './fmatter'
+import { extractFrontMatter, serializeFrontMatter } from './fmatter'
 import type { ZjCommand } from './commands'
 
 export interface SkillMeta {
@@ -216,4 +216,67 @@ export function resolveSkillInjection(
     }
   }
   return { blocks, userPrompt }
+}
+
+// ===== 写面纯函数（2026-09-21 设置管理增量 · 智能层数据链） =====
+// 约定：新建/编辑/导入/退出共用本组纯函数做「生成与校验」，fs 写在 main/skills.ts；
+// validateSkillDraft 是「作者侧管理」唯一校验闸（UI 任何写入路径都过它，勿另写清洗）。
+
+export interface SkillDraft {
+  /** 技能名（=目录名；改名=删除+新建，见 updateSkill 口径） */
+  name: string
+  /** 做什么+何时用（必填，≤500 字符；清单展示与模型语义匹配用） */
+  description: string
+  whenToUse?: string
+  /** 触发词（确定性关键词匹配；=空/全空白=不写行） */
+  triggers?: string[]
+  /** 参数提示（如「[要点]」；一期=提示文本不替换变量） */
+  arguments?: string
+  /** true=禁用（不注入清单、不参与任何匹配） */
+  disabled?: boolean
+  /** 正文（markdown 指令/流程；建议 ≤3000 字符，超限激活时保头+注明） */
+  body: string
+}
+
+/** 写面操作结果：只回 ok/error；操作后状态一律重新 listSkills 拉取（与 devShim mock 同口径） */
+export type SkillWriteResult = { ok: true } | { ok: false; error: string }
+
+/**
+ * 技能名（=目录名）合法：非空、≤64 字符（agentskills 标准对齐）、不以 . 开头（隐藏目录）、
+ * 不含跨平台路径分隔/非法字符（/ \ : * ? " < > |）与控制字符——防路径穿越（name 直接拼目录名）。
+ */
+export function skillNameValid(name: string): boolean {
+  const s = (name ?? '').trim()
+  if (!s || s.length > 64) return false
+  if (s.startsWith('.')) return false
+  if (/[\\/:*?"<>|\x00-\x1f]/.test(s)) return false
+  return true
+}
+
+/** 草稿校验（创建/更新共用）：返回错误消息；null=通过 */
+export function validateSkillDraft(draft: SkillDraft): string | null {
+  if (!skillNameValid(draft.name)) {
+    return `技能名「${(draft.name ?? '').trim() || '（空）'}」不合法（1–64 字符，不含路径分隔符）`
+  }
+  if (!draft.description || !draft.description.trim()) return 'description 必填（做什么+何时用）'
+  if (draft.description.trim().length > 500) return 'description 超长（≤500 字符）'
+  return null
+}
+
+/**
+ * 生成 SKILL.md 文本（新建/编辑统一出口；字段顺序固定=name/description/when_to_use/triggers/
+ * arguments/disabled；triggers 序列化为 YAML 列表 `[a, b]`；空可选字段不写行）。
+ * 输出可被 parseSkillFile 原样解析（roundtrip 由单测保证）。
+ */
+export function renderSkillFile(draft: SkillDraft): string {
+  const fm: Record<string, unknown> = { name: draft.name.trim(), description: draft.description.trim() }
+  if (draft.whenToUse && draft.whenToUse.trim()) fm['when_to_use'] = draft.whenToUse.trim()
+  if (draft.triggers && draft.triggers.length) {
+    const t = draft.triggers.map((x) => String(x).trim()).filter(Boolean)
+    if (t.length) fm['triggers'] = t
+  }
+  if (draft.arguments && draft.arguments.trim()) fm['arguments'] = draft.arguments.trim()
+  if (draft.disabled) fm['disabled'] = true
+  const body = (draft.body ?? '').replace(/^\n+/, '').replace(/\s+$/, '')
+  return serializeFrontMatter(fm) + (body ? '\n' + body + '\n' : '')
 }

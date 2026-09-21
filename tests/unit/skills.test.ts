@@ -8,6 +8,9 @@ import {
   matchExplicitSkill,
   skillCommandOf,
   resolveSkillInjection,
+  skillNameValid,
+  validateSkillDraft,
+  renderSkillFile,
   type SkillMeta
 } from '../../src/shared/skills'
 import { filterCommandCandidates } from '../../src/shared/commands'
@@ -238,5 +241,75 @@ describe('resolveSkillInjection（runChat 注入组装）', () => {
     const r = resolveSkillInjection(skills, '检查错别字', null)
     expect(r.blocks).toHaveLength(0)
     expect(r.userPrompt).toBe('检查错别字')
+  })
+})
+
+describe('skillNameValid（技能名=目录名合法）', () => {
+  it('合法：中文/英文/数字/连字符/空格', () => {
+    expect(skillNameValid('倒叙开篇法')).toBe(true)
+    expect(skillNameValid('backstory-3got')).toBe(true)
+    expect(skillNameValid('abc123')).toBe(true)
+    expect(skillNameValid('名字 带 空格')).toBe(true)
+  })
+  it('非法：空/空白/以点开头/路径分隔/冒号/控制字符/超长', () => {
+    expect(skillNameValid('')).toBe(false)
+    expect(skillNameValid('   ')).toBe(false)
+    expect(skillNameValid('.隐藏')).toBe(false)
+    expect(skillNameValid('a/b')).toBe(false)
+    expect(skillNameValid('a\\b')).toBe(false)
+    expect(skillNameValid('a:b')).toBe(false)
+    expect(skillNameValid('a\nb')).toBe(false)
+    expect(skillNameValid('x'.repeat(65))).toBe(false)
+  })
+})
+
+describe('validateSkillDraft（写面草稿校验）', () => {
+  const ok = { name: '倒叙开篇法', description: '做什么+何时用', body: '步骤' }
+  it('合法草稿通过', () => {
+    expect(validateSkillDraft(ok)).toBeNull()
+  })
+  it('name 非法 → 错误', () => {
+    expect(validateSkillDraft({ ...ok, name: 'a/b' })).toContain('不合法')
+  })
+  it('description 缺失/全空白 → 错误；超 500 → 错误', () => {
+    expect(validateSkillDraft({ ...ok, description: '' })).toContain('必填')
+    expect(validateSkillDraft({ ...ok, description: '   ' })).toContain('必填')
+    expect(validateSkillDraft({ ...ok, description: '长'.repeat(501) })).toContain('超长')
+  })
+})
+
+describe('renderSkillFile（SKILL.md 生成，roundtrip 保真）', () => {
+  it('全字段：可被 parseSkillFile 原样解析且字段一致', () => {
+    const text = renderSkillFile({
+      name: '倒叙开篇法',
+      description: '从人物高光时刻落笔再回叙起因',
+      whenToUse: '开篇或重写开头',
+      triggers: ['倒叙', '开篇'],
+      arguments: '[要点]',
+      body: '步骤：\n1. 最高光一幕'
+    })
+    const m = parseSkillFile(text)!
+    expect(m.name).toBe('倒叙开篇法')
+    expect(m.description).toBe('从人物高光时刻落笔再回叙起因')
+    expect(m.whenToUse).toBe('开篇或重写开头')
+    expect(m.triggers).toEqual(['倒叙', '开篇'])
+    expect(m.arguments).toBe('[要点]')
+    expect(m.body).toContain('1. 最高光一幕')
+    expect(m.disabled).toBeFalsy()
+  })
+  it('可选字段缺省不写行；triggers 序列化为 [a, b]；disabled true 写行', () => {
+    const text = renderSkillFile({ name: 'a', description: 'b', body: '' })
+    expect(text).not.toContain('when_to_use')
+    expect(text).not.toContain('triggers')
+    expect(text).not.toContain('disabled')
+    const t2 = renderSkillFile({ name: 'a', description: 'b', triggers: ['x', 'y'], disabled: true, body: '' })
+    expect(t2).toContain('triggers: [x, y]')
+    expect(t2).toContain('disabled: true')
+  })
+  it('body 前后空白剥离；front matter 与正文间隔一个空行', () => {
+    const text = renderSkillFile({ name: 'a', description: 'b', body: '\n\n正文\n\n' })
+    expect(text).toContain('---\n\n正文\n')
+    const m = parseSkillFile(text)!
+    expect(m.body).toBe('正文')
   })
 })
