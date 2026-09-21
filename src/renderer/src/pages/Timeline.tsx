@@ -60,6 +60,7 @@ export default function Timeline() {
     if (!id) return
     let alive = true
     setLoadErr('')
+    setSlices(null) // 切项目/重试时先回 loading，防旧项目切片闪现（2026-09-21 体验层）
     void window.zhijuan
       .listSlices(id)
       .then((s) => alive && setSlices(s))
@@ -69,46 +70,57 @@ export default function Timeline() {
     }
   }, [id, retryTick])
 
+  // 页头（loading/错误/空态共用，2026-09-21 体验层：加载与失败时标题+「同步记录」常驻不闪失）
+  const simpleHead = (
+    <div className="mb-4 flex items-center justify-between gap-3">
+      <h2 className="text-lg font-semibold">项目时间线</h2>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 shrink-0 gap-1 px-2 text-xs"
+        data-testid="sync-log-open"
+        onClick={() => setSyncOpen(true)}
+      >
+        <History className="h-3.5 w-3.5" />
+        同步记录
+      </Button>
+    </div>
+  )
+
   if (slices === null && !loadErr) {
     return (
-      <div className="flex items-center justify-center gap-2 p-6 text-sm text-ink-3">
-        <LoadingIndicator size={16} />
-        <span>正在读取项目时间线…</span>
+      <div className="mx-auto max-w-3xl p-6">
+        {simpleHead}
+        <div className="flex items-center justify-center gap-2 p-6 text-sm text-ink-3">
+          <LoadingIndicator size={16} />
+          <span>正在读取项目时间线…</span>
+        </div>
       </div>
     )
   }
   if (loadErr) {
     return (
-      <div className="mx-auto mt-24 max-w-sm rounded-xl border border-dashed border-danger/40 p-8 text-center">
-        <p className="text-sm font-medium text-danger">读取时间线失败</p>
-        <p className="mt-1 break-all text-xs text-ink-3">{loadErr}</p>
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-4"
-          onClick={() => setRetryTick((t) => t + 1)}
-        >
-          重试
-        </Button>
+      <div className="mx-auto max-w-3xl p-6">
+        {simpleHead}
+        <div className="mx-auto mt-10 max-w-sm rounded-xl border border-dashed border-danger/40 p-8 text-center">
+          <p className="text-sm font-medium text-danger">读取时间线失败</p>
+          <p className="mt-1 break-all text-xs text-ink-3">{loadErr}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => setRetryTick((t) => t + 1)}
+          >
+            重试
+          </Button>
+        </div>
       </div>
     )
   }
   if (!slices || !slices.length) {
     return (
       <div className="mx-auto max-w-3xl p-6">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">项目时间线</h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 shrink-0 gap-1 px-2 text-xs"
-            data-testid="sync-log-open"
-            onClick={() => setSyncOpen(true)}
-          >
-            <History className="h-3.5 w-3.5" />
-            同步记录
-          </Button>
-        </div>
+        {simpleHead}
         <EmptyState
           art="timeline"
           title="还没有时间切片"
