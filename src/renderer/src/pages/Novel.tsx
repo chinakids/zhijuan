@@ -638,7 +638,7 @@ export default function Novel() {
       {!loading && !loadErr && chapters.length === 0 && (
         <EmptyState
           compact
-          hint="还没有章节，点右上角「新建第一章」开始。"
+          hint="还没有章节，点「新建第一章」开始写作。"
           action={
             <Button
               variant="outline"

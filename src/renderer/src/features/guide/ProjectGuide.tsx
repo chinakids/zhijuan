@@ -194,7 +194,7 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
             <ul className="mt-2 list-disc pl-5 text-[13px] text-ink-2">
               <li>世界观写入了 <code>世界观/总纲.md</code></li>
               <li>{chars.filter((c) => c.name.trim()).length} 个人物的档案已生成</li>
-              <li>接下来去「正文创作」新建第一章：填好本章要素即可开写</li>
+              <li>接下来新建第一章：填好本章故事要素即可开写</li>
             </ul>
           </div>
         )}

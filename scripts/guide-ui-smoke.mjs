@@ -3,7 +3,7 @@
 // 前置：npm run build；node scripts/serve-renderer.mjs 8123；CDP 9224
 // 验收点：① 新建项目→引导弹窗（世界观/角色/完成三步骤）；② 「现在新建第一章」→ 自动打开建章对话框；
 //         ③ 建章后章节列表出现；④ 引导写入的世界观/角色掉进 mock 数据层；⑤ 「以后补充」路径原样可用（防回归）；
-//         ⑥ 全程无 JS 异常。
+//         ⑥ 全程无 JS 异常；⑦ 「完成页→稍后再说」落点=正文空态且文案与按钮一致（2026-09-22 05:15 轮）。
 const CDP = 'http://127.0.0.1:9224'
 const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -180,6 +180,59 @@ const ok = (name, cond, extra = '') => {
     ok('B3 全程无 JS 异常', page.errors.length === 0, page.errors.slice(0, 2).join(' ; '))
   } catch (e) {
     ok('场景B异常', false, String(e).slice(0, 300))
+  }
+  page.close()
+}
+
+// ===== 场景 C：完整引导 → 完成页「稍后再说」→ 落点=正文空态，文案与按钮一致（2026-09-22 05:15 轮） =====
+{
+  const tab = await openTab(BASE + '/?cb=' + Date.now() + '#/')
+  console.log('TAB C:', tab.id)
+  const page = await attach(tab.webSocketDebuggerUrl)
+  try {
+    await evalUntil(page, pageHas('新建项目'), (v) => v === true, 20000, 'Home 页就绪')
+    await page.eval(clickBtn('新建项目'))
+    await evalUntil(page, pageHas('创建并进入'), (v) => v === true, 8000, '新建项目对话框')
+    await page.eval(fill('input[placeholder="如：山那边"]', '引导落点测试'))
+    await sleep(200)
+    await page.eval(clickBtn('创建并进入'))
+    await evalUntil(page, pageHas('开始《引导落点测试》'), (v) => v === true, 20000, '引导弹窗出现')
+
+    // 世界观一步填三项 → 下一步 → 人物一步填一人 → 完成
+    await page.eval(fill('textarea[placeholder^="如：近未来的柳城"]', '海边的旧城，灯塔立在防波堤尽头。'))
+    await page.eval(fill('textarea[placeholder^="如：潮湿、克制"]', '潮湿、克制，旧物件有温度。'))
+    await page.eval(fill('textarea[placeholder^="每条一行：如"]', '· 灯塔每晚入夜亮起，清晨熄灭'))
+    await sleep(150)
+    await page.eval(clickBtn('下一步：主要人物'))
+    await evalUntil(page, `document.querySelector('input[placeholder="姓名 *"]') !== null`, (v) => v === true, 8000, '人物步骤')
+    await page.eval(fill('input[placeholder="姓名 *"]', '林晚'))
+    await page.eval(fill('input[placeholder="在故事里的身份"]', '守灯人'))
+    await sleep(150)
+    await page.eval(clickBtn('完成，进入正文'))
+    await evalUntil(page, pageHas('创作物料就位'), (v) => v === true, 10000, '引导完成页')
+
+    // 完成页事实采集：作者已停在正文创作页（hash=/novel），指引文案不再写「去「正文创作」」
+    const facts1 = await page.eval(`(() => ({
+      hash: location.hash,
+      liTexts: [...document.querySelectorAll('[role="dialog"] li')].map(li => li.innerText)
+    }))()`)
+    ok('C1 完成页时作者已在正文创作页（hash 含 /novel，无需再「去」）', facts1.hash.includes('/novel'), facts1.hash)
+    ok('C2 完成页指引不再写「去「正文创作」」（作者已在正文页）', facts1.liTexts.length === 3 && !facts1.liTexts[2].includes('去「正文创作」') && facts1.liTexts[2].includes('新建第一章'), JSON.stringify(facts1.liTexts))
+
+    // 点「稍后再说」→ 落点=正文空态
+    await page.eval(clickBtn('稍后再说'))
+    await evalUntil(page, pageHas('还没有章节'), (v) => v === true, 10000, '正文空态')
+    const facts2 = await page.eval(`(() => {
+      const hint = document.querySelector('[data-testid="empty-chapters"] p')
+      const actionBtns = [...document.querySelectorAll('[data-testid="empty-chapters"] button')].map(b => b.innerText.trim())
+      return { hash: location.hash, guideGone: !document.body.innerText.includes('开始《引导落点测试》'), hintText: hint ? hint.innerText : null, actionBtns }
+    })()`)
+    ok('C3 「稍后再说」关闭引导且停留正文创作页', facts2.guideGone && facts2.hash.includes('/novel'), facts2.hash)
+    ok('C4 落点为正文空态：提示文案准确（不再虚指「右上角」）', !!facts2.hintText && facts2.hintText.includes('还没有章节') && facts2.hintText.includes('「新建第一章」') && !facts2.hintText.includes('右上角'), JSON.stringify(facts2.hintText))
+    ok('C5 空态自带「新建第一章」动作按钮（可见即点）', facts2.actionBtns.some((t) => t.includes('新建第一章')), JSON.stringify(facts2.actionBtns))
+    ok('C6 全程无 JS 异常', page.errors.length === 0, page.errors.slice(0, 2).join(' ; '))
+  } catch (e) {
+    ok('场景C异常', false, String(e).slice(0, 300))
   }
   page.close()
 }
