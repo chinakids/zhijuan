@@ -35,6 +35,7 @@ import {
 } from './store'
 import { workspaceStatus, ensureWorkspaceDocs, readWorkspaceDoc } from './workspace'
 import { appendSaveTrace } from './saveTrace'
+import { runWritingInsights } from './writingInsights'
 import { listLibraryCategories, createLibraryCategory, searchDocs, recentLibraryDocs } from './library'
 import { listTemplates } from './templates'
 import { workspaceDir } from './settings'
@@ -137,6 +138,10 @@ export function registerIpc() {
   ipcMain.handle('project:open', (_e, id: string) => {
     recordOpen(id)
     watchProject(id, (evt) => broadcastToAll(evt))
+    // 写作习惯学习 D-L-4（2026-09-22 增量 4c）：开关开 + 距上次 ≥7 天 → 后台静默跑一次，不弹窗。
+    // 门控/失败都不会抛（runWritingInsights 内部 try/catch + reason 返回）；setImmediate 确保 project:open
+    // 响应先返回（gatherSignals 是同步 IO 读快照，大项目会阻塞 IPC 响应——04c 落档观察项）。
+    setImmediate(() => void runWritingInsights(id))
     return true
   })
   ipcMain.handle('project:recents', () => getRecentEntries())

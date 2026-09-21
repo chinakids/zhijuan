@@ -10,26 +10,29 @@
 //      存档 /tmp/zj-gram-wk.html）：「text is analyzed in real time…statistics…remain linked to your account…
 //      updated continuously throughout the week…Weekly Writing Update email」——周期行为分析=后台持续计算 +
 //      账户级统计 + **异步触达**（邮件；织卷=草稿区可见），不打断创作；织卷全本地明文无隐私顾虑。
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync } from 'fs'
 import { join } from 'path'
 import { writeFileAtomic } from './fsutil'
 import { libraryRoot, workspaceDir, getSettings } from './settings'
 import { listProposals } from './proposals'
 import { listSnapshots, readSnapshot } from './history'
 import { DOT_DIR } from '../shared/paths'
-import { buildSignals, draftSkillFromStats, reportFromStats, shouldRunInsights } from '../shared/writingInsights'
-import type { VersionChange, WritingSignals } from '../shared/writingInsights'
+import {
+  buildSignals,
+  draftSkillFromStats,
+  reportFromStats,
+  shouldRunInsights,
+  type InsightsState,
+  type InsightRunResult,
+  type DraftEntry,
+  type VersionChange,
+  type WritingSignals
+} from '../shared/writingInsights'
+import { parseSkillFile, skillNameValid, type SkillWriteResult } from '../shared/skills'
 
 // =====================================================================
 // 一、状态文件（.zhijuan/insights-state.json：与批注 done.json 同构的记账文件）
 // =====================================================================
-
-export interface InsightsState {
-  /** 上次成功生成的时间戳（7 天门控依据） */
-  lastRunAt: number
-  /** 上次生成的草稿文件名（如 2026-09-22-写作习惯.md） */
-  lastDraft: string
-}
 
 export function insightsStateFile(projectRoot: string): string {
   return join(projectRoot, DOT_DIR, 'insights-state.json')
@@ -127,10 +130,6 @@ export function insightDateStamp(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export type InsightRunResult =
-  | { ok: true; draftFile: string; reportFile: string; state: InsightsState }
-  | { ok: false; reason: 'disabled' | 'recent' | 'no-signal' | 'error' }
-
 /** D-L-8：重跑先备份旧版（旧草稿/旧报告 rename 为 -bak-<HHMMSS> 保留一份，防重跑丢历史） */
 function backupOld(dir: string, fileName: string): void {
   const now = new Date()
@@ -183,4 +182,94 @@ export function runWritingInsights(projectId: string): InsightRunResult {
     console.error('[writingInsights] run failed:', e)
     return { ok: false, reason: 'error' }
   }
+}
+
+// =====================================================================
+// 四、草稿区数据链（增量 4c：IPC insights:run/status + drafts:list/promote/delete；UI 归体验层）
+// 口径：写面只回 {ok}|{ok:false,error}；操作后状态一律重新 drafts:list 拉取（与 devShim mock 同语义）。
+// =====================================================================
+
+/** 草稿文件名安全检查：必须纯文件名（禁路径穿越/隐藏文件/非 .md）；不合法返回 null */
+function safeDraftName(fileName: string): string | null {
+  const n = (fileName ?? '').trim()
+  if (!n || n.startsWith('.') || !n.endsWith('.md')) return null
+  if (n.includes('/') || n.includes('\\')) return null
+  return n
+}
+
+/** 草稿区清单：列出 _drafts/ 全部 .md（草稿+报告；新建→旧→新排序）；目录不存在/读不了=空数组 */
+export function listDrafts(): DraftEntry[] {
+  const dir = draftsDir()
+  let names: string[] = []
+  try {
+    names = readdirSync(dir).filter((n) => n.endsWith('.md')).sort()
+  } catch {
+    return []
+  }
+  const out: DraftEntry[] = []
+  for (const n of names) {
+    let mtimeMs = 0
+    try {
+      mtimeMs = statSync(join(dir, n)).mtimeMs
+    } catch {
+      /* 读不到元数据=按 0 展示（不阻断列表） */
+    }
+    out.push({ fileName: n, kind: n.endsWith('-报告.md') ? 'report' : 'draft', mtimeMs })
+  }
+  return out
+}
+
+/** 整目录备份（转正重名先备份旧技能：整个技能目录 rename 为 <名>.bak-<HHMMSS>，防转正覆盖丢 references/） */
+function backupSkillDir(skillsRoot: string, name: string): void {
+  const now = new Date()
+  const hhmmss = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`
+  try {
+    renameSync(join(skillsRoot, name), join(skillsRoot, `${name}.bak-${hhmmss}`))
+  } catch {
+    /* 备份失败不阻断（尽力而为） */
+  }
+}
+
+/**
+ * 草稿转正（D-L-2：人审转正）：校验（parseSkillFile 必填 + skillNameValid）→ 移到 skills/<名>/SKILL.md
+ * （重名=先备份旧技能目录，保留一份；源草稿随移动移除=「转正」语义）。原文保真（含 disabled 字段，
+ * 转正默认仍需作者在技能管理开开关——设计文档 §5「转正时作者改」）。
+ */
+export function promoteDraft(fileName: string): SkillWriteResult {
+  const safe = safeDraftName(fileName)
+  if (!safe) return { ok: false, error: `草稿文件名「${fileName ?? ''}」不合法` }
+  const src = join(draftsDir(), safe)
+  let raw: string
+  try {
+    raw = readFileSync(src, 'utf-8')
+  } catch {
+    return { ok: false, error: `草稿「${safe}」不存在` }
+  }
+  const meta = parseSkillFile(raw)
+  if (!meta) return { ok: false, error: '转正失败：不是合法的 SKILL.md（需 --- 约定头且 name/description 必填）' }
+  if (!skillNameValid(meta.name)) return { ok: false, error: `转正失败：name「${meta.name}」不合法` }
+  const skillsRoot = join(workspaceDir(), 'skills')
+  const dir = join(skillsRoot, meta.name)
+  try {
+    if (existsSync(dir)) backupSkillDir(skillsRoot, meta.name)
+    mkdirSync(dir, { recursive: true })
+    renameSync(src, join(dir, 'SKILL.md'))
+  } catch (e) {
+    return { ok: false, error: `转正失败：${(e as Error).message}` }
+  }
+  return { ok: true }
+}
+
+/** 删除草稿（未转正的 _drafts/ 文件；不存在→error；删除后状态重新 drafts:list 拉取） */
+export function deleteDraft(fileName: string): SkillWriteResult {
+  const safe = safeDraftName(fileName)
+  if (!safe) return { ok: false, error: `草稿文件名「${fileName ?? ''}」不合法` }
+  const f = join(draftsDir(), safe)
+  if (!existsSync(f)) return { ok: false, error: `草稿「${safe}」不存在` }
+  try {
+    rmSync(f, { force: true })
+  } catch (e) {
+    return { ok: false, error: `草稿删除失败：${(e as Error).message}` }
+  }
+  return { ok: true }
 }

@@ -36,6 +36,7 @@ import type {
 import type { RecentEntry } from '../shared/projects'
 import type { LineInfo } from '../shared/line'
 import type { SkillMeta, SkillDraft, SkillWriteResult } from '../shared/skills'
+import type { InsightRunResult, InsightsState, DraftEntry } from '../shared/writingInsights'
 
 const api = {
   // 平台（renderer 据此做平台差异 UI，如自定义标题栏）
@@ -191,6 +192,13 @@ const api = {
     ipcRenderer.invoke('skills:importPicker') as Promise<SkillWriteResult & { cancelled?: boolean }>,
   exportSkillFile: (name: string) =>
     ipcRenderer.invoke('skills:exportFile', name) as Promise<{ ok: true; path: string } | { ok: false; error?: string; cancelled?: boolean }>,
+  // 写作习惯学习（2026-09-22 增量 4c 数据链；UI 归体验层/平台层协作）：手动分析 / 状态 / 草稿区列表 / 转正 / 删除
+  insightsRun: (projectId: string) => ipcRenderer.invoke('insights:run', projectId) as Promise<InsightRunResult>,
+  insightsStatus: (projectId: string) =>
+    ipcRenderer.invoke('insights:status', projectId) as Promise<InsightsState | null>,
+  draftsList: () => ipcRenderer.invoke('drafts:list') as Promise<DraftEntry[]>,
+  draftPromote: (fileName: string) => ipcRenderer.invoke('drafts:promote', fileName) as Promise<SkillWriteResult>,
+  draftDelete: (fileName: string) => ipcRenderer.invoke('drafts:delete', fileName) as Promise<SkillWriteResult>,
   agentCancel: (requestId: string) => ipcRenderer.invoke('agent:cancel', requestId) as Promise<boolean>,
   agentSync: (projectId: string, chapterRel: string) =>
     ipcRenderer.invoke('agent:sync', projectId, chapterRel) as Promise<{ ok: boolean; items: ProposalItem[]; guard?: { issues: SyncIssue[] }; evidence?: SyncEvidence; error?: string }>,

@@ -33,6 +33,7 @@ import { isVersionedRel } from '../../../shared/versionedRel'
 import type { RecentEntry } from '../../../shared/projects'
 import type { SkillMeta, SkillDraft, SkillWriteResult } from '../../../shared/skills'
 import { parseSkillFile, validateSkillDraft, renderSkillFile, skillNameValid } from '../../../shared/skills'
+import type { InsightsState, InsightRunResult, DraftEntry } from '../../../shared/writingInsights'
 import { toast } from '../store/toasts'
 import { useProposalStore } from '../store/proposals'
 
@@ -638,6 +639,19 @@ const devSkills: SkillMeta[] = [
   }
 ]
 
+// 写作习惯草稿区（devShim 内存态；与真机 main/writingInsights.ts 写面同语义：只回 ok/error，状态由 draftsList 拉取）
+// 种子=一条技能草稿（disabled:true）+一条报告，供体验层草稿区 UI 演示与转正/删除链路无头验证
+const DEV_DRAFT_NAME = '2026-09-22-写作习惯.md'
+const DEV_REPORT_NAME = '2026-09-22-写作习惯-报告.md'
+const DEV_DRAFT_CONTENT =
+  '---\nname: writing-habits\ndescription: 作者的写作习惯摘要：长句拆短、避免口头禅用词（一下/小小的）、精简铺陈；润色与续写时优先沿用\ntriggers: [写作习惯, 我的风格]\narguments: [正文片段]\ndisabled: true\n---\n\n【我的写作习惯】（证据：强）\n- 长句偏多时倾向拆成短句（观察 12 次版本改写）\n- 避免口头禅词「一下」「小小的」（每千字 3.8 次 → 作者改写中移除 9 次）\n- 铺陈段倾向精简（整体字数 -8%）\n- 为什么：短句更利节奏；口语词降低文本密度\n'
+const DEV_REPORT_CONTENT =
+  '# 写作习惯分析报告（2026-09-22）\n\n## Executive Summary\n近 7 天版本改写 12 次，采纳提案 5 条……\n\n## Key findings\n- 长句拆短：5 次\n- 口头禅移除：9 次\n\n## Recommendations\n建议转正「writing-habits」草稿（修订前审阅 disable 开关）。\n'
+const devDrafts: { fileName: string; kind: 'draft' | 'report'; mtimeMs: number; content: string }[] = [
+  { fileName: DEV_DRAFT_NAME, kind: 'draft', mtimeMs: now - 3600 * 1000, content: DEV_DRAFT_CONTENT },
+  { fileName: DEV_REPORT_NAME, kind: 'report', mtimeMs: now - 3599 * 1000, content: DEV_REPORT_CONTENT }
+]
+
 const mock = {
   // 平台（devShim 默认当作 mac，好让自定义标题栏在无头截图也能看到）
   platform: 'darwin',
@@ -1046,6 +1060,45 @@ const mock = {
   exportSkillFile: async (name: string): Promise<{ ok: true; path: string } | { ok: false; error?: string; cancelled?: boolean }> => {
     if (!devSkills.some((s) => s.name === name)) return { ok: false, error: `技能「${name}」不存在` }
     return { ok: true, path: `/tmp/技能包/${name}.md` }
+  },
+  // 写作习惯学习 mock（2026-09-22 增量 4c；与真机 main/writingInsights.ts 同语义：门控 reason 透传 / 写面只回 ok/error）
+  insightsRun: async (_id: string): Promise<InsightRunResult> => {
+    if (!devDrafts.some((d) => d.fileName === DEV_DRAFT_NAME)) {
+      // 演示「刚生成」路径：草稿/报告由常量兜底（内容与种子一致，promote 可解析）
+      devDrafts.unshift(
+        { fileName: DEV_DRAFT_NAME, kind: 'draft', mtimeMs: now, content: DEV_DRAFT_CONTENT },
+        { fileName: DEV_REPORT_NAME, kind: 'report', mtimeMs: now, content: DEV_REPORT_CONTENT }
+      )
+    }
+    const ws = settings.workspace || '~/Documents/织卷工作区'
+    return {
+      ok: true,
+      draftFile: `${ws}/skills/_drafts/${DEV_DRAFT_NAME}`,
+      reportFile: `${ws}/skills/_drafts/${DEV_REPORT_NAME}`,
+      state: { lastRunAt: now, lastDraft: DEV_DRAFT_NAME }
+    }
+  },
+  insightsStatus: async (_id: string): Promise<InsightsState | null> => {
+    const draft = devDrafts.find((d) => d.kind === 'draft')
+    return draft ? { lastRunAt: draft.mtimeMs, lastDraft: draft.fileName } : null
+  },
+  draftsList: async (): Promise<DraftEntry[]> =>
+    devDrafts.map((d) => ({ fileName: d.fileName, kind: d.kind, mtimeMs: d.mtimeMs })),
+  draftPromote: async (fileName: string): Promise<SkillWriteResult> => {
+    const d = devDrafts.find((x) => x.fileName === fileName)
+    if (!d) return { ok: false, error: `草稿「${fileName}」不存在` }
+    const meta = parseSkillFile(d.content)
+    if (!meta) return { ok: false, error: '转正失败：不是合法的 SKILL.md（需 --- 约定头且 name/description 必填）' }
+    if (!skillNameValid(meta.name)) return { ok: false, error: `转正失败：name「${meta.name}」不合法` }
+    if (!devSkills.some((s) => s.name === meta.name)) devSkills.push(meta)
+    devDrafts.splice(devDrafts.indexOf(d), 1)
+    return { ok: true }
+  },
+  draftDelete: async (fileName: string): Promise<SkillWriteResult> => {
+    const i = devDrafts.findIndex((x) => x.fileName === fileName)
+    if (i < 0) return { ok: false, error: `草稿「${fileName}」不存在` }
+    devDrafts.splice(i, 1)
+    return { ok: true }
   },
   listSlices: async (id: string): Promise<SliceEntry[]> => {
     // 解析/排序口径在 shared/slices（与真机 main/slices.listSlices 同一实现，2026-09-12）；

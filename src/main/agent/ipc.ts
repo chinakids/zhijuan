@@ -12,9 +12,11 @@ import { runActs, type ActsRunOpts } from './acts'
 import { ensureHarness, closeHarness, answerDir } from './runtime'
 import { listCapabilities } from './subtask'
 import { listSkills, createSkill, updateSkill, deleteSkill, setSkillDisabled, importSkill, exportSkill } from '../skills'
+import { runWritingInsights, readInsightsState, listDrafts, promoteDraft, deleteDraft } from '../writingInsights'
 import type { SkillDraft } from '../../shared/skills'
+import type { InsightRunResult, InsightsState, DraftEntry } from '../../shared/writingInsights'
 import { activeProvider } from '../../shared/providers'
-import { getSettings, setSettings } from '../settings'
+import { getSettings, setSettings, libraryRoot } from '../settings'
 import { mkdirSync, writeFileSync, readFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { writeFileAtomic } from '../fsutil'
@@ -126,6 +128,12 @@ export function registerAgentIpc() {
   ipcMain.handle('skills:setDisabled', (_e, name: string, disabled: boolean) => setSkillDisabled(name, disabled))
   ipcMain.handle('skills:import', (_e, mdText: string) => importSkill(mdText))
   ipcMain.handle('skills:export', (_e, name: string) => exportSkill(name))
+  // 写作习惯学习（2026-09-22 增量 4c 数据链；UI 归体验层）：手动跑一次 / 状态 / 草稿区列表 / 转正 / 删除
+  // 门控失败 reason（disabled/recent/no-signal/error）原样透传，调用方按语义提示，不得与「无信号」混同
+  ipcMain.handle('insights:run', (_e, projectId: string) => runWritingInsights(projectId))
+  ipcMain.handle('insights:status', (_e, projectId: string) =>
+    readInsightsState(join(libraryRoot(), projectId))
+  )
   // 设置页「技能包」导入 / 导出（系统文件对话框：选 SKILL.md 读入导入；另存为 .md 写出——与 settings:importOveruseTxt/exportOveruseTxt 同范式）
   ipcMain.handle('skills:importPicker', async () => {
     const r = await dialog.showOpenDialog({
@@ -159,6 +167,10 @@ export function registerAgentIpc() {
       return { ok: false, error: String((err as Error).message ?? err) }
     }
   })
+  // 草稿区（增量 4c）：写面只回 ok/error；操作后状态一律重新 drafts:list 拉取（与 devShim mock 同语义）
+  ipcMain.handle('drafts:list', () => listDrafts())
+  ipcMain.handle('drafts:promote', (_e, fileName: string) => promoteDraft(fileName))
+  ipcMain.handle('drafts:delete', (_e, fileName: string) => deleteDraft(fileName))
 }
 
 export function shutdownAgent() {

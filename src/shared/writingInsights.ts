@@ -526,3 +526,26 @@ export function shouldRunInsights(opts: {
   if (typeof opts.lastRunAt === 'number' && opts.now - opts.lastRunAt < interval) return false
   return true
 }
+
+// =====================================================================
+// 执行层/IPC 共享类型（增量 4c：下放 shared 作单一权威源——main 执行层 / preload 桥 / devShim mock 同引用）
+// =====================================================================
+
+/** 状态记账（.zhijuan/insights-state.json；与批注 done.json 同构）：上次成功生成的时间+草稿文件名 */
+export interface InsightsState {
+  lastRunAt: number
+  lastDraft: string
+}
+
+/** runWritingInsights 结果：成功含产物路径；失败带 reason（disabled=开关关 / recent=7 天内已跑 / no-signal=无信号 / error=执行异常） */
+export type InsightRunResult =
+  | { ok: true; draftFile: string; reportFile: string; state: InsightsState }
+  | { ok: false; reason: 'disabled' | 'recent' | 'no-signal' | 'error' }
+
+/** 草稿区条目：kind=report 即「-报告.md」，其余 .md 为技能草稿（体验层列表区分标注） */
+export type DraftKind = 'draft' | 'report'
+export interface DraftEntry {
+  fileName: string
+  kind: DraftKind
+  mtimeMs: number
+}

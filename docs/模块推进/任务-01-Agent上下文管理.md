@@ -143,3 +143,7 @@
 - 落地：SubtaskDef.maxTokens/maxMs 支持 `number | ((ctx)=>number|undefined)`（按 ctx.args.kind 分层）；vendored 补丁 `patch-server-maxtokens.mjs`（session/prompt 加 per-session maxTokens 透传，懒创建 agent 时应用，install.sh 重放）；driveSession 低阶口携带（全局档 12288 保留）；revision=20480+12min（focus「让 agent 改」先例），chapter 不覆盖。
 - 实证：小值探针三态 PASS（1→截断/8→完整/不带→完整=server 侧真实应用）+revision 会话 request/header `maxTokens:20480`。
 - **未收口观察项**：revision 真模型两跑超时（480.3s/720.6s）——20480 档下单 turn think 20K+ tokens 不收敛（06:00 旧行为 12288+retry=646.3s 可用）；「约束 vs 宽松」策略取舍与 reasoning_effort 引擎侧支持=智能层档案候选 1/2，待下一轮实测。**线 A 无新增候选**（上述在模块档案排期）。
+
+### 2026-09-22 06:00（交叉标记：写作习惯学习增量 4c 收口，无本线新逻辑）
+
+- 设计文档 §6 线 A 交叉行=「草稿生成后的注入=既有 skill 注入面（增量 1 已做），草稿转正即生效，无新注入逻辑」——智能层 4c（IPC insights/drafts 五通道+promoteDraft+打开项目检查接线）已落地，**确认只标记交叉、未触碰本线**（注入面=resolveSkillInjection/matchSkillForInput 零改；`_drafts/` 不参与清单=main/skills.ts listSkills 只扫 skills/ 目录的既有实现，4b/4c 冒烟双证）。线 A 候选顺位不变（1 真机核对锁屏顺延 → 2 zj 工具描述补大纲示例触发制 → 3 embedding 触发制 → 4 前文衰减摘要不立项）。
