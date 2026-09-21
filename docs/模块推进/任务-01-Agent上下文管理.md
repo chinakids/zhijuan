@@ -39,6 +39,7 @@
 2. **zj 工具描述补「大纲」示例**（预防性）——仅当真机/换模型出现「未开章问大纲答不出」且探针复跑失败时实现。
 3. ~~**embedding 增强召回**~~（✅ 2026-09-17 21:00 评估收口：可行性成立/触发制低优先）——实施前先出成本与必要性评估（已完成）：本地 bge-m3（本机 ollama 1.2GB、10/10、94ms、零新依赖）为选定方案；**触发条件=织卷素材库真实量 ≥50 篇 或 主人反馈「同义词搜不到」（P1 升格）**；实现定位=作者侧 searchDocs 混合检索（词面+语义 Top-N）、素材卡级整篇嵌入（不分块）；**不做** agent 侧 RAG（09:00/12:00 探针已证 LLM 链通）与远端 API/vLLM 宿主挂载（零网络依赖与算力池边界）。
 4. **前文衰减摘要**（候选保留，评估已判非必需）——若换模型/大项目后 context-fading-probe 出现「不搜/编造」，按 Novelcrafter 摘要链+takeLast 范式（storySoFar 摘要链）引入「每 N 章自动产摘要」；当前不立项。
+5. **skill 运行层上下文注入面**（2026-09-21 09:00 智能层轮登记；基线=docs/skill-运行层-产品规划-2026-09-21.md，主责=智能层）——runChat system 段新增【可用技能】清单块（description 常驻；预算 SKILL_CAPS 新常量入 shared/contextCaps.ts：每技能 ≤120 字符+清单总 ≤600 字符，超预算 name-only）+ 激活【技能：<名>】正文块（≤3000 字符，超限保头+注明 zj_read_doc 现读）；匹配=主进程 matchSkillForInput 纯函数（triggers→description，≤2 条，disabled 不参与；不做 embedding=二期候选）；子任务/检查类/runSync 不注入（设计决定）；验收=单测+skill-live.mjs 探针+context-full-live 零回归；实现路径与 W39 周交付口径见智能层档案候选 1。
 
 ## 五、迭代记录
 
