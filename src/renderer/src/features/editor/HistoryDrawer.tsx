@@ -44,6 +44,9 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
   // 守卫拦截明细（历史版本恢复触发同步后的防线提示，可展开查看）
   const [syncIssues, setSyncIssues] = useState<SyncIssue[]>([])
   const [loading, setLoading] = useState(false)
+  // 读取失败态（2026-09-21 体验层 HIG 走查）：listHistory/readHistory 失败 ≠「没有历史」——
+  // 此前无 catch，失败被显示成假空态（同 runSubtask 弱结果假正反馈模式），须显式错误卡+重试
+  const [err, setErr] = useState<string | null>(null)
   // 模态无障碍：焦点圈闭 / Esc 关闭 / 滚动锁 / 关闭回焦（Apple HIG Keyboards）
   const panelRef = useRef<HTMLDivElement>(null)
   useModalA11y(open, panelRef, onClose)
@@ -51,6 +54,7 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
   const load = useCallback(async (keepMsg = false) => {
     setLoading(true)
     if (!keepMsg) setMsg('')
+    setErr(null)
     try {
       const list = await window.zhijuan.listHistory(projectId, rel)
       const cur = (await window.zhijuan.readDoc(projectId, rel)) ?? ''
@@ -65,6 +69,12 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
         setSel(list[0].name)
         setOldText(t)
       }
+    } catch (e) {
+      setErr(String((e as Error)?.message ?? e))
+      setSnaps([])
+      setSel(null)
+      setOldText(null)
+      setConfirming(false)
     } finally {
       setLoading(false)
     }
@@ -143,6 +153,13 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
           <div className="flex flex-1 items-center justify-center gap-2 text-xs text-ink-3">
             <LoadingIndicator size={16} /> 读取历史…
           </div>
+        ) : err ? (
+          <div role="alert" className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
+            <p className="max-w-full truncate text-xs text-danger" title={err}>读取历史失败</p>
+            <Button size="sm" variant="outline" className="h-7 shrink-0 px-2 text-[11px]" onClick={() => void load()}>
+              重试
+            </Button>
+          </div>
         ) : snaps.length === 0 ? (
           <div className="flex flex-1 flex-col items-center gap-2 py-20 text-ink-3">
             <Inbox className="h-6 w-6" />
@@ -150,26 +167,36 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
           </div>
         ) : (
           <>
-            <div className="flex shrink-0 items-center gap-px border-b border-hair px-3 py-2">
-              <ScrollArea className="flex-1">
-                <div className="flex flex-wrap gap-1.5">
-                  <span className="px-1 py-0.5 text-[10px] text-ink-3">共 {snaps.length} 版（新→旧，最多 50 版）</span>
-                  {snaps.map((s, i) => (
+            <div className="flex shrink-0 items-center gap-px border-b border-hair px-3 py-1.5">
+              <span className="px-1 py-0.5 text-[10px] text-ink-3">共 {snaps.length} 版（新→旧，最多 50 版）</span>
+            </div>
+            {/* 版本列表：行式（HIG Lists「row-based…easy to scan」）——时间主列 + 字节副列 + 选中态 aria-pressed（2026-09-21） */}
+            <ScrollArea className="max-h-[180px] shrink-0 border-b border-hair">
+              <div className="flex flex-col gap-px px-2 py-1">
+                {snaps.map((s, i) => {
+                  const selected = sel === s.name
+                  return (
                     <button
                       key={s.name}
                       onClick={() => void pick(s.name)}
+                      aria-pressed={selected}
+                      data-version={i === 0 ? 'latest' : `v${snaps.length - i}`}
                       className={cn(
-                        'h-6 shrink-0 whitespace-nowrap rounded-full border px-2 text-[10px] transition-colors',
-                        sel === s.name ? 'border-accent bg-accent-soft text-accent' : 'border-hair bg-surface-2 text-ink-2 hover:border-accent/50'
+                        'flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[11px] transition-colors',
+                        selected ? 'bg-accent-soft text-accent' : 'text-ink-2 hover:bg-surface'
                       )}
                       title={`${fmtTime(s.name)} · ${s.size} 字节${i === 0 ? ' · 最新' : ''}`}
                     >
-                      {i === 0 ? '最新' : `v${snaps.length - i}`} · {fmtTime(s.name)}
+                      <span className={cn('w-9 shrink-0 text-right font-mono text-[10px]', selected ? 'text-accent/70' : 'text-ink-3')}>
+                        {i === 0 ? '最新' : `v${snaps.length - i}`}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">{fmtTime(s.name)}</span>
+                      <span className="shrink-0 text-[10px] text-ink-3">{s.size} 字节</span>
                     </button>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
+                  )
+                })}
+              </div>
+            </ScrollArea>
 
             <ScrollArea className="min-h-0 flex-1 px-3 py-2">
               {msg && (

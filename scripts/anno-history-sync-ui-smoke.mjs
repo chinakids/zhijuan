@@ -142,8 +142,8 @@ try {
   await pageB.eval(clickBtn('历史', true))
   await evalUntil(pageB, bodyHas('共 2 版'), Boolean, 15000, '历史抽屉两版')
   ok('B① 制造两版历史并打开抽屉', true)
-  // 选最老一版（v1）→ 恢复（两次点击确认）
-  await pageB.eval(clickBtn('v1 ', false))
+  // 选最老一版（v1）→ 恢复（两次点击确认）；行式列表锚点 data-version（2026-09-21 体验层 HIG 走查）
+  await pageB.eval(`(() => { const el = document.querySelector('[data-version="v1"]'); if (el) { el.click(); return true } return false })()`)
   await sleep(400)
   await pageB.eval(clickBtn('恢复此版本', true))
   await sleep(300)
