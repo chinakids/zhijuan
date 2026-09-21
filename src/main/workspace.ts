@@ -2,7 +2,8 @@
 // 从 fileStore 拆出：store 只留「项目 + 文件 + watcher」（见 docs/架构评审与调整-2026-09-04.md §二-1）。
 // 职责：工作区初始化落档说明文档（<工作区>/文档/，幂等）与查询；路径决策在 settings.ts。
 import { join, basename } from 'path'
-import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync } from 'fs'
+import { mkdirSync, readdirSync, readFileSync, existsSync } from 'fs'
+import { writeFileAtomic } from './fsutil'
 import { workspaceDir } from './settings'
 import { WORKSPACE_DOCS } from './workspace-docs'
 
@@ -20,7 +21,7 @@ export function ensureWorkspaceDocs(): { ok: boolean; created: string[]; docs: s
   for (const [name, content] of Object.entries(WORKSPACE_DOCS)) {
     const f = join(docDir, name)
     if (!existsSync(f)) {
-      writeFileSync(f, content, 'utf-8')
+      writeFileAtomic(f, content)
       created.push(name)
     }
   }

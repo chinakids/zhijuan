@@ -6,7 +6,6 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
-  writeFileSync,
   existsSync,
   rmSync,
   renameSync,
@@ -15,6 +14,7 @@ import {
   watch,
   FSWatcher
 } from 'fs'
+import { writeFileAtomic } from './fsutil'
 import { extractFrontMatter, serializeFrontMatter, setFrontMatterField } from '../shared/fmatter'
 import { posixRel, toPosix } from '../shared/relpath'
 import { isOutlineCardRel, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterSliceInDoc } from '../shared/outline'
@@ -67,7 +67,7 @@ function writeProjectMeta(m: ProjectMeta) {
   ensureDir(dirname(f))
   let body = ''
   if (existsSync(f)) body = extractFrontMatter(readFileSync(f, 'utf-8')).body
-  writeFileSync(f, serializeFrontMatter(fm) + body, 'utf-8')
+  writeFileAtomic(f, serializeFrontMatter(fm) + body)
 }
 
 // ---------- 骨架 ----------
@@ -83,7 +83,7 @@ export function ensureSkeleton(id: string) {
   ]
   for (const [rel, tpl] of templates) {
     const f = join(root, rel)
-    if (!existsSync(f)) writeFileSync(f, tpl, 'utf-8')
+    if (!existsSync(f)) writeFileAtomic(f, tpl)
   }
   ensureGitignore(id)
 }
@@ -93,7 +93,7 @@ export function ensureSkeleton(id: string) {
 const GITIGNORE = '# 织卷 · 工具派生的本地数据（版本快照/迁移备份），作品正文与设定均为明文可入 git\n.zhijuan/history/\n.zhijuan/migrate-backup-*/\n'
 function ensureGitignore(id: string) {
   const f = join(projectDir(id), '.gitignore')
-  if (!existsSync(f)) writeFileSync(f, GITIGNORE, 'utf-8')
+  if (!existsSync(f)) writeFileAtomic(f, GITIGNORE)
 }
 
 const newProjectBody = `\n## 时间线总纲\n\n（作品的世界时间线与人读说明。每章 = 一个时间切片 + 恰好一条时间线；切片名/时间线名写在该章正文的约定头里（\`时间线: <线名>\` 可选，缺省=主线）。多线叙事（回忆线/支线/平行线等）时按章声明线即可；**线枚举以正文章头为唯一数据源**（可随时重建，本段不承担数据职责）。）\n\n- 主线：（一句话描述这条线讲什么）\n- （需要时再列：<线名>：（一句话描述））\n\n## 目录约定\n\n- 正文：\`正文/第NN章_题名.md\`，每章开头有一段 front matter（章号/题名/切片/涉及人物/时间线）。\n- 人物：每个人物一个 \`人物/<人物名>.md\`，基础设定 + 按切片的状态小节。\n- 世界观：\`世界观/总纲.md\` + 每个切片的 \`世界观/切片_<切片名>.md\`。\n- 素材库：按类别目录存放素材文档；联网采集的原始任务在 \`素材库/采集池/\`。\n- 工具数据（提案、会话）在 \`.zhijuan/\`，不是设定本体；其中版本快照（\`.zhijuan/history/\`）与迁移备份默认可被项目根 \`.gitignore\` 忽略，作品正文与设定均为明文可入 git。\n`
@@ -107,7 +107,7 @@ export function createProject(name: string, description: string, template?: stri
   writeProjectMeta({ id, name, description, createdAt: now, updatedAt: now })
   // project.md 正文模板
   const f = projectFile(id)
-  writeFileSync(f, readFileSync(f, 'utf-8') + newProjectBody, 'utf-8')
+  writeFileAtomic(f, readFileSync(f, 'utf-8') + newProjectBody)
   ensureSkeleton(id)
   // 「初始内容」模板：补充复制示例/用户模板文档（跳过已存在文件，不覆盖骨架与 project.md）
   if (template) applyTemplate(template, projectDir(id))
@@ -200,7 +200,7 @@ export function importProject(dir: string): ImportResult {
   if (!existsSync(f)) {
     const now = Date.now()
     writeProjectMeta({ id, name: id, description: '', createdAt: now, updatedAt: now })
-    writeFileSync(f, readFileSync(f, 'utf-8') + newProjectBody, 'utf-8')
+    writeFileAtomic(f, readFileSync(f, 'utf-8') + newProjectBody)
   }
   const summary = summarize(id)
   if (!summary) return { ok: false, error: '导入后未生成项目元数据' }
@@ -260,7 +260,7 @@ export function writeDoc(id: string, rel: string, content: string) {
       appendWriteLog(id, { time: Date.now(), rel, prevLen: prev.length, newLen: content.length, head: content.slice(0, HEAD_LEN) })
     }
   }
-  writeFileSync(f, content, 'utf-8')
+  writeFileAtomic(f, content)
 }
 
 /**

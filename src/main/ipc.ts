@@ -1,6 +1,7 @@
 // ===== 织卷 V2 · IPC 路由（renderer 唯一入口） =====
 import { ipcMain, shell, BrowserWindow, dialog, app } from 'electron'
-import { writeFileSync, readFileSync } from 'fs'
+import { readFileSync } from 'fs'
+import { writeFileAtomic } from './fsutil'
 import { join } from 'path'
 import type { AppSettings, FsEvent, ProposalItem, EditItem, Proposal, SaveTraceEntry } from '../shared/types'
 import { adoptActsChapter } from '../shared/actsAdopt'
@@ -94,7 +95,7 @@ export function registerIpc() {
     const r = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts)
     if (r.canceled || !r.filePath) return { ok: false, cancelled: true }
     try {
-      writeFileSync(r.filePath, lines.join('\n') + '\n', 'utf-8')
+      writeFileAtomic(r.filePath, lines.join('\n') + '\n')
       return { ok: true, path: r.filePath }
     } catch (err) {
       return { ok: false, error: String((err as Error).message ?? err) }
@@ -213,7 +214,7 @@ export function registerIpc() {
     const win = BrowserWindow.fromWebContents(e.sender)
     const r = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts)
     if (r.canceled || !r.filePath) return { cancelled: true }
-    writeFileSync(r.filePath, body, 'utf-8')
+    writeFileAtomic(r.filePath, body)
     return { ok: true, path: r.filePath }
   })
 

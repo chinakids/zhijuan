@@ -5,7 +5,8 @@
 // ∪ 大纲/ 下章卡与导演板/分幕草稿（写作副产物版本化，2026-09-14 智能层轮：重导/重跑会覆盖旧版，
 //    旧版正是「重导前对照」的回看物；大纲/索引.md 是纯路标可随时重建，不入史）。
 // 不依赖 git：项目库可能是普通目录；用户自管 git 时快照与其互不干扰（纯文件、可入 git 或自行 ignore）。
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from 'fs'
+import { writeFileAtomic } from './fsutil'
 import { join } from 'path'
 import { DOT_DIR } from '../shared/paths'
 import { isVersionedRel } from '../shared/versionedRel'
@@ -48,7 +49,7 @@ export function writeSnapshot(projectRoot: string, rel: string, content: string,
     name = `${snapName(ts)}-${i++}.md`
     f = join(dir, name)
   }
-  writeFileSync(f, content, 'utf-8')
+  writeFileAtomic(f, content)
   prune(projectRoot, rel)
   return name
 }

@@ -6,7 +6,8 @@
 // P1 现场「09:30:13 保存时编辑器 body 为空」渲染层侧无痕（写盘方钉死后只剩渲染层根因未定位），
 // 下次再现直接从 save-trace 回放保存时刻的编辑器状态，无需猜测。
 // 旁路记录：appendSaveTrace 全 try/catch 包裹，绝不改变保存链路结果（doSave 调用方无感）。
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
+import { writeFileAtomic } from './fsutil'
 import { join } from 'node:path'
 import { libraryRoot } from './settings'
 import { DOT_DIR } from '../shared/paths'
@@ -40,7 +41,7 @@ export function appendSaveTrace(projectId: string, rel: string, entry: SaveTrace
     const raw = readFileSync(p, 'utf-8')
     const lines = raw.split('\n').filter((l) => l.trim().length > 0)
     if (lines.length > SAVE_TRACE_CAP) {
-      writeFileSync(p, lines.slice(-SAVE_TRACE_CAP).join('\n') + '\n', 'utf-8')
+      writeFileAtomic(p, lines.slice(-SAVE_TRACE_CAP).join('\n') + '\n')
     }
   } catch {
     // 旁路：不干扰保存本体

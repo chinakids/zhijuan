@@ -3,7 +3,8 @@
 import { app } from 'electron'
 import { createRequire } from 'module'
 import { execFileSync } from 'child_process'
-import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'fs'
+import { mkdirSync, readFileSync, existsSync, readdirSync } from 'fs'
+import { writeFileAtomic } from '../fsutil'
 import { resolve, dirname, join, win32 } from 'path'
 import { homedir } from 'os'
 import { pathToFileURL } from 'url'
@@ -90,7 +91,7 @@ function llmOverrideArgs(): string[] {
   const body = buildLlmOverrideYml(cfg)
   let cur = ''
   try { cur = readFileSync(patch, 'utf-8') } catch {}
-  if (cur !== body) writeFileSync(patch, body, 'utf-8')
+  if (cur !== body) writeFileAtomic(patch, body)
   return ['--patch', patch]
 }
 
@@ -107,7 +108,7 @@ function toolsOverrideArgs(): string[] {
   const body = rows.join('')
   let cur = ''
   try { cur = readFileSync(patch, 'utf-8') } catch {}
-  if (cur !== body) writeFileSync(patch, body, 'utf-8')
+  if (cur !== body) writeFileAtomic(patch, body)
   return ['--patch', patch]
 }
 

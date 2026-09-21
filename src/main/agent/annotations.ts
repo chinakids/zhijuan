@@ -4,7 +4,8 @@
 // 生成修改提案（source=annotation-sync，走提案制确认；同章 pending 置 stale 与 slice-sync 同口径）→
 // 提案被接受/拒绝后删除对应 csv 行（空 csv 删除文件）——与脚本 remove/cull 语义一致。
 // 「定时」= 打开项目后 30s 起跑 + 每 30 分钟 + 提案抽屉手动按钮（渲染侧触发本模块 scan）。
-import { readdirSync, readFileSync, writeFileSync, existsSync, rmSync, statSync, mkdirSync } from 'fs'
+import { readdirSync, readFileSync, existsSync, rmSync, statSync, mkdirSync } from 'fs'
+import { writeFileAtomic } from '../fsutil'
 import { join, relative, dirname } from 'path'
 import { projectDir } from '../store'
 import { libraryRoot } from '../settings'
@@ -26,7 +27,7 @@ function loadDone(root: string): DoneState {
 
 function saveDone(root: string, done: DoneState): void {
   try {
-    writeFileSync(join(root, '.zhijuan', 'annotations.done.json'), JSON.stringify(done), 'utf-8')
+    writeFileAtomic(join(root, '.zhijuan', 'annotations.done.json'), JSON.stringify(done))
   } catch {
     /* 记账失败不致命：最坏重复生成一次 */
   }
@@ -115,7 +116,7 @@ export function resolveAnnotationRows(projectId: string, refs: AnnotationRef[] |
       }
     } else {
       try {
-        writeFileSync(abs, lines.join('\n') + '\n', 'utf-8')
+        writeFileAtomic(abs, lines.join('\n') + '\n')
       } catch {
         /* 忽略 */
       }
@@ -202,7 +203,7 @@ export function addAnnotation(
   const line = `${escapeCsvField(entry.loc)},${escapeCsvField(entry.note)},${escapeCsvField(entry.before)}`
   try {
     mkdirSync(dirname(abs), { recursive: true })
-    writeFileSync(abs, (body ? body + '\n' : '') + line + '\n', 'utf-8')
+    writeFileAtomic(abs, (body ? body + '\n' : '') + line + '\n')
   } catch {
     return { csvRel, row: 0, ok: false }
   }

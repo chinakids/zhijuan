@@ -1,7 +1,8 @@
 // ===== 织卷 V2 · 时间切片清单（模块设计 §14之 / 评审 D2） =====
 // 把「切片」从章头字符串升格为可枚举实体：正文仍是唯一源，本模块每次现扫章头 front matter；
 // writeSliceRegistry 把结果登记为 .zhijuan/slices.json 索引，供时间线 / 跨切片巡检 / 切片对比直接读，随时可重建。
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'fs'
+import { writeFileAtomic } from './fsutil'
 import { dirname, join } from 'path'
 import { listSliceEntries } from '../shared/slices'
 import { listLinesFromEntries, type LineInfo } from '../shared/line'
@@ -36,7 +37,7 @@ export function listSlices(projectDir: string): SliceEntry[] {
 export function writeSliceRegistry(projectDir: string, entries: SliceEntry[]): string {
   const f = join(projectDir, DOT_DIR, 'slices.json')
   mkdirSync(dirname(f), { recursive: true })
-  writeFileSync(f, JSON.stringify({ updatedAt: Date.now(), slices: entries }, null, 2), 'utf-8')
+  writeFileAtomic(f, JSON.stringify({ updatedAt: Date.now(), slices: entries }, null, 2))
   return f
 }
 
@@ -49,6 +50,6 @@ export function listLines(projectDir: string): LineInfo[] {
 export function writeLinesRegistry(projectDir: string, lines: LineInfo[]): string {
   const f = join(projectDir, DOT_DIR, 'lines.json')
   mkdirSync(dirname(f), { recursive: true })
-  writeFileSync(f, JSON.stringify({ updatedAt: Date.now(), lines }, null, 2), 'utf-8')
+  writeFileAtomic(f, JSON.stringify({ updatedAt: Date.now(), lines }, null, 2))
   return f
 }

@@ -1,7 +1,8 @@
 // ===== 织卷 S4 · 提案库（模块设计 §8）：文件落在 <项目>/.zhijuan/proposals/*.json =====
 // 所有函数首参都是项目根目录（由调用方从 store 的设置里取），保持纯文件逻辑、可测。
 import { join, dirname } from 'path'
-import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'fs'
+import { readdirSync, readFileSync, existsSync, mkdirSync, rmSync } from 'fs'
+import { writeFileAtomic } from './fsutil'
 import type { Proposal, ProposalItem } from '../shared/types'
 import { DOT_DIR } from '../shared/paths'
 import { findAnchorLine, normalizeAnchor } from '../shared/anchor'
@@ -32,7 +33,7 @@ function readAll(root: string, projectId: string): Proposal[] {
 function write(root: string, projectId: string, p: Proposal) {
   const d = dir(root, projectId)
   ensure(d)
-  writeFileSync(join(d, p.id + '.json'), JSON.stringify(p, null, 2), 'utf-8')
+  writeFileAtomic(join(d, p.id + '.json'), JSON.stringify(p, null, 2))
 }
 
 function findStatus(root: string, projectId: string, id: string): Proposal | null {
@@ -159,7 +160,7 @@ export function migrateChapter(root: string, projectId: string, oldRel: string, 
       const p = JSON.parse(readFileSync(join(d, f), 'utf-8')) as Proposal
       if (p.chapter === oldRel) {
         p.chapter = newRel
-        writeFileSync(join(d, f), JSON.stringify(p, null, 2), 'utf-8')
+        writeFileAtomic(join(d, f), JSON.stringify(p, null, 2))
         n++
       }
     } catch { /* 坏档跳过 */ }
@@ -181,7 +182,7 @@ export function invalidateChapter(root: string, projectId: string, rel: string):
       const p = JSON.parse(readFileSync(join(d, f), 'utf-8')) as Proposal
       if (p.chapter === rel && p.status === 'pending') {
         p.status = 'stale'
-        writeFileSync(join(d, f), JSON.stringify(p, null, 2), 'utf-8')
+        writeFileAtomic(join(d, f), JSON.stringify(p, null, 2))
         n++
       }
     } catch { /* 坏档跳过 */ }
@@ -215,7 +216,7 @@ export function applyProposal(root: string, projectId: string, id: string): { ok
         out = r.out as string
       }
       ensure(dirname(abs))
-      writeFileSync(abs, out, 'utf-8')
+      writeFileAtomic(abs, out)
       applied.push(file)
     } catch (e) {
       errors.push(file + ': ' + String((e as Error).message || e))
@@ -268,7 +269,7 @@ export function staleSliceSyncByChapter(root: string, projectId: string, chapter
       const p = JSON.parse(readFileSync(join(d, f), 'utf-8')) as Proposal
       if (p.chapter === chapter && p.source === 'slice-sync' && p.status === 'pending') {
         p.status = 'stale'
-        writeFileSync(join(d, f), JSON.stringify(p, null, 2), 'utf-8')
+        writeFileAtomic(join(d, f), JSON.stringify(p, null, 2))
         n++
       }
     } catch { /* 坏档跳过 */ }

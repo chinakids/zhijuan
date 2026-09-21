@@ -3,7 +3,8 @@
 // 新建项目时可把它当作「初始内容」：把模板里的文档补充复制进新项目（不覆盖已有文件）。
 // 设计依据（平台层档案 2026-09-09 第 2 轮）：学 Obsidian「模板＝目录下的文件」，不做 Scrivener 式项目快照导入导出。
 import { join, dirname } from 'path'
-import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync } from 'fs'
+import { mkdirSync, readdirSync, readFileSync, existsSync } from 'fs'
+import { writeFileAtomic } from './fsutil'
 import { workspaceDir } from './settings'
 import { PROJ_FILE, DOT_DIR } from '../shared/paths'
 import type { ProjectTemplate } from '../shared/types'
@@ -65,7 +66,7 @@ export function ensureBuiltinTemplates(): string[] {
     const f = join(root, BUILTIN_SAMPLE, rel)
     if (!existsSync(f)) {
       mkdirSync(dirname(f), { recursive: true })
-      writeFileSync(f, content, 'utf-8')
+      writeFileAtomic(f, content)
       created.push(rel)
     }
   }
@@ -105,7 +106,7 @@ export function applyTemplate(id: string, targetRoot: string): { ok: boolean; co
         const dest = join(targetRoot, r)
         if (!existsSync(dest)) {
           mkdirSync(dirname(dest), { recursive: true })
-          writeFileSync(dest, readFileSync(p, 'utf-8'), 'utf-8')
+          writeFileAtomic(dest, readFileSync(p, 'utf-8'))
           copied.push(r)
         }
       }

@@ -6,7 +6,8 @@
 // history 快照时间戳推断（快照只留旧内容不留新内容/新长度）。写入时刻+新旧长度+新内容头部留档后，
 // 再演即可直接从 write-log 拿到写盘事实（时间/长度剧变即异常信号），无需猜测与恢复前抢拍。
 // 旁路记录：appendWriteLog 全 try/catch 包裹，绝不改变写盘链路结果（writeDoc 调用方无感）。
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
+import { writeFileAtomic } from './fsutil'
 import { join } from 'node:path'
 import { libraryRoot } from './settings'
 import { DOT_DIR } from '../shared/paths'
@@ -46,7 +47,7 @@ export function appendWriteLog(projectId: string, entry: WriteLogEntry): void {
     const raw = readFileSync(p, 'utf-8')
     const lines = raw.split('\n').filter((l) => l.trim().length > 0)
     if (lines.length > WRITE_LOG_CAP) {
-      writeFileSync(p, lines.slice(-WRITE_LOG_CAP).join('\n') + '\n', 'utf-8')
+      writeFileAtomic(p, lines.slice(-WRITE_LOG_CAP).join('\n') + '\n')
     }
   } catch {
     // 旁路：不干扰写盘本体

@@ -2,7 +2,8 @@
 // 拆分理由见 docs/架构评审与调整-2026-09-04.md §二-1：settings 不进 store，加厂商字段不碰文件库。
 import { app } from 'electron'
 import { join, dirname } from 'path'
-import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync } from 'fs'
+import { mkdirSync, readdirSync, readFileSync, existsSync } from 'fs'
+import { writeFileAtomic } from './fsutil'
 import { DEFAULT_SETTINGS } from '../shared/types'
 import type { AppSettings } from '../shared/types'
 import { resolveLibraryRoot } from '../shared/settingsLogic'
@@ -51,7 +52,7 @@ export function readSettings(): AppSettings {
 }
 function writeSettings(s: AppSettings) {
   ensureDir(dirname(settingsFile()))
-  writeFileSync(settingsFile(), JSON.stringify(s, null, 2), 'utf-8')
+  writeFileAtomic(settingsFile(), JSON.stringify(s, null, 2))
 }
 let settingsCache: AppSettings = readSettings()
 export function getSettings(): AppSettings {

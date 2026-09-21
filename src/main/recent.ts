@@ -4,7 +4,8 @@
 // 语义：recordOpen 在 project:open（进入项目工作区）时调用；去重、置顶、截断上限。
 import { app } from 'electron'
 import { join, dirname } from 'path'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync } from 'fs'
+import { writeFileAtomic } from './fsutil'
 import type { RecentEntry } from '../shared/projects'
 
 export const MAX_RECENTS = 12
@@ -40,7 +41,7 @@ export function removeRecent(id: string): void {
   const next = getRecentEntries().filter((e) => e.id !== id)
   try {
     mkdirSync(dirname(recentsFile()), { recursive: true })
-    writeFileSync(recentsFile(), JSON.stringify(next, null, 2), 'utf-8')
+    writeFileAtomic(recentsFile(), JSON.stringify(next, null, 2))
   } catch {
     /* 静默 */
   }
@@ -54,7 +55,7 @@ export function recordOpen(id: string): void {
   const next = cur.slice(0, MAX_RECENTS)
   try {
     mkdirSync(dirname(recentsFile()), { recursive: true })
-    writeFileSync(recentsFile(), JSON.stringify(next, null, 2), 'utf-8')
+    writeFileAtomic(recentsFile(), JSON.stringify(next, null, 2))
   } catch {
     /* 静默 */
   }

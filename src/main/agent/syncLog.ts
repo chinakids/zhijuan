@@ -2,7 +2,8 @@
 // .zhijuan/sync-log.jsonl：一行一条 SyncLogEntry（JSONL 追加 O(1)、崩溃最多丢半行、损坏行跳过），
 // 上限 SYNC_LOG_CAP 条（超出重写保最新）。
 // 旁路记录：appendSyncLog 全 try/catch 包裹，绝不改变同步链路结果（runSync 调用方无感）。
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
+import { writeFileAtomic } from '../fsutil'
 import { join } from 'node:path'
 import { projectDir } from '../store'
 import { DOT_DIR } from '../../shared/paths'
@@ -25,7 +26,7 @@ export function appendSyncLog(projectId: string, entry: SyncLogEntry): void {
     const raw = readFileSync(p, 'utf-8')
     const lines = raw.split('\n').filter((l) => l.trim().length > 0)
     if (lines.length > SYNC_LOG_CAP) {
-      writeFileSync(p, lines.slice(-SYNC_LOG_CAP).join('\n') + '\n', 'utf-8')
+      writeFileAtomic(p, lines.slice(-SYNC_LOG_CAP).join('\n') + '\n')
     }
   } catch {
     // 旁路：不干扰同步本体

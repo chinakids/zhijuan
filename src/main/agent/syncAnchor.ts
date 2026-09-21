@@ -3,7 +3,8 @@
 // 世界状态写「世界观/切片_<切片名>.md」（每切片一个文件；总纲=长期不变项，不写切片状态）。
 // 实测（2026-09-09 织卷smoke 数据审计）模型会：把 anchor 填成「基础档案」（→ 整节覆盖基础设定）、
 // 或把世界状态指向「世界观/总纲.md」→ 这里做一层代码防线归一化，提示词同步加固。
-import { existsSync, mkdirSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync } from 'fs'
+import { writeFileAtomic } from '../fsutil'
 import { join, dirname } from 'path'
 import type { ProposalItem } from '../../shared/types'
 import { worldSliceFile } from '../../shared/paths'
@@ -75,10 +76,9 @@ export function ensureWorldSliceFile(root: string, sliceName: string): string | 
   const abs = join(root, rel)
   if (!existsSync(abs)) {
     mkdirSync(dirname(abs), { recursive: true })
-    writeFileSync(
+    writeFileAtomic(
       abs,
-      `# 切片：${sliceName}\n\n> 本切片的世界状态（规则、事件、环境）。正文保存时的切片同步会把本切片的新状态写入这里；长期不变设定请放《总纲》。\n`,
-      'utf-8'
+      `# 切片：${sliceName}\n\n> 本切片的世界状态（规则、事件、环境）。正文保存时的切片同步会把本切片的新状态写入这里；长期不变设定请放《总纲》。\n`
     )
   }
   return rel
