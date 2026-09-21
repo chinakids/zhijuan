@@ -4,8 +4,9 @@
 // 链路（devShim + ?zj-guard=4 注入 1 已纠正 + 3 未建档(新角色1/2/3)）：
 //   选第1章 → 编辑正文 → 保存 → 浮条「拦截 4 条」→ 展开明细：
 //   批量按钮「为 3 名人物建档案」（data-testid=guard-bulk-create，N=未建档且未建档中条目数）
-//   → 点击 → 3 个 人物/新角色*.md 按模板落盘（readDoc 断言）→ 三条转「已建档」、逐条按钮清零、批量按钮消失
-//   → 再编辑保存重跑同步 → 已建档 target 不再拦截（只剩已纠正 1 条）；全程零 JS 异常
+//   → 预写 人物/新角色2.md（模拟作者已建=skipped 分支）→ 点击批量 → 新角色1/3 落盘转「已建档」、
+//     新角色2 标「已有档」（reason「已有档案未改动」）、逐条按钮清零、批量按钮消失
+//   → 再编辑保存重跑同步 → 已建档/已有档 target 不再拦截（只剩已纠正 1 条）；全程零 JS 异常
 const CDP = 'http://127.0.0.1:9224'
 const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const PID = 'demo-aseya'
@@ -88,6 +89,7 @@ const detailExpr = `(() => {
   if (!el) return null
   return {
     items: [...el.querySelectorAll('li')].map((li) => li.innerText),
+    badges: [...el.querySelectorAll('li')].map((li) => li.querySelector('span')?.innerText ?? ''),
     btnCount: [...el.querySelectorAll('button')].filter((b) => (b.innerText || '').trim() === '建档案').length,
     bulkBtn: !!el.querySelector('[data-testid="guard-bulk-create"]'),
     bulkLabel: (() => { const b = el.querySelector('[data-testid="guard-bulk-create"]'); return b ? (b.innerText || '').trim() : null })()
@@ -119,7 +121,11 @@ try {
   ok('未建档行逐条「建档案」按钮 3 个（已纠正行无）', d1.btnCount === 3, JSON.stringify(d1.btnCount))
   ok('批量按钮出现且文案「为 3 名人物建档案」', d1.bulkBtn === true && d1.bulkLabel === '为 3 名人物建档案', JSON.stringify(d1.bulkLabel))
 
-  // ③ 点击批量按钮 → 3 档案按模板落盘 → 全部转「已建档」、逐条按钮清零、批量按钮消失
+  // ③ 预写 人物/新角色2.md（模拟作者在别处已建=skipped 分支；模板同 quickCharDocMarkdown 形态）→ 点击批量按钮
+  await page.eval(`(() => {
+    const t = '---\\n别名: []\\n---\\n# 新角色2\\n\\n> 定位：（待补充：身份 / 职业）\\n> 关键特征：（待补充：关键特征）\\n\\n## 基础档案\\n\\n（作者在别处已建）'
+    return window.zhijuan.writeDoc('${PID}', '人物/新角色2.md', t)
+  })()`)
   await page.eval(`(() => {
     const b = document.querySelector('[data-testid="guard-bulk-create"]')
     if (b) b.click()
@@ -131,12 +137,14 @@ try {
       `window.zhijuan.readDoc('${PID}', '人物/${name}.md')`,
       (t) => typeof t === 'string' && t.length > 0,
       10000,
-      '档案落盘 ' + name
+      '档案在盘 ' + name
     )
-    ok(`档案落盘 人物/${name}.md（模板含约定头/占位/基础档案）`, created.includes('别名: []') && created.includes('# ' + name) && created.includes('（待补充：身份 / 职业）') && created.includes('## 基础档案'), created.slice(0, 80))
+    ok(`档案在盘 人物/${name}.md（模板含约定头/占位/基础档案）`, created.includes('别名: []') && created.includes('# ' + name) && created.includes('（待补充：身份 / 职业）') && created.includes('## 基础档案'), created.slice(0, 80))
   }
-  const d2 = await evalUntil(page, detailExpr, (d) => d && d.items.filter((t) => t.includes('已建档')).length === 3, 8000, '三行已建档')
-  ok('三条未建档行全部转「已建档」', d2.items.filter((t) => t.includes('已建档')).length === 3, JSON.stringify(d2.items))
+  const d2 = await evalUntil(page, detailExpr, (d) => d && d.badges && d.badges.filter((b) => b === '已建档').length === 2, 8000, '两行已建档')
+  ok('批量后 2 行「已建档」+1 行「已有档」（skipped 区分）', d2.badges.filter((b) => b === '已建档').length === 2 && d2.badges.filter((b) => b === '已有档').length === 1 && d2.badges.filter((b) => b === '已纠正').length === 1, JSON.stringify(d2.badges))
+  ok('已建档行 reason「已快速建档…」', d2.items.some((t) => t.includes('已快速建档')), JSON.stringify(d2.items))
+  ok('已有档行 reason「已有档案未改动…」', d2.items.some((t) => t.includes('已有档案未改动')), JSON.stringify(d2.items))
   ok('逐条「建档案」按钮清零', d2.btnCount === 0, JSON.stringify(d2.btnCount))
   ok('批量按钮消失（无未建档条目）', d2.bulkBtn === false, JSON.stringify(d2.bulkBtn))
 

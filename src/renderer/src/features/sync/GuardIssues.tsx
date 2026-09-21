@@ -17,9 +17,12 @@ import { bulkQuickCreate } from './guardBulk'
  * 写前先 readDoc 查存在（已有档不覆盖——writeDoc 是覆盖写，绝不能覆盖作者手动档案）；
  * 建档后该条标记「已建档」，下次同步重跑（knownFiles 已含）自然不再拦截。projectId 缺省则不显示动作。
  * 批量建档（2026-09-22 创作层）：展开浮层列表上方「为 N 名人物建档案」一键按钮（N=未建档且未建档中条目，
- * 动态）——复用 guardBulk.bulkQuickCreate 同一实现（toast 批量建档 228a0dd 同语义：查存在不覆盖，
- * created+skipped 都标「已建档」=已有档案未改动），Sudowrite Generate All Characters 同构
- * （一个动作批量、处置后逐条仍可核）；作者显式点按，不违反「同步不替作者建档」。
+ * 动态）——复用 guardBulk.bulkQuickCreate 同一实现（toast 批量建档 228a0dd 同语义：查存在不覆盖），
+ * Sudowrite Generate All Characters 同构（一个动作批量、处置后逐条仍可核）；作者显式点按，
+ * 不违反「同步不替作者建档」。
+ * 批量结果呈现口径（2026-09-22 03:45 创作层）：浮层是 toast 通知的 inline 补充通道（M3 Snackbar 无障碍条款）——
+ * toast 摘要承担「已为 N 名人物建档案，M 名已有档案未改动」整体结果，浮层逐条区分 created/skipped
+ * （徽标「已建档」/「已有档」＋reason 同措辞），不另加整体成功行（两级披露上限、逐条徽标即时反馈已足够）。
  */
 export function GuardIssuesNote({
   issues,
@@ -33,6 +36,8 @@ export function GuardIssuesNote({
   const [open, setOpen] = useState(false)
   // 已快速建档的 target 集（或写盘前发现已存在）：该条 UI 转为「已建档」，不再可处置
   const [created, setCreated] = useState<Set<string>>(new Set())
+  // 写盘前发现已存在（作者在别处已建、未覆盖）的 target 集：该条 UI 转「已有档」呈现（与 toast「已有档案未改动」同语义）
+  const [skipped, setSkipped] = useState<Set<string>>(new Set())
   const [creating, setCreating] = useState<Set<string>>(new Set())
   // 批量建档进行中（复用 bulkQuickCreate；逐条按钮与批量共用 created 集与写盘语义）
   const [bulkBusy, setBulkBusy] = useState(false)
@@ -54,12 +59,13 @@ export function GuardIssuesNote({
   }, [open])
 
   async function quickCreate(it: SyncIssue) {
-    if (!projectId || !personRelOf(it.target) || created.has(it.target) || creating.has(it.target)) return
+    if (!projectId || !personRelOf(it.target) || created.has(it.target) || skipped.has(it.target) || creating.has(it.target)) return
     setCreating((s) => new Set(s).add(it.target))
     try {
-      // 与 toast 批量建档同一实现：已有档案（作者在别处已建、列表未刷新）→ 不覆盖，仅标记已建档
+      // 与 toast 批量建档同一实现：已有档案（作者在别处已建、列表未刷新）→ 不覆盖，仅标记已有档
       const { created: c, skipped: sk } = await bulkQuickCreate(projectId, [it])
-      if (c.length || sk.length) setCreated((s) => new Set(s).add(it.target))
+      if (c.length) setCreated((s) => new Set(s).add(it.target))
+      if (sk.length) setSkipped((s) => new Set(s).add(it.target))
     } finally {
       setCreating((s) => {
         const n = new Set(s)
@@ -71,19 +77,26 @@ export function GuardIssuesNote({
 
   // 未建档且未建档中的条目（批量按钮 N 的动态基数；作者已处置/已有档案的不再计入）
   const unfiledOpen = issues.filter(
-    (it) => isUnfiledIssue(it) && !created.has(it.target) && !!personRelOf(it.target)
+    (it) => isUnfiledIssue(it) && !created.has(it.target) && !skipped.has(it.target) && !!personRelOf(it.target)
   )
 
   async function quickCreateAll() {
     if (!projectId || bulkBusy || !unfiledOpen.length) return
     setBulkBusy(true)
     try {
-      // 与单条/toast 批量同一实现：查存在不覆盖；created+skipped 都标记（skip=作者在别处已建，仅标记）
+      // 与单条/toast 批量同一实现：查存在不覆盖；created/skipped 分集呈现（skip=作者在别处已建，仅标记）
       const { created: c, skipped: sk } = await bulkQuickCreate(projectId, unfiledOpen)
-      if (c.length || sk.length) {
+      if (c.length) {
         setCreated((s) => {
           const n = new Set(s)
-          for (const t of [...c, ...sk]) n.add(t)
+          for (const t of c) n.add(t)
+          return n
+        })
+      }
+      if (sk.length) {
+        setSkipped((s) => {
+          const n = new Set(s)
+          for (const t of sk) n.add(t)
           return n
         })
       }
@@ -143,7 +156,8 @@ export function GuardIssuesNote({
           )}
           <ul className="space-y-1.5">
             {issues.map((it, i) => {
-              const done = created.has(it.target)
+              const done = created.has(it.target) || skipped.has(it.target)
+              const wasSkipped = skipped.has(it.target)
               const busy = creating.has(it.target)
               return (
                 <li key={i} className="rounded-lg bg-surface-2 px-2 py-1.5">
@@ -158,7 +172,7 @@ export function GuardIssuesNote({
                             : 'bg-warn-soft text-warn'
                       )}
                     >
-                      {done ? '已建档' : it.action === 'corrected' ? '已纠正' : '已丢弃'}
+                      {done ? (wasSkipped ? '已有档' : '已建档') : it.action === 'corrected' ? '已纠正' : '已丢弃'}
                     </span>
                     <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink" title={it.target}>
                       {it.target}
@@ -185,7 +199,11 @@ export function GuardIssuesNote({
                     ) : null}
                   </div>
                   <p className="mt-0.5 text-[11px] leading-4 text-ink-2">
-                    {done ? '已快速建档，重新触发同步后不再拦截' : it.reason}
+                    {done
+                      ? wasSkipped
+                        ? '已有档案未改动，重新触发同步后不再拦截'
+                        : '已快速建档，重新触发同步后不再拦截'
+                      : it.reason}
                   </p>
                 </li>
               )
