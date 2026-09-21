@@ -119,7 +119,18 @@ function resolveName(param) {
   const exact = allFiles.find((f) => f === param + '.mjs')
   if (exact) return exact
   const hits = allFiles.filter((f) => f.includes(param))
-  if (hits.length === 1) return hits[0]
+  if (hits.length === 1) {
+    // ㊽（2026-09-21 07:30）：唯一子串命中但非「param+后缀/前缀/以 param 结尾」时打警告——
+    // 「states-ui-smoke」曾静默错配到 control-states-ui-smoke.mjs（真脚本 states-smoke.mjs 漏跑，
+    // 点名结果假绿且零提示）。warn-only 不改变解析结果，防止既有子串点名习惯被破坏。
+    const f = hits[0]
+    // 意图对齐判据：param 为完整名（exact 已处理）或以 param 开头（如 states-smoke → states-smoke.mjs）。
+    // 注意不能用 f.endsWith(param + '.mjs')——control-states-ui-smoke.mjs 恰好以它结尾会误判精确。
+    if (!(f.startsWith(param) || f.replace(/\.mjs$/, '') === param)) {
+      console.warn(`⚠️ 「${param}」模糊匹配到 ${f}（非精确/前后缀；如非本意请用完整名 ${f.replace('.mjs', '')} 或补 .mjs 后缀）`)
+    }
+    return f
+  }
   if (hits.length > 1) throw new Error(`「${param}」匹配 ${hits.length} 个脚本：${hits.join(', ')}`)
   throw new Error(`找不到脚本「${param}」（scripts/ 下无匹配）`)
 }
@@ -317,12 +328,17 @@ async function cdpClose(id) {
   } catch { /* 已关闭/网络抖动：容错，不影响主流程 */ }
 }
 // 起点清理：织卷本地页 tab 数超过阈值 → 全部回收（治跨轮残留；服务性动作，不标 FAIL）
-async function sweepStaleTabs() {
+// 阈值按模式分档（2026-09-21 07:30 平台层轮，观察项㊽落点）：--all 长跑留 40 并发余量；
+// 点名/直跑入口残留是本轮 overuse-ui/health-bar 假失败根因（各模块轮次直跑冒烟不关 tab，
+// 残留 >10 后 find 首个 :8123 匹配常命中 ?zj-fail/-delay 半坏注入页）——点名模式用敏感档 10
+// （常态 ≤5-10）；本地页清 0 后脚本 find 无匹配即自开干净新 tab（overuse-ui-smoke 样板语义）。
+async function sweepStaleTabs(maxLocal = CDP_TAB_HIGH) {
   const local = await cdpPagesLocal()
-  if (local.length <= CDP_TAB_HIGH) return { closed: 0, left: local.length }
+  if (local.length <= maxLocal) return { closed: 0, left: local.length }
   let closed = 0
   for (const t of local) await cdpClose(t.id)
   closed = local.length
+  await new Promise((r) => setTimeout(r, 1500)) // 关闭异步生效（PUT 返回后 target 短暂残留）
   return { closed, left: 0 }
 }
 // 跑后收尾：关闭「快照之后新增」的 page target（治长跑累积；脚本自关的已不在新增集，重复关 404 容错）
@@ -454,11 +470,14 @@ if (sweep) {
   }
   process.exit(0)
 }
-// CDP 起点清理（仅实跑模式）：跨轮残留的织卷本地页 tab 超过阈值即回收（2026-09-16 治理接入）
+// CDP 起点清理（实跑模式）：跨轮残留的织卷本地页 tab 超过阈值即回收（2026-09-16 治理接入；
+// 2026-09-21 07:30 观察项㊽：点名模式也启用——非 --all 用敏感阈值 CDP_TAB_HIGH_POINT，治
+// 各模块轮次直跑冒烟的残留 tab 污染 find 复用导致的假失败（overuse-ui/health-bar 实采））
+const CDP_TAB_HIGH_POINT = 10
 let sweepInfo = { closed: 0, left: 0 }
-if (all && !list) {
-  sweepInfo = await sweepStaleTabs()
-  if (sweepInfo.closed > 0) console.log(`🧹 CDP 起点清理：回收 ${sweepInfo.closed} 个残留织卷 tab（阈值 ${CDP_TAB_HIGH}，现余 ${sweepInfo.left}）`)
+if (!list) {
+  sweepInfo = await sweepStaleTabs(all ? CDP_TAB_HIGH : CDP_TAB_HIGH_POINT)
+  if (sweepInfo.closed > 0) console.log(`🧹 CDP 起点清理：回收 ${sweepInfo.closed} 个残留织卷 tab（阈值 ${all ? CDP_TAB_HIGH : CDP_TAB_HIGH_POINT}，现余 ${sweepInfo.left}）`)
 }
 let cdCleanedTotal = 0
 let cdObsLines = 0
