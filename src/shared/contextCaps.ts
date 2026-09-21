@@ -25,6 +25,17 @@ export const WCTX_CAPS = {
   material: 1200
 } as const
 
+/** skill 技能包预算（2026-09-21 智能层运行层；设计基线 docs/skill-运行层-产品规划-2026-09-21.md §5.1/§5.3）
+ * 对齐业界渐进披露：描述常驻（清单）、正文按需（激活）；清单总预算=name-only 降级阈值。 */
+export const SKILL_CAPS = {
+  /** 清单行：单技能展示长度（描述+触发词合计）截断 */
+  perLine: 120,
+  /** 清单总预算：超=降级为仅技能名（name-only，对齐 Claude） */
+  listing: 600,
+  /** 单个技能正文激活注入预算（超=保头+注明 zj_read_doc 现读；对齐开放标准 <5000 tokens 推荐口径） */
+  body: 3000
+} as const
+
 /** 写作上下文（buildWritingContext）装配预算总量上限（含人物 × maxChars） */
 export const WCTX_MAX =
   WCTX_CAPS.chapter +

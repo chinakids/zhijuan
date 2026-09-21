@@ -31,6 +31,7 @@ import { parseAnnotationCsv, segmentFromText, escapeCsvField } from '../../../sh
 import { scrollMemorySnapshot } from '../features/editor/scrollMemory'
 import { isVersionedRel } from '../../../shared/versionedRel'
 import type { RecentEntry } from '../../../shared/projects'
+import type { SkillMeta } from '../../../shared/skills'
 import { toast } from '../store/toasts'
 import { useProposalStore } from '../store/proposals'
 
@@ -938,6 +939,28 @@ const mock = {
     return out.slice(0, n)
   },
   listChapters: async (id: string): Promise<ChapterEntry[]> => devChapterEntries(id),
+  // 技能包清单（2026-09-21 skill 运行层）：演示种子=倒叙开篇法（正例）+禁用示例（disabled 排除证明）
+  listSkills: async (): Promise<SkillMeta[]> => [
+    {
+      name: '倒叙开篇法',
+      description: '从人物高光时刻落笔再回叙起因，制造悬念与代入感',
+      whenToUse: '开篇或重写开头，想用倒叙制造悬念时',
+      triggers: ['倒叙', '开篇'],
+      arguments: '[要点]',
+      dir: '倒叙开篇法',
+      body: '步骤：\n1. 先写人物最高光的一幕（结果/冲突顶点），用一句留白切回起因\n2. 回叙中埋下与高光呼应的细节（物象、台词、天气）\n3. 结尾回到高光时刻，用一个动作收束，不解释\n参考：references/示例.md',
+      invalid: undefined
+    },
+    {
+      name: '禁用示例',
+      description: 'disabled 技能演示：不出现在清单与匹配',
+      triggers: ['禁用触发'],
+      dir: '禁用示例',
+      body: '不应被激活的正文',
+      disabled: true,
+      invalid: undefined
+    }
+  ],
   listSlices: async (id: string): Promise<SliceEntry[]> => {
     // 解析/排序口径在 shared/slices（与真机 main/slices.listSlices 同一实现，2026-09-12）；
     // updatedAt 与真机 statSync mtimeMs 同语义——docsOf 的 devMtime 稳定模拟（正文=现在/导演板=一天前等）
@@ -1321,6 +1344,18 @@ const mock = {
       emit({ requestId: rid, type: 'delta', text: '正在检索灯语相关段落——' })
       await demoDelay()
       emit({ requestId: rid, type: 'aborted' })
+      return { ok: true }
+    }
+    // 技能激活演示（2026-09-21 skill 运行层）：显式 /倒叙开篇法 或提及「倒叙开篇法」→ 回复体现技能内容
+    if (/倒叙开篇法/.test(input.prompt)) {
+      emit({ requestId: rid, type: 'think', text: '对齐《倒叙开篇法》：先定高光一幕，再切起因…' })
+      await demoDelay()
+      // 注意：渲染层 final 全量覆盖流式 delta（既有约定），delta 与 final 文本须一致/包含，否则激活指示丢失
+      const text = '已按《倒叙开篇法》激活——①先写人物最高光一幕（结果/冲突顶点）②一句留白切回起因③回叙埋呼应细节④结尾回扣高光，不解释。要我按此重写开头吗？'
+      emit({ requestId: rid, type: 'delta', text })
+      await demoDelay()
+      emit({ requestId: rid, type: 'final', text })
+      emit({ requestId: rid, type: 'done' })
       return { ok: true }
     }
     // 链内恢复演示（体验层 2026-09-17 晚）：prompt 含「链恢复」时演示 3 步 read 链、第 1 步 ok=false、

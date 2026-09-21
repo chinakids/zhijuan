@@ -14,8 +14,8 @@ export interface ZjCommand {
   desc: string
   /** 参数提示，如 [要求]，浮层展示用 */
   argHint: string
-  /** template=提示词模板（发送前展开给模型）；action=固定逻辑命令（发送时直连入口执行） */
-  kind: 'template' | 'action'
+  /** template=提示词模板（发送前展开给模型）；action=固定逻辑命令（发送时直连入口执行）；skill=作者技能包（主进程注入技能正文） */
+  kind: 'template' | 'action' | 'skill'
   /** 仅 action：直连的动作标识（渲染层据此分发，不得与既有按钮实现双写） */
   run?: 'chapterCheck' | 'director'
   /** 仅 template：展开模板：title=当前章题名（空回退「当前章」），args=命令后的参数文本（可为空） */
@@ -115,10 +115,17 @@ export function parseCommandTrigger(value: string, caret: number): { at: number;
   return { at, length: token.length, query: token }
 }
 
-/** 候选过滤（内置模板命令 + 固定逻辑命令）：query 为空全出；否则按命令名/说明包含过滤。 */
-export function filterCommandCandidates(query: string): ZjCommand[] {
+/**
+ * 候选过滤（内置模板命令 + 固定逻辑命令 + 附加技能命令）：query 为空全出；否则按命令名/说明包含过滤。
+ * 内置优先=顺序在前（同名技能不遮蔽：仍列出并标注「技能」——设计基线 §六「技能仅在菜单列出且标注」；
+ * 命令解析侧 expandCommand/matchFixedCommand 先行=同名时技能不可显式调用，属既定取舍）。
+ * 2026-09-21 智能层 skill 运行层：技能命令由渲染层经 skills:list 拉取后作为 extras 传入。
+ */
+export function filterCommandCandidates(query: string, extras: ZjCommand[] = []): ZjCommand[] {
   const q = query.trim().toLowerCase()
-  return ALL_COMMANDS.filter((c) => !q || c.name.includes(q) || c.desc.includes(q))
+  const builtin = ALL_COMMANDS.filter((c) => !q || c.name.includes(q) || c.desc.includes(q))
+  const extra = extras.filter((c) => !q || c.name.includes(q) || c.desc.includes(q))
+  return [...builtin, ...extra]
 }
 
 /** 把 `/token` 替换为 `/命令名 `（后续空格处理与 insertAtMention 一致），返回新 value 与光标位置。 */

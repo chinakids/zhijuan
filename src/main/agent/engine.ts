@@ -15,6 +15,9 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 import type { ProposalItem } from '../../shared/types'
 import { toolResultFailed } from '../../shared/toolResult'
+import { listSkills } from '../skills'
+import { SKILL_CAPS } from '../../shared/contextCaps'
+import { skillListing, resolveSkillInjection, type SkillMeta } from '../../shared/skills'
 
 // 关停入口（应用退出 / 冒烟脚本收尾用）
 export { closeHarness as shutdown } from './runtime'
@@ -84,6 +87,15 @@ export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void
   const parts: string[] = []
   parts.push('你是「织卷」创作工作台的创作 agent，协助作者（用户）写作。')
   parts.push(envBlock(input.projectId, input.chapterRel))
+  // 技能清单注入（2026-09-21 skill 运行层）：描述常驻、正文按需（渐进披露第一层）；失败不阻断创作
+  let skills: SkillMeta[] = []
+  try {
+    skills = listSkills()
+    const listing = skillListing(skills, SKILL_CAPS.perLine, SKILL_CAPS.listing)
+    if (listing) parts.push(listing)
+  } catch {
+    /* 技能读取失败不阻断创作 */
+  }
   if (input.chapterRel) {
     try {
       const ctx = await buildWritingContext(input.projectId, input.chapterRel)
@@ -124,7 +136,17 @@ export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void
   } catch {
     // 引用展开失败不阻断创作（与上下文装配同级兜底）
   }
-  parts.push(input.prompt)
+  // 技能激活注入（2026-09-21 skill 运行层）：显式 /技能名 优先，其次关键词自动匹配（≤2 条）；
+  // 组装逻辑在 shared/skills.resolveSkillInjection（纯函数，可单测）；失败不阻断创作
+  let userPrompt = input.prompt
+  try {
+    const inj = resolveSkillInjection(skills, input.prompt, input.quote ?? null, SKILL_CAPS.body)
+    for (const b of inj.blocks) parts.push(b)
+    userPrompt = inj.userPrompt
+  } catch {
+    /* 技能失败不阻断创作 */
+  }
+  parts.push(userPrompt)
   try {
     const text = await driveSession(
       sid,

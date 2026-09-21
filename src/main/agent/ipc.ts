@@ -10,6 +10,7 @@ import { runDirectorCheck } from './director-check'
 import { runActs, type ActsRunOpts } from './acts'
 import { ensureHarness, closeHarness, answerDir } from './runtime'
 import { listCapabilities } from './subtask'
+import { listSkills } from '../skills'
 import { activeProvider } from '../../shared/providers'
 import { getSettings, setSettings } from '../settings'
 import { mkdirSync, writeFileSync } from 'fs'
@@ -101,6 +102,19 @@ export function registerAgentIpc() {
     setSettings({ capabilities: { ...(s.capabilities ?? {}), [id]: enabled } })
     return true
   })
+  // 技能包清单（2026-09-21 skill 运行层）：渲染层 / 命令菜单合并技能命令用；返回轻量元数据（不含 body）
+  ipcMain.handle('skills:list', () =>
+    listSkills().map((s) => ({
+      name: s.name,
+      description: s.description,
+      whenToUse: s.whenToUse,
+      triggers: s.triggers,
+      arguments: s.arguments,
+      disabled: s.disabled,
+      dir: s.dir,
+      invalid: s.invalid
+    }))
+  )
 }
 
 export function shutdownAgent() {

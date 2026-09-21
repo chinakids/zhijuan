@@ -18,6 +18,7 @@ import {
   clampAgentWidth
 } from '../../../../shared/uiPrefs'
 import { expandCommand, filterCommandCandidates, insertCommand, matchFixedCommand, parseCommandTrigger, parsePatrolArgs, ALL_COMMANDS, type ZjCommand } from '../../../../shared/commands'
+import { skillCommandOf } from '../../../../shared/skills'
 import { createStreamBuffer } from '../../../../shared/streamBuffer'
 import { trimHistoryMessage } from '../../../../shared/historyTrim'
 import { useAgentStore, type AgentMsg } from './store'
@@ -681,6 +682,23 @@ export default function AgentPanel(props: AgentPanelProps) {
   }, [messages])
   const metaById = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages])
   const [input, setInput] = useState('')
+  // 技能包命令（2026-09-21 skill 运行层）：/ 菜单合并作者技能；disabled/invalid 不显示不匹配
+  const skillCmdsRef = useRef<ZjCommand[]>([])
+  useEffect(() => {
+    let alive = true
+    window.zhijuan
+      .listSkills()
+      .then((list) => {
+        if (!alive) return
+        skillCmdsRef.current = list
+          .filter((s) => !s.disabled && !s.invalid)
+          .map((s) => skillCommandOf(s))
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
   const { send, stop, streaming: sending } = useSender(props)
   // 「让 agent 改」注册槽：审计抽屉（含规则体检状态栏 HealthBar）经 store 调用本页发送函数（F-20260916-05 迁移补链）
   useEffect(() => {
@@ -857,7 +875,7 @@ export default function AgentPanel(props: AgentPanelProps) {
     const cmdT = parseCommandTrigger(value, caret)
     const useCmd = cmdT !== null && (atT === null || cmdT.at > atT.at)
     if (useCmd && cmdT) {
-      const items = filterCommandCandidates(cmdT.query)
+      const items = filterCommandCandidates(cmdT.query, skillCmdsRef.current)
       setAtTrg(null)
       setCmdTrg(cmdT)
       setCmdItems(items)

@@ -34,6 +34,7 @@ import type {
 } from '../shared/types'
 import type { RecentEntry } from '../shared/projects'
 import type { LineInfo } from '../shared/line'
+import type { SkillMeta } from '../shared/skills'
 
 const api = {
   // 平台（renderer 据此做平台差异 UI，如自定义标题栏）
@@ -175,6 +176,8 @@ const api = {
   // agent（harness 引擎；流式事件按 requestId 认领）
   agentSend: (input: { requestId: string; projectId: string; chapterRel: string | null; chapterTitle: string; prompt: string; quote?: string | null; history?: { role: 'user' | 'assistant'; content: string }[]; focus?: boolean }) =>
     ipcRenderer.invoke('agent:send', input) as Promise<{ ok: boolean }>,
+  // 技能包清单（2026-09-21 skill 运行层：/ 命令菜单合并技能命令；主进程注入按共享 skills 纯函数）
+  listSkills: () => ipcRenderer.invoke('skills:list') as Promise<SkillMeta[]>,
   agentCancel: (requestId: string) => ipcRenderer.invoke('agent:cancel', requestId) as Promise<boolean>,
   agentSync: (projectId: string, chapterRel: string) =>
     ipcRenderer.invoke('agent:sync', projectId, chapterRel) as Promise<{ ok: boolean; items: ProposalItem[]; guard?: { issues: SyncIssue[] }; evidence?: SyncEvidence; error?: string }>,
