@@ -17,7 +17,8 @@
 //   无 ZJ_USERDATA 赋值                → 硬缺口（共享默认目录=污染风险）
 //   ZJ_USERDATA = '<字面量路径>'       → 必须含 rmSync(process.env.ZJ_USERDATA 启动清空（否则硬缺口）
 //   ZJ_USERDATA = join(tmp,...)/mkdtemp → 干净（mkdtemp 每跑全新，天然隔离）
-//   其他形态                            → 软提示「需人工核对」（当前 0 个；出现即请核实）
+//   ZJ_USERDATA = <const 变量>(=绝对路径字面量) → 同变量 rmSync=干净；只赋未清=硬缺口（2026-09-21 19:30 平台层轮收口）
+//   其他形态                            → 软提示「需人工核对」（出现即请核实）
 //   白名单：zj-bridge.mjs（设计特例豁免，注释见上）
 // 注意：sync-anchor-* 等脚本 bundle 纯函数、不引用 electron-stub 且不读 settings——不入扫描集（判据
 //   按「引用 electron-stub」这一事实面，不误报）。
@@ -61,6 +62,21 @@ function assess(content, file) {
   }
   if (/mkdtempSync/.test(content) || /ZJ_USERDATA\s*=\s*join\(tmp/.test(content)) {
     return { file, kind: 'clean', detail: 'mkdtemp 全新目录（天然干净）' }
+  }
+  // 变量形态（2026-09-21 19:30 平台层轮收口）：const X = '<绝对路径>'; ZJ_USERDATA = X; rmSync(X)
+  // ——与字面量同安全（先例 skill-manage-smoke.mjs，还带 settings 定向）；判据=同一变量既赋 ZJ_USERDATA 又被 rmSync；
+  // 只赋未清=硬缺口（与固定目录无 rmSync 同权），未识别=review 人工核对。
+  for (const m of content.matchAll(/const\s+(\w+)\s*=\s*(['"])([^'"]*)\2/g)) {
+    const [, vname, , vpath] = m
+    if (!vpath.startsWith('/')) continue
+    const assignRe = new RegExp(`(?:ZJ_USERDATA|process\\.env\\.ZJ_USERDATA)\\s*=\\s*${vname}\\b`)
+    const rmRe = new RegExp(`rmSync\\(\\s*${vname}\\b`)
+    if (assignRe.test(content)) {
+      if (rmRe.test(content)) {
+        return { file, kind: 'clean', detail: 'const 变量字面量（绝对路径）+ 同变量启动清空' }
+      }
+      return { file, kind: 'hard', detail: `变量形态 ${vpath} 无启动 rmSync 清空——残留 settings 仍会污染（须紧接 ZJ_USERDATA 赋值后 rmSync(<变量>,{recursive:true,force:true})）` }
+    }
   }
   return { file, kind: 'review', detail: '其他形态（非字面量/非 mkdtemp）——请人工核对 userData 隔离性' }
 }
@@ -114,6 +130,8 @@ function selfcheck() {
   const probeA = join(SCRIPTS_DIR, '_ud-probe-a-smoke.mjs') // 引用 stub + 无 ZJ_USERDATA → 必判硬缺口
   const probeB = join(SCRIPTS_DIR, '_ud-probe-b-smoke.mjs') // 引用 stub + 固定目录无 rmSync → 必判硬缺口
   const probeC = join(SCRIPTS_DIR, '_ud-probe-c-smoke.mjs') // 引用 stub + mkdtemp → 必不提示
+  const probeD = join(SCRIPTS_DIR, '_ud-probe-d-smoke.mjs') // 引用 stub + 变量形态（const 绝对路径+同变量 rmSync+ZJ_USERDATA=变量）→ 必不提示
+  const probeE = join(SCRIPTS_DIR, '_ud-probe-e-smoke.mjs') // 引用 stub + 变量形态但忘 rmSync → 必判硬缺口
   const assert = (name, cond) => {
     console.log(`  ${cond ? '✓' : '✗'} ${name}`)
     cond ? ok++ : bad++
@@ -122,15 +140,21 @@ function selfcheck() {
     writeFileSync(probeA, "// 临时探针 A（自检用，跑完即删）：引用 electron-stub 但忘设 ZJ_USERDATA\nimport x from 'electron-stub'\nvoid x\n")
     writeFileSync(probeB, "// 临时探针 B（自检用，跑完即删）：固定目录但忘清空\nprocess.env.ZJ_USERDATA = '/tmp/zj-smoke-probe-b'\nimport x from 'electron-stub'\nvoid x\n")
     writeFileSync(probeC, "// 临时探针 C（自检用，跑完即删）：mkdtemp 干净形态\nimport { mkdtempSync } from 'node:fs'\nconst tmp = mkdtempSync('/tmp/zj-ud-probe-')\nprocess.env.ZJ_USERDATA = tmp\nimport x from 'electron-stub'\nvoid x\n")
+    writeFileSync(probeD, "// 临时探针 D（自检用，跑完即删）：变量形态干净（const 绝对路径+同变量 rmSync+ZJ_USERDATA=变量）\nconst ud = '/tmp/zj-ud-probe-d'\nimport { rmSync } from 'node:fs'\nrmSync(ud, { recursive: true, force: true })\nprocess.env.ZJ_USERDATA = ud\nimport x from 'electron-stub'\nvoid x\n")
+    writeFileSync(probeE, "// 临时探针 E（自检用，跑完即删）：变量形态但忘 rmSync\nconst ud = '/tmp/zj-ud-probe-e'\nprocess.env.ZJ_USERDATA = ud\nimport x from 'electron-stub'\nvoid x\n")
     let r = analyze()
     assert('引用 stub 忘设 ZJ_USERDATA 被列硬缺口（正向 A）', r.hard.some((h) => h.file === '_ud-probe-a-smoke.mjs'))
     assert('固定目录无启动清空被列硬缺口（正向 B）', r.hard.some((h) => h.file === '_ud-probe-b-smoke.mjs'))
     assert('mkdtemp 干净形态不被提示（负向 C）', !r.hard.some((h) => h.file === '_ud-probe-c-smoke.mjs') && !r.review.some((h) => h.file === '_ud-probe-c-smoke.mjs'))
+    assert('变量形态干净不被提示（负向 D）', !r.hard.some((h) => h.file === '_ud-probe-d-smoke.mjs') && !r.review.some((h) => h.file === '_ud-probe-d-smoke.mjs'))
+    assert('变量形态忘清空被列硬缺口（正向 E）', r.hard.some((h) => h.file === '_ud-probe-e-smoke.mjs'))
     assert('zj-bridge 白名单豁免不被提示', !r.hard.some((h) => h.file === 'zj-bridge.mjs'))
   } finally {
     rmSync(probeA, { force: true })
     rmSync(probeB, { force: true })
     rmSync(probeC, { force: true })
+    rmSync(probeD, { force: true })
+    rmSync(probeE, { force: true })
   }
   const r2 = analyze()
   assert('清理探针后回到健康基线（无硬缺口/需核对）', r2.hard.length === 0 && r2.review.length === 0)
