@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, X, FileText, GitCompare, Inbox, ChevronDown, Trash2, RefreshCw } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { Proposal, SyncIssue } from '../../../../shared/types'
 import { Button } from '../../components/ui/button'
 import { ScrollArea } from '../../components/ui/scroll-area'
@@ -212,22 +214,36 @@ function ItemCard({ p, projectId, onChanged, err, onErr, focused }: { p: Proposa
           <div className="rounded-lg bg-surface-2 p-2">
             <div className="mb-1 font-medium text-ink-3">原状（摘要）</div>
             {/* 原状优先显示生成端基线（beforeExact=完整节内容，作者可对照「将写入」判断是否过时；
-                基线缺失（旧档/agent-chat 转提案）则回退模型的一句话要点；2026-09-20 候选 3 */}
-            <div className="line-clamp-3 whitespace-pre-wrap text-ink-2" title={it.beforeExact !== undefined ? (it.beforeExact || '（新小节）') : it.before || '（新小节）'}>{it.beforeExact !== undefined ? (it.beforeExact || '（新小节）') : it.before || '（新小节）'}</div>
+                基线缺失（旧档/agent-chat 转提案）则回退模型的一句话要点；2026-09-20 候选 3。
+                2026-09-21 14:15 轮：改 ReactMarkdown 渲染（与 AgentPanel prose 同口径）——作者审阅
+                「接受后将成什么样」需要成品视觉而非 md 源码；摘要限高 overflow-hidden 防 prose 撑高。 */}
+            <div className="prose max-h-[4.5rem] overflow-hidden text-ink-2" title={it.beforeExact !== undefined ? (it.beforeExact || '（新小节）') : it.before || '（新小节）'}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{it.beforeExact !== undefined ? (it.beforeExact || '（新小节）') : it.before || '（新小节）'}</ReactMarkdown>
+            </div>
           </div>
           <div className="rounded-lg border border-accent/30 bg-accent-soft/50 p-2">
             <div className="mb-1 font-medium text-accent">将写入</div>
-            <div className="whitespace-pre-wrap text-ink">{it?.after}</div>
+            {/* 2026-09-21 14:15 轮：max-h+内滚（VS Code/GitHub diff 先例）——超长 after（探测 1872 字）
+                展平后曾达 1707px=视口 3.3 倍；overscroll-contain 防滚动逃逸到外层。 */}
+            <div className="prose max-h-[min(50vh,480px)] min-w-0 overflow-y-auto overscroll-contain text-ink">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{it?.after}</ReactMarkdown>
+            </div>
           </div>
         </div>
       )}
       <div className="mt-3 flex items-center gap-2">
-        <Button size="sm" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px] [&_svg]:size-3" onClick={() => void doApply()} disabled={busy || p.status !== 'pending'}>
-          <Check className="mr-1" /> 接受
-        </Button>
-        <Button size="sm" variant="outline" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px] [&_svg]:size-3" onClick={() => void doReject()} disabled={p.status !== 'pending'}>
-          <X className="mr-1" /> 拒绝
-        </Button>
+        {/* 2026-09-21 14:15 轮：接受/拒绝只在 pending 卡渲染——已处理卡（accepted/rejected）不再留
+            disabled 死按钮（HIG Buttons：不提供信息/不可操作的控制不占位）；stale 卡保留「清除」。 */}
+        {p.status === 'pending' && (
+          <>
+            <Button size="sm" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px] [&_svg]:size-3" onClick={() => void doApply()} disabled={busy}>
+              <Check className="mr-1" /> 接受
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px] [&_svg]:size-3" onClick={() => void doReject()}>
+              <X className="mr-1" /> 拒绝
+            </Button>
+          </>
+        )}
         {p.status === 'stale' && (
           <Button size="sm" variant="ghost" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px] text-danger hover:bg-danger-soft hover:text-danger [&_svg]:size-3" onClick={() => void doDiscard()} title="清除这条过期提案">
             <Trash2 className="mr-1" /> 清除
@@ -365,7 +381,14 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
             </div>
           )}
           {pending.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} focused={focusId === p.id} />)}
-          {done.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} focused={focusId === p.id} />)}
+          {/* 2026-09-21 14:15 轮：已处理卡与待确认分组+组头（HIG Lists grouped style：headers/space 分隔
+              数据组）——此前 pending 与 done 无缝混排，作者需逐卡扫徽标才能分辨状态。 */}
+          {done.length > 0 && (
+            <div className="mt-3 border-t border-hair pt-2">
+              <h3 className="mb-2 text-[11px] font-medium text-ink-3">已处理 {done.length} 条</h3>
+              {done.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} focused={focusId === p.id} />)}
+            </div>
+          )}
           {stale.length > 0 && (
             <div className="mt-3 border-t border-hair pt-2">
               <p className="mb-2 text-[11px] text-ink-3">已过期 {stale.length} 条（章节被删除或再次保存，不可接受，可查看后清除）</p>
