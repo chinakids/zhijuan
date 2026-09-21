@@ -129,7 +129,7 @@ export function insightDateStamp(d: Date): string {
 
 export type InsightRunResult =
   | { ok: true; draftFile: string; reportFile: string; state: InsightsState }
-  | { ok: false; reason: 'disabled' | 'recent' | 'no-signal' }
+  | { ok: false; reason: 'disabled' | 'recent' | 'no-signal' | 'error' }
 
 /** D-L-8：重跑先备份旧版（旧草稿/旧报告 rename 为 -bak-<HHMMSS> 保留一份，防重跑丢历史） */
 function backupOld(dir: string, fileName: string): void {
@@ -178,8 +178,9 @@ export function runWritingInsights(projectId: string): InsightRunResult {
     writeInsightsState(projectRoot, state)
     return { ok: true, draftFile, reportFile, state }
   } catch (e) {
-    // 任何 IO 异常都不让后台分析拖垮打开项目流程：记录原因返回 no-signal（调用方仅用于提示）
+    // 任何 IO 异常都不让后台分析拖垮打开项目流程：记录原因返回 error（调用方按「执行失败」提示，
+    // 不得与「无信号」混同——后台任务失败不可静默为正常态，否则作者假以为分析已做）
     console.error('[writingInsights] run failed:', e)
-    return { ok: false, reason: 'no-signal' }
+    return { ok: false, reason: 'error' }
   }
 }
