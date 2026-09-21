@@ -262,7 +262,7 @@ export default function SkillSettingsCard() {
       <h3 className="text-sm font-semibold text-ink-2">技能包</h3>
       <Separator className="my-4" />
       <p className="pb-3 text-xs text-ink-3">
-        把写作方法/流程沉淀为技能包（本地 SKILL.md），对话中按触发词或 /技能名 自动调用。每个技能的描述常驻模型上下文（占用少量预算）——用不上的技能先停用。
+        把写作方法/流程沉淀为技能包（本地 SKILL.md），对话中按触发词或 /技能名 自动调用。每个技能的描述常驻模型上下文（占用少量预算）——用不上的技能先停用。当你发现自己在对话里重复说同一套写作步骤时，正是把它沉淀成技能包的时候。
       </p>
       {skillsErr ? (
         <div className="flex items-center gap-2 rounded-md border border-hair bg-surface-2 px-3 py-2">

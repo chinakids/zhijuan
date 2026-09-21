@@ -128,6 +128,7 @@ try {
   if (!menu1.includes('/倒叙开篇法')) throw new Error('菜单缺技能项：' + menu1.slice(0, 160))
   if (!menu1.includes('技能')) throw new Error('技能项缺「技能」标注：' + menu1.slice(0, 160))
   if (menu1.includes('/禁用示例')) throw new Error('禁用技能不应出现在菜单：' + menu1.slice(0, 160))
+  if (menu1.includes('/目录不符示例')) throw new Error('invalid 技能不应出现在菜单（2026-09-22 体验层补测）：' + menu1.slice(0, 160))
   console.log('OK ① / 菜单含倒叙开篇法（技能标注）；禁用示例未出现')
 
   // ② 过滤「倒叙」只剩技能项

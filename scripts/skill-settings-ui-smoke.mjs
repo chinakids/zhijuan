@@ -127,7 +127,11 @@ async function main() {
     ok('A4 禁用示例行带「已停用」徽标', disabledBadge === true)
     const descShown = await page.eval(`${rowOf('倒叙开篇法')}?.innerText.includes('从人物高光时刻落笔') === true`)
     ok('A5 列表行显示技能描述', descShown === true)
-    pass += 5
+    const invalidBadge = await page.eval(`${rowOf('目录不符示例')}?.querySelector('div[title*="不一致"]')?.innerText`)
+    ok('A6 invalid 行带「未生效」徽标（目录名与 name 不一致原因入 title）', invalidBadge === '未生效', String(invalidBadge))
+    const invalidTitle = await page.eval(`${rowOf('目录不符示例')}?.querySelector('div[title*="不一致"]')?.getAttribute('title') ?? ''`)
+    ok('A7 未生效徽标 title 含完整原因', invalidTitle.includes('目录名「不一致目录」与 name「目录不符示例」不一致'), invalidTitle)
+    pass += 7
 
     // —— B. 开关停用/启用（写面=setSkillDisabled → listSkills 重拉） ——
     const swOnBefore = await page.eval(`${rowOf('倒叙开篇法')}?.querySelector('[role="switch"]')?.getAttribute('aria-checked')`)

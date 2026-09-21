@@ -626,6 +626,14 @@ const devSkills: SkillMeta[] = [
     body: '不应被激活的正文',
     disabled: true,
     invalid: undefined
+  },
+  {
+    name: '目录不符示例',
+    description: 'invalid 技能演示：目录名与 name 不一致（真机 readOneSkill 扫描置位）',
+    triggers: ['目录不符'],
+    dir: '不一致目录',
+    body: '不应被激活的正文',
+    invalid: '技能目录名「不一致目录」与 name「目录不符示例」不一致，技能不生效'
   }
 ]
 
