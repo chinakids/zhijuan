@@ -5,6 +5,7 @@ import Prose, { type ProseApi } from './Prose'
 import HistoryDrawer from './HistoryDrawer'
 import AnnoDrawer from './AnnoDrawer'
 import { withBody } from '../../../../shared/fmatter'
+import { countWords } from '../../../../shared/count'
 import type { AnnotationRow } from '../../../../shared/annotations'
 import type { SaveTraceEntry } from '../../../../shared/types'
 import { registerDocEditor, unregisterDocEditor } from '../menu/menuState'
@@ -56,6 +57,10 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
   // 再按一次保存=作者显式确认真要清空（two-step confirmation；Confirmation 模式——
   // 不可逆写空动作需要两步验证，防 slip）。内容恢复/换文档即复位，防误放行。
   const [confirmEmpty, setConfirmEmpty] = useState(false)
+  // 本章实时字数：装载时按正文算一次，之后 onEdit（每次文档变化）更新。
+  // 口径=shared/count.countWords（剥约定头与 markdown 标记；中文按字、连续西文按一词），
+  // 与 HistoryDrawer「当前正文约 N 字」同源同义（2026-09-23 创作层，编辑器实时字数）。
+  const [wordCount, setWordCount] = useState(0)
   // 批注被删空时自动收起抽屉（防空列表残留）
   const annoCount = annotations?.length ?? 0
   useEffect(() => {
@@ -88,6 +93,7 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
         rawRef.current = raw
         const body = withFm ? splitFm(raw).body : raw
         savedMdRef.current = body
+        setWordCount(countWords(body))
         setLoading(false)
       } catch (e) {
         if (cancel) return
@@ -330,6 +336,7 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
           onEdit={(md) => {
             // 内容恢复非空：清掉「确要清空」待确认态（之后再次清空仍会被拦一次，防误放行）
             if (md) setConfirmEmpty(false)
+            setWordCount(countWords(md))
             // 内容与已保存一致时：saved 保留（外部重载会经 markdownUpdated 进这里，别把
             // 「✓ 已保存」确认擦成 idle，HIG 即时反馈）；否则回到 dirty
             setStatus((prev) => {
@@ -362,6 +369,14 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
           {status === 'saving' && <LoadingIndicator size={12} />}
           <span className="truncate">{st.text}</span>
         </span>
+        {!loading && !readErr && (
+          <span
+            className="shrink-0 whitespace-nowrap text-ink-2"
+            title="本章字数（中文按字、连续西文按一词；不含约定头与标记）"
+          >
+            约 {wordCount} 字
+          </span>
+        )}
         <span className="flex-1" />
         {statusExtra}
         <button
