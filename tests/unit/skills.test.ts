@@ -223,6 +223,7 @@ describe('resolveSkillInjection（runChat 注入组装）', () => {
     expect(r.blocks[0]).toContain('【技能：倒叙开篇法】')
     expect(r.blocks[0]).toContain('最高光')
     expect(r.userPrompt).toBe('帮我按倒叙开篇法写开头')
+    expect(r.explicit).toBe(false)
   })
   it('显式调用：注入技能块+斜杠命令替换为技能指令', () => {
     const r = resolveSkillInjection(skills, '/倒叙开篇法 要点：先写雨夜', null)
@@ -231,16 +232,19 @@ describe('resolveSkillInjection（runChat 注入组装）', () => {
     expect(r.userPrompt).toContain('（按技能《倒叙开篇法》执行）')
     expect(r.userPrompt).toContain('先写雨夜')
     expect(r.userPrompt.startsWith('/')).toBe(false)
+    expect(r.explicit).toBe(true)
   })
   it('disabled 技能不激活（显式也不生效）', () => {
     const r = resolveSkillInjection(skills, '/禁用技能 试试', null)
     expect(r.blocks).toHaveLength(0)
     expect(r.userPrompt).toBe('/禁用技能 试试')
+    expect(r.explicit).toBe(false)
   })
   it('无命中：零块、消息原样', () => {
     const r = resolveSkillInjection(skills, '检查错别字', null)
     expect(r.blocks).toHaveLength(0)
     expect(r.userPrompt).toBe('检查错别字')
+    expect(r.explicit).toBe(false)
   })
 })
 

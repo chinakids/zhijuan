@@ -148,10 +148,17 @@ export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void
   // 技能激活注入（2026-09-21 skill 运行层）：显式 /技能名 优先，其次关键词自动匹配（≤2 条）；
   // 组装逻辑在 shared/skills.resolveSkillInjection（纯函数，可单测）；失败不阻断创作
   let userPrompt = input.prompt
+  let skillActivated = false
   try {
     const inj = resolveSkillInjection(skills, input.prompt, input.quote ?? null, SKILL_CAPS.body)
     for (const b of inj.blocks) parts.push(b)
     userPrompt = inj.userPrompt
+    // 技能命中即走 low 思考档（2026-09-23 智能层，候选 1）：B 显式 /技能名 曾两次 12min 超时，
+    // 会话日志实锤最终生成步 380s 纯 think/正文 0 字符；skill-b-effort-probe 同 prompt 直调对照
+    // default 4096 tokens 全吃思考（144.9s/length）vs low 46.4s/stop/1039 字符正文（质量等价）。
+    // A（触发词自动激活）注入面相同、无 low 时同样 think 无度（09-23 全量实测 8.5min+ 未收尾）——
+    // 技能=执行步骤型任务，正文已给方法，无需深 think；凡技能命中一律 low（cheap 档只降 think 不降正文质量）。
+    skillActivated = inj.blocks.length > 0
   } catch {
     /* 技能失败不阻断创作 */
   }
@@ -162,6 +169,7 @@ export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void
       parts.join('\n\n'),
       {
         maxMs: input.focus ? FOCUS_MAX_MS : CHAT_MAX_MS,
+        reasoningEffort: skillActivated ? 'low' : undefined,
         isAborted: () => run.aborted,
         onEvent: (n) => {
           if (run.aborted) return

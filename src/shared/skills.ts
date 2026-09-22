@@ -203,7 +203,7 @@ export function resolveSkillInjection(
   prompt: string,
   quote: string | null,
   bodyCaps = 3000
-): { blocks: string[]; userPrompt: string } {
+): { blocks: string[]; userPrompt: string; explicit: boolean } {
   const blocks: string[] = []
   let userPrompt = prompt
   const explicit = matchExplicitSkill(prompt, skills)
@@ -215,7 +215,9 @@ export function resolveSkillInjection(
       blocks.push(skillBodyBlock(s, undefined, bodyCaps))
     }
   }
-  return { blocks, userPrompt }
+  // explicit=true 供 runChat 决定思考档位：显式 /技能名 调用实测 think 无度（2026-09-23 智能层
+  // skill-b-effort-probe：default 4096 tokens 全吃思考/正文 0 字符 144.9s；low 46.4s/1386 tokens/1039 字符正常收尾）
+  return { blocks, userPrompt, explicit: !!explicit }
 }
 
 // ===== 写面纯函数（2026-09-21 设置管理增量 · 智能层数据链） =====
