@@ -53,6 +53,7 @@ export default function Settings() {
   const [theme, setTheme] = useState<'paper' | 'dark'>('paper')
   const [collection, setCollection] = useState(true)
   const [annotations, setAnnotations] = useState(false)
+  const [writingInsights, setWritingInsights] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
   const [typewriter, setTypewriter] = useState(false)
   const [shortcutOpen, setShortcutOpen] = useState(false)
@@ -115,6 +116,7 @@ export default function Settings() {
     setTheme(settings.theme)
     setCollection(settings.collectionEnabled)
     setAnnotations(settings.annotationsEnabled ?? false)
+    setWritingInsights(settings.writingInsightsEnabled ?? false)
     setFocusMode(settings.focusModeEnabled ?? false)
     setTypewriter(settings.typewriterEnabled ?? false)
     setTools({ todo: settings.agentTools?.todo ?? true, askUser: settings.agentTools?.askUser ?? true })
@@ -206,6 +208,7 @@ export default function Settings() {
         theme,
         collectionEnabled: collection,
         annotationsEnabled: annotations,
+        writingInsightsEnabled: writingInsights,
         focusModeEnabled: focusMode,
         typewriterEnabled: typewriter,
         agentTools: tools
@@ -541,6 +544,22 @@ export default function Settings() {
                     onCheckedChange={(v) => {
                       setAnnotations(v)
                       void updateSettings({ annotationsEnabled: v })
+                    }}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>写作习惯学习</Label>
+                    <p className="text-xs text-ink-3">
+                      开启后，打开项目时自动分析写作行为（版本改动/批注意图/用词习惯），每周生成技能草稿到草稿区；草稿需在「写作引擎」技能包管理中手动转正才生效。默认关闭。
+                    </p>
+                  </div>
+                  <Switch
+                    aria-label="写作习惯学习"
+                    checked={writingInsights}
+                    onCheckedChange={(v) => {
+                      setWritingInsights(v)
+                      void updateSettings({ writingInsightsEnabled: v })
                     }}
                   />
                 </div>

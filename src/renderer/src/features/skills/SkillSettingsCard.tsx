@@ -17,6 +17,7 @@ import { FieldError } from '../../components/ui/field-error'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '../../components/ui/dialog'
 import { Plus, Trash2, Pencil, FileUp, FileDown, RefreshCw } from 'lucide-react'
 import { validateSkillDraft, type SkillMeta, type SkillDraft } from '../../../../shared/skills'
+import type { DraftEntry } from '../../../../shared/writingInsights'
 import { isImeComposing } from '../../lib/ime'
 
 /** 编辑 Dialog：新建/编辑共用（名称编辑态锁定——改名=删除+新建，智能层 updateSkill 口径） */
@@ -190,11 +191,15 @@ function SkillEditorDialog({
 export default function SkillSettingsCard() {
   const [skills, setSkills] = useState<SkillMeta[] | null>(null) // null=读取中
   const [skillsErr, setSkillsErr] = useState('')
+  const [drafts, setDrafts] = useState<DraftEntry[] | null>(null) // null=读取中
+  const [draftsErr, setDraftsErr] = useState('')
   const [msg, setMsg] = useState('')
   const [editorOpen, setEditorOpen] = useState(false)
   const [editing, setEditing] = useState<SkillMeta | null>(null)
   const [confirmDel, setConfirmDel] = useState<string | null>(null)
+  const [confirmDelDraft, setConfirmDelDraft] = useState<string | null>(null)
   const delTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const delDraftTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const load = useCallback(async () => {
     setSkillsErr('')
@@ -205,10 +210,24 @@ export default function SkillSettingsCard() {
       setSkillsErr('读取技能包失败')
     }
   }, [])
+
+  const loadDrafts = useCallback(async () => {
+    setDraftsErr('')
+    try {
+      setDrafts(await window.zhijuan.draftsList())
+    } catch {
+      setDrafts(null)
+      setDraftsErr('读取草稿失败')
+    }
+  }, [])
   useEffect(() => {
     void load()
-    return () => clearTimeout(delTimer.current)
-  }, [load])
+    void loadDrafts()
+    return () => {
+      clearTimeout(delTimer.current)
+      clearTimeout(delDraftTimer.current)
+    }
+  }, [load, loadDrafts])
 
   async function toggleSkill(s: SkillMeta, on: boolean) {
     const r = await window.zhijuan.setSkillDisabled(s.name, !on)
@@ -239,6 +258,38 @@ export default function SkillSettingsCard() {
     setConfirmDel(name)
     clearTimeout(delTimer.current)
     delTimer.current = setTimeout(() => setConfirmDel(null), 3000)
+  }
+
+  /** 草稿转正：写面过 window.zhijuan.draftPromote（真机=校验+移入 skills/<名>/SKILL.md）；成功后技能列表与草稿区都重拉 */
+  async function doPromoteDraft(fileName: string) {
+    const r = await window.zhijuan.draftPromote(fileName)
+    if (!r.ok) {
+      setMsg(r.error)
+      return
+    }
+    await Promise.all([load(), loadDrafts()])
+    setMsg(`已转正草稿「${fileName}」为技能包`)
+  }
+
+  async function doDeleteDraft(fileName: string) {
+    const r = await window.zhijuan.draftDelete(fileName)
+    if (!r.ok) {
+      setMsg(r.error)
+      return
+    }
+    setConfirmDelDraft(null)
+    await loadDrafts()
+    setMsg(`已删除草稿「${fileName}」`)
+  }
+
+  function askDeleteDraft(fileName: string) {
+    if (confirmDelDraft === fileName) {
+      void doDeleteDraft(fileName)
+      return
+    }
+    setConfirmDelDraft(fileName)
+    clearTimeout(delDraftTimer.current)
+    delDraftTimer.current = setTimeout(() => setConfirmDelDraft(null), 3000)
   }
 
   async function doImport() {
@@ -350,6 +401,68 @@ export default function SkillSettingsCard() {
           <FileUp className="h-3.5 w-3.5" />
           <span className="ml-1">导入 .md</span>
         </Button>
+      </div>
+      <div data-testid="insights-drafts-section">
+        <Separator className="my-4" />
+        <h3 className="text-sm font-semibold text-ink-2">写作习惯草稿</h3>
+      <p className="pb-3 text-xs text-ink-3">
+        「写作习惯学习」分析生成的技能草稿与报告；草稿转正后才进入上方技能列表。报告仅存档，可删除。
+      </p>
+      {draftsErr ? (
+        <div className="flex items-center gap-2 rounded-md border border-hair bg-surface-2 px-3 py-2">
+          <span className="flex-1 truncate text-xs text-danger" role="alert">{draftsErr}</span>
+          <Button variant="ghost" size="sm" className="h-7 shrink-0" onClick={() => void loadDrafts()} aria-label="重试读取草稿" title="重试读取草稿">
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      ) : drafts === null ? (
+        <p className="text-xs text-ink-3" role="status">正在读取草稿…</p>
+      ) : drafts.length === 0 ? (
+        <p className="mb-3 text-xs text-ink-3" role="status">还没有草稿——开启「写作习惯学习」后，打开项目时自动生成。</p>
+      ) : (
+        <ul className="mb-3 space-y-1.5">
+          {drafts.map((d) => (
+            <li key={d.fileName} className="flex items-center gap-2 rounded-md border border-hair bg-surface-2 px-3 py-2" data-testid="draft-row">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-sm text-ink-2" title={d.fileName}>{d.fileName}</span>
+                  {d.kind === 'report' ? (
+                    <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px]">报告</Badge>
+                  ) : (
+                    <Badge variant="warn" className="shrink-0 px-1.5 py-0 text-[10px]" title="尚未转正，不参与匹配与注入">草稿</Badge>
+                  )}
+                </div>
+                <p className="truncate text-xs text-ink-3" title={new Date(d.mtimeMs).toLocaleString('zh-CN')}>
+                  {new Date(d.mtimeMs).toLocaleDateString('zh-CN')}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-0.5">
+                {d.kind === 'draft' && (
+                  <Button variant="outline" size="sm" className="h-7 px-2 text-xs" aria-label={`转正草稿 ${d.fileName}`} title={`转正草稿 ${d.fileName}`} onClick={() => void doPromoteDraft(d.fileName)}>
+                    转正
+                  </Button>
+                )}
+                {confirmDelDraft === d.fileName ? (
+                  <Button variant="destructive" size="sm" className="h-7 px-2 text-xs" onClick={() => void doDeleteDraft(d.fileName)}>
+                    确认删除
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    aria-label={`删除草稿 ${d.fileName}`}
+                    title={`删除草稿 ${d.fileName}`}
+                    onClick={() => askDeleteDraft(d.fileName)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
       </div>
       {msg && (
         <p className="mt-2 break-all text-xs text-ink-3" role="status">
