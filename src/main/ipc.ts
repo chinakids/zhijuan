@@ -2,7 +2,7 @@
 import { ipcMain, shell, BrowserWindow, dialog, app } from 'electron'
 import { readFileSync } from 'fs'
 import { writeFileAtomic } from './fsutil'
-import { join } from 'path'
+import { join, basename } from 'path'
 import type { AppSettings, FsEvent, ProposalItem, EditItem, Proposal, SaveTraceEntry } from '../shared/types'
 import { adoptActsChapter } from '../shared/actsAdopt'
 import { countWords } from '../shared/count'
@@ -36,6 +36,7 @@ import {
 import { workspaceStatus, ensureWorkspaceDocs, readWorkspaceDoc } from './workspace'
 import { appendSaveTrace } from './saveTrace'
 import { runWritingInsights } from './writingInsights'
+import { buildCompiledBody } from './compile'
 import { listLibraryCategories, createLibraryCategory, searchDocs, recentLibraryDocs } from './library'
 import { listTemplates } from './templates'
 import { workspaceDir } from './settings'
@@ -221,6 +222,24 @@ export function registerIpc() {
     if (r.canceled || !r.filePath) return { cancelled: true }
     writeFileAtomic(r.filePath, body)
     return { ok: true, path: r.filePath }
+  })
+
+  // 作品编译：整书合并导出单文件 Markdown 成品（Scrivener Compile 同构；模块设计 §四 A 扩展）。
+  // 只读拼接（buildCompiledBody）；对话框 + 落盘在这里（与 chapter:export 同模式）。
+  ipcMain.handle('project:compileExport', async (e, id: string) => {
+    const built = buildCompiledBody(id)
+    if (!built.ok) return { ok: false, error: built.error }
+    if (!built.body) return { ok: false, error: '没有可导出的正文' }
+    const opts = {
+      title: '导出作品（合并 Markdown）',
+      defaultPath: join(app.getPath('documents'), `${basename(projectDir(id))}_成品.md`),
+      filters: [{ name: 'Markdown', extensions: ['md'] }]
+    } as Electron.SaveDialogOptions
+    const win = BrowserWindow.fromWebContents(e.sender)
+    const r = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts)
+    if (r.canceled || !r.filePath) return { cancelled: true }
+    writeFileAtomic(r.filePath, built.body)
+    return { ok: true, path: r.filePath, chapters: built.chapters }
   })
 
   // 素材库域（模块设计 §九：类别树 / 新建类别 / 文件名+全文搜索）

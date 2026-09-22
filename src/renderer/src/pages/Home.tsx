@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FolderOpen, FolderOutput, Plus, Trash2, MoreHorizontal, Search, X } from 'lucide-react'
+import { FolderOpen, FolderOutput, Plus, Trash2, MoreHorizontal, Search, X, FileDown } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import type { ProjectSummary, ProjectTemplate } from '../../../shared/types'
 import type { RecentEntry } from '../../../shared/projects'
@@ -157,6 +157,21 @@ export default function Home() {
       } else {
         toast.add({ kind: 'error', title: '导出失败', description: r.error ?? '未知错误' })
       }
+    } catch (e) {
+      toast.add({ kind: 'error', title: '导出失败', description: String((e as Error).message ?? e) })
+    }
+  }
+
+  /** 作品编译＝整书合并导出单文件 Markdown 成品（模块设计 §四 A 扩展；Scrivener Compile 同构） */
+  async function exportCompiled(id: string, name: string) {
+    try {
+      const r = await window.zhijuan.compileExport(id)
+      if (r.ok) {
+        toast.add({ kind: 'success', title: '已导出作品', description: `「${name}」已合并为 ${r.chapters} 章：${r.path}` })
+        return
+      }
+      if (r.cancelled) return
+      toast.add({ kind: 'error', title: '导出失败', description: r.error ?? '未知错误' })
     } catch (e) {
       toast.add({ kind: 'error', title: '导出失败', description: String((e as Error).message ?? e) })
     }
@@ -343,6 +358,12 @@ export default function Home() {
                         void exportTo(p.id, p.name)
                       }}>
                         <FolderOutput className="h-4 w-4" /> 导出到…
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => {
+                        e.stopPropagation()
+                        void exportCompiled(p.id, p.name)
+                      }}>
+                        <FileDown className="h-4 w-4" /> 导出作品（合并 Markdown）
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-danger focus:text-danger"

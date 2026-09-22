@@ -72,6 +72,10 @@ const api = {
   importPicker: () => ipcRenderer.invoke('project:importPicker') as Promise<string | null>,
   exportProject: (id: string) =>
     ipcRenderer.invoke('project:export', id) as Promise<ExportResult & { cancelled?: boolean }>,
+  compileExport: (id: string) =>
+    ipcRenderer.invoke('project:compileExport', id) as Promise<
+      { ok: true; path: string; chapters: number } | { ok: false; error?: string; cancelled?: boolean }
+    >,
   revealProject: (id: string) => ipcRenderer.invoke('project:reveal', id),
   openProject: (id: string) => ipcRenderer.invoke('project:open', id) as Promise<boolean>,
   getRecentEntries: () => ipcRenderer.invoke('project:recents') as Promise<RecentEntry[]>,

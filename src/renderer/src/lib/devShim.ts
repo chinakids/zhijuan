@@ -719,6 +719,8 @@ const mock = {
   importPicker: async (): Promise<string | null> => null,
   // 与真机 project:export 同口径语义：成功返回 { ok, dest }；dev 无 fs 不真复制，dest 为示意路径（UI 冒烟只断言 ok/dest 出现）
   exportProject: async (id: string) => ({ ok: true, dest: '/tmp/导出/' + id }),
+  // 作品编译（project:compileExport）：dev 无 fs 不真写文件，返回示意路径 + 章节数（UI 冒烟只断言 ok/path 出现）
+  compileExport: async (id: string) => ({ ok: true, path: '/tmp/导出/' + id + '_成品.md', chapters: 3 }),
   removeProject: async (id: string) => {
     const i = projects.findIndex((p) => p.id === id)
     if (i >= 0) projects.splice(i, 1)
