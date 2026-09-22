@@ -62,6 +62,8 @@ const nav = async (hash) => {
 }
 const dialogTitle = () => page.eval(`(() => { const d=document.querySelector('[role="dialog"]'); if(!d) return ''; const t=d.querySelector('h2,[data-slot="dialog-title"]'); return (t?t.textContent:'').trim() })()`)
 const clickByText = (txt) => page.eval(`(() => { const b=[...document.querySelectorAll('button')].find(x=>((x.textContent||'').includes(${JSON.stringify(txt)}))&&!x.closest('[aria-hidden="true"]')); if(b){b.click();return true} return false })()`)
+// Radix ContextMenu/DropdownMenu 菜单项是 [role=menuitem] 且只听 pointer 事件（9031823 右键菜单 Radix 化后 clickByText 失效）——pointer 三连
+const clickMenuByText = (txt) => page.eval(`(() => { const b=[...document.querySelectorAll('[role="menuitem"]')].find(x=>((x.innerText||'').includes(${JSON.stringify(txt)}))&&!x.closest('[aria-hidden="true"]')); if(!b) return false; for(const t of ['pointerdown','pointerup','click']){b.dispatchEvent(new PointerEvent(t,{bubbles:true,cancelable:true,pointerType:'mouse'}))} return true })()`)
 const imeStart = async (sel, text) => {
   await page.eval(`(() => { const i=document.querySelector(${JSON.stringify(sel)}); if(!i) return false; i.focus(); return true })()`)
   await sleep(300)
@@ -122,7 +124,8 @@ try {
   await page.cmd('Input.dispatchMouseEvent', { type: 'mousePressed', x: box.x, y: box.y, button: 'right', buttons: 2, clickCount: 1 })
   await page.cmd('Input.dispatchMouseEvent', { type: 'mouseReleased', x: box.x, y: box.y, button: 'right', buttons: 0, clickCount: 1 })
   await sleep(400)
-  await clickByText('重命名')
+  await evalUntil(page, `document.querySelectorAll('[role="menuitem"]').length > 0`, (v) => v === true, 8000, '右键菜单出现')
+  await clickMenuByText('重命名')
   await evalUntil(page, `document.querySelector('[role="dialog"]')?.textContent?.includes('重命名章节')`, (v) => v === true, 8000, '重命名对话框')
   await imeStart('input[placeholder="新题名"]', 'guanai')
   await pressEnter()
