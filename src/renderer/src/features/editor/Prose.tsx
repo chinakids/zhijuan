@@ -25,6 +25,7 @@ import { anchorFromPos, restoreCursorSelection, saveCursor, takeCursor } from '.
 import { EMPTY_ACTIVE, activeEq, readToolbarActive, type ActiveState } from './toolbarActive'
 import { macTextKeysPlugin } from './macTextKeys'
 import { pastePlainPlugin, plainTextSlice, splitPlainParagraphs } from './pastePlain'
+import { quotePairPlugin } from './quotePairs'
 import {
   computeFloatingPos,
   FLOAT_EST_ANNO_POP,
@@ -982,7 +983,7 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
       .config((ctx) => {
         ctx.set(rootCtx, hostRef.current!)
         ctx.set(defaultValueCtx, initialRef.current)
-        ctx.set(prosePluginsCtx, [annoPlugin, selPlugin, emptyHintPlugin, focusPlugin, typewriterPlugin, macTextKeysPlugin, pastePlainPlugin].filter((p): p is NonNullable<typeof p> => !!p))
+        ctx.set(prosePluginsCtx, [annoPlugin, selPlugin, emptyHintPlugin, focusPlugin, typewriterPlugin, macTextKeysPlugin, pastePlainPlugin, quotePairPlugin].filter((p): p is NonNullable<typeof p> => !!p))
         ctx.get(listenerCtx).markdownUpdated((_, md) => {
           if (!liveRef.current) return
           onEditRef.current?.(md)
