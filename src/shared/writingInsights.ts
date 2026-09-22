@@ -355,8 +355,9 @@ export function evidenceOf(count: number): '强' | '中' | '弱' {
   return '弱'
 }
 
-/** 草稿正文规则条目（通用化：不含章号/具体数字；给 agent 解释「为什么」） */
-function ruleLine(rule: VersionRule): string {
+/** 草稿正文规则条目（通用化：不含章号/具体数字；给 agent 解释「为什么」）。
+ *  whyOverride：LLM 提炼版「为什么」替换模板句（增量 5 探针用；缺省=模板口径，行为零变化）。 */
+export function ruleLine(rule: VersionRule, whyOverride?: string): string {
   const ev = evidenceOf(rule.count)
   let act: string
   let why: string
@@ -383,7 +384,8 @@ function ruleLine(rule: VersionRule): string {
   }
   const ex = rule.examples[0]
   const exText = ex ? `；示例：「${ex.before}」→「${ex.after}」` : ''
-  return `- [${ev}] ${act}（观察 ${rule.count} 次）——${why}${exText}`
+  const finalWhy = whyOverride !== undefined ? whyOverride : why
+  return `- [${ev}] ${act}（观察 ${rule.count} 次）——${finalWhy}${exText}`
 }
 
 export interface DraftOpts {
@@ -407,7 +409,7 @@ export function draftSkillFromStats(signals: WritingSignals, opts: DraftOpts = {
   const rules = signals.versionRules
     .filter((r) => r.count >= 1)
     .slice(0, 8)
-    .map(ruleLine)
+    .map((r) => ruleLine(r))
   const phrases = signals.syntax.topPhrases
     .slice(0, 5)
     .map((p) => `- 「${p.phrase}」出现 ${p.count} 次（每千字 ${p.perK} 次）${p.severity === 'high' ? '（高频，注意复用）' : ''}`)

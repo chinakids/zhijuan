@@ -10,7 +10,9 @@ import {
   reportFromStats,
   shouldRunInsights,
   evidenceOf,
-  type VersionChange
+  ruleLine,
+  type VersionChange,
+  type VersionRule
 } from '../../src/shared/writingInsights'
 import { parseSkillFile } from '../../src/shared/skills'
 import type { Proposal, ProposalItem } from '../../src/shared/types'
@@ -238,6 +240,24 @@ describe('evidenceOf / draftSkillFromStats（草稿模板）', () => {
     const draft = draftSkillFromStats(strong, { generatedAt: new Date(2026, 8, 22) })
     expect(draft).toMatch(/\[强\]/)
     expect(draft).not.toMatch(/第\d+章/)
+  })
+
+  it('ruleLine 支持 whyOverride（模板句被替换，act 不变；增量 5 探针用）', () => {
+    const rule: VersionRule = {
+      kind: 'split-sentence',
+      subject: '长句',
+      direction: 'prefers',
+      count: 5,
+      files: [],
+      examples: [{ before: 'a', after: 'b' }]
+    }
+    const tpl = ruleLine(rule)
+    const refined = ruleLine(rule, '证据显示你总在一个长句内部打两个停顿，让紧张处换气。')
+    expect(tpl).toContain('——长短句交替更有节奏、读者呼吸感更好')
+    expect(refined).toContain('——证据显示你总在一个长句内部打两个停顿，让紧张处换气。')
+    // act（为什么之前的部分）一致
+    const head = (s: string) => s.split('——')[0]
+    expect(head(refined)).toBe(head(tpl))
   })
 })
 
