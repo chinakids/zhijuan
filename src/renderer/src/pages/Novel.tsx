@@ -242,6 +242,19 @@ export default function Novel() {
     return () => window.removeEventListener('zj:menu-newChapter', h)
   }, [])
 
+  // 归属校验（2026-09-22 创作层候选 3）：同步结果反馈只落在「发起章」——同步在途（真模型 30s~min 级）
+  // 时作者切到另一章，完成的 setSyncMsg/重试/守卫明细若照常写入=旧章结果落错页（作者会误以为
+  // 当前章刚同步过/失败了；失败重试按钮还会在别章页上触发旧章同步）。语义=React 官方 race condition
+  // 修复「ignore stale responses」同构（react.dev/learn/you-might-not-need-an-effect）：过期结果丢弃，
+  // 仅在「发起上下文仍为当前上下文」时应用；数据动作（提案台 bump/排队重跑）不受归属影响、仍执行。
+  const syncOwned = useCallback(
+    (rel: string): boolean => {
+      const cur = useUiStore.getState().currentChapter
+      return !!cur && cur.projectId === id && '正文/' + cur.file === rel
+    },
+    [id]
+  )
+
   // 切片同步核心（保存正文/失败重试共用同链路：runSliceSync 直调，成功后提案台 bump）
   const doSync = useCallback(
     async (rel: string) => {
@@ -252,19 +265,22 @@ export default function Novel() {
         syncQueuedRef.current = true
         return
       }
-      // 新同步状态开始前：清掉上一轮残存的自动清除 timer（竞态修复，见 syncTimer 注释）
-      if (syncTimer.current !== null) {
-        window.clearTimeout(syncTimer.current)
-        syncTimer.current = null
+      // 归属门：仅当作者仍在该章时更新浮条/重试/守卫明细（排队补跑可能在作者已切走的页面上启动）
+      if (syncOwned(rel)) {
+        // 新同步状态开始前：清掉上一轮残存的自动清除 timer（竞态修复，见 syncTimer 注释）
+        if (syncTimer.current !== null) {
+          window.clearTimeout(syncTimer.current)
+          syncTimer.current = null
+        }
+        setSyncMsg('切片同步中…')
+        setSyncRetry(null)
+        setSyncIssues([])
+        setKeptFocus(undefined)
       }
-      setSyncMsg('切片同步中…')
-      setSyncRetry(null)
-      setSyncIssues([])
-      setKeptFocus(undefined)
       const run = (async () => {
         const r = await runSliceSync(id, rel)
+        const owned = syncOwned(rel) // 完成时刻归属校验：作者已切走则丢弃反馈（数据动作不受影响）
         if (r.ok) {
-          setSyncIssues(r.issues ?? [])
           // 「无设定变化」追加比对基准证据（2026-09-14 21:45）：确认同步真跑了、基准是什么；
           // 2026-09-20 候选 3：被抑制的同款（此前已拒绝）是「作者已裁决」，不能报成「无设定变化」；
           // kept=同款未处置（同章已有 pending/stale）复用旧卡，同样不是「无设定变化」
@@ -272,23 +288,28 @@ export default function Novel() {
           const kept = r.kept ?? 0
           const supNote = sup > 0 ? ` · 同款 ${sup} 条此前已拒绝，未重复提案` : ''
           const keptNote = kept > 0 ? ` · 同款 ${kept} 条待确认，未重复提案` : ''
-          setSyncMsg(
-            r.items > 0
-              ? `✓ 已生成 ${r.items} 条切片提案${supNote}${keptNote}`
-              : sup > 0 || kept > 0
-                ? `✓ 无新动向${supNote}${keptNote}${describeSyncEvidence(r.evidence)}`
-                : `✓ 无设定变化${describeSyncEvidence(r.evidence)}`
-          )
-          if (kept > 0) setKeptFocus(r.keptIds?.[0])
+          if (owned) {
+            setSyncIssues(r.issues ?? [])
+            setSyncMsg(
+              r.items > 0
+                ? `✓ 已生成 ${r.items} 条切片提案${supNote}${keptNote}`
+                : sup > 0 || kept > 0
+                  ? `✓ 无新动向${supNote}${keptNote}${describeSyncEvidence(r.evidence)}`
+                  : `✓ 无设定变化${describeSyncEvidence(r.evidence)}`
+            )
+            if (kept > 0) setKeptFocus(r.keptIds?.[0])
+            syncTimer.current = window.setTimeout(() => {
+              setSyncMsg('')
+              syncTimer.current = null
+            }, 6000)
+          }
           useProposalStore.getState().bump()
-          syncTimer.current = window.setTimeout(() => {
-            setSyncMsg('')
-            syncTimer.current = null
-          }, 6000)
         } else {
-          // 失败可感知：浮条留存（不随 6s 清），并提供就地重试按钮
-          setSyncMsg('✗ 切片同步失败: ' + r.error)
-          setSyncRetry({ rel })
+          // 失败可感知：浮条留存（不随 6s 清），并提供就地重试按钮（仅在作者仍在发起章时呈现）
+          if (owned) {
+            setSyncMsg('✗ 切片同步失败: ' + r.error)
+            setSyncRetry({ rel })
+          }
         }
       })()
       syncRunRef.current = { rel, p: run }
@@ -389,7 +410,8 @@ export default function Novel() {
     return () => window.removeEventListener('zj:anno-remove', h)
   }, [id, sel, loadAnnotations])
 
-  // 切换章节：收起「清单不一致」提示卡（忽略记录保留，本会话内不重复打扰该章）
+  // 切换章节：收起「清单不一致」提示卡（忽略记录保留，本会话内不重复打扰该章）+ 同步反馈清零
+  // （2026-09-22 候选 3：守卫明细/「查看提案」定位同为同步反馈，不留旧章残影——归属校验的显示面）
   useEffect(() => {
     setCastCard(null)
     if (syncTimer.current !== null) {
@@ -398,6 +420,8 @@ export default function Novel() {
     }
     setSyncMsg('')
     setSyncRetry(null)
+    setSyncIssues([])
+    setKeptFocus(undefined)
   }, [sel])
 
   // 卸载清理：组件销毁时移除未触发的自动清除 timer（防泄漏）
