@@ -9,6 +9,7 @@ import { listSliceEntries } from '../../../shared/slices'
 import { listLinesFromEntries, chapterLine, DEFAULT_LINE } from '../../../shared/line'
 import type { LineInfo } from '../../../shared/line'
 import { resolveLibraryRoot } from '../../../shared/settingsLogic'
+import { finalizeSearchHits, SEARCH_DEFAULT_LIMIT } from '../../../shared/searchHits'
 import { AGENT_PANEL_DEFAULT_WIDTH } from '../../../shared/uiPrefs'
 import { sanitizeFile, DEFAULT_FILES, SKELETON_TEMPLATES } from '../../../shared/paths'
 import { clipLogError } from '../../../shared/syncLogShared'
@@ -946,10 +947,9 @@ const mock = {
     const terms = q.split(/\s+/).map((t) => t.toLowerCase()).filter(Boolean)
     const prefix = id + '/' + relDir + '/'
     const excl = opts?.excludePrefix ?? []
-    const limit = opts?.limit ?? 50 // 与真机 main/library.searchDocs 同口径（默认 50）
+    const limit = opts?.limit ?? SEARCH_DEFAULT_LIMIT // 与真机 main/library.searchDocs 同口径（默认 50）
     const out: SearchHit[] = []
     for (const [k, text] of docs) {
-      if (out.length >= limit) break // 真机同语义：达到 limit 后不再扫描/产生更多
       if (!k.startsWith(prefix)) continue
       const relFromRoot = relDir + '/' + k.slice(prefix.length)
       if (excl.some((p) => relFromRoot.startsWith(p))) continue
@@ -973,7 +973,9 @@ const mock = {
         out.push({ file: relFromRoot, name, mtime: devMtime(id + '/' + relDir, fileRel), field: 'content', snippet: line.length > 80 ? line.slice(0, 80) + '…' : line })
       }
     }
-    return out
+    // 2026-09-23：与真机同口径——全收集后 finalizeSearchHits（mtime 排序→截断），
+    // 旧 mock 按 docs 枚举序先截断会把最新写入命中挤出 limit。
+    return finalizeSearchHits(out, limit)
   },
   recentLibraryDocs: async (id: string, n = 5): Promise<RecentLibraryDoc[]> => {
     const out: RecentLibraryDoc[] = []

@@ -5,6 +5,7 @@ import { join } from 'path'
 import { projectDir } from './store'
 import { sanitizeFile } from '../shared/paths'
 import { posixRel } from '../shared/relpath'
+import { finalizeSearchHits, SEARCH_DEFAULT_LIMIT } from '../shared/searchHits'
 import type { LibraryCategory, RecentLibraryDoc, SearchHit } from '../shared/types'
 
 /** 素材库下「工具目录」：采集池任务卡不属于素材，一律不参与类别/搜索 */
@@ -90,10 +91,9 @@ export function searchDocs(id: string, relDir: string, query: string, opts?: { e
   const root = join(projectDir(id), relDir)
   if (!existsSync(root)) return []
   const exclude = opts?.excludePrefix ?? []
-  const limit = opts?.limit ?? 50
+  const limit = opts?.limit ?? SEARCH_DEFAULT_LIMIT
   const hits: SearchHit[] = []
   const walk = (p: string, prefix: string) => {
-    if (hits.length >= limit) return
     let es: Dirent[]
     try {
       es = readdirSync(p, { withFileTypes: true })
@@ -101,7 +101,6 @@ export function searchDocs(id: string, relDir: string, query: string, opts?: { e
       return
     }
     for (const e of es) {
-      if (hits.length >= limit) return
       if (e.name.startsWith('.')) continue
       const fp = join(p, e.name)
       if (e.isDirectory()) {
@@ -130,7 +129,10 @@ export function searchDocs(id: string, relDir: string, query: string, opts?: { e
     }
   }
   walk(root, '')
-  return hits
+  // 2026-09-23：全收集后再排序截断（finalizeSearchHits，真机/devShim 同口径）——
+  // 旧实现按 readdir 枚举序先截断（字母序会把最新写入的命中挤出 limit），
+  // 与 UI 层 mtime 展示排序不一致；现「limit 内 = 最近修改的 N 条」。
+  return finalizeSearchHits(hits, limit)
 }
 
 /** 最近修改的素材（同一枚举口径：素材库 / 排除采集池与隐藏；按 mtime 新→旧，最多 n 条）。 */

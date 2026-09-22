@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, utimesSync } from 'fs'
 import { join } from 'path'
 
 // electron 桩指向临时目录，其余全部真实文件系统（templates.test.ts 先例）
@@ -88,6 +88,24 @@ describe('素材库类别（main/library.ts）', () => {
     expect(searchDocs(pid, '素材库', '校园', { limit: 1 })).toHaveLength(1)
     // 空查询
     expect(searchDocs(pid, '素材库', '  ')).toHaveLength(0)
+  })
+
+  it('searchDocs：命中按 mtime 新→旧排序、limit 保留最新 N 条（finalizeSearchHits 语义）', () => {
+    writeDoc(pid, '素材库/环境/校园.md', '# 校园老图书馆\n\n老樟木味混着纸页的霉味。\n')
+    writeDoc(pid, '素材库/环境/旧稿.md', '# 校园旧稿\n\n校园 大榕树 旧钟楼。\n')
+    writeDoc(pid, '素材库/环境/新采.md', '# 校园新采\n\n校园 新操场 塑胶跑道。\n')
+    // 显式 mtime：新采(30) > 旧稿(20) > 校园(10)——readdir 枚举序（创建序）与 mtime 序相反，
+    // 旧实现按枚举序截断「校园」会挤出「新采」；新实现排序后截断必保最新。
+    const f1 = join(projectDir(pid), '素材库/环境/校园.md')
+    const f2 = join(projectDir(pid), '素材库/环境/旧稿.md')
+    const f3 = join(projectDir(pid), '素材库/环境/新采.md')
+    utimesSync(f1, 10, 10)
+    utimesSync(f2, 20, 20)
+    utimesSync(f3, 30, 30)
+    const all = searchDocs(pid, '素材库', '校园')
+    expect(all.map((h) => h.name)).toEqual(['新采', '旧稿', '校园'])
+    const lim = searchDocs(pid, '素材库', '校园', { limit: 2 })
+    expect(lim.map((h) => h.name)).toEqual(['新采', '旧稿'])
   })
 
   it('recentLibraryDocs：按 mtime 新→旧、排除采集池、n 截断、空库（骨架仅索引）返回索引', () => {
