@@ -1851,8 +1851,13 @@ const mock = {
   },
   agentSync: async (id: string, rel: string) => {
     // 无头冒烟断言用：记录每次切片同步调用（仅 devShim 测试面，真机走 agentSync IPC）
-    const w = window as unknown as { __ZJ_SYNCS?: string[] }
+    const w = window as unknown as { __ZJ_SYNCS?: string[]; __ZJ_SYNC_TIMES?: number[] }
     ;(w.__ZJ_SYNCS ??= []).push(id + '|' + rel)
+    ;(w.__ZJ_SYNC_TIMES ??= []).push(Date.now())
+    // 无头冒烟：?zj-syncdelay=N 模拟真模型同步耗时（N ms）——测「同章同步在途→新保存排队」的
+    // 串行语义（2026-09-22 创作层）：在途期间第二次保存应排队不立即触发；无该参数零影响（既有冒烟零覆盖）
+    const delay = Number(new URLSearchParams(location.search).get('zj-syncdelay') ?? '0')
+    if (delay > 0) await new Promise((r) => setTimeout(r, delay))
     // 无头冒烟：`?zj-guard=N` 注入守卫拦截结果（1 条已纠正 + 其余已丢弃），验证各入口拦截明细完整可达；
     // 与真机 runSync 同口径：guard 与 evidence 同时返回（Novel 浮条「拦截 N 条 · 查看」与证据小字并存）
     const n = Number(new URLSearchParams(location.search).get('zj-guard') ?? '0')

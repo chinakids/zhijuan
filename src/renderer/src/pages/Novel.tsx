@@ -107,6 +107,13 @@ export default function Novel() {
   // 浮条 6s 自动清除定时器句柄（synctimer）：新同步状态必须清旧 timer——
   // 防「6s 内二次保存」旧 timer 提前清新提示，也防「成功→失败」旧 timer 把常驻失败提示清掉（失败可感知可重试语义）
   const syncTimer = useRef<number | null>(null)
+  // 同章同步在途防护（2026-09-22 创作层候选 3）：切片同步是真模型调用（30s~min 级），作者在同步进行中
+  // 再次保存（改错别字/续写）若直接再触发=并发双跑（P1 排查看 09:29:18/09:30:14 两个并发 runSync 会话实锤）。
+  // 语义=GitHub Actions concurrency 同构：同一 group 同时最多一个在跑、新请求 pending 且「只留最新」
+  // （新的替换等待中的）；排队串行重跑保证「最新保存内容」最终必被比对（不丢最终态），
+  // 避免模型重复调用与浮条「同步中→✓→同步中→✓」闪烁。
+  const syncRunRef = useRef<{ rel: string; p: Promise<unknown> } | null>(null)
+  const syncQueuedRef = useRef(false)
   // 守卫拦截（target 存在性防线）：浮条「查看」可展开完整明细（正文为源、设定为流，拦截需作者判断是否补档案）
   const [syncIssues, setSyncIssues] = useState<SyncIssue[]>([])
   // 切片同步失败后的就地重试（03:45 观察②→06:45 候选 2）：失败浮条不随 6s 自动清，留「重试同步」按钮
@@ -239,6 +246,12 @@ export default function Novel() {
   const doSync = useCallback(
     async (rel: string) => {
       if (!id) return
+      // 同章同步在途：并入队列（同步完成后再串行重跑最新保存内容），不立即并发（见 syncRunRef 注释）
+      const cur = syncRunRef.current
+      if (cur && cur.rel === rel) {
+        syncQueuedRef.current = true
+        return
+      }
       // 新同步状态开始前：清掉上一轮残存的自动清除 timer（竞态修复，见 syncTimer 注释）
       if (syncTimer.current !== null) {
         window.clearTimeout(syncTimer.current)
@@ -248,33 +261,46 @@ export default function Novel() {
       setSyncRetry(null)
       setSyncIssues([])
       setKeptFocus(undefined)
-      const r = await runSliceSync(id, rel)
-      if (r.ok) {
-        setSyncIssues(r.issues ?? [])
-        // 「无设定变化」追加比对基准证据（2026-09-14 21:45）：确认同步真跑了、基准是什么；
-        // 2026-09-20 候选 3：被抑制的同款（此前已拒绝）是「作者已裁决」，不能报成「无设定变化」；
-        // kept=同款未处置（同章已有 pending/stale）复用旧卡，同样不是「无设定变化」
-        const sup = r.suppressed ?? 0
-        const kept = r.kept ?? 0
-        const supNote = sup > 0 ? ` · 同款 ${sup} 条此前已拒绝，未重复提案` : ''
-        const keptNote = kept > 0 ? ` · 同款 ${kept} 条待确认，未重复提案` : ''
-        setSyncMsg(
-          r.items > 0
-            ? `✓ 已生成 ${r.items} 条切片提案${supNote}${keptNote}`
-            : sup > 0 || kept > 0
-              ? `✓ 无新动向${supNote}${keptNote}${describeSyncEvidence(r.evidence)}`
-              : `✓ 无设定变化${describeSyncEvidence(r.evidence)}`
-        )
-        if (kept > 0) setKeptFocus(r.keptIds?.[0])
-        useProposalStore.getState().bump()
-        syncTimer.current = window.setTimeout(() => {
-          setSyncMsg('')
-          syncTimer.current = null
-        }, 6000)
-      } else {
-        // 失败可感知：浮条留存（不随 6s 清），并提供就地重试按钮
-        setSyncMsg('✗ 切片同步失败: ' + r.error)
-        setSyncRetry({ rel })
+      const run = (async () => {
+        const r = await runSliceSync(id, rel)
+        if (r.ok) {
+          setSyncIssues(r.issues ?? [])
+          // 「无设定变化」追加比对基准证据（2026-09-14 21:45）：确认同步真跑了、基准是什么；
+          // 2026-09-20 候选 3：被抑制的同款（此前已拒绝）是「作者已裁决」，不能报成「无设定变化」；
+          // kept=同款未处置（同章已有 pending/stale）复用旧卡，同样不是「无设定变化」
+          const sup = r.suppressed ?? 0
+          const kept = r.kept ?? 0
+          const supNote = sup > 0 ? ` · 同款 ${sup} 条此前已拒绝，未重复提案` : ''
+          const keptNote = kept > 0 ? ` · 同款 ${kept} 条待确认，未重复提案` : ''
+          setSyncMsg(
+            r.items > 0
+              ? `✓ 已生成 ${r.items} 条切片提案${supNote}${keptNote}`
+              : sup > 0 || kept > 0
+                ? `✓ 无新动向${supNote}${keptNote}${describeSyncEvidence(r.evidence)}`
+                : `✓ 无设定变化${describeSyncEvidence(r.evidence)}`
+          )
+          if (kept > 0) setKeptFocus(r.keptIds?.[0])
+          useProposalStore.getState().bump()
+          syncTimer.current = window.setTimeout(() => {
+            setSyncMsg('')
+            syncTimer.current = null
+          }, 6000)
+        } else {
+          // 失败可感知：浮条留存（不随 6s 清），并提供就地重试按钮
+          setSyncMsg('✗ 切片同步失败: ' + r.error)
+          setSyncRetry({ rel })
+        }
+      })()
+      syncRunRef.current = { rel, p: run }
+      try {
+        await run
+      } finally {
+        if (syncRunRef.current?.p === run) syncRunRef.current = null
+        // 在途期间有新保存（queued）→ 串行重跑一次（读盘=最新保存内容；只留最新=多保存也只补一次）
+        if (syncQueuedRef.current) {
+          syncQueuedRef.current = false
+          void doSync(rel)
+        }
       }
     },
     [id]
