@@ -523,6 +523,8 @@ function useSender(props: AgentPanelProps) {
   // 多轮会话（主人 2026-09-18，F-20260917-12）：生成中再发消息=排队自动续发，不再静默丢弃
   const streamingRef = useRef(false)
   const pendingRef = useRef<{ raw: string; quote: string | null; focus: boolean }[]>([])
+  // 本轮流式累积（按项目分桶后，切项目期间 delta 不能依赖「当前桶」读前缀，本地累积为准）
+  const streamedRef = useRef('')
 
   const send = useCallback(
     async (raw: string, quote: string | null, focus = false) => {
@@ -536,8 +538,12 @@ function useSender(props: AgentPanelProps) {
       if (!raw.trim()) return
       streamingRef.current = true
       const content = quote ? `（引用自《${props.chapterTitle}》选中段落）\n> ${quote.replace(/\n/g, '\n> ')}\n\n${raw}` : raw
-      useAgentStore.getState().append({ role: 'user', content, quote: quote ?? undefined })
-      useAgentStore.getState().append({ role: 'assistant', content: '' })
+      useAgentStore.getState().append({ role: 'user', content, quote: quote ?? undefined }, { project: projectId })
+      useAgentStore.getState().append({ role: 'assistant', content: '' }, { project: projectId })
+      // 本轮 assistant 消息 id 先固化：流式事件按 id 定位归属桶（按项目分桶后，切项目期间
+      // 事件仍写入本项目桶，不依赖「当前桶最后一条=本轮气泡」的时序假设）
+      const asstId = useAgentStore.getState().messages.at(-1)?.id ?? ''
+      streamedRef.current = ''
       setStreaming(true)
       const rid = newRid()
       // 定位 assistant 气泡：tool 消息（meta/todo/ask/edit 卡）append 在其后，
@@ -547,16 +553,16 @@ function useSender(props: AgentPanelProps) {
         return [...msgs].reverse().find((m) => m.role === 'assistant') ?? msgs[msgs.length - 1]
       }
       const patch = (t: string, trunc = true) => {
-        const last = lastAsst()
-        if (!last) return
+        const targetId = asstId || lastAsst()?.id
+        if (!targetId) return
         const v = trunc && t.length > CHAR_LIMIT ? t.slice(0, CHAR_LIMIT) + '…（截断）' : t
-        useAgentStore.getState().patch(last.id, v)
+        useAgentStore.getState().patch(targetId, v)
       }
       const fail = (txt: string) => {
         // 2026-09-16 智能层候选3：错误不替换已流式内容（store 改为 errorText 独立存），并附重试载荷；
-        // 目标必须是 assistant 气泡（lastAsst）——工具卡会在其后 append，msgs.at(-1) 会把错误标到工具卡上
-        const last = lastAsst()
-        if (last) useAgentStore.getState().setError(last.id, txt, { prompt: raw, quote, focus })
+        // 目标必须是 assistant 气泡（asstId 固化；切项目后按 id 仍路由到本项目桶）
+        const targetId = asstId || lastAsst()?.id
+        if (targetId) useAgentStore.getState().setError(targetId, txt, { prompt: raw, quote, focus })
       }
       // 工具卡终态兜底（2026-09-16 智能层候选2）：轮次以 done/aborted/error 收尾时，已发出但未收到
       // meta-done 的工具卡若一直悬置会永久转圈（作者无法判断工具是没返回还是卡死）——统一落「已取消」
@@ -564,7 +570,10 @@ function useSender(props: AgentPanelProps) {
       // 此处兜底的是 error 终了（驱动超时/引擎异常）与事件缺失场景，幂等（已 done/cancelled 不重复标）。
       const settleTrailingTools = () => {
         const now = performance.now()
-        for (const m of useAgentStore.getState().messages) {
+        // 按「本轮归属项目」的桶遍历（分桶后：流式期间切项目，messages 已换桶，不能读当前桶）
+        const s = useAgentStore.getState()
+        const bucket = s.project === projectId ? s.messages : s.byProject[projectId] ?? []
+        for (const m of bucket) {
           if (m.id.startsWith(rid + '-m') && m.kind === 'meta' && !m.done && !m.cancelled) {
             useAgentStore
               .getState()
@@ -590,14 +599,18 @@ function useSender(props: AgentPanelProps) {
         let metaSeq = 0
         const metaStack: string[] = []
         const activeMeta = (): string => metaStack[metaStack.length - 1] ?? ''
-        const asstId = useAgentStore.getState().messages.at(-1)?.id ?? ''
+        const bucketOfSend = () => {
+          const s = useAgentStore.getState()
+          return s.project === projectId ? s.messages : s.byProject[projectId] ?? []
+        }
         // 流式增量帧级节流：高频 delta/think 只在下一帧合并 flush 一次，避免每个增量一次全量 setState
         // （长 reasoning 思考/长正文下的渲染风暴）；flushNow 在流收尾/停止/覆盖前清残余，尾段不丢
         const thinkBuf = createStreamBuffer((t) => {
           if (asstId) useAgentStore.getState().appendThinking(asstId, t)
         })
         const deltaBuf = createStreamBuffer((t) => {
-          patch((lastAsst()?.content ?? '') + t, false)
+          streamedRef.current += t
+          patch(streamedRef.current, false)
         })
         const r = await harnessSend(
           {
@@ -614,37 +627,42 @@ function useSender(props: AgentPanelProps) {
             if (e.type === 'delta') deltaBuf.push(e.text ?? '')
             else if (e.type === 'final') {
               deltaBuf.flushNow() // final 全量覆盖前先冲刷残余，防止尾段重复/错序
+              streamedRef.current = e.text ?? ''
               patch(e.text ?? '')
             } else if (e.type === 'error') fail(e.message ?? '')
             else if (e.type === 'think') thinkBuf.push(e.text ?? '')
             else if (e.type === 'meta') {
               const id = rid + '-m' + metaSeq++
               metaStack.push(id)
-              useAgentStore.getState().upsertTool({ id, kind: 'meta', tool: e.tool ?? '', toolArgs: e.args, toolArgsJson: e.argsJson, done: false, startedAt: performance.now() })
+              useAgentStore.getState().upsertTool({ id, kind: 'meta', tool: e.tool ?? '', toolArgs: e.args, toolArgsJson: e.argsJson, done: false, startedAt: performance.now(), project: projectId })
             } else if (e.type === 'meta-done') {
               const id = activeMeta()
               if (id) metaStack.pop()
               if (id) {
-                const prev = useAgentStore.getState().messages.find((x) => x.id === id)
+                const prev = bucketOfSend().find((x) => x.id === id)
                 const elapsedMs = prev?.startedAt != null ? Math.max(0, performance.now() - prev.startedAt) : undefined
-                useAgentStore.getState().upsertTool({ id, kind: 'meta', tool: e.tool ?? '', done: true, toolOk: e.ok !== false, content: e.message ?? '', toolResult: e.result ?? prev?.toolResult, elapsedMs })
+                useAgentStore.getState().upsertTool({ id, kind: 'meta', tool: e.tool ?? '', done: true, toolOk: e.ok !== false, content: e.message ?? '', toolResult: e.result ?? prev?.toolResult, elapsedMs, project: projectId })
               }
             } else if (e.type === 'edit') {
               if (e.file && e.edits?.length) {
                 const eid = rid + '-e' + Date.now().toString(36)
-                useAgentStore.getState().upsertTool({ id: eid, kind: 'edit', file: e.file, edits: e.edits, editState: 'pending' })
+                useAgentStore.getState().upsertTool({ id: eid, kind: 'edit', file: e.file, edits: e.edits, editState: 'pending', project: projectId })
               }
-            } else if (e.type === 'todo') useAgentStore.getState().upsertTool({ id: rid, kind: 'todo', items: e.items ?? [] })
+            } else if (e.type === 'todo') useAgentStore.getState().upsertTool({ id: rid, kind: 'todo', items: e.items ?? [], project: projectId })
             else if (e.type === 'ask')
               useAgentStore
                 .getState()
-                .upsertTool({ id: rid + '-a-' + (e.batch ?? ''), kind: 'ask', questions: e.questions ?? [], batch: e.batch ?? '' })
+                .upsertTool({ id: rid + '-a-' + (e.batch ?? ''), kind: 'ask', questions: e.questions ?? [], batch: e.batch ?? '', project: projectId })
           }
         )
         // 收尾：冲刷残余增量（done/aborted 已到，事件不再来；须在「已停止」附加前，顺序才正确）
         thinkBuf.flushNow()
         deltaBuf.flushNow()
-        if (r === 'aborted') patch((lastAsst()?.content ?? '') + '\n\n（已停止）')
+        if (r === 'aborted') {
+          const base = streamedRef.current || lastAsst()?.content || ''
+          streamedRef.current = base + '\n\n（已停止）'
+          patch(streamedRef.current)
+        }
       } catch (e) {
         fail(String((e as Error).message || e))
       } finally {
@@ -682,6 +700,11 @@ export default function AgentPanel(props: AgentPanelProps) {
   }, [messages])
   const metaById = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages])
   const [input, setInput] = useState('')
+  // 消息按项目分桶（体验层 2026-09-22，任务线-02/04-体验层 五候选3 收口）：
+  // 切项目时切换对话桶，Agent 装配与消息列表保持一致（VS Code Copilot Chat 官方语义=session scoped to workspace）
+  useEffect(() => {
+    useAgentStore.getState().setProject(props.projectId)
+  }, [props.projectId])
   // 技能包命令（2026-09-21 skill 运行层）：/ 菜单合并作者技能；disabled/invalid 不显示不匹配
   const skillCmdsRef = useRef<ZjCommand[]>([])
   useEffect(() => {
@@ -1012,11 +1035,12 @@ export default function AgentPanel(props: AgentPanelProps) {
   /** 固定逻辑命令（/巡查 /导演）：直连既有入口执行，结果注入对话流（结论落资产），不经模型 */
   async function runFixed(raw: string, cmd: ZjCommand, args: string) {
     const st = useAgentStore.getState()
+    const pid = props.projectId
     st.setQuote(null)
-    st.append({ role: 'user', content: raw })
+    st.append({ role: 'user', content: raw }, { project: pid })
     if (cmd.run === 'chapterCheck') {
       if (!props.chapterRel) {
-        st.append({ role: 'assistant', content: '先选中一个章节再 `/巡查`；本章小环是按章检查的。', error: true })
+        st.append({ role: 'assistant', content: '先选中一个章节再 `/巡查`；本章小环是按章检查的。', error: true }, { project: pid })
         return
       }
       // 参数结构化（2026-09-12）：枚举校验，识别不了就地提示，不做静默降级
@@ -1026,12 +1050,12 @@ export default function AgentPanel(props: AgentPanelProps) {
           role: 'assistant',
           content: `「/巡查」参数只认：本章（短巡查）｜修订（分层修订）｜全卷（一致性巡查）；「${args}」无法识别。`,
           error: true
-        })
+        }, { project: pid })
         return
       }
       if (mode === 'full') {
         setAudit({ open: true, tab: 'consistency' })
-        st.append({ role: 'assistant', content: '已调起全卷一致性巡查（右侧抽屉），结论可存档到大纲。' })
+        st.append({ role: 'assistant', content: '已调起全卷一致性巡查（右侧抽屉），结论可存档到大纲。' }, { project: pid })
         return
       }
       props.onChapterCheck?.(mode === 'revision' ? 'revision' : 'chapter')
@@ -1040,36 +1064,36 @@ export default function AgentPanel(props: AgentPanelProps) {
         content: mode === 'revision'
           ? '已调起本章小环·分层修订（右侧抽屉），逐层建议可复制回正文。'
           : '已调起本章小环·短巡查（右侧抽屉），每条可转提案。'
-      })
+      }, { project: pid })
       return
     }
     if (cmd.run === 'director') {
       if (!props.chapterRel) {
-        st.append({ role: 'assistant', content: '先选中一个章节再 `/导演`；导演板是按章生成的。', error: true })
+        st.append({ role: 'assistant', content: '先选中一个章节再 `/导演`；导演板是按章生成的。', error: true }, { project: pid })
         return
       }
       const aid = 'fx-' + Date.now().toString(36)
       const token = ++fxTokenRef.current
       const t0 = performance.now()
       fxAidRef.current = aid
-      st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', toolArgs: props.chapterRel, done: false, startedAt: t0 })
+      st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', toolArgs: props.chapterRel, done: false, startedAt: t0, project: pid })
       setFxBusy(true)
       try {
         // /导演 参数 = 作者要求（此前被静默丢弃，2026-09-12 接线）；token 供「停止」取消
         const r = await window.zhijuan.agentDirector(props.projectId, props.chapterRel, args || undefined, aid)
         if (fxTokenRef.current !== token) return // 已取消：在途结果作废
         if (r.ok) {
-          st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: true, content: `已写入 ${r.written}`, elapsedMs: Math.max(0, performance.now() - t0) })
-          st.append({ role: 'assistant', content: fmtDirectorNote(r.written, r.sheet) })
+          st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: true, content: `已写入 ${r.written}`, elapsedMs: Math.max(0, performance.now() - t0), project: pid })
+          st.append({ role: 'assistant', content: fmtDirectorNote(r.written, r.sheet) }, { project: pid })
         } else {
-          st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: false, content: r.error ?? '导演板生成失败', elapsedMs: Math.max(0, performance.now() - t0) })
-          st.append({ role: 'assistant', content: '导演板生成失败：' + (r.error ?? '未知原因'), error: true })
+          st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: false, content: r.error ?? '导演板生成失败', elapsedMs: Math.max(0, performance.now() - t0), project: pid })
+          st.append({ role: 'assistant', content: '导演板生成失败：' + (r.error ?? '未知原因'), error: true }, { project: pid })
         }
       } catch (e) {
         if (fxTokenRef.current !== token) return
         const msg = String((e as Error)?.message ?? e)
-        st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: false, content: msg, elapsedMs: Math.max(0, performance.now() - t0) })
-        st.append({ role: 'assistant', content: '导演板生成失败：' + msg, error: true })
+        st.upsertTool({ id: aid, kind: 'meta', tool: '章节导演', done: true, toolOk: false, content: msg, elapsedMs: Math.max(0, performance.now() - t0), project: pid })
+        st.append({ role: 'assistant', content: '导演板生成失败：' + msg, error: true }, { project: pid })
       } finally {
         fxAidRef.current = null
         if (fxTokenRef.current === token) setFxBusy(false)
@@ -1096,7 +1120,7 @@ export default function AgentPanel(props: AgentPanelProps) {
     useAgentStore.getState().append({
       role: 'assistant',
       content: '已取消导演任务：不再等待生成，导演板不会写入大纲。'
-    })
+    }, { project: props.projectId })
   }
 
   async function doSend() {
