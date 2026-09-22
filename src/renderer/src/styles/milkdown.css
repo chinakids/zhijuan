@@ -70,6 +70,11 @@
 .zj-md .ProseMirror p { margin: 0 0 0.85em; }
 .zj-md .ProseMirror p:last-child { margin-bottom: 0; }
 
+/* 行内强调（Apple HIG Typography「Emphasized weights can be medium, semibold…」
+ * 与标题同权重体系 600，不用 UA 默认 bold≈700——层级语义与视觉节奏与标题一致；
+ * 宋体下 600 映射到粗档仍清晰可辨，且避免合成加粗的突兀感） */
+.zj-md .ProseMirror strong { font-weight: 600; }
+
 /* 列表 / 引用 / 代码块：行距随正文体系（2026-09-14 波2复核：1.8→1.85，与正文 29.6px 同体系，HIG「三行以上避免紧行距」） */
 .zj-md .ProseMirror ul,
 .zj-md .ProseMirror ol { margin: 0 0 0.85em; padding-left: 1.5em; }
@@ -99,6 +104,14 @@
   line-height: 1.6;
 }
 .zj-md .ProseMirror pre code { background: none; padding: 0; }
+
+/* 正文链接（Apple HIG Typography「use color to convey information」+ 与 .paper-canvas 同口径：
+ * accent 主题色 + 下划线保留=链接与正文可辨（WCAG 1.4.1 不单靠颜色）；编辑器内点击不跳转（PM 接管） */
+.zj-md .ProseMirror a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .zj-md .ProseMirror hr { border: none; border-top: 1px solid var(--hair); margin: 1.4em 0; }
 
 /* 顶部工具栏（Apple HIG Toolbars：符号优先、无边框、哑光；窄窗自动收进 More 菜单） */

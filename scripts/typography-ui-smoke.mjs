@@ -166,6 +166,38 @@ ok('标点悬挂无声明可生效（computed 为 none 或属性未实现 undefi
   w2.hangingPunctuation === 'none' || w2.hangingPunctuation === undefined || w2.hangingPunctuation === '',
   String(w2.hangingPunctuation))
 
+// —— 波3复核（2026-09-22 17:15 体验层轮）：行内强调与链接主题化 ——
+// HIG Typography「Emphasized weights can be medium, semibold…」：「Maintain hierarchy」→ strong 与标题同体系 600；
+// 「Use color to convey information」+ WCAG 1.4.1 → 链接 accent 色 + 下划线保留（与 .paper-canvas 同口径）。
+const MD3 = '## 混排样本\n\n正文段落，包含 **加重强调的词语** 与 [一个链接](https://example.com)。\n'
+const b643 = Buffer.from(MD3).toString('base64')
+await page.eval(`(() => { const eds = window.__ZJ_EDITORS || []; eds[0].setContent(atob('${b643}')); return 'OK' })()`)
+await sleep(800)
+const w3 = await page.eval(`(() => {
+  const st = document.querySelector('.ProseMirror strong')
+  const a = document.querySelector('.ProseMirror a')
+  if (!st || !a) return null
+  return { stWeight: getComputedStyle(st).fontWeight, aColor: getComputedStyle(a).color, aDeco: getComputedStyle(a).textDecorationLine }
+})()`)
+console.log('W3:', JSON.stringify(w3))
+ok('行内强调 strong 权重 600（HIG emphasized weight 与标题同体系）', w3 && w3.stWeight === '600', w3 && String(w3.stWeight))
+ok('链接主题化 accent（非 UA 默认蓝）', w3 && w3.aColor !== 'rgb(0, 0, 238)', w3 && w3.aColor)
+ok('链接下划线保留（WCAG 1.4.1 不单靠颜色）', w3 && /underline/.test(String(w3.aDeco)), w3 && String(w3.aDeco))
+// 波3截图（strong/link 实际界面，改动处）
+{
+  const out3 = os.homedir() + '/Pictures/zhijuan'
+  for (const mode of ['light', 'dark']) {
+    if (mode === 'dark') await page.eval(`document.documentElement.classList.add('dark')`)
+    await sleep(300)
+    const shot = await page.cmd('Page.captureScreenshot', { format: 'png' })
+    const { writeFileSync, mkdirSync } = await import('node:fs')
+    mkdirSync(out3, { recursive: true })
+    writeFileSync(out3 + '/typography-stronglink-' + mode + '.png', Buffer.from(shot.data, 'base64'))
+    if (mode === 'dark') await page.eval(`document.documentElement.classList.remove('dark')`)
+  }
+  console.log('SCREENSHOTS: ~/Pictures/zhijuan/typography-stronglink-light.png / typography-stronglink-dark.png')
+}
+
 // 深色主题核对：切 .dark 后断言字体参数不变（tokens 只换色，不换字排）
 await page.eval(`document.documentElement.classList.add('dark')`)
 await sleep(400)

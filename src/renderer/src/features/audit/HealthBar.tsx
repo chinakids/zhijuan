@@ -134,7 +134,7 @@ export default function HealthBar({ projectId, refreshSignal = 0 }: Props) {
           {health === 'issues' && total > 0 && (
             <span
               data-testid="health-badge"
-              className="absolute -right-1.5 -top-1 flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-warn px-[2px] text-[9px] font-semibold leading-none text-white"
+              className="absolute -right-1.5 -top-1 flex h-[13px] min-w-[13px] items-center justify-center rounded-full bg-warn px-[2px] text-[10px] font-semibold leading-none text-white"
             >
               {total > 99 ? '99+' : total}
             </span>
