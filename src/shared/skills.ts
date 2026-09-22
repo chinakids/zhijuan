@@ -171,12 +171,14 @@ export function skillBodyBlock(skill: SkillMeta, args?: string, bodyCaps = 3000)
   if (body.length > bodyCaps) {
     body =
       body.slice(0, bodyCaps) +
-      `\n（正文已省略 ${skill.body.length - bodyCaps} 字符；完整内容在 skills/${skill.name}/SKILL.md，需要时用 zj_read_doc 读取）`
+      `\n（正文已省略 ${skill.body.length - bodyCaps} 字符；完整内容在【工作区根目录】/skills/${skill.name}/SKILL.md，需要时用 zj_read_doc 读取：base 传【工作区根目录】，file 传 skills/${skill.name}/SKILL.md）`
   }
   if (args) body += `\n（参数：${args}）`
   // 2026-09-21 12:00 轮真模型实测修正：明示「正文已完整给出、无需再读技能文件」——
-  // 否则模型（Claude Code 系引擎自带 skill 工具）会去磁盘 seek 技能文件，工具循环直至超时
-  body += `\n（技能正文已完整给出，无需再读取技能文件；子文件在 skills/${skill.name}/ 下，需要时用 zj_read_doc 读取）`
+  // 否则模型（Claude Code 系引擎自带 skill 工具）会去磁盘 seek 技能文件，工具循环直至超时。
+  // 2026-09-23 智能层再修正：子文件指路必须给【工作区根目录】坐标——技能在工作区不在作品根，
+  // 模型曾按作品根读 skills/…/示例.md 失败后转 glob/find 探索（会话实锤），坐标给准可消除探索面。
+  body += `\n（技能正文已完整给出，无需再读取技能文件；子文件（如 references/）在【工作区根目录】/skills/${skill.name}/ 下，需要时用 zj_read_doc 读取：base 传【工作区根目录】，file 传 skills/${skill.name}/<子文件名>）`
   return `【技能：${skill.name}】\n${body}`
 }
 

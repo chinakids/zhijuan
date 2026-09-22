@@ -4,6 +4,7 @@
 // 上下文完全可控；工具读文件由写作引擎完成。
 import { driveSession, cancelTurn, type DriveEvent } from './runtime'
 import { projectDir, listDocs } from '../store'
+import { workspaceDir } from '../settings'
 import { buildWritingContext, buildProjectContext } from './context'
 import { expandAtRefs } from './refs'
 import { trimHistoryMessage } from '../../shared/historyTrim'
@@ -54,6 +55,7 @@ function envBlock(projectId: string, chapterRel: string | null): string {
   const base = projectDir(projectId)
   const lines = [
     '【作品根目录】' + base,
+    '【工作区根目录】' + workspaceDir(),
     '【当前打开章节】' + (chapterRel || '（未打开）'),
     '提示 web_client 工作：需要资料时用 zj_* 工具读，不要猜测。base 永远是上下文给出的【作品根目录】，不要自己编。',
     '要修改或新增正文内容时，用 zj_edit_doc 生成“修改方案”（不写盘，作者在界面上采纳后才会写入）；不要在答复里给出整篇替换文本让作者自己复制。' 

@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   driveSession: vi.fn(),
   guardPersonTargets: vi.fn()
 }))
+// engine 新增依赖 settings（workspaceDir 用 app.getPath('documents')）——测试环境给 /tmp 假路径
+vi.mock('electron', () => ({ app: { getPath: (_n: string) => '/tmp/zj-test-docs' } }))
 vi.mock('../../src/main/agent/runtime', () => ({
   driveSession: (...a: unknown[]) => mocks.driveSession(...a),
   closeHarness: () => {}
