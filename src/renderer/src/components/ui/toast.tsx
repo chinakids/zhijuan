@@ -1,5 +1,5 @@
 import type { ComponentType, MouseEvent } from 'react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { AlertCircle, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Info, X } from 'lucide-react'
 import LoadingIndicator from '../LoadingIndicator'
 import { useToastsStore, toast, type ToastItem, type ToastKind } from '../../store/toasts'
@@ -25,13 +25,20 @@ function ToastCard({ t }: { t: ToastItem }) {
   // 明细渐进披露（NN/g Progressive Disclosure 2006）：摘要常显、明细按需一层展开（不设更深层级）；
   // 展开态是组件局部 state——toast 常驻期间跨 re-render 保留，dismiss 后自然归零。
   const [showDetail, setShowDetail] = useState(false)
+  // 2.2.1 Timing Adjustable：自动消失须可暂停——hover 与 focus（键盘/读屏用户 Tab 进卡片）任一成立即暂停计时，
+  // 全部离开才恢复；pause/resume 幂等（store paused Set），重复触发安全（MFA11y「pause on hover and focus」）。
+  const hoverRef = useRef(false)
+  const focusRef = useRef(false)
+  const syncPause = () => {
+    if (hoverRef.current || focusRef.current) toastPause(t.id)
+    else toastResume(t.id)
+  }
   const toggleDetail = (e: MouseEvent) => {
     e.stopPropagation()
     setShowDetail((v) => !v)
   }
   return (
     <div
-      role="status"
       data-leaving={t.leaving || undefined}
       className={cn(
         'zj-toast pointer-events-auto flex items-start gap-2.5 rounded-lg border border-hair bg-surface px-3 py-2.5 shadow-[var(--shadow)]',
@@ -40,8 +47,10 @@ function ToastCard({ t }: { t: ToastItem }) {
           ? 'animate-out fade-out slide-out-to-top-2 duration-150'
           : 'animate-in fade-in slide-in-from-top-2 duration-150'
       )}
-      onMouseEnter={() => toastPause(t.id)}
-      onMouseLeave={() => toastResume(t.id)}
+      onMouseEnter={() => { hoverRef.current = true; syncPause() }}
+      onMouseLeave={() => { hoverRef.current = false; syncPause() }}
+      onFocusCapture={() => { focusRef.current = true; syncPause() }}
+      onBlurCapture={() => { focusRef.current = false; syncPause() }}
     >
       {t.kind === 'loading' ? (
         <LoadingIndicator size={16} className="mt-0.5" />
@@ -99,17 +108,28 @@ function ToastCard({ t }: { t: ToastItem }) {
 const toastPause = (id: number) => useToastsStore.getState().pause(id)
 const toastResume = (id: number) => useToastsStore.getState().resume(id)
 
-/** 全局通知堆栈：右上角（标题栏下方），栈式堆叠、自动消失、悬停暂停、可手动关。 */
+/** 全局通知堆栈：右上角（标题栏下方），栈式堆叠、自动消失、悬停/聚焦暂停、可手动关。
+ * a11y（WCAG 4.1.3 Status Messages + MFA11y/A11yPath 权威模式 2026-09-22 走查落地）：
+ * live region 必须**常驻**才能可靠播报——卡片与文本同帧创建的 role 会被屏幕阅读器漏播（最常见失败模式），
+ * 故卡片不带 role，由两个**常驻**容器承担：polite（role=status）承载常规/成功/警告，assertive（role=alert）承载错误
+ * （错误必须打断播报；其余排队）；aria-atomic=false 只播报新增卡片、不重复整区（勿改 true——会重读全部）。
+ * 视觉上仍是单一堆栈（两组上下排列），位置与 z 层不变。 */
 export function Toaster() {
   const toasts = useToastsStore((s) => s.toasts)
+  const polite = toasts.filter((t) => t.kind !== 'error')
+  const assertive = toasts.filter((t) => t.kind === 'error')
   return (
-    <div
-      aria-live="polite"
-      className="pointer-events-none fixed right-4 top-12 z-[60] flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2"
-    >
-      {toasts.map((t) => (
-        <ToastCard key={t.id} t={t} />
-      ))}
+    <div className="pointer-events-none fixed right-4 top-12 z-[60] flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2">
+      <div role="status" aria-live="polite" aria-atomic="false" className="flex flex-col gap-2">
+        {polite.map((t) => (
+          <ToastCard key={t.id} t={t} />
+        ))}
+      </div>
+      <div role="alert" aria-live="assertive" aria-atomic="false" className="flex flex-col gap-2">
+        {assertive.map((t) => (
+          <ToastCard key={t.id} t={t} />
+        ))}
+      </div>
     </div>
   )
 }
