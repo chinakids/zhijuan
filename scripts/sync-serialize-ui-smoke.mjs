@@ -115,6 +115,20 @@ function ok(name, cond, extra = '') {
     await evalUntil(page2, bodyHas('未保存'), Boolean, 10000, '文档变脏A3')
     await page2.eval(clickBtn('保存', false))
 
+    // A3 保存后：排队态明示（2026-09-22 15:45 创作层，NN/g #1 反馈）——作者需知第二次保存已被接住
+    await evalUntil(page2, bodyHas('新保存已排队'), Boolean, 5000, '排队态浮条')
+    ok('A②b 在途保存后浮条明示「新保存已排队」（修复前=仍只有「切片同步中…」）', true)
+    try {
+      const shot = await page2.cmd('Page.captureScreenshot', { format: 'png' })
+      const { mkdirSync, writeFileSync } = await import('node:fs')
+      mkdirSync(process.env.HOME + '/Pictures/zhijuan', { recursive: true })
+      const sp = process.env.HOME + '/Pictures/zhijuan/sync-queued-' + new Date().toTimeString().slice(0, 5).replace(':', '') + '.png'
+      writeFileSync(sp, Buffer.from(shot.data, 'base64'))
+      console.log('SCREENSHOT ' + sp)
+    } catch (e) {
+      console.log('SCREENSHOT_FAIL ' + String(e))
+    }
+
     await page2.eval(`new Promise((r) => setTimeout(r, 600))`)
     const nMid = await page2.eval(`(window.__ZJ_SYNCS ?? []).length`)
     ok('A③ 在途期间 2 次保存：600ms 后同步调用数仍为 1（排队未并发，修复前=3）', nMid === 1, 'n=' + nMid)

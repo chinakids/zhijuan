@@ -263,6 +263,9 @@ export default function Novel() {
       const cur = syncRunRef.current
       if (cur && cur.rel === rel) {
         syncQueuedRef.current = true
+        // 排队态明示（NN/g #1「keep users informed」）：作者在途期再保存=已被接住、完成后将补比对最新内容，
+        // 消除「这次保存是不是白存/没被记录」的不确定（NN/g 原句=缺反馈会让人重复点按同一操作）
+        if (syncOwned(rel)) setSyncMsg('切片同步中… · 新保存已排队，完成后将再比对')
         return
       }
       // 归属门：仅当作者仍在该章时更新浮条/重试/守卫明细（排队补跑可能在作者已切走的页面上启动）
