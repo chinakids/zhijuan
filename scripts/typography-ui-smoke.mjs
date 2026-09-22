@@ -198,6 +198,54 @@ ok('链接下划线保留（WCAG 1.4.1 不单靠颜色）', w3 && /underline/.te
   console.log('SCREENSHOTS: ~/Pictures/zhijuan/typography-stronglink-light.png / typography-stronglink-dark.png')
 }
 
+// —— 波4（2026-09-23 体验层轮）：中英文混排字体分离字形归属 ——
+// 目标：编辑器字体栈 'zj-serif-latin', var(--font-serif) 下，拉丁字符走 Georgia、全角中文标点走宋体。
+// 方法：canvas.measureText 实测宽度，与「Georgia 直指」「Songti SC 直指」基线比较（差 <1px 判归属）。
+const w4 = await page.eval(`(() => {
+  const el = document.querySelector('.ProseMirror')
+  if (!el) return null
+  const fam = getComputedStyle(el).fontFamily
+  const c = document.createElement('canvas').getContext('2d')
+  const w = (text, family) => { c.font = '64px ' + family; return Math.round(c.measureText(text).width * 1000) / 1000 }
+  const probes = { 'A':'A', '0':'0', '.':'.', 'quoteLeft':'\\u201C', 'dash':'\\u2014', 'ellipsis':'\\u2026', 'cjkB':'\\u300C' }
+  const out = { fam: fam.slice(0, 80), stack: {}, georgia: {}, songti: {} }
+  for (const [k, ch] of Object.entries(probes)) {
+    out.stack[k] = w(ch, fam)
+    out.georgia[k] = w(ch, 'Georgia')
+    out.songti[k] = w(ch, '"Songti SC"')
+  }
+  return out
+})()`)
+console.log('W4:', JSON.stringify(w4))
+const near = (a, b) => a !== null && Math.abs(a - b) < 1
+ok('混排分离：栈含 zj-serif-latin 前置', w4 && /zj-serif-latin/.test(w4.fam), w4 && w4.fam)
+ok('拉丁 A 走 Georgia（与 Georgia 基线差 <1px）', w4 && near(w4.stack.A, w4.georgia.A), w4 && String(w4.stack.A) + ' vs georgia ' + w4.georgia.A)
+ok('数字 0 走 Georgia', w4 && near(w4.stack['0'], w4.georgia['0']), w4 && String(w4.stack['0']) + ' vs ' + w4.georgia['0'])
+ok('ASCII 句点走 Georgia', w4 && near(w4.stack['.'], w4.georgia['.']), w4 && String(w4.stack['.']) + ' vs ' + w4.georgia['.'])
+ok('中文弯引号 “ 走宋体（不被 Georgia 抢）', w4 && near(w4.stack.quoteLeft, w4.songti.quoteLeft), w4 && String(w4.stack.quoteLeft) + ' vs songti ' + w4.songti.quoteLeft + ' / georgia ' + w4.georgia.quoteLeft)
+ok('破折号 — 走宋体（全角不被抢）', w4 && near(w4.stack.dash, w4.songti.dash), w4 && String(w4.stack.dash) + ' vs songti ' + w4.songti.dash + ' / georgia ' + w4.georgia.dash)
+ok('省略号 … 走宋体（全角不被抢）', w4 && near(w4.stack.ellipsis, w4.songti.ellipsis), w4 && String(w4.stack.ellipsis) + ' vs songti ' + w4.songti.ellipsis + ' / georgia ' + w4.georgia.ellipsis)
+ok('直角引号 「 走宋体', w4 && near(w4.stack.cjkB, w4.songti.cjkB), w4 && String(w4.stack.cjkB) + ' vs ' + w4.songti.cjkB)
+
+// 波4截图：英文混排实际界面（改动处）
+{
+  const MD4 = '## 混排样本\n\nHe said “你好，世界” — 这是一段测试。\n\nIt’s a mix: 中英 123 混排。\n'
+  const b644 = Buffer.from(MD4).toString('base64')
+  await page.eval(`(() => { const eds = window.__ZJ_EDITORS || []; eds[0].setContent(atob('${b644}')); return 'OK' })()`)
+  await sleep(800)
+  const out4 = os.homedir() + '/Pictures/zhijuan'
+  for (const mode of ['light', 'dark']) {
+    if (mode === 'dark') await page.eval(`document.documentElement.classList.add('dark')`)
+    await sleep(300)
+    const shot = await page.cmd('Page.captureScreenshot', { format: 'png' })
+    const { writeFileSync, mkdirSync } = await import('node:fs')
+    mkdirSync(out4, { recursive: true })
+    writeFileSync(out4 + '/typography-mixed-' + mode + '.png', Buffer.from(shot.data, 'base64'))
+    if (mode === 'dark') await page.eval(`document.documentElement.classList.remove('dark')`)
+  }
+  console.log('SCREENSHOTS: ~/Pictures/zhijuan/typography-mixed-light.png / typography-mixed-dark.png')
+}
+
 // 深色主题核对：切 .dark 后断言字体参数不变（tokens 只换色，不换字排）
 await page.eval(`document.documentElement.classList.add('dark')`)
 await sleep(400)

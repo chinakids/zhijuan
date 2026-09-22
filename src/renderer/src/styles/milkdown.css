@@ -1,5 +1,20 @@
 /* ===== 织卷 · Milkdown 编辑器外壳（套在 theme-nord 上，跟随主题） ===== */
 
+/* 中英文混排分离（2026-09-23 体验层；HIG Typography「Using system fonts」精神 +
+ * CSS Fonts Module Level 4 unicode-range，MDN 权威）：
+ * 正文默认 --font-serif=宋体系（中文优先）——但宋体拉丁字形欠佳，且 Georgia 排在栈尾实际永远用不上
+ * （实验实测：A/a/0/引号宽度全部 == Songti 基线，见 scripts/cdp-fonttest*.mjs 存档轮）。
+ * 处理=前置一个「拉丁专项」伪字体 @font-face：unicode-range 只精确覆盖拉丁字母/数字/拉丁标点
+ * （U+0000-00FF / U+0100-017F / U+0180-024F），**不含 U+2000-206F 通用标点块**——
+ * 中文对话弯引号 “ ”（U+201C/D）、破折号 —、省略号 … 全部留在宋体，绝不被西文抢；
+ * local() 取本机 Georgia（win 无 Georgia 时 local('Times New Roman')，均无则栈空自动落宋体系=与现状一致）。
+ * 实测（cdp-fonttest2）：栈 'zj-serif-latin','Songti SC' 下 A/0/. 宽度==Georgia 基线、“/—/「 宽度==Songti 基线。 */
+@font-face {
+  font-family: 'zj-serif-latin';
+  src: local('Georgia'), local('Times New Roman');
+  unicode-range: U+0000-00FF, U+0100-017F, U+0180-024F;
+}
+
 :where(.zj-md) {
   background: var(--surface);
   color: var(--ink);
@@ -17,8 +32,9 @@
   min-height: 100%;
   /* 空文档占位的定位父级（::before 绝对定位；无子层叠冲突——批注/查找均不在本层定位） */
   position: relative;
-  /* 正文书写字排（Apple HIG Typography：层级清晰 + 长文宽松行距；与 .paper-canvas 同一口径 16px/1.85） */
-  font-family: var(--font-serif);
+  /* 正文书写字排（Apple HIG Typography：层级清晰 + 长文宽松行距；与 .paper-canvas 同一口径 16px/1.85；
+   * 2026-09-23 前置 zj-serif-latin=中英文混排分离，见文件头 @font-face 注释） */
+  font-family: 'zj-serif-latin', var(--font-serif);
   font-size: 16px;
   line-height: 1.85;
   overflow-wrap: break-word;
