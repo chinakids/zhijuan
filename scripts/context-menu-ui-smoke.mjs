@@ -243,7 +243,7 @@ const items2 = await evalUntil(
   '无选区右键菜单'
 )
 console.log('MENU ITEMS (无选区):', JSON.stringify(items2))
-ok('无选区仅 粘贴/全选', items2.length === 2 && items2.includes('粘贴') && items2.includes('全选'), JSON.stringify(items2))
+ok('无选区仅 粘贴/粘贴为纯文本/全选', items2.length === 3 && items2.includes('粘贴') && items2.includes('粘贴为纯文本') && items2.includes('全选'), JSON.stringify(items2))
 // Esc 关闭
 await page.cmd('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
 await page.cmd('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })

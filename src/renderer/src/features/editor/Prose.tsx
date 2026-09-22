@@ -12,7 +12,7 @@ import { Plugin, TextSelection } from 'prosemirror-state'
 import { Decoration, DecorationSet } from 'prosemirror-view'
 import '@milkdown/theme-nord/style.css'
 import '../../styles/milkdown.css'
-import { ClipboardPaste, Copy, MessageSquarePlus, MessageSquareText, Scissors, TextSelect, Trash2 } from 'lucide-react'
+import { ClipboardPaste, Copy, FileText, MessageSquarePlus, MessageSquareText, Scissors, TextSelect, Trash2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAppStore } from '../../store/app'
 import { FOCUS_DIM_CLASS, FOCUS_ON_CLASS, focusBlockRange } from './focusMode'
@@ -24,6 +24,7 @@ import { saveScroll, takeScroll } from './scrollMemory'
 import { anchorFromPos, restoreCursorSelection, saveCursor, takeCursor } from './cursorMemory'
 import { EMPTY_ACTIVE, activeEq, readToolbarActive, type ActiveState } from './toolbarActive'
 import { macTextKeysPlugin } from './macTextKeys'
+import { pastePlainPlugin, plainTextSlice, splitPlainParagraphs } from './pastePlain'
 import {
   computeFloatingPos,
   FLOAT_EST_ANNO_POP,
@@ -705,6 +706,21 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
       v.dispatch(v.state.tr.replaceWith(from, to, doc))
     })
   }
+  // 粘贴为纯文本（2026-09-23 创作层）：右键入口，同 doPaste 读剪贴板，
+  // 但按字面插入（不按 markdown 解析），见 pastePlain.ts。
+  const doPastePlain = async () => {
+    let t = ''
+    try {
+      t = await navigator.clipboard.readText()
+    } catch {
+      return
+    }
+    if (!t.trim()) return
+    runEdit((v) => {
+      const slice = plainTextSlice(splitPlainParagraphs(t), v.state.schema)
+      if (slice) v.dispatch(v.state.tr.replaceSelection(slice).scrollIntoView())
+    })
+  }
   const doSelectAll = () => runEdit((v) => selectAll(v.state, v.dispatch))
   const doQuote = () => {
     if (menuSel) window.dispatchEvent(new CustomEvent('zj:quote-text', { detail: menuSel }))
@@ -966,7 +982,7 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
       .config((ctx) => {
         ctx.set(rootCtx, hostRef.current!)
         ctx.set(defaultValueCtx, initialRef.current)
-        ctx.set(prosePluginsCtx, [annoPlugin, selPlugin, emptyHintPlugin, focusPlugin, typewriterPlugin, macTextKeysPlugin].filter((p): p is NonNullable<typeof p> => !!p))
+        ctx.set(prosePluginsCtx, [annoPlugin, selPlugin, emptyHintPlugin, focusPlugin, typewriterPlugin, macTextKeysPlugin, pastePlainPlugin].filter((p): p is NonNullable<typeof p> => !!p))
         ctx.get(listenerCtx).markdownUpdated((_, md) => {
           if (!liveRef.current) return
           onEditRef.current?.(md)
@@ -1250,6 +1266,10 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
             <ContextMenuItem onSelect={() => void doPaste()}>
               <ClipboardPaste className="mr-0.5 h-3.5 w-3.5" />
               粘贴
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => void doPastePlain()}>
+              <FileText className="mr-0.5 h-3.5 w-3.5" />
+              粘贴为纯文本
             </ContextMenuItem>
             <ContextMenuItem onSelect={doSelectAll}>
               <TextSelect className="mr-0.5 h-3.5 w-3.5" />
