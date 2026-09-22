@@ -104,6 +104,16 @@ function projectOf(s: Pick<AgentState, 'byProject' | 'project' | 'messages'>, id
   return null
 }
 
+/**
+ * 公开查询：消息 id 归属的项目（答案可答、无副作用）。
+ * 分桶语义的可答面——错误重试/排队续发须把新轮次落入「原消息归属桶」而不是「当前面板所在项目」
+ * （2026-09-23 体验层，04-体验层.md 五候选1）：作者在 A 项目发起的轮次，重试结果必须回到 A 项目对话，
+ * 否者拆散原对话且污染另一项目的装配上下文。无归属（未分桶时期）返回 null，调用方回退面板项目。
+ */
+export function messageProject(id: string): string | null {
+  return projectOf(useAgentStore.getState(), id)
+}
+
 type BucketFn = (bucket: AgentMsg[]) => AgentMsg[]
 
 /** 对 id 所在桶做变换；id 无归属时按 projHint → 当前项目桶。返回的 partial 直接并入 set()。 */

@@ -21,7 +21,7 @@ import { expandCommand, filterCommandCandidates, insertCommand, matchFixedComman
 import { skillCommandOf } from '../../../../shared/skills'
 import { createStreamBuffer } from '../../../../shared/streamBuffer'
 import { trimHistoryMessage } from '../../../../shared/historyTrim'
-import { useAgentStore, type AgentMsg } from './store'
+import { useAgentStore, messageProject, type AgentMsg } from './store'
 import ErrorNotice from './ErrorNotice'
 import { groupToolMeta, isContinuedRead, summarizeGroup, failureFollowupPrompt } from './toolChain'
 import { useUiStore } from '../../store/ui'
@@ -522,16 +522,19 @@ function useSender(props: AgentPanelProps) {
   const abortRef = useRef<{ rid: string } | null>(null)
   // 多轮会话（主人 2026-09-18，F-20260917-12）：生成中再发消息=排队自动续发，不再静默丢弃
   const streamingRef = useRef(false)
-  const pendingRef = useRef<{ raw: string; quote: string | null; focus: boolean }[]>([])
+  const pendingRef = useRef<{ raw: string; quote: string | null; focus: boolean; project: string }[]>([])
   // 本轮流式累积（按项目分桶后，切项目期间 delta 不能依赖「当前桶」读前缀，本地累积为准）
   const streamedRef = useRef('')
 
   const send = useCallback(
-    async (raw: string, quote: string | null, focus = false) => {
-      const { projectId, chapterRel } = props
+    async (raw: string, quote: string | null, focus = false, opts?: { project?: string }) => {
+      const { projectId: panelProject, chapterRel } = props
+      // 本轮归属项目（2026-09-23 体验层，跨项目语义）：错误重试/排队续发以「消息归属」为准、面板项目兜底——
+      // 作者在 A 项目发起的轮次（含其重试）必须落回 A 项目对话与装配，不因切到 B 项目而错桶拆散原对话
+      const projectId = opts?.project ?? panelProject
       if (streamingRef.current) {
         if (!raw.trim()) return
-        pendingRef.current.push({ raw, quote, focus })
+        pendingRef.current.push({ raw, quote, focus, project: projectId })
         toast.add({ kind: 'info', title: '消息已排队', description: '上一条还在生成中，完成之后会自动发送这条。' })
         return
       }
@@ -540,16 +543,22 @@ function useSender(props: AgentPanelProps) {
       const content = quote ? `（引用自《${props.chapterTitle}》选中段落）\n> ${quote.replace(/\n/g, '\n> ')}\n\n${raw}` : raw
       useAgentStore.getState().append({ role: 'user', content, quote: quote ?? undefined }, { project: projectId })
       useAgentStore.getState().append({ role: 'assistant', content: '' }, { project: projectId })
-      // 本轮 assistant 消息 id 先固化：流式事件按 id 定位归属桶（按项目分桶后，切项目期间
-      // 事件仍写入本项目桶，不依赖「当前桶最后一条=本轮气泡」的时序假设）
-      const asstId = useAgentStore.getState().messages.at(-1)?.id ?? ''
       streamedRef.current = ''
       setStreaming(true)
       const rid = newRid()
+      // 本轮归属桶视图：重试/排队续发可能发生在「面板项目 ≠ 归属项目」时（跨项目语义），
+      // 桶读写一律按 projectId 归属而不是「当前视图」（messages 在切项目后已换桶）
+      const bucketOf = () => {
+        const s = useAgentStore.getState()
+        return s.project === projectId ? s.messages : s.byProject[projectId] ?? []
+      }
+      // 本轮 assistant 消息 id 先固化：流式事件按 id 定位归属桶（按项目分桶后，切项目期间
+      // 事件仍写入本项目桶，不依赖「当前桶最后一条=本轮气泡」的时序假设）
+      const asstId = bucketOf().at(-1)?.id ?? ''
       // 定位 assistant 气泡：tool 消息（meta/todo/ask/edit 卡）append 在其后，
       // at(-1) 会把 delta/final 打进工具卡 content（回复错位/丢失）——delta 拼接与「已停止」附加同样必须用它
       const lastAsst = () => {
-        const msgs = useAgentStore.getState().messages
+        const msgs = bucketOf()
         return [...msgs].reverse().find((m) => m.role === 'assistant') ?? msgs[msgs.length - 1]
       }
       const patch = (t: string, trunc = true) => {
@@ -589,9 +598,7 @@ function useSender(props: AgentPanelProps) {
       try {
         attachAgentBridge()
         abortRef.current = { rid }
-        const history = useAgentStore
-          .getState()
-          .messages
+        const history = bucketOf()
           .slice(0, -2)
           .filter((m): m is { role: 'user' | 'assistant'; content: string; id: string } => m.role !== 'tool')
           .slice(-20)
@@ -599,10 +606,7 @@ function useSender(props: AgentPanelProps) {
         let metaSeq = 0
         const metaStack: string[] = []
         const activeMeta = (): string => metaStack[metaStack.length - 1] ?? ''
-        const bucketOfSend = () => {
-          const s = useAgentStore.getState()
-          return s.project === projectId ? s.messages : s.byProject[projectId] ?? []
-        }
+        const bucketOfSend = () => bucketOf()
         // 流式增量帧级节流：高频 delta/think 只在下一帧合并 flush 一次，避免每个增量一次全量 setState
         // （长 reasoning 思考/长正文下的渲染风暴）；flushNow 在流收尾/停止/覆盖前清残余，尾段不丢
         const thinkBuf = createStreamBuffer((t) => {
@@ -671,9 +675,10 @@ function useSender(props: AgentPanelProps) {
         streamingRef.current = false
         abortRef.current = null
         useAgentStore.getState().setQuote(null)
-        // 队列续发：上一条收尾后自动发送下一条排队消息（F-20260917-12）
+        // 队列续发：上一条收尾后自动发送下一条排队消息（F-20260917-12）；
+        // 携带排队时的归属项目（2026-09-23 体验层）：排队期间切项目，续发仍落原对话而非当前面板项目
         const nxt = pendingRef.current.shift()
-        if (nxt) setTimeout(() => void send(nxt.raw, nxt.quote, nxt.focus), 80)
+        if (nxt) setTimeout(() => void send(nxt.raw, nxt.quote, nxt.focus, { project: nxt.project }), 80)
       }
     },
     [props, streaming]
@@ -729,12 +734,17 @@ export default function AgentPanel(props: AgentPanelProps) {
     return () => useAgentStore.getState().setSendHandler(null)
   }, [send])
   // 错误提示「重试」（2026-09-16 智能层候选3）：按原载荷重发一轮；不销毁旧消息（已产出的修改方案仍可采纳），
-  // 标记 retried 后按钮置「已重试」防连点
+  // 标记 retried 后按钮置「已重试」防连点。
+  // 跨项目语义（2026-09-23 体验层）：重试轮以「原消息归属项目」为准发送（messageProject），
+  // 当错误消息归属 ≠ 当前面板项目时仍落回原对话桶并按其装配——不拆散原对话、不污染当前项目上下文。
   const onErrorRetry = useCallback(
     (m: AgentMsg) => {
       useAgentStore.getState().markRetried(m.id)
       const r = m.errorRetry
-      if (r) send(r.prompt, r.quote, r.focus)
+      if (r) {
+        const owner = messageProject(m.id)
+        send(r.prompt, r.quote, r.focus, owner ? { project: owner } : undefined)
+      }
     },
     [send]
   )
@@ -1125,18 +1135,25 @@ export default function AgentPanel(props: AgentPanelProps) {
 
   async function doSend() {
     const v = input
-    if (fxBusy || sending || !v.trim()) return
-    // 引擎前置检查（2026-09-12）：离线禁止发送并就地提示；查询会顺带尝试拉起引擎，成功即放行
+    if (fxBusy || !v.trim()) return
+    const fx = matchFixedCommand(v)
+    const prompt = expandCommand(v, props.chapterTitle) ?? v
+    if (sending) {
+      // 生成中再发（2026-09-23 体验层补 F-20260917-12 的用户路径缺口）：非固定命令交 send 的
+      // 排队队列自动续发（toast「消息已排队」），不再被 sending 守卫静默丢弃（曾实测 Enter 无响应且输入保留）；
+      // 固定命令（/巡查 /导演）维持既有串行语义——生成中 Enter 不触发，避免与在途轮抢执行
+      if (fx) return
+      setInput('')
+      void send(prompt.trim(), quote)
+      return
+    }
+    // 引擎前置检查（2026-09-12）：发送前懒查一次引擎状态，离线就地提示、不丢输入
     if (!(await checkEngine())) return
     setInput('')
-    // 固定逻辑命令（/巡查 /导演）：直连既有入口执行，不经模型
-    const fx = matchFixedCommand(v)
     if (fx) {
       void runFixed(v, fx.cmd, fx.args)
       return
     }
-    // 模板命令展开：匹配内置命令名→替换为模板 prompt（未匹配按普通消息原样发送）
-    const prompt = expandCommand(v, props.chapterTitle) ?? v
     void send(prompt.trim(), quote)
   }
 

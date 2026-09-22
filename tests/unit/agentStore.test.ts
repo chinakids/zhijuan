@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useAgentStore } from '../../src/renderer/src/features/agent/store'
+import { useAgentStore, messageProject } from '../../src/renderer/src/features/agent/store'
 
 // Agent 对话按项目分桶（体验层 2026-09-22，04-体验层.md 五候选3 收口）：
 // 切项目=切桶；跨项目事件按消息 id 路由到原桶；quote 同桶；reset 只清当前项目。
@@ -88,5 +88,31 @@ describe('useAgentStore 按项目分桶', () => {
     expect(useAgentStore.getState().messages.some((m) => m.thinking)).toBe(false)
     useAgentStore.getState().setProject('p1')
     expect(useAgentStore.getState().messages.find((m) => m.id === id)?.thinking).toBe('思考')
+  })
+
+  it('messageProject 跨项目仍可查消息归属（错误重试落原桶的查询面）', () => {
+    useAgentStore.getState().setProject('p1')
+    useAgentStore.getState().append({ role: 'user', content: 'A' })
+    useAgentStore.getState().append({ role: 'assistant', content: '' })
+    const aId = useAgentStore.getState().messages.at(-1)!.id
+    useAgentStore.getState().setProject('p2')
+    // p2 视图下查询 p1 消息归属仍应返回 p1
+    expect(messageProject(aId)).toBe('p1')
+  })
+
+  it('messageProject 不存在的 id 返回 null（调用方回退面板项目）', () => {
+    useAgentStore.getState().setProject('p1')
+    useAgentStore.getState().append({ role: 'assistant', content: '' })
+    expect(messageProject('nope')).toBeNull()
+  })
+
+  it('messageProject：未分桶时期消息在首次分桶后随桶可查；无项目上下文则 null', () => {
+    // project 未初始化时期：消息只进视图片段（不入桶）
+    useAgentStore.getState().append({ role: 'assistant', content: '' })
+    const id = useAgentStore.getState().messages.at(-1)!.id
+    expect(messageProject(id)).toBeNull()
+    // 首次分桶时未分桶消息并入首个目标项目（setProject 语义）→ 可查
+    useAgentStore.getState().setProject('p1')
+    expect(messageProject(id)).toBe('p1')
   })
 })
