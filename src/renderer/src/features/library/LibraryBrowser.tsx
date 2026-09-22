@@ -80,6 +80,18 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
   }, [id])
 
   useEffect(() => {
+    // 挂载/切项目先回 loading 并清旧项目数据（Timeline 样板，2026-09-22 体验层 stale 核查）：
+    // 搜索命中/选中编辑文档/类别树都是项目数据面，不允许在新项目加载窗口残留；fs 刷新不受影响。
+    setLoading(true)
+    setCategories([])
+    setFiles([])
+    setSelCat(null)
+    setEditorRel(null)
+    setCards(new Map())
+    setHits(null)
+    setSearchQ('')
+    setSearching(false)
+    setLoadErr('')
     void refresh()
   }, [refresh])
 

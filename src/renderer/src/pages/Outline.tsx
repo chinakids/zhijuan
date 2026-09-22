@@ -70,6 +70,15 @@ export default function Outline() {
   }, [id])
 
   useEffect(() => {
+    // 挂载/切项目先回 loading 并清旧项目数据（Timeline 样板，2026-09-22 体验层 stale 核查）：
+    // ⌘K 项目搜索/浏览器前进后退会让同路由组件复用；fs 触发的 refresh 不经过本 effect。
+    setLoading(true)
+    setChapters([])
+    setOutlineFiles([])
+    setOutlineMtimes({})
+    setSel(null)
+    setLoadErr('')
+    setMsg('')
     void refresh()
   }, [refresh])
 

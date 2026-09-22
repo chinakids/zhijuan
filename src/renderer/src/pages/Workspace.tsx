@@ -92,6 +92,13 @@ export default function Workspace() {
 
   useEffect(() => {
     if (!id) return
+    // 切项目重置（Timeline 样板，2026-09-22 体验层 stale 核查）：⌘K 项目搜索/浏览器前进后退直接切换
+    // 项目时同路由组件复用，旧项目信息/计数会残留到新数据返回；回 loading 骨架（与「项目不存在」错误态区分）。
+    readyRef.current = false
+    setProject(null)
+    setCounts(emptyCounts)
+    setLoadState('loading')
+    setLoadErr('')
     void window.zhijuan.openProject(id)
     void refreshAll()
     const off = window.zhijuan.onFsEvent((evt: FsEvent) => {

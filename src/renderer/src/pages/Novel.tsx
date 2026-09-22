@@ -460,11 +460,22 @@ export default function Novel() {
   }
 
   useEffect(() => {
+    // 挂载/切项目先回 loading 并清旧项目章节数据（Timeline 样板，2026-09-22 体验层 stale 核查）：
+    // ⌘K 项目搜索/浏览器前进后退会让同路由组件复用，旧项目列表会在新数据返回前残留闪现。
+    // fs 事件触发的 refresh 不经过本 effect（直接调 refresh），列表刷新不受影响。
+    setLoading(true)
+    setChapters([])
+    setLoadErr('')
     void refresh()
   }, [refresh])
 
   // 文件变化：刷新列表
   useFsChanged(id, '正文/', () => void refresh())
+
+  // 切项目：关闭「本章小环」抽屉（检查结果属当前章上下文；经 ⌘K 项目搜索可直接跨项目跳转，组件复用）
+  useEffect(() => {
+    setCheckOpen(false)
+  }, [id])
 
   // 注意：events.path 是项目根相对路径（如 正文/第01章_雾港.md），sel 是 listChapters 返回的相对 正文/ 裸名，
   // 匹配必须用带前缀的 chapterRel 拼出来（真机 watcher 同此口径；曾直接用 sel 匹配导致 extVersion 恒 0、外部改动不静默重载）

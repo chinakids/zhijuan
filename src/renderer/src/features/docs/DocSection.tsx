@@ -68,6 +68,12 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
   }, [id, relDir, overviewFile])
 
   useEffect(() => {
+    // 挂载/切项目先回 loading 并清旧项目文档（Timeline 样板，2026-09-22 体验层 stale 核查）：
+    // 选中项置空防旧项目文档名在新项目加载窗口触发「读取失败」卡闪现；fs 触发的 refresh 不受影响。
+    setLoading(true)
+    setFiles([])
+    setSel(null)
+    setLoadErr('')
     void refresh()
   }, [refresh])
 
