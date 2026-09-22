@@ -85,7 +85,16 @@ export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void
   const run = { aborted: false, sid }
   active.set(input.requestId, run)
   const parts: string[] = []
+  // 系统身份 + 输出纪律（2026-09-22 智能层轮，候选 1「聊天输出纯度」）：
+  // 18:00 轮 insights-draft-live 实测模型续写必带元说明（「几点处理思路」「——约 120 字」「未使用…」），
+  // 正文混说明=作者侧对话流噪音；业界（Novelcrafter 官方默认 prompt）把输出纯度/文风纪律写进 prompt 层，
+  // 且本机实测「只输出正文」指令有效（v2 探针对照）。仅聊天域（runChat）加纪律；子任务/检查域不动。
   parts.push('你是「织卷」创作工作台的创作 agent，协助作者（用户）写作。')
+  parts.push(
+    '【输出纪律】用户请求是续写、扩写、改写、润色、按要点成文等创作行动时：只输出正文本身，' +
+      '不加任何说明、解释、思路、字数标注、标题或前后缀；用户请求是提问、评价、讨论、规划（如「这段怎样」「哪里要改」）时：正常给出分析。' +
+      '说明性文字会混入正文、需要作者手动删除，所以拿不准时默认按创作行动输出正文。'
+  )
   parts.push(envBlock(input.projectId, input.chapterRel))
   // 技能清单注入（2026-09-21 skill 运行层）：描述常驻、正文按需（渐进披露第一层）；失败不阻断创作
   let skills: SkillMeta[] = []
