@@ -84,6 +84,11 @@ export const REVIEWED_NON_MODEL = new Set([
   // grep 零命中（仅 fetch CDP /json/new）；弱特征 runSync/真模型 命中=头注背景描述与 devShim 短路语义——
   // 345ea1e 配套「在途排队合并=GitHub Actions concurrency 同构」语义验证（创作层 09:45 轮自证）。
   'sync-serialize-ui-smoke.mjs',
+  // 2026-09-22 13:3x 平台层轮核对：sync-relocate-ui-smoke.mjs 是无头 UI 冒烟（CDP 9224 + devShim 内存 mock 页面，
+  // 用 ?zj-syncdelay=N 注入 agentSync mock 延迟，断言「同步在途切章→旧章结果不落新章页」；
+  // grep 引擎/模型引用零命中（仅 fetch CDP /json/new）；弱特征「真模型(L2)」命中=注释「模拟真模型耗时」描述——
+  // 983fd81 配套「过期同步反馈丢弃=React ignore stale responses 同构」语义验证（创作层 12:45 轮自证）。
+  'sync-relocate-ui-smoke.mjs',
 ])
 
 export const MODEL_SKIP_REASON = '模型类：真模型驱动（依赖 vLLM 算力池），--all 门禁不包含——--live 或单独跑'
