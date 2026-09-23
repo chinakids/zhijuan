@@ -33,6 +33,5 @@ docs/冒烟回归基线*.md
 # ── vendored 引擎 dsh-runtime（本地 install.sh 拉取，大型二进制不入库）──
 dsh-runtime/node_modules/
 dsh-runtime/dshhome/
-dsh-runtime/testwork/
 docs/发布冲刺*.md
 docs/架构评审*.md
