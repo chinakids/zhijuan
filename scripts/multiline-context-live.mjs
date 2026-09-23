@@ -8,6 +8,7 @@
 // 判定：数据层白盒（X 在/Y 不在/Z 不在/回退链线内）+ 真模型三问（Q1 必须答 X 且不把 Y 当本线
 //   上一章；Q2/Q3 不把他线物件归当前线；要求零工具=证明来自装配而非现读）。
 // 用法：cd ~/Desktop/织卷 && node scripts/multiline-context-live.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -19,7 +20,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-mline-live-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = '多线装配真模型探针'

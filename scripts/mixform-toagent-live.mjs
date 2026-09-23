@@ -5,6 +5,7 @@
 // 链路：真引擎（dsh 边车 + 真 vLLM 127.0.0.1:8888）runChat + 真 zj_* 工具读文件/出修改卡。
 // 另外验证：mixform 条目现在自带可执行「别名登记」提案（新处置方式，数据层）。
 // 用法：cd ~/Desktop/织卷 && node scripts/mixform-toagent-live.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -16,7 +17,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-mixtoa-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = 'mixform体检'

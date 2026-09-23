@@ -13,6 +13,7 @@
 // 判据：②模型轨迹含素材库检索/读取（zj_search dir=素材库 或 zj_read_doc 路径含 素材库/）；
 //       ③最终回复含素材①核心意象且不含素材②意象（用对素材、零编造）；④给出改写（zj_edit_doc 或正文建议）。
 // 用法：cd ~/Desktop/织卷 && node scripts/material-use-live.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -24,7 +25,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-matuse-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = '素材使用探针'

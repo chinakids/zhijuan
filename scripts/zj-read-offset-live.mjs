@@ -4,6 +4,7 @@
 // 模型看到返回里的「可传 offset=6000 继续读」提示后，须续读（offset 或调大 maxChars）才能到达尾部标记。
 // 断言：工具调用 ≥2 次（发生续读）且最终答复包含尾部标记（关键信息无漏注入）。
 // 用法：cd ~/Desktop/织卷 && node scripts/zj-read-offset-live.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -15,7 +16,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-readoff-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = 'offset冒烟'

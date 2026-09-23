@@ -5,6 +5,7 @@
 //   ③ parseOutlineCard 回读线名（章卡文件=权威）；
 //   ④ 单线老项目（无「时间线」字段）零回归：章卡/导演板均无该字段。
 // 用法：cd ~/Desktop/织卷 && node scripts/multiline-outline-director-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -19,7 +20,7 @@ rmSync(UD, { recursive: true, force: true })
 rmSync(LIB, { recursive: true, force: true })
 mkdirSync(UD, { recursive: true })
 mkdirSync(LIB, { recursive: true })
-writeFileSync(resolve(UD, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: LIB }))
+writeProbeSettings({ libraryRoot: LIB }, UD)
 
 const out = '/tmp/mline-outline-bundle.mjs'
 const DRIVE_MOCK = resolve(root, 'scripts/drive-mock-outline.mjs')

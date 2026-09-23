@@ -2,6 +2,7 @@
 // 验证：runNameMix/runNameForms 条目带 aliasCandidates+proposal（kind=replace-text）→
 // applyProposal 落盘后约定头 别名 精确并入、正文/档案其余内容零污染（不再有「建议文本+依据」）。
 // 用法：cd ~/Desktop/织卷 && node scripts/nameform-proposal-data-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -16,7 +17,7 @@ rmSync(UD, { recursive: true, force: true })
 rmSync(LIB, { recursive: true, force: true })
 mkdirSync(LIB, { recursive: true })
 mkdirSync(UD, { recursive: true })
-writeFileSync(resolve(UD, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: LIB }))
+writeProbeSettings({ libraryRoot: LIB }, UD)
 
 const out = '/tmp/aliasprop-bundle.mjs'
 await esbuild({

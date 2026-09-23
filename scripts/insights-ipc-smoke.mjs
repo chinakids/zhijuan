@@ -3,6 +3,7 @@
 //       / deleteDraft / 路径穿越防护 / promote 后 listSkills 可见（转正参与注入面）/ IPC 通道名双端一致。
 // 用法：cd ~/Desktop/织卷 && node scripts/insights-ipc-smoke.mjs
 // （仓库标准模式：esbuild bundle → node 直跑；隔离环境=临时 userData/工作区/项目库，零污染真实库）
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { readFileSync, readdirSync, existsSync, rmSync, mkdirSync, writeFileSync, cpSync } from 'fs'
 import { join, resolve } from 'path'
 import { pathToFileURL } from 'url'
@@ -21,10 +22,7 @@ const WS = UD + '/ws'
 const LIB = UD + '/lib'
 rmSync(UD, { recursive: true, force: true })
 mkdirSync(UD, { recursive: true })
-writeFileSync(
-  UD + '/zhijuan-settings.json',
-  JSON.stringify({ workspace: WS, libraryRoot: LIB, writingInsightsEnabled: true })
-)
+writeProbeSettings({ workspace: WS, libraryRoot: LIB, writingInsightsEnabled: true }, UD)
 process.env.ZJ_USERDATA = UD
 cpSync(PJ, join(LIB, '织卷smoke'), { recursive: true })
 

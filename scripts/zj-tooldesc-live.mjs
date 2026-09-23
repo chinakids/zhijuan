@@ -9,6 +9,7 @@
 // 都是 token 高效路径，目标=不再 maxChars 大读）；仅 maxChars>7000 大读到达 → WARN（描述
 // 引导未生效，如实登记）；未到达尾部 → FAILED。
 // 用法：node scripts/zj-tooldesc-live.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -20,7 +21,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-tooldesc-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = 'tooldesc冒烟'

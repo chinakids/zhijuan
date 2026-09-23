@@ -1,6 +1,7 @@
 // 数据层冒烟：writingInsights 纯函数 × 织卷smoke 真实数据（段 A 只读零副作用；段 B 增量 4b 执行层=隔离环境真盘运行）
 // 用法：cd ~/Desktop/织卷 && node scripts/writing-insights-datasmoke.mjs
 // （仓库标准模式：esbuild bundle → node 直跑；段 B 用 electron-stub+临时 userData/工作区/项目库，零污染真实库）
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { readFileSync, readdirSync, statSync, mkdirSync, writeFileSync, existsSync, rmSync, cpSync } from 'fs'
 import { join, resolve } from 'path'
 import { pathToFileURL } from 'url'
@@ -97,11 +98,11 @@ const lib = UD + '/lib'
 rmSync(UD, { recursive: true, force: true })
 mkdirSync(UD, { recursive: true })
 // 设置：开关开 + workspace 临时 + libraryRoot 临时（readSettings 在模块加载时读盘 → 先写盘）
-writeFileSync(UD + '/zhijuan-settings.json', JSON.stringify({
+writeProbeSettings({
   workspace: ws,
   libraryRoot: lib,
   writingInsightsEnabled: true
-}))
+}, UD)
 process.env.ZJ_USERDATA = UD
 // 复制真实织卷smoke 项目（数据=真盘内容；隔离库零污染，只有 .zhijuan/insights-state.json 会在拷贝上写）
 cpSync(PJ, join(lib, '织卷smoke'), { recursive: true })

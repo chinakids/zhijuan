@@ -5,6 +5,7 @@
 //   再保存正文（写新事实）→ runSync#2（真模型）必须按新名装配/归一——不按旧名组包、无陈旧缓存；
 //   旧世界切片文件保留为历史且不入新上下文；人物档新旧切片小节并存（§8.4 已知口径）。
 // 用法：cd ~/Desktop/织卷 && LOCAL_LLM_KEY=local node scripts/slice-rename-live.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdirSync, readFileSync, existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -17,7 +18,7 @@ process.env.ZJ_APP_PATH = root
 // 干净 userData：防 /tmp/zj-smoke-* 残留 settings 把 libraryRoot 指到已删目录（2026-09-11 坑）
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = '切片更名真链'

@@ -4,6 +4,7 @@
 // stub 只替 driveSession（Martin Fowler「Stubs provide canned answers」：被测系统其余全部真实执行），
 // 断言 .zhijuan/sync-log.jsonl 落盘且字段/结果三路径正确，且「旁路记录不改变同步结果」。
 // 用法：cd ~/Desktop/织卷 && node scripts/sync-log-run-live.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdirSync, rmSync, mkdtempSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -15,7 +16,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-synclog-live-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 mkdirSync(join(tmp, 'lib'), { recursive: true })
 
 const pid = '同步记录真链'

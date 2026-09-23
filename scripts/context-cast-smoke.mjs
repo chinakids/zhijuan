@@ -4,6 +4,7 @@
 //       修复前（2026-09-10）：第 5 位被静默裁掉，模型只会知道前 4 位（多人局伤创作正确性）。
 // 走查目标：真模型 runChat 第 2 章，只凭上下文回答「本章涉及人物有哪几位」→ 全部 5 位列出。
 // 用法：cd ~/Desktop/织卷 && node scripts/context-cast-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -15,7 +16,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-cast-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = '走查cast'

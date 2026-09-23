@@ -8,10 +8,11 @@
 // ②vLLM prefix cache 会让后跑档 prompt 更快（时间对比带偏，看输出体量为主）；
 // ③端点已实证「应用」该参数（effort-preflight：default 600(length) vs low 105(stop)）。
 // 用法：node scripts/effort-revision-probe.mjs [default|low|high ...]（缺省三档全跑）
+import { chatEndpoint } from './lib/probe-settings.mjs'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-const BASE = 'http://127.0.0.1:8888/v1/chat/completions'
+const BASE = chatEndpoint()
 const MODEL = 'deepseek-v4-flash-vision-exp-uncensored'
 const ROOT = process.env.HOME + '/Documents/织卷项目库/织卷smoke'
 

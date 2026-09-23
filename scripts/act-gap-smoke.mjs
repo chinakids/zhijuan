@@ -2,6 +2,7 @@
 // 验证：buildWritingContext 对真实临时项目库——正文含缺段占位注释时识别并注入
 // 断链提示行（第 2、5 段），注释本体不进上下文；无占位零提示零回归。
 // 用法：cd ~/Desktop/织卷 && node scripts/act-gap-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -19,7 +20,7 @@ const out = '/tmp/act-gap-bundle.mjs'
 const libRoot = '/tmp/zj-smoke-actgap-library'
 rmSync(libRoot, { recursive: true, force: true })
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(resolve(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: libRoot }))
+writeProbeSettings({ libraryRoot: libRoot })
 
 const pid = '占位冒烟'
 const chDir = resolve(libRoot, pid, '正文')

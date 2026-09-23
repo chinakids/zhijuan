@@ -1,5 +1,6 @@
 // 引擎冒烟（无 GUI）：把主进程 agent 模块 bundle 成纯 node，跑真实边车 + 真模型的一轮聊天。
 // 用法：cd ~/Desktop/织卷 && LOCAL_LLM_KEY=local node scripts/engine-smoke.mjs
+import { resetProbeUserdata } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -9,7 +10,7 @@ const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_APP_PATH = root // 让 bundle 后的 app.getAppPath() 拿到仓库根
 // 干净 userData：防 /tmp/zj-smoke-userdata 残留 settings 把 libraryRoot 指到已删除目录
 process.env.ZJ_USERDATA = '/tmp/zj-smoke-engine'
-rmSync(process.env.ZJ_USERDATA, { recursive: true, force: true })
+resetProbeUserdata()
 const out = '/tmp/zj-engine-smoke.mjs'
 
 await esbuild({

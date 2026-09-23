@@ -19,6 +19,7 @@
 //      INSIGHT_STAGE=data  只跑数据层（快，几十秒）；live=只跑行为段（慢，数分钟；建议后台+notify）
 // 说明：规则样例=合成但真实（织卷smoke 历史快照不足 2 份无真实 versionRules；draft-refine-probe 同况），
 //      样例字段与 extractVersionRules 同构、经由 buildSignals 真生成草稿文案（防漂移）。
+import { writeProbeSettings, chatEndpoint } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -33,11 +34,7 @@ process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
 const ws = join(tmp, 'ws')
 const lib = join(tmp, 'lib')
-writeFileSync(
-  join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'),
-  JSON.stringify({ libraryRoot: lib, workspace: ws }),
-  'utf-8'
-)
+writeProbeSettings({ libraryRoot: lib, workspace: ws })
 
 // =====================================================================
 // ① 合成信号 → 真实草稿生成链（buildSignals→draftSkillFromStats），防漂移
@@ -194,7 +191,7 @@ if (stage === 'data') {
 // =====================================================================
 // ② 行为段：内容效能 A/B（纯续写直连；通道面已由数据段 resolveSkillInjection 断言覆盖）
 // =====================================================================
-const BASE = 'http://127.0.0.1:8888/v1/chat/completions'
+const BASE = chatEndpoint()
 const MODEL = 'deepseek-v4-flash-vision-exp-uncensored'
 
 async function callLLM(messages, opts = {}) {

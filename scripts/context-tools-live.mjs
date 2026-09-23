@@ -6,6 +6,7 @@
 //         验证无状态会话（每轮新 sid）下：工具内容已不在上下文时，模型靠「历史总结」或「重新 zj_read_doc」续上，
 //         不编造、不断链。若第二轮答不出且不重读 = 工具内容丢失真实伤协作（发现即修的触发点）。
 // 用法：cd ~/Desktop/织卷 && node scripts/context-tools-live.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -17,7 +18,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-ctxtools-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = '工具上下文冒烟'

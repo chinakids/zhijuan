@@ -1,6 +1,7 @@
 // 缺段占位「断链提示」· 真模型冒烟：buildWritingContext（真读盘临时项目库）→ 直连本地 vLLM，
 // 验证模型**看到断链提示后**知道正文不完整（缺第 2、5 段）——提示行不是摆设。
 // 用法：cd ~/Desktop/织卷 && LOCAL_LLM_KEY=local node scripts/act-gap-live.mjs
+import { writeProbeSettings, chatEndpoint } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -15,7 +16,7 @@ const out = '/tmp/act-gap-live-bundle.mjs'
 const libRoot = '/tmp/zj-smoke-actgap-live-library'
 rmSync(libRoot, { recursive: true, force: true })
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(resolve(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: libRoot }))
+writeProbeSettings({ libraryRoot: libRoot })
 
 const pid = '占位冒烟'
 const chDir = resolve(libRoot, pid, '正文')
@@ -52,7 +53,7 @@ const ctx = await buildWritingContext(pid, '正文/第01章_占位.md')
 const blocks = ctx.blocks.join('\n\n')
 console.log('=== 上下文块（前 400 字）===\n' + blocks.slice(0, 400) + '\n')
 
-const resp = await fetch('http://127.0.0.1:8888/v1/chat/completions', {
+const resp = await fetch(chatEndpoint(), {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -96,7 +97,7 @@ const ctx3 = await buildWritingContext(pid, '正文/第02章_续.md')
 const blocks3 = ctx3.blocks.join('\n\n')
 console.log('\n=== 第02章上下文块（前 400 字）===\n' + blocks3.slice(0, 400))
 
-const resp2 = await fetch('http://127.0.0.1:8888/v1/chat/completions', {
+const resp2 = await fetch(chatEndpoint(), {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({

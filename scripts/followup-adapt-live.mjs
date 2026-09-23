@@ -11,7 +11,8 @@
 // 用法：cd ~/Desktop/织卷 && node scripts/followup-adapt-live.mjs（真模型，建议后台+notify）
 // 固定后置：改 runChat 历史装配/纪律文案/引擎后复跑本探针；engine.ts 改动自动被携带。
 import { build as esbuild } from 'esbuild'
-import { writeFileSync, mkdtempSync, rmSync, mkdirSync, readFileSync, cpSync, existsSync } from 'node:fs'
+import { writeProbeSettings } from './lib/probe-settings.mjs'
+import { writeFileSync, mkdtempSync, rmSync, mkdirSync, cpSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -23,22 +24,9 @@ process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
 const lib = join(tmp, 'lib')
 // 真机 llm 配置合并（2026-09-24 智能层轮实踩）：发布脱敏后 providers.ts 默认 baseURL=127.0.0.1，
-// 本机 vLLM 在 192.168.0.97 → 旧探针模板（tmp settings 不带 llm）全部会连空地址得 0 字符空轮。
-// 探针必须从本机真实 settings（~/Library/Application Support/zhijuan/）合并 llm 覆盖；
-// 真机 AppSettings 已写入真实 baseUrl（备份 .bak-20260923-prepublish），运行不受影响。
-const REAL_SETTINGS = join(
-  process.env.HOME ?? '',
-  'Library/Application Support/zhijuan/zhijuan-settings.json'
-)
-let merged = { libraryRoot: lib, workspace: join(tmp, 'ws') }
-try {
-  const real = JSON.parse(readFileSync(REAL_SETTINGS, 'utf-8'))
-  if (real?.llm) merged.llm = real.llm
-  else console.log('WARN：真实 settings 无 llm 配置，将走 providers 默认（127.0.0.1，可能空轮）')
-} catch (e) {
-  console.log('WARN：读真实 settings 失败（' + String(e) + '），将走 providers 默认（127.0.0.1，可能空轮）')
-}
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify(merged), 'utf-8')
+// 本机真实 vLLM（算力池）→ 探针必须在 tmp settings 里合并真机 llm，否则连空地址得 0 字符空轮。
+// 共享实现=scripts/lib/probe-settings.mjs（全量探针统一入口，46 文件已迁移）。
+writeProbeSettings({ libraryRoot: lib, workspace: join(tmp, 'ws') })
 
 async function bundleEntry(entry, aliasElectron) {
   const out = join(tmp, 'bundle-' + Math.random().toString(36).slice(2) + '.mjs')

@@ -3,6 +3,7 @@
 //       装配保头 + 注明「已超/已省略/可现读」（修复前：静默截断，模型会把被截块当完整内容）。
 //       未超预算块零提示零回归。
 // 用法：cd ~/Desktop/织卷 && node scripts/context-budget-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -14,7 +15,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-budget-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = '预算走查'

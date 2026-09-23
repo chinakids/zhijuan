@@ -1,5 +1,6 @@
 // 思考过程真机探针：把一整轮 runChat 的 think 事件原样打出来，看 reasoning 有没有内容、事件到不到渲染层
 // 用法：cd ~/Desktop/织卷 && LOCAL_LLM_KEY=local node scripts/think-probe.mjs
+import { resetProbeUserdata } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { rmSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -9,7 +10,7 @@ const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_APP_PATH = root
 // 干净 userData：防残留 settings 把 libraryRoot 指到已删除目录
 process.env.ZJ_USERDATA = '/tmp/zj-smoke-think-probe'
-rmSync(process.env.ZJ_USERDATA, { recursive: true, force: true })
+resetProbeUserdata()
 const out = '/tmp/zj-think-probe.mjs'
 
 await esbuild({

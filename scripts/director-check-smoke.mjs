@@ -1,6 +1,7 @@
 // 织卷 · 导演兑现检查真模型冒烟（无 GUI）：走真实边车 + 真模型，
 // 对照 织卷smoke 项目第02章的导演板核对正文是否兑现。
 // 用法：cd ~/Desktop/织卷 && LOCAL_LLM_KEY=local node scripts/director-check-smoke.mjs
+import { resetProbeUserdata } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -10,7 +11,7 @@ const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_APP_PATH = root
 // 独立干净 userData（杜绝共享默认目录残留 settings 导致 libraryRoot 指向已删目录）
 process.env.ZJ_USERDATA = '/tmp/zj-smoke-director-check'
-rmSync(process.env.ZJ_USERDATA, { recursive: true, force: true })
+resetProbeUserdata()
 
 const entry = '/tmp/zj-dcheck-entry.mts'
 writeFileSync(

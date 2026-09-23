@@ -1,5 +1,6 @@
 // zj_edit_doc 真机冒烟：走主进程 runChat + 真边车真模型，验证工具被调用且 translate 出 edit 事件。
 // 用法：cd ~/Desktop/织卷 && LOCAL_LLM_KEY=local node scripts/zj-edit-smoke.mjs
+import { resetProbeUserdata } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -9,7 +10,7 @@ const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_APP_PATH = root
 // 干净 userData：防残留 settings 把 libraryRoot 指到已删除目录
 process.env.ZJ_USERDATA = '/tmp/zj-smoke-zjedit'
-rmSync(process.env.ZJ_USERDATA, { recursive: true, force: true })
+resetProbeUserdata()
 const out = '/tmp/zj-edit-smoke.mjs'
 
 await esbuild({

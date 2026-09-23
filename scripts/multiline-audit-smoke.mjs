@@ -4,6 +4,7 @@
 //   ② 线内真倒流（主线 第五幕→第三幕）仍报；③ 跨线同名切片 → R7 提示且不算 R6；
 //   ④ 人物档跨线同名小节的顺序比较被跳过（不误报）；线内倒挂仍报。
 // 用法：cd ~/Desktop/织卷 && node scripts/multiline-audit-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -19,7 +20,7 @@ rmSync(LIB, { recursive: true, force: true })
 mkdirSync(LIB, { recursive: true })
 // 显式设置库根 → 冒烟写临时库，不碰真实项目库（D-V2-8 决策链的真实用法）
 mkdirSync(UD, { recursive: true })
-writeFileSync(resolve(UD, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: LIB }))
+writeProbeSettings({ libraryRoot: LIB }, UD)
 
 const out = '/tmp/multiline-bundle.mjs'
 await esbuild({

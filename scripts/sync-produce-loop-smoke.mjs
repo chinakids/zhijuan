@@ -6,6 +6,7 @@
 //   ② 注入字节：最新状态入上下文（人/世界都读得到），被替换旧状态（before）不再出现在装配里；
 //   ③ 无模板空壳残留：切片文件说明行被替换后注入端不判空、不回退链。
 // 用法：cd ~/Desktop/织卷 && node scripts/sync-produce-loop-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -17,7 +18,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-produce-loop-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = '产出端闭环'

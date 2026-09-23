@@ -4,6 +4,7 @@
 // ⑥本章章卡 ⑦本章导演板 ⑧素材库索引；【涉及人物补充】含全 5 位名单（周守/顾知远/苏禾未建档，只能来自该块）。
 // 断言：数据层块序与块数齐备 + 真模型一次 runChat 只凭【当前创作上下文】答出全部事实且零工具读盘。
 // 用法：cd ~/Desktop/织卷 && node scripts/context-full-live.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -15,7 +16,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-fullctx-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = '全要素探针'

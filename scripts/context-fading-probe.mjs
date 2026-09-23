@@ -7,6 +7,7 @@
 // 输出：数据层白盒（装配不含事实=衰减场景成立）+ 真模型 runChat 两问（允许工具、诚实不编造）+
 //       工具轨迹 + VERDICT 判定行（评估用，非 PASS/FAIL 门）。
 // 用法：cd ~/Desktop/织卷 && node scripts/context-fading-probe.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -18,7 +19,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-fading-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = '衰减探针'

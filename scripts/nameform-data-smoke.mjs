@@ -2,6 +2,7 @@
 // 验证：runNameForms 读真盘 → nameFormCheck——未登记称谓命中（姓+后缀 / 老小阿大+姓）/
 // 已登记别名不报 / 别名冲突不报 / 同姓双雄归属重叠不报 / 每（人物×变体）只报一次 / 正常项目零命中。
 // 用法：cd ~/Desktop/织卷 && node scripts/nameform-data-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -16,7 +17,7 @@ rmSync(UD, { recursive: true, force: true })
 rmSync(LIB, { recursive: true, force: true })
 mkdirSync(LIB, { recursive: true })
 mkdirSync(UD, { recursive: true })
-writeFileSync(resolve(UD, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: LIB }))
+writeProbeSettings({ libraryRoot: LIB }, UD)
 
 const out = '/tmp/nameform-bundle.mjs'
 await esbuild({

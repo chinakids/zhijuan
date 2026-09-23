@@ -1,6 +1,7 @@
 // 作品编译 · 数据层冒烟（真读盘：临时项目 3 章 → buildCompiledBody 输出成品）
 // 验证：整书合并（章序/剥 front matter/剥 HTML 注释/一级标题/多线注记/空章跳过）
 // 用法：cd ~/Desktop/织卷 && node scripts/compile-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { resolve, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -12,11 +13,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-compile-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(
-  join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'),
-  JSON.stringify({ libraryRoot: join(tmp, 'lib') }),
-  'utf-8'
-)
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = '编译冒烟'

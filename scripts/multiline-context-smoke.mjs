@@ -6,6 +6,7 @@
 //   ④ 世界切片回退链（本切片无设定 → 上一切片设定）按线内前驱取（幕0B，不是主线幕1C）；
 //   ⑤ 单线老项目（无「时间线」字段）零回归：prev=全局上一章、块头原样无线注明。
 // 用法：cd ~/Desktop/织卷 && node scripts/multiline-context-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -20,7 +21,7 @@ rmSync(UD, { recursive: true, force: true })
 rmSync(LIB, { recursive: true, force: true })
 mkdirSync(UD, { recursive: true })
 mkdirSync(LIB, { recursive: true })
-writeFileSync(resolve(UD, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: LIB }))
+writeProbeSettings({ libraryRoot: LIB }, UD)
 
 const out = '/tmp/mline-ctx-bundle.mjs'
 await esbuild({

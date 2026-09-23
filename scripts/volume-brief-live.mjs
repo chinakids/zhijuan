@@ -10,6 +10,7 @@
 // 判定：数据层=新版 volumeBrief 含 X/Y/Z 对应材料且旧 clip 对照缺失；真模型=runAudit('consistency')
 // 在 8min 内结构化输出且命中 X（硬）+ Y（硬）+ 耗时/工具轨迹（Z 转软观察）。
 // 用法：cd ~/Desktop/织卷 && node scripts/volume-brief-live.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -21,7 +22,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-volbrief-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = '全卷巡查探针'

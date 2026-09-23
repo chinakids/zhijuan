@@ -1,7 +1,8 @@
 // 织卷 · reasoning_effort 预检：本机 vLLM 是否「应用」该参数（非仅 200 接受）。
 // 快探针：小任务三档对比 usage.completion_tokens 与耗时——若三档 tokens 几乎相同 = 后端未应用（仅透传）。
 // 用法：node scripts/effort-preflight.mjs
-const base = 'http://127.0.0.1:8888/v1/chat/completions'
+import { chatEndpoint } from './lib/probe-settings.mjs'
+const base = chatEndpoint()
 const MODEL = 'deepseek-v4-flash-vision-exp-uncensored'
 async function run(effort, label) {
   const body = {

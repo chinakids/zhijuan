@@ -3,6 +3,7 @@
 // ——真模型 runSync：正常产物命中既有档案；若模型仍写 人物/沈藏.md（或近名），
 // guard 防线必须拦下（near-name 纠正 / 未建档 dropped），任何 items 都不得指向不存在的档案。
 // 用法：cd ~/Desktop/织卷 && node scripts/sync-guard-live.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdirSync, rmSync, readdirSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -14,7 +15,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-guard-live-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 mkdirSync(join(tmp, 'lib'), { recursive: true })
 
 const pid = '守卫真链'

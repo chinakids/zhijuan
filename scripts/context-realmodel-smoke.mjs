@@ -3,6 +3,7 @@
 //       第2章切片无设定文件 → context §6.5 回退链（本切片→上一章切片）应把上一幕事实装配给真模型。
 // 走查目标：真模型 runChat 第2章，只凭上下文回答「环境该是什么状态」——模型答出 雾/栈桥/凌晨 = 回退链装配被读到。
 // 用法：cd ~/Desktop/织卷 && node scripts/context-realmodel-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -15,7 +16,7 @@ process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
 // 库根指向临时目录；llm 配置走默认（local → 127.0.0.1:8888/v1）
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = '走查smoke'

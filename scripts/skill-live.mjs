@@ -3,6 +3,7 @@
 // 判据（行为面）：A/B 最终回复体现技能正文步骤（「最高光/回叙/呼应」）且不声称没听过该技能；
 //            C 回复不含禁用技能正文的独特词。数据层：listSkills 解析/目录名一致性/disabled 保持。
 // 用法：cd ~/Desktop/织卷 && node scripts/skill-live.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -18,11 +19,7 @@ process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
 const ws = join(tmp, 'ws')
 const lib = join(tmp, 'lib')
-writeFileSync(
-  join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'),
-  JSON.stringify({ libraryRoot: lib, workspace: ws }),
-  'utf-8'
-)
+writeProbeSettings({ libraryRoot: lib, workspace: ws })
 
 // 工作区技能种子：倒叙开篇法（正例）+ 禁用技能（disabled）+ 目录名不一致（invalid 示例）
 const sk1 = join(ws, 'skills/倒叙开篇法')

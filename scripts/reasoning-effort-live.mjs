@@ -3,6 +3,7 @@
 // ② runChapterCheck(kind=revision) 成功后，会话日志 request/header 的 config 含 reasoningEffort:"low"（链路生效）；
 // ③ 耗时对比默认档（06:00 轮同场景 480.3s 被中止/21:00 轮直调 511.96s vs low 47.95s）——low 显著快。
 // 用法：cd ~/Desktop/织卷 && LOCAL_LLM_KEY=local node scripts/reasoning-effort-live.mjs
+import { resetProbeUserdata } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, rmSync, readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -11,7 +12,7 @@ import { spawnSync } from 'node:child_process'
 const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = '/tmp/zj-smoke-reasoning'
-rmSync(process.env.ZJ_USERDATA, { recursive: true, force: true })
+resetProbeUserdata()
 
 const entry = '/tmp/zj-reasoning-entry.mts'
 writeFileSync(

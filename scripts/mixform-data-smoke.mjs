@@ -2,6 +2,7 @@
 // 验证：runNameMix 读真盘 → nameMixCheck——三变体交替命中 / 别名参与 / 对话内混用不报 /
 // 分段使用不报 / 偶发异称不报 / 同姓双雄归属不明不报 / 单字名不参与 / 正常项目零命中。
 // 用法：cd ~/Desktop/织卷 && node scripts/mixform-data-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -16,7 +17,7 @@ rmSync(UD, { recursive: true, force: true })
 rmSync(LIB, { recursive: true, force: true })
 mkdirSync(LIB, { recursive: true })
 mkdirSync(UD, { recursive: true })
-writeFileSync(resolve(UD, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: LIB }))
+writeProbeSettings({ libraryRoot: LIB }, UD)
 
 const out = '/tmp/mixform-bundle.mjs'
 await esbuild({

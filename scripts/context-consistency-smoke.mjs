@@ -6,6 +6,7 @@
 //   D. 新名模板空壳 + 旧名有事实 → 回看旧名（既有行为回归）
 //   E. 人物档案超限保尾：切片小节（最新状态）在文件末尾，超限时注入仍须命中
 // 用法：cd ~/Desktop/织卷 && node scripts/context-consistency-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, readFileSync, mkdtempSync, rmSync, mkdirSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -17,7 +18,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-consist-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = '一致性审计'

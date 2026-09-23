@@ -8,12 +8,13 @@
 //      ② 模型=本机 vLLM 127.0.0.1:8888 OpenAI 兼容直连；reasoning_effort=low（暂停档，读取快）；
 //      ③ 盲评=评审只看到两篇续写 X/Y，看不到对应技能版本（skill-creator Blind Comparator 协议）。
 // 判定：仅一次性证据（n=1 续写+1 盲评），用于「要不要立项 LLM 提炼」的定性参考，不作统计断言。
+import { chatEndpoint } from './lib/probe-settings.mjs'
 import { writeFileSync } from 'fs'
 import { resolve } from 'path'
 import { pathToFileURL } from 'url'
 import { build as esbuild } from 'esbuild'
 
-const BASE = 'http://127.0.0.1:8888/v1/chat/completions'
+const BASE = chatEndpoint()
 const MODEL = 'deepseek-v4-flash-vision-exp-uncensored'
 
 // 规则样例（=extractVersionRules 同构产物；before/after 为真实中文改法）

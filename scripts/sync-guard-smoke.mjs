@@ -2,6 +2,7 @@
 // 验证：runSync 接入的 guard 防线对「模型编造的人物 target」——精确命中保留 / 近名唯一纠正 /
 // 涉及未建档明示 / 无可纠正丢弃，且 knownFiles 与真机 listDocs 同口径（剥 .md）。
 // 用法：cd ~/Desktop/织卷 && node scripts/sync-guard-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -13,7 +14,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-guard-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = '守卫冒烟'

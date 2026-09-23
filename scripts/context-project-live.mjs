@@ -3,6 +3,7 @@
 // ③【文档清单】路标（正文/人物/素材库文档名，正文必须按章号升序、全量可见——第03章 mtime 最新，若按 mtime 降序则顺序=03,02,01）。
 // 断言：数据层块序/块数/独家事实/正文路标章号升序全量 + 真模型一次 runChat（无章）只凭【项目概览】答出全部且零工具读盘。
 // 用法：cd ~/Desktop/织卷 && node scripts/context-project-live.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -14,7 +15,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-projctx-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = '项目级探针'

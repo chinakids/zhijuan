@@ -2,6 +2,7 @@
 // 验证：runSliceOrder 读真盘 → sliceSectionOrderCheck——倒挂小节命中 / 重复小节命中 /
 // 全集不存在残留命中 / 正常项目零命中。
 // 用法：cd ~/Desktop/织卷 && node scripts/sliceord-data-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -16,7 +17,7 @@ rmSync(UD, { recursive: true, force: true })
 rmSync(LIB, { recursive: true, force: true })
 mkdirSync(LIB, { recursive: true })
 mkdirSync(UD, { recursive: true })
-writeFileSync(resolve(UD, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: LIB }))
+writeProbeSettings({ libraryRoot: LIB }, UD)
 
 const out = '/tmp/sliceord-bundle.mjs'
 await esbuild({

@@ -1,5 +1,6 @@
 // 织卷 · agent 子任务真模型冒烟（无 GUI）：本章短巡查/分层修订/大纲回建/素材升格，全走真实边车 + 真模型。
 // 用法：cd ~/Desktop/织卷 && LOCAL_LLM_KEY=local node scripts/subtasks-smoke.mjs
+import { resetProbeUserdata } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -9,7 +10,7 @@ const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_APP_PATH = root
 // 独立干净 userData（杜绝共享默认目录残留 settings 导致 libraryRoot 指向已删目录）
 process.env.ZJ_USERDATA = '/tmp/zj-smoke-subtasks'
-rmSync(process.env.ZJ_USERDATA, { recursive: true, force: true })
+resetProbeUserdata()
 
 const entry = '/tmp/zj-subtasks-entry.mts'
 writeFileSync(

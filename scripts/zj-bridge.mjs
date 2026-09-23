@@ -1,6 +1,7 @@
 // 织卷 · 无头全栈验收用 bridge：把主进程 agent 引擎（真边车+真模型+工具读文件）
 // 接到本地 WebSocket，供无头页面把 agent 请求转到真实链路（锁屏时 Electron renderer 起不来时的正规替代）。
 // 用法：cd ~/Desktop/织卷 && LOCAL_LLM_KEY=local ZJ_APP_PATH=$PWD node scripts/zj-bridge.mjs
+import { resetProbeUserdata } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -11,6 +12,7 @@ const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_APP_PATH = root
 // 固定 userData，使主进程 answerDir() 与边车插件 ZJ_USER_ANSWER_DIR 指向同一目录（回灌一致）
 process.env.ZJ_USERDATA = '/tmp/zj-bridge-userdata'
+resetProbeUserdata()
 const out = '/tmp/zj-bridge-engine.mjs'
 
 await esbuild({

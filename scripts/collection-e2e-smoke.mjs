@@ -2,6 +2,7 @@
 // 纯织卷侧验证，不依赖 cron/管道是否恢复：App 侧动作=writeDoc 任务卡；管道动作=writeDoc 素材 + 改写任务卡(结果/完成)。
 // 真文件系统 + 真 store/library/taskCard 代码（esbuild bundle + electron-stub），无 GUI / 无模型。
 // 用法：cd ~/Desktop/织卷 && node scripts/collection-e2e-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -12,7 +13,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-colle2e-'))
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 process.env.ZJ_APP_PATH = root
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const entry = join(tmp, 'entry.mts')
 writeFileSync(

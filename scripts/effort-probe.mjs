@@ -6,7 +6,8 @@
 // 用法：node scripts/effort-probe.mjs
 // 判定口径：三态（不带 / low / high）均 status=200 且返回正常→端点支持；400/500 附加参数被拒→不支持。
 // 注意：耗时差为小样本噪音（单 token 级请求），不作「effort 生效」证据——效力验证需大样本（候选 2 后续）。
-const base = 'http://127.0.0.1:8888/v1/chat/completions'
+import { chatEndpoint } from './lib/probe-settings.mjs'
+const base = chatEndpoint()
 async function tryEffort(effort, label) {
   const body = {
     model: 'deepseek-v4-flash-vision-exp-uncensored',

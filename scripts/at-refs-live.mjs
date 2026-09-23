@@ -1,6 +1,7 @@
 // @ 引用注入上下文 · 真模型冒烟：带 〔类型·名称｜路径〕 引用标记的 runChat 走真边车+真模型，
 // 验证注入不破坏链路（正常流式、正常工具、正常收尾），且引用的内容确实进了模型视野（问档案独有细节）。
 // 用法：cd ~/Desktop/织卷 && LOCAL_LLM_KEY=local node scripts/at-refs-live.mjs
+import { resetProbeUserdata } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -10,7 +11,7 @@ const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_APP_PATH = root
 // 同 at-refs-smoke：干净 userData，避免 /tmp/zj-smoke-userdata 残留设置把库路径指歪
 process.env.ZJ_USERDATA = '/tmp/zj-smoke-atrefs-live'
-rmSync(process.env.ZJ_USERDATA, { recursive: true, force: true })
+resetProbeUserdata()
 const out = '/tmp/at-refs-live-bundle.mjs'
 
 await esbuild({

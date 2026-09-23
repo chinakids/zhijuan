@@ -5,9 +5,10 @@
 // prompt 与 22:01 会话 user/message 完全一致（真实注入文本），尾部仅补一句「材料齐备无需工具」
 // （近似工具结果收集完毕后的第 4 步状态——工具链本身不是超时点）。
 // 用法：node scripts/skill-b-effort-probe.mjs [default|low|high]（缺省 default low）
+import { chatEndpoint } from './lib/probe-settings.mjs'
 import { writeFileSync, appendFileSync } from 'node:fs'
 
-const BASE = 'http://127.0.0.1:8888/v1/chat/completions'
+const BASE = chatEndpoint()
 const MODEL = 'deepseek-v4-flash-vision-exp-uncensored'
 
 const PROMPT = [

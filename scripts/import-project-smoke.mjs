@@ -3,6 +3,7 @@
 //       ③ 重复导入幂等（copied=false 且不清内容）；④ 目录不存在返回结构化错误；
 //       ⑤ listProjects 可见新项目、章节统计正确；⑥ 库内项目目录传入自身幂等。
 // 用法：cd ~/Desktop/织卷 && node scripts/import-project-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, existsSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -13,11 +14,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-import-smoke-'))
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 process.env.ZJ_APP_PATH = root
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(
-  join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'),
-  JSON.stringify({ libraryRoot: join(tmp, 'lib') }),
-  'utf-8'
-)
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const entry = join(tmp, 'entry.mts')
 writeFileSync(

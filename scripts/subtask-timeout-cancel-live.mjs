@@ -7,11 +7,12 @@ import { build as esbuild } from 'esbuild'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { rmSync } from 'node:fs'
+import { resetProbeUserdata } from './lib/probe-settings.mjs'
 
 const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = '/tmp/zj-smoke-timeout-cancel'
-rmSync(process.env.ZJ_USERDATA, { recursive: true, force: true })
+resetProbeUserdata()
 const out = '/tmp/timeout-cancel-bundle.mjs'
 
 await esbuild({

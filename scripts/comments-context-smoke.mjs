@@ -2,6 +2,7 @@
 // 场景：临时项目库里放 模板式人物档（说明注释+事实）/ 含注释世界切片 / 含作者备忘注释的正文，
 //        buildWritingContext 实读：断言注释一律不进上下文、事实完整保留、未闭合注释保守保留。
 // 用法：cd ~/Desktop/织卷 && node scripts/comments-context-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -12,11 +13,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-comments-'))
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 process.env.ZJ_APP_PATH = root
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(
-  join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'),
-  JSON.stringify({ libraryRoot: join(tmp, 'lib') }),
-  'utf-8'
-)
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const entry = join(tmp, 'entry.mts')
 writeFileSync(

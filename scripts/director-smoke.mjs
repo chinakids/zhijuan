@@ -1,6 +1,7 @@
 // 织卷 · 章节导演真模型冒烟（无 GUI）：走真实边车 + 真模型，给一章导出导演板并落盘。
 // 2026-09-12：带「作者要求」参数跑，断言要求原样到达模型（premise 必须含指定短语）——验证 /导演 参数接线。
 // 用法：cd ~/Desktop/织卷 && LOCAL_LLM_KEY=local node scripts/director-smoke.mjs
+import { resetProbeUserdata } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -10,7 +11,7 @@ const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_APP_PATH = root
 // 独立干净 userData（杜绝共享默认目录残留 settings 导致 libraryRoot 指向已删目录）
 process.env.ZJ_USERDATA = '/tmp/zj-smoke-director'
-rmSync(process.env.ZJ_USERDATA, { recursive: true, force: true })
+resetProbeUserdata()
 
 const REQ = '(聚焦博物馆之夜)'
 

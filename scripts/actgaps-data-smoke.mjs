@@ -1,6 +1,7 @@
 // 正文缺段核查 · 数据层冒烟（bundle 主进程 audit.ts 真机实现 + 临时项目库，不依赖模型）
 // 验证：runActGaps 读真盘 → actGapsCheck（含占位注释的章节命中 / 无占位零命中）。
 // 用法：cd ~/Desktop/织卷 && node scripts/actgaps-data-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -16,7 +17,7 @@ rmSync(LIB, { recursive: true, force: true })
 mkdirSync(LIB, { recursive: true })
 // 显式设置库根 → 冒烟写 临时库，不碰真实项目库（D-V2-8 决策链的真实用法）
 mkdirSync(UD, { recursive: true })
-writeFileSync(resolve(UD, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: LIB }))
+writeProbeSettings({ libraryRoot: LIB }, UD)
 
 const out = '/tmp/actgaps-bundle.mjs'
 await esbuild({

@@ -2,6 +2,7 @@
 // 验证：① 正文内容变化时写盘前把旧内容存档一版；② 同内容保存不产生版本；③ 非正文（人物/）不产生版本；
 //       ④ 版本列表新→旧、读回一致；⑤ 超 HISTORY_LIMIT 裁剪。
 // 用法：cd ~/Desktop/织卷 && node scripts/history-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, existsSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -12,7 +13,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-history-smoke-'))
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 process.env.ZJ_APP_PATH = root
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const entry = join(tmp, 'entry.mts')
 writeFileSync(

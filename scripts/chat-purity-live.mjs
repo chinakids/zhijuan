@@ -8,6 +8,7 @@
 //   【场景 B·评价类】new 引擎 + 「这一段写得怎么样？」→ 断言仍给出分析（纪律不误杀提问/评价类）。
 // 用法：cd ~/Desktop/织卷 && node scripts/chat-purity-live.mjs（真模型，建议后台+notify）
 // 固定后置：改 runChat system/纪律文案后复跑本探针；engine.ts 改动自动被 new 版携带。
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync, readFileSync, cpSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -21,11 +22,7 @@ process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
 const ws = join(tmp, 'ws')
 const lib = join(tmp, 'lib')
-writeFileSync(
-  join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'),
-  JSON.stringify({ libraryRoot: lib, workspace: ws }),
-  'utf-8'
-)
+writeProbeSettings({ libraryRoot: lib, workspace: ws })
 
 // =====================================================================
 // ① 真实草稿产出（draftSkillFromStats）→ 启用态写盘（与 insights-draft-live 同构）

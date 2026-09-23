@@ -2,6 +2,7 @@
 // 场景：建角色档案（含基础档案）→ 写第1章 → 切片同步（模拟模型产物：旧格式坏提案）→ 归一化 → 提案落库 → 接受写入
 //       → 写第2章 → buildWritingContext 实读：断言第1章沉淀的切片状态真的进入第2章上下文（人物/世界观双向）。
 // 用法：cd ~/Desktop/织卷 && node scripts/context-loop-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, readFileSync, existsSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -14,7 +15,7 @@ process.env.ZJ_APP_PATH = root
 
 // 设置：库根指向临时目录（settings 在模块加载时读取，故写在前）
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const entry = join(tmp, 'entry.mts')
 writeFileSync(

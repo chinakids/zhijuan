@@ -2,6 +2,7 @@
 // 验证：buildProjectContext 装配出的【项目概览】块放进 prompt 后，模型能基于它答出仅存于
 // project.md/世界观总纲 的信息（证明装配块对模型可读有效——runChat 无章分支即注入此块）。
 // 用法：cd ~/Desktop/织卷 && node scripts/project-ctx-live.mjs
+import { chatEndpoint } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -54,7 +55,7 @@ const body = {
 
 console.log('=== 真模型：项目概览注入可读性 ===')
 const t0 = Date.now()
-const res = await fetch('http://127.0.0.1:8888/v1/chat/completions', {
+const res = await fetch(chatEndpoint(), {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(body)

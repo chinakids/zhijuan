@@ -6,6 +6,7 @@
 //   A. 禁工具问「最近切片状态」→ 只凭上下文能答出尾部唯一事实（保尾生效）。
 //   B. 允许工具问「基础档案职业」→ 头部被省略时应调用 zj_read_doc 现读并答出（提示生效）。
 // 用法：cd ~/Desktop/织卷 && node scripts/context-char-tail-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -17,7 +18,7 @@ const tmp = mkdtempSync(join(tmpdir(), 'zj-chartail-'))
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = join(tmp, 'userdata')
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'), JSON.stringify({ libraryRoot: join(tmp, 'lib') }), 'utf-8')
+writeProbeSettings({ libraryRoot: join(tmp, 'lib') })
 
 const lib = join(tmp, 'lib')
 const pid = '走查chartail'

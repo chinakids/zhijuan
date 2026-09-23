@@ -1,6 +1,7 @@
 // 原子写落地冒烟（平台层 2026-09-21 14:00 轮）：真机 writeDoc / writeSnapshot / applyProposal 走
 // writeFileAtomic（tmp+rename）后：内容正确、目录零 tmp 残留、提案 apply 目标文档原子更新。
 // 用法：cd ~/Desktop/织卷 && node scripts/atomic-write-live.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -12,11 +13,7 @@ process.env.ZJ_USERDATA = '/tmp/zj-smoke-atomic'
 rmSync(process.env.ZJ_USERDATA, { recursive: true, force: true })
 // 预写设置：库指向 /tmp（stub 无设置时回退真库 文档/织卷项目库——冒烟不得污染真库）
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
-writeFileSync(
-  resolve(process.env.ZJ_USERDATA, 'zhijuan-settings.json'),
-  JSON.stringify({ libraryRoot: '/tmp/zj-smoke-atomic-lib' }),
-  'utf-8'
-)
+writeProbeSettings({ libraryRoot: '/tmp/zj-smoke-atomic-lib' })
 rmSync('/tmp/zj-smoke-atomic-lib', { recursive: true, force: true })
 const out = '/tmp/atomic-bundle.mjs'
 

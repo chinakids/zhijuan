@@ -1,6 +1,7 @@
 // skill 设置管理 · 数据层冒烟（真机 main/skills.ts bundle，真实写盘到临时工作区）
 // 验证：create/update/delete/setDisabled/import/export 六写面 + listSkills 扫描 + 错误分支。
 // 用法：cd ~/Desktop/织卷 && node scripts/skill-manage-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -13,7 +14,7 @@ const ud = '/tmp/zj-smoke-skillmgr'
 const ws = ud + '/ws'
 rmSync(ud, { recursive: true, force: true })
 mkdirSync(ud, { recursive: true })
-writeFileSync(ud + '/zhijuan-settings.json', JSON.stringify({ workspace: ws }))
+writeProbeSettings({ workspace: ws }, ud)
 process.env.ZJ_USERDATA = ud
 
 const out = '/tmp/skill-manage-bundle.mjs'

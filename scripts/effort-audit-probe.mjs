@@ -11,10 +11,11 @@
 //   completion_tokens 与 content 字符数差为代理（同一档位两跑内可比；跨档位比较看 items/内容质量而非 token 绝对数）。
 // ⑤单样本结论注意：发现集内容随采样有差异（seed=42 固定但同 seed 不同档位输出亦不同），质量判据=「核心 high 命中+结构合法+发现密度」。
 // 用法：node scripts/effort-audit-probe.mjs <consistency|perspectives> <default|low>
+import { chatEndpoint } from './lib/probe-settings.mjs'
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-const BASE = 'http://127.0.0.1:8888/v1/chat/completions'
+const BASE = chatEndpoint()
 const MODEL = 'deepseek-v4-flash-vision-exp-uncensored'
 const ROOT = process.env.HOME + '/Documents/织卷项目库/织卷smoke'
 

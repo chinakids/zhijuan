@@ -1,6 +1,7 @@
 // / 命令模板真机冒烟：把 `/续写 …` 展开为模板 prompt 后走真边车+真模型 runChat，
 // 验证模板指令能让模型按正文修改口径调 zj_edit_doc（编辑事件 arrive，且 edits 非空）。
 // 用法：cd ~/Desktop/织卷 && LOCAL_LLM_KEY=local node scripts/skill-command-live.mjs
+import { resetProbeUserdata } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { rmSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -10,7 +11,7 @@ const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_APP_PATH = root
 // 干净 userData：防残留 settings 把 libraryRoot 指到已删除目录
 process.env.ZJ_USERDATA = '/tmp/zj-smoke-skill-live'
-rmSync(process.env.ZJ_USERDATA, { recursive: true, force: true })
+resetProbeUserdata()
 const out = '/tmp/skill-live-bundle.mjs'
 
 await esbuild({

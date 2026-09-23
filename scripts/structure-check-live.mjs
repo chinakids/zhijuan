@@ -2,6 +2,7 @@
 // 种子按 Weiland 双线法则设计：过去线=早线（第2章转折/第4章收束钩子），主线=晚线（第1章开局/第3章中点/第5章高潮），
 // 早线在第4章收束 < 晚线高潮第5章 → 期望模型报过去线 settled（Weiland⑥），且两线结构点分布各有所指。
 // 用法：cd ~/Desktop/织卷 && LOCAL_LLM_KEY=local node scripts/structure-check-live.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { resolve, join } from 'node:path'
@@ -108,7 +109,7 @@ await esbuild({
 
 // settings：libraryRoot 指向临时库（防污染真实项目库）
 mkdirSync('/tmp/zj-smoke-scheck', { recursive: true })
-writeFileSync('/tmp/zj-smoke-scheck/zhijuan-settings.json', JSON.stringify({ libraryRoot: LIB, workspace: LIB }), 'utf-8')
+writeProbeSettings({ libraryRoot: LIB, workspace: LIB }, "/tmp/zj-smoke-scheck")
 
 const r = spawnSync('node', ['/tmp/zj-scheck-bundle.mjs'], {
   env: { ...process.env, LOCAL_LLM_KEY: 'local', ZJ_USERDATA: process.env.ZJ_USERDATA },

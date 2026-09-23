@@ -1,6 +1,7 @@
 // 工具卡「细节展开」· 真模型冒烟：runChat 走真边车+真模型，验证 translate 真实产出 argsJson/result。
 // （devShim UI 冒烟已验渲染层；此处验主进程协议——meta 带完整参数 JSON、meta-done 带完整结果正文）
 // 用法：cd ~/Desktop/织卷 && LOCAL_LLM_KEY=local node scripts/tool-detail-live.mjs
+import { resetProbeUserdata } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -9,7 +10,7 @@ import { rmSync } from 'node:fs'
 const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = '/tmp/zj-smoke-tool-detail-live'
-rmSync(process.env.ZJ_USERDATA, { recursive: true, force: true })
+resetProbeUserdata()
 const out = '/tmp/tool-detail-live-bundle.mjs'
 
 await esbuild({

@@ -4,6 +4,7 @@
 //       ③ 构造项目（零命中文本）返回空 items；
 //       ④ 与主进程同口径：本地规则不落盘（不产生 大纲/审读_用词重复核查.md）。
 // 用法：cd ~/Desktop/织卷 && node scripts/wordfreq-audit-smoke.mjs
+import { writeProbeSettings } from './lib/probe-settings.mjs'
 import { build as esbuild } from 'esbuild'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -16,11 +17,7 @@ process.env.ZJ_USERDATA = '/tmp/zj-smoke-wordfreq'
 rmSync(process.env.ZJ_USERDATA, { recursive: true, force: true })
 mkdirSync(process.env.ZJ_USERDATA, { recursive: true })
 // 2026-09-21：自定义词表数据链——settings.overuseDict 与内置合并（readSettings 在模块加载时读取，须先写盘）
-writeFileSync(
-  join(process.env.ZJ_USERDATA, 'zhijuan-settings.json'),
-  JSON.stringify({ overuseDict: ['生死之交', '  ', '生死之交'] }),
-  'utf-8'
-)
+writeProbeSettings({ overuseDict: ['生死之交', '  ', '生死之交'] })
 const out = '/tmp/wordfreq-audit-bundle.mjs'
 
 await esbuild({
