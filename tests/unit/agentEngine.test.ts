@@ -27,12 +27,15 @@ vi.mock('../../src/main/agent/syncAnchor', async (importOriginal) => ({
   guardPersonTargets: (...a: unknown[]) => mocks.guardPersonTargets(...a)
 }))
 
-import { runChat, abortRequest, runSync } from '../../src/main/agent/engine'
+import { runChat, abortRequest, runSync, translate } from '../../src/main/agent/engine'
 
 const chunk = (text: string) => ({
   method: 'session.event',
   params: { event: { type: 'assistant/chunk', data: { chunk: { type: 'text-delta', text } } } }
 })
+
+/** 构造 session.event wire 事件（与真实引擎载荷同构；todo/ask 载荷形态经会话日志实证） */
+const wire = (type: string, data: any) => ({ method: 'session.event', params: { event: { type, data } } })
 
 const INPUT = {
   requestId: 'r1',
@@ -47,6 +50,62 @@ const INPUT = {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.guardPersonTargets.mockImplementation((x: unknown) => ({ items: x, issues: [] }))
+})
+
+describe('translate 事件面映射（候选 1 工具事件面体检）', () => {
+  const runT = (events: any[]) => {
+    const out: any[] = []
+    for (const e of events) translate(e as any, 'r1', (x: any) => out.push(x))
+    return out
+  }
+
+  it('交互类 todo_write：不发 meta/meta-done，todo/write 结构化事件照发', () => {
+    const out = runT([
+      wire('tool/call', { name: 'todo_write', callId: 'c1', arguments: '{"todos":[]}' }),
+      wire('todo/write', { todos: [{ content: '读取章节', status: 'in_progress' }] }),
+      wire('tool/result', { callId: 'c1', message: { content: [{ type: 'tool-result', content: [{ type: 'text', text: 'ok' }] }] } })
+    ])
+    expect(out.map((e) => e.type)).toEqual(['todo'])
+    expect(out[0].items).toEqual([{ content: '读取章节', status: 'in_progress' }])
+  })
+
+  it('交互类 ask_user_question：不发 meta/meta-done，zj/user-ask 照发（含 camelCase multiSelect）', () => {
+    const out = runT([
+      wire('tool/call', { name: 'ask_user_question', callId: 'c2', arguments: '{}' }),
+      wire('zj/user-ask', {
+        batch: 'b1',
+        questions: [{ id: 'q1', header: '走向', question: '怎么走？', options: [{ label: 'A', description: 'd' }], multiSelect: false }]
+      }),
+      wire('tool/result', { callId: 'c2', message: { content: [{ type: 'tool-result', content: [{ type: 'text', text: 'answered' }] }] } })
+    ])
+    expect(out.map((e) => e.type)).toEqual(['ask'])
+    expect(out[0].batch).toBe('b1')
+    expect(out[0].questions[0].multiSelect).toBe(false)
+  })
+
+  it('数据工具照发 meta/meta-done（zj_read_doc 不受影响）', () => {
+    const out = runT([
+      wire('tool/call', { name: 'zj_read_doc', callId: 'c3', arguments: '{"file":"正文/第01章.md"}' }),
+      wire('tool/result', { callId: 'c3', message: { content: [{ type: 'tool-result', content: [{ type: 'text', text: '章内容' }] }] } })
+    ])
+    expect(out.map((e) => e.type)).toEqual(['meta', 'meta-done'])
+    expect(out[0].tool).toBe('zj_read_doc')
+    expect(out[1].ok).toBe(true)
+  })
+
+  it('zj_edit_doc 修改卡路径不受交互类跳过影响（edit + meta-done 同发）', () => {
+    const out = runT([
+      wire('tool/call', { name: 'zj_edit_doc', callId: 'c4', arguments: '{}' }),
+      wire('tool/result', {
+        callId: 'c4',
+        message: {
+          content: [{ type: 'tool-result', content: [{ type: 'text', text: '★ZJ_EDIT★\n{"file":"正文/第01章.md","edits":[{"find":"a","replace":"b"}]}\n★ZJ_END★' }] }]
+        }
+      })
+    ])
+    expect(out.map((e) => e.type)).toEqual(['meta', 'edit', 'meta-done'])
+    expect(out[1].edits).toHaveLength(1)
+  })
 })
 
 describe('runChat 事件序列（流式稳定性）', () => {

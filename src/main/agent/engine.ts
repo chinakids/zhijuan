@@ -198,9 +198,14 @@ export async function runChat(input: ChatInput, emit: (e: AgentOutEvent) => void
   }
 }
 
+/** 交互类工具：todo/ask 的状态由结构化事件（todo/write、zj/user-ask）承载，
+ * 再发 meta/meta-done 会双卡重复，且 ask 等待作者回答的时长会被误标为工具执行耗时
+ * （2026-09-23 智能层，候选 1 工具事件面体检：真机事件面实证后收敛）。 */
+const INTERACTIVE_TOOLS = new Set(['todo_write', 'ask_user_question'])
+
 /** 把写作引擎 session.event 翻译成渲染层事件 */
 const lastToolName = new Map<string, string>() // requestId → 最近一次工具名（tool/result 认领用）
-function translate(n: DriveEvent, requestId: string, emit: (e: AgentOutEvent) => void) {
+export function translate(n: DriveEvent, requestId: string, emit: (e: AgentOutEvent) => void) {
   if (n.method !== 'session.event') return
   const ev = n.params?.event as any
   const t = ev?.type
@@ -211,9 +216,12 @@ function translate(n: DriveEvent, requestId: string, emit: (e: AgentOutEvent) =>
     else if (c?.type === 'reasoning-delta' && c.text) emit({ requestId, type: 'think', text: c.text })
   } else if (t === 'tool/call') {
     const name = String(d.name ?? d.callId ?? '工具')
-    lastToolName.set(requestId, name)
+    lastToolName.set(requestId, name) // 认领机制保留（交互类也记名，result 侧据此跳过）
+    if (INTERACTIVE_TOOLS.has(name)) return // 交互类：不发 meta（todo/write、zj/user-ask 结构化事件承担状态）
     emit({ requestId, type: 'meta', tool: name, args: summarizeToolArgs(d.arguments), argsJson: serializeToolArgs(d.arguments) })
   } else if (t === 'tool/result') {
+    const name = lastToolName.get(requestId) ?? String(d.callId ?? '')
+    if (INTERACTIVE_TOOLS.has(name)) return // 交互类：不做 meta-done（无 meta 可配；AskCard/TodoCard 已有作者可见状态）
     const blocks = d.message?.content ?? []
     const text = blocks
       .map((b: any) => b.content)
@@ -222,7 +230,6 @@ function translate(n: DriveEvent, requestId: string, emit: (e: AgentOutEvent) =>
       .map((x: any) => x.text)
       .join(' ')
     const failed = toolResultFailed(d)
-    const name = lastToolName.get(requestId) ?? String(d.callId ?? '')
     // zj_edit_doc：把结构化结果转成正文修改提案（数据来自工具内的 JSON 标记，见 zj-core）
     if (name === 'zj_edit_doc' && !failed) {
       const json = extractEditPayload(text)

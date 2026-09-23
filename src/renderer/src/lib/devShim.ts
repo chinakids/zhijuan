@@ -1604,8 +1604,8 @@ const mock = {
     const needDemo = /计划|todo|任务|问|确认/.test(input.prompt)
     if (needDemo) {
       await demoDelay()
-      emit({ requestId: rid, type: 'meta', tool: 'todo_write' })
-      await demoDelay()
+      // 交互类工具不再发 meta 行（2026-09-23 智能层，与真机 translate 口径一致：
+      // todo/ask 状态由结构化事件承载，避免双卡与 ask 等待时长误标为工具耗时）
       emit({
         requestId: rid,
         type: 'todo',
@@ -1615,8 +1615,6 @@ const mock = {
           { content: '等待确认后应用到正文', status: 'pending' }
         ]
       })
-      await demoDelay()
-      emit({ requestId: rid, type: 'meta', tool: 'ask_user_question' })
       await demoDelay()
       emit({
         requestId: rid,

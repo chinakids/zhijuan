@@ -149,6 +149,19 @@ try {
     ok('in_progress 项渲染', !!prog)
   }
 
+  // 双卡消除（2026-09-23 智能层，候选 1 工具事件面体检）：交互类工具不再发 meta 工具行，
+  // todo/ask 状态由结构化卡承载——面板不应出现「todo_write / ask_user_question」独立工具行文本
+  const noToolRow = await page.eval(
+    `[...document.querySelectorAll('div')].some((d) => d.innerText === 'todo_write' || d.innerText === 'ask_user_question')`
+  )
+  ok('无 todo/ask 工具行（双卡消除）', noToolRow === false)
+
+  // 面板内也不应出现工具名子串（链/细节区同样不得残留）
+  const toolNameLeak = await page.eval(
+    `[...document.querySelectorAll('[data-testid="zj-tool-detail"], [data-testid="zj-tool-chain"]')].some((d) => d.innerText.includes('todo_write') || d.innerText.includes('ask_user_question'))`
+  )
+  ok('工具链/细节区无交互类残留', toolNameLeak === false)
+
   // 截图
   try {
     const shot = await page.cmd('Page.captureScreenshot', { format: 'png' })
