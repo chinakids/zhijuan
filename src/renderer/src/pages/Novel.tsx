@@ -138,6 +138,12 @@ export default function Novel() {
   const dirtyRef = useRef(false)
   const saveHandleRef = useRef<(() => Promise<boolean>) | null>(null)
   const [pendingSwitch, setPendingSwitch] = useState<string | null>(null)
+  // 关窗未保存守卫（2026-09-24 创作层）：dirty 时关闭窗口/重载/退出 → 取消关闭 + 三选确认
+  // （取消/不保存关闭/保存并关闭），防「写一半关窗丢稿」。closingRef=用户已确认关闭放行标记。
+  // 拦截点取 renderer beforeunload（Electron 官方文档核：handler 返回任何非 undefined 值会静默
+  // 取消关闭——官方（BrowserWindow close 事件）建议用 beforeunload 决定窗口可否关闭；reload 同触发）。
+  const [pendingClose, setPendingClose] = useState(false)
+  const closingRef = useRef(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
   // 窄窗正文保护（2026-09-14 体验层；HIG Sidebars「随窗口缩放自动隐藏/显示侧栏」）：
   // 正文可用宽 <360px 时折叠章节列，改由「章节列表」浮层访问；Agent 面板拖宽会抬高阈值（正文始终受保护）
@@ -641,6 +647,36 @@ export default function Novel() {
   const markDirty = useCallback((d: boolean) => {
     dirtyRef.current = d
   }, [])
+  // 关窗守卫（2026-09-24 创作层）：beforeunload 在窗口关闭/Cmd+W/重载/app quit 前触发（Electron
+  // 官方：close 事件在 beforeunload 之前，建议用 beforeunload 决定可否关闭；返回非 undefined 静默取消
+  // 关闭）。有未保存改动时取消关闭并弹确认；closingRef=true（已确认）或非 dirty 零打扰放行。
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (closingRef.current) return
+      if (!dirtyRef.current) return
+      // Electron 官方文档示例同款：returnValue 返回任何非 undefined 值会取消关闭；preventDefault 双保险
+      e.preventDefault()
+      e.returnValue = '未保存的改动'
+      setPendingClose(true)
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [])
+  function discardClose() {
+    // 用户显式选「不保存关闭」：先放行再关（否则第二次 enter 会被自身 beforeunload 再拦）
+    closingRef.current = true
+    setPendingClose(false)
+    window.close()
+  }
+  async function saveAndClose() {
+    const ok = await saveHandleRef.current?.()
+    setPendingClose(false)
+    // 保存被拦/失败（空写防线/IO 错，ok 非 true）：内容未落盘 → 留在页面，状态条已有原因说明，不丢内容（与切章守卫同语义）
+    if (ok === true) {
+      closingRef.current = true
+      window.close()
+    }
+  }
   function discardSwitch() {
     const t = pendingSwitch
     setPendingSwitch(null)
@@ -994,6 +1030,22 @@ export default function Novel() {
             <Button variant="outline" onClick={() => setPendingSwitch(null)}>取消</Button>
             <Button variant="outline" onClick={discardSwitch} className="text-danger">不保存切换</Button>
             <Button onClick={() => void saveAndSwitch()}>保存并切换</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* 关窗未保存守卫（2026-09-24 创作层）：dirty 时关窗/重载/退出 → 三选确认。
+          与切章守卫同族同形态：数据安全 > 心流，只在真有未保存改动时弹；拦截点=renderer beforeunload
+          （Electron 官方：返回非 undefined 值静默取消关闭，覆盖窗口关闭/Cmd+W/重载/app quit 链）。 */}
+      <Dialog open={!!pendingClose} onOpenChange={(o) => !o && setPendingClose(false)}>
+        <DialogContent className="sm:max-w-md" outsideDismiss={false}>
+          <DialogHeader>
+            <DialogTitle>有未保存的改动</DialogTitle>
+            <DialogDescription>当前章节有未保存的内容，关闭窗口后将丢失。</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingClose(false)}>取消</Button>
+            <Button variant="outline" onClick={discardClose} className="text-danger">不保存关闭</Button>
+            <Button onClick={() => void saveAndClose()}>保存并关闭</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
