@@ -133,6 +133,11 @@ export default function Novel() {
   const [sliceEditing, setSliceEditing] = useState<ChapterEntry | null>(null)
   const [sliceVal, setSliceVal] = useState('')
   const [deleting, setDeleting] = useState<ChapterEntry | null>(null)
+  // 切章未保存守卫（2026-09-23 创作层）：dirty 时点其他章节 → 确认（保存并切换/不保存切换/取消），
+  // 防「写了一半点错章/随手切章丢稿」。dirtyRef 由 DocEditor onDirty 实时维护（只读，不参与保存行为）。
+  const dirtyRef = useRef(false)
+  const saveHandleRef = useRef<(() => Promise<boolean>) | null>(null)
+  const [pendingSwitch, setPendingSwitch] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
   // 窄窗正文保护（2026-09-14 体验层；HIG Sidebars「随窗口缩放自动隐藏/显示侧栏」）：
   // 正文可用宽 <360px 时折叠章节列，改由「章节列表」浮层访问；Agent 面板拖宽会抬高阈值（正文始终受保护）
@@ -621,6 +626,34 @@ export default function Novel() {
     else toast.add({ kind: 'success', title: '已导出单章', description: r.path })
   }
 
+  // 切章守卫（2026-09-23 创作层）：当前章有未保存改动时，点其他章节先弹确认——「保存并切换」走
+  // DocEditor 的 doSave（含空写拦截等全部既有防线，true=已写盘才切）；「不保存切换」=显式丢弃；
+  // 「取消」=留在本章。非 dirty 直接切（零打扰；NN/g「确认过频成路障」只在内容有风险时弹）。
+  const requestSwitch = useCallback(
+    (file: string) => {
+      if (file === sel) return
+      if (dirtyRef.current) setPendingSwitch(file)
+      else setSel(file)
+    },
+    [sel]
+  )
+  // 稳定身份（DocEditor 的 onDirty effect 依赖它；只写 ref 无渲染副作用）
+  const markDirty = useCallback((d: boolean) => {
+    dirtyRef.current = d
+  }, [])
+  function discardSwitch() {
+    const t = pendingSwitch
+    setPendingSwitch(null)
+    if (t) setSel(t)
+  }
+  async function saveAndSwitch() {
+    const t = pendingSwitch
+    setPendingSwitch(null)
+    const ok = await saveHandleRef.current?.()
+    // 保存被拦/失败（空写防线/IO 错，ok 非 true）：内容未落盘 → 留在本章，状态条已有原因说明，不丢内容
+    if (ok === true && t) setSel(t)
+  }
+
   // 章列行操作菜单（「⋯」下拉 与 右键 共源渲染）：HIG Context menus——两个菜单形态一致、动作一致，
   // 破坏性项（删除）置末 + danger 红字（HIG「list them at the end and identify them as destructive」）
   const renderRowMenu = (Item: React.ElementType, Sep: React.ElementType, c: ChapterEntry) => (
@@ -721,7 +754,7 @@ export default function Novel() {
           <ContextMenuTrigger asChild>
             <div className="group relative mb-0.5">
               <button
-                onClick={() => setSel(c.file)}
+                onClick={() => requestSwitch(c.file)}
                 className={cn(
                   'flex w-full flex-col gap-0.5 rounded-lg py-2 pl-3 pr-8 text-left transition-colors',
                   sel === c.file ? 'bg-accent-soft' : 'hover:bg-surface'
@@ -828,7 +861,7 @@ export default function Novel() {
         {sel ? (
           <>
             <div className="min-h-0 flex-1">
-              <DocEditor projectId={id} rel={chapterRel} withFm extVersion={extVersion} editorApiRef={apiRef} annotations={annotations} onSave={() => { void refresh(); void handleChapterSaved(chapterRel) }}
+              <DocEditor projectId={id} rel={chapterRel} withFm extVersion={extVersion} editorApiRef={apiRef} annotations={annotations} onDirty={markDirty} saveHandleRef={saveHandleRef} onSave={() => { void refresh(); void handleChapterSaved(chapterRel) }}
                 statusExtra={<HealthBar projectId={id} refreshSignal={extVersion} />}
               />
             </div>
@@ -946,6 +979,21 @@ export default function Novel() {
       />
 
       {/* 划词批注弹层（主人 2026-09-12） */}
+      {/* 切章未保存守卫（2026-09-23 创作层）：dirty 时点其他章节 → 三选确认。
+          数据安全 > 心流：与空写两步确认同属「拦截族」；只在真有未保存改动时弹（NN/g 确认过频成路障）。 */}
+      <Dialog open={!!pendingSwitch} onOpenChange={(o) => !o && setPendingSwitch(null)}>
+        <DialogContent className="sm:max-w-md" outsideDismiss={false}>
+          <DialogHeader>
+            <DialogTitle>有未保存的改动</DialogTitle>
+            <DialogDescription>当前章节有未保存的内容，切换后将丢失。</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingSwitch(null)}>取消</Button>
+            <Button variant="outline" onClick={discardSwitch} className="text-danger">不保存切换</Button>
+            <Button onClick={() => void saveAndSwitch()}>保存并切换</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={!!annoTarget} onOpenChange={(o) => !o && setAnnoTarget(null)}>
         <DialogContent
           className="sm:max-w-md"

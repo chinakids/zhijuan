@@ -20,6 +20,9 @@ interface DocEditorProps {
   rel: string
   /** 外部想拿到本章编辑器的命令式入口（agent 引用/应用要用） */
   editorApiRef?: MutableRefObject<ProseApi | null>
+  /** 外部想触发本章保存并获知结果（切章守卫「保存并切换」用；null=编辑器未就绪）。
+   * doSave 返回 boolean：true=已写盘，false=被拦截/失败（未丢内容）。 */
+  saveHandleRef?: MutableRefObject<(() => Promise<boolean>) | null>
   /** 章节类：只编辑约定头之下的正文，保存时保住约定头 */
   withFm?: boolean
   /** 外部文件版本号（父级监听的 fs 事件命中本文档时 +1）；未修改时触发静默重载 */
@@ -35,7 +38,7 @@ interface DocEditorProps {
   statusExtra?: ReactNode
 }
 
-export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty, onSave, className, editorApiRef, annotations, anno, statusExtra }: DocEditorProps) {
+export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty, onSave, className, editorApiRef, saveHandleRef, annotations, anno, statusExtra }: DocEditorProps) {
   const innerApi = useRef<ProseApi | null>(null)
   const apiRef = editorApiRef ?? innerApi
   const rawRef = useRef('') // 磁盘上的原文（含约定头）
@@ -124,7 +127,7 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
         diskBodyLen: -1,
         action: 'aborted'
       })
-      return
+      return false
     }
     // P1 防线（F-20260917-10，2026-09-19 智能层）+ 创作层加固：编辑器内容为空但磁盘正文非空 → 拦一次，
     // 再按一次保存=两步确认放行（作者确要清空；空写不可逆，版本历史是唯一后悔药）。
@@ -153,7 +156,7 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
             setStatus('external')
             setNote('正文疑似为空：磁盘上已有正文，本次未保存；若确要清空，请再按一次保存确认')
             setConfirmEmpty(true)
-            return
+            return false
           }
           // 已确认（再按一次保存）：放行写空，随即复位防第三次误放行
           action = 'allow-empty'
@@ -180,11 +183,22 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
       setStatus('saved')
       onSave?.()
       window.setTimeout(() => setStatus((s) => (s === 'saved' ? 'idle' : s)), 1800)
+      return true
     } catch (e) {
       setStatus('error')
       setNote(String(e))
+      return false
     }
   }, [projectId, rel, withFm, onSave, confirmEmpty])
+
+  // 对外暴露「触发保存+结果」（切章守卫「保存并切换」用；只读 ref，不参与保存行为）
+  useEffect(() => {
+    if (!saveHandleRef) return
+    saveHandleRef.current = doSave
+    return () => {
+      if (saveHandleRef) saveHandleRef.current = null
+    }
+  }, [doSave, saveHandleRef])
 
   // 编辑器挂载状态上报主进程菜单（save/find 组启用依据；正文与分幕草稿同构）
   useEffect(() => {
