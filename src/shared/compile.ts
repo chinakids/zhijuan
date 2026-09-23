@@ -29,7 +29,7 @@ export interface CompileOptions {
 
 /** 章标题：`# 第N章 题名`；无章号 → `# 题名`；题名缺失 → 回退显示名。
  * 非主线且开启注记时标题尾加「（线：X）」。 */
-function chapterHeading(name: string, fm: Record<string, unknown> | null, line: string, annotate: boolean): string {
+export function chapterHeading(name: string, fm: Record<string, unknown> | null, line: string, annotate: boolean): string {
   let head = ''
   const no = fm?.['章号'] != null ? String(fm['章号']).trim() : ''
   const title = fm?.['题名'] != null ? String(fm['题名']).trim() : ''
@@ -81,13 +81,13 @@ function inlineMd(s: string): string {
 }
 
 /**
- * 极简 Markdown→HTML（零依赖；「导出作品（Word）」经 mac 系统 textutil 走 html→docx 的转换层）。
- * 只覆盖小说成品常见标记：标题（#…######，块内只取首行）、段落（空行分隔）、
- * 无序列表（- / *）、引用（>）、分割线（---）、**加粗**、*斜体*、`代码`；
- * 其余按纯文本输出（代码块/表格/链接等成品导出不需要，不铺张；确定性、可单测）。
- * 输出带完整 html 骨架（charset utf-8）——textutil 直接吃此文件。
+ * 极简 Markdown→HTML 正文片段（零依赖；不含 html 骨架——EPUB XHTML 内容文档由
+ * shared/epub.ts 自行包裹，Word 路径经 mdToHtml 整体包裹）。规则同 mdToHtml：
+ * 只覆盖小说成品常见标记（标题/段落/无序列表/引用/分割线/加粗/斜体/代码），其余按纯文本；
+ * 输出确定性、可单测；产出即 XML well-formed（标签自闭合 <br/> <hr/>、& < > 已转义）——
+ * EPUB 3.3 XHTML content document 直接可用（2026-09-24 平台层轮 v1.2 拆分）。
  */
-export function mdToHtml(md: string): string {
+export function mdBodyHtml(md: string): string {
   if (!md) return ''
   const blocks = md.replace(/\r\n?/g, '\n').split(/\n{2,}/)
   const out: string[] = []
@@ -116,5 +116,14 @@ export function mdToHtml(md: string): string {
     }
     out.push(`<p>${lines.map((l) => inlineMd(l)).join('\n')}</p>`)
   }
-  return `<!DOCTYPE html>\n<html>\n<head><meta charset="utf-8"/></head>\n<body>\n${out.join('\n')}\n</body>\n</html>\n`
+  return out.join('\n')
+}
+
+/**
+ * 极简 Markdown→HTML（零依赖；「导出作品（Word）」经 mac 系统 textutil 走 html→docx 的转换层）。
+ * 输出带完整 html 骨架（charset utf-8）——textutil 直接吃此文件。正文片段见 mdBodyHtml（EPUB 复用）。
+ */
+export function mdToHtml(md: string): string {
+  if (!md) return ''
+  return `<!DOCTYPE html>\n<html>\n<head><meta charset="utf-8"/></head>\n<body>\n${mdBodyHtml(md)}\n</body>\n</html>\n`
 }

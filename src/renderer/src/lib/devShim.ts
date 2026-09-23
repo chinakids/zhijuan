@@ -723,6 +723,8 @@ const mock = {
   compileExport: async (id: string) => ({ ok: true, path: '/tmp/导出/' + id + '_成品.md', chapters: 3 }),
   // 作品编译 v1.1 Word 导出（project:compileExportDocx）：同口径示意返回（dev 无 textutil）
   compileExportDocx: async (id: string) => ({ ok: true, path: '/tmp/导出/' + id + '_成品.docx', chapters: 3 }),
+  // 作品编译 v1.2 EPUB 导出（project:compileExportEpub）：同口径示意返回（dev 无 zip）
+  compileExportEpub: async (id: string) => ({ ok: true, path: '/tmp/导出/' + id + '_成品.epub', chapters: 3 }),
   removeProject: async (id: string) => {
     const i = projects.findIndex((p) => p.id === id)
     if (i >= 0) projects.splice(i, 1)

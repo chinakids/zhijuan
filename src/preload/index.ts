@@ -81,6 +81,11 @@ const api = {
     ipcRenderer.invoke('project:compileExportDocx', id) as Promise<
       { ok: true; path: string; chapters: number } | { ok: false; error?: string; cancelled?: boolean }
     >,
+  // 作品编译 v1.2：EPUB 导出（系统 zip 打包 EPUB3 容器；win/linux 优雅回退）
+  compileExportEpub: (id: string) =>
+    ipcRenderer.invoke('project:compileExportEpub', id) as Promise<
+      { ok: true; path: string; chapters: number } | { ok: false; error?: string; cancelled?: boolean }
+    >,
   revealProject: (id: string) => ipcRenderer.invoke('project:reveal', id),
   openProject: (id: string) => ipcRenderer.invoke('project:open', id) as Promise<boolean>,
   getRecentEntries: () => ipcRenderer.invoke('project:recents') as Promise<RecentEntry[]>,

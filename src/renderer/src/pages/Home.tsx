@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FolderOpen, FolderOutput, Plus, Trash2, MoreHorizontal, Search, X, FileDown, FileText } from 'lucide-react'
+import { FolderOpen, FolderOutput, Plus, Trash2, MoreHorizontal, Search, X, FileDown, FileText, BookOpen } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import type { ProjectSummary, ProjectTemplate } from '../../../shared/types'
 import type { RecentEntry } from '../../../shared/projects'
@@ -183,6 +183,21 @@ export default function Home() {
       const r = await window.zhijuan.compileExportDocx(id)
       if (r.ok) {
         toast.add({ kind: 'success', title: '已导出 Word 作品', description: `「${name}」已合并为 ${r.chapters} 章：${r.path}` })
+        return
+      }
+      if (r.cancelled) return
+      toast.add({ kind: 'error', title: '导出失败', description: r.error ?? '未知错误' })
+    } catch (e) {
+      toast.add({ kind: 'error', title: '导出失败', description: String((e as Error).message ?? e) })
+    }
+  }
+
+  /** 作品编译 v1.2＝EPUB 导出（mac 系统 zip 打包 EPUB3 容器；win/linux 优雅回退 Markdown） */
+  async function exportCompiledEpub(id: string, name: string) {
+    try {
+      const r = await window.zhijuan.compileExportEpub(id)
+      if (r.ok) {
+        toast.add({ kind: 'success', title: '已导出 EPUB 作品', description: `「${name}」已合并为 ${r.chapters} 章：${r.path}` })
         return
       }
       if (r.cancelled) return
@@ -385,6 +400,12 @@ export default function Home() {
                         void exportCompiledDocx(p.id, p.name)
                       }}>
                         <FileText className="h-4 w-4" /> 导出作品（Word）
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => {
+                        e.stopPropagation()
+                        void exportCompiledEpub(p.id, p.name)
+                      }}>
+                        <BookOpen className="h-4 w-4" /> 导出作品（EPUB）
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-danger focus:text-danger"

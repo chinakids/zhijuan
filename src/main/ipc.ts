@@ -36,8 +36,10 @@ import {
 import { workspaceStatus, ensureWorkspaceDocs, readWorkspaceDoc } from './workspace'
 import { appendSaveTrace } from './saveTrace'
 import { runWritingInsights } from './writingInsights'
-import { buildCompiledBody } from './compile'
+import { buildCompiledBody, buildChapterInputs } from './compile'
+import { chapterBodyOf } from '../shared/compile'
 import { exportDocx, docxAvailable } from './compileDocx'
+import { exportEpub } from './compileEpub'
 import { listLibraryCategories, createLibraryCategory, searchDocs, recentLibraryDocs } from './library'
 import { listTemplates } from './templates'
 import { workspaceDir } from './settings'
@@ -261,6 +263,32 @@ export function registerIpc() {
     const res = exportDocx(built.body, r.filePath)
     if (!res.ok) return { ok: false, error: res.error }
     return { ok: true, path: r.filePath, chapters: built.chapters }
+  })
+
+  // 作品编译 v1.2：EPUB 导出（零依赖＝系统 zip 打包 EPUB3 容器；2026-09-24 04:30 轮实证容器可行）。
+  // 与 compileExport 同模式：buildChapterInputs 只读收集 → buildEpubFiles → zip（src/main/compileEpub.ts）；
+  // 分章输入（EPUB 按章分 XHTML 内容文档 + nav 目录，非合并单文件）。
+  ipcMain.handle('project:compileExportEpub', async (e, id: string) => {
+    let inputs: ReturnType<typeof buildChapterInputs>
+    try {
+      inputs = buildChapterInputs(id)
+    } catch (err) {
+      return { ok: false, error: String((err as Error)?.message ?? err) }
+    }
+    // 章数 = 实际产出（空章跳过，与 compileNovel/buildEpubFiles 同口径）
+    const total = inputs.filter((c) => chapterBodyOf(c.text)).length
+    const projName = basename(projectDir(id))
+    const opts = {
+      title: '导出作品（EPUB）',
+      defaultPath: join(app.getPath('documents'), `${projName}_成品.epub`),
+      filters: [{ name: 'EPUB 电子书', extensions: ['epub'] }]
+    } as Electron.SaveDialogOptions
+    const win = BrowserWindow.fromWebContents(e.sender)
+    const r = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts)
+    if (r.canceled || !r.filePath) return { cancelled: true }
+    const res = exportEpub(inputs, projName, r.filePath)
+    if (!res.ok) return { ok: false, error: res.error }
+    return { ok: true, path: r.filePath, chapters: total }
   })
 
   // 素材库域（模块设计 §九：类别树 / 新建类别 / 文件名+全文搜索）

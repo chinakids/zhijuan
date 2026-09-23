@@ -12,15 +12,20 @@ export type CompiledBody =
   | { ok: true; body: string; chapters: number }
   | { ok: false; error: string }
 
+/** 收集整卷分章输入（章序/线名归一，与编辑器同口径；供 compileNovel / EPUB 导出共用）。 */
+export function buildChapterInputs(projectId: string): CompileChapterInput[] {
+  const entries = listChapters(projectId)
+  return entries.map((e) => ({
+    name: e.name,
+    text: readDoc(projectId, join('正文', e.file)) ?? '',
+    line: chapterLine(e.fm)
+  }))
+}
+
 /** 整书合并正文（只读，不落盘）：章序 = 编辑器同口径（file「第N章」序）；空项目 → body '' + chapters 0 */
 export function buildCompiledBody(projectId: string): CompiledBody {
   try {
-    const entries = listChapters(projectId)
-    const inputs: CompileChapterInput[] = entries.map((e) => ({
-      name: e.name,
-      text: readDoc(projectId, join('正文', e.file)) ?? '',
-      line: chapterLine(e.fm)
-    }))
+    const inputs = buildChapterInputs(projectId)
     const body = compileNovel(inputs)
     // 章数 = 实际产出（空章跳过，与 compileNovel 同口径）
     const chapters = inputs.filter((c) => chapterBodyOf(c.text)).length
