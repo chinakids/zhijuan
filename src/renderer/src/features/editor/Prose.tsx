@@ -76,6 +76,9 @@ interface ProseProps {
   /** 滚动位置记忆键（`项目id:相对路径`）。提供时在卸载/重建时保存 scrollTop，
    * 重新挂载后恢复（会话内、不落盘）；缺省不启用。 */
   memoryKey?: string
+  /** 划词「添加到对话」的来源显示名（DocEditor 由 rel 经 quoteSrcOf 生成）——
+   * zj:quote-text 事件 detail 携带 {text, src}，供输入区提示条与发送文案标注准确来源。 */
+  quoteSrc?: string
 }
 
 interface WinWithEditors {
@@ -120,7 +123,7 @@ function testUnregister(api: ProseApi) {
   if (i >= 0) a.splice(i, 1)
 }
 
-export default function Prose({ value, onEdit, apiRef, onCreateError, className, annotations, anno = true, memoryKey }: ProseProps) {
+export default function Prose({ value, onEdit, apiRef, onCreateError, className, annotations, anno = true, memoryKey, quoteSrc }: ProseProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const initialRef = useRef<string>(value)
   const onEditRef = useRef(onEdit)
@@ -393,9 +396,11 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
       window.removeEventListener('scroll', onScroll, true)
     }
   }, [])
+  /** zj:quote-text 载荷：带来源（2026-09-23 体验层）或仅文本（兼容旧通道） */
   const dispatchQuote = () => {
     if (!bubble) return
-    window.dispatchEvent(new CustomEvent('zj:quote-text', { detail: bubble.text }))
+    const detail = quoteSrc ? { text: bubble.text, src: quoteSrc } : bubble.text
+    window.dispatchEvent(new CustomEvent('zj:quote-text', { detail }))
     setBubble(null)
     focusEditor()
   }
@@ -724,7 +729,10 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
   }
   const doSelectAll = () => runEdit((v) => selectAll(v.state, v.dispatch))
   const doQuote = () => {
-    if (menuSel) window.dispatchEvent(new CustomEvent('zj:quote-text', { detail: menuSel }))
+    if (menuSel) {
+      const detail = quoteSrc ? { text: menuSel, src: quoteSrc } : menuSel
+      window.dispatchEvent(new CustomEvent('zj:quote-text', { detail }))
+    }
   }
   // 右键「写入批注」（2026-09-15 体验层）：与划词浮层批注同链路（zj:anno-compose → Novel 弹层），
   // 文本取右键时快照的 menuSel；HIG Context menus「一致性」——主界面（划词浮层）有的写作域动作右键也应有。

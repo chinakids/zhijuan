@@ -10,6 +10,7 @@ import type { AnnotationRow } from '../../../../shared/annotations'
 import type { SaveTraceEntry } from '../../../../shared/types'
 import { registerDocEditor, unregisterDocEditor } from '../menu/menuState'
 import { MENU_EV_SAVE, isMenuJustHandled } from '../menu/menuBus'
+import { quoteSrcOf } from '../../lib/quoteSrc'
 
 type DocStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'external' | 'error'
 
@@ -348,6 +349,7 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
           annotations={annotations}
           anno={anno}
           memoryKey={`${projectId}:${rel}`}
+          quoteSrc={quoteSrcOf(rel)}
         />
       </div>
       <div className="flex h-7 items-center gap-2 border-t border-hair px-4 text-xs">

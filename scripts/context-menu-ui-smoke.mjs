@@ -162,7 +162,7 @@ await evalUntil(page, `!!document.querySelector('.zj-sel-bubble')`, (v) => v ===
 await page.eval(`[...document.querySelectorAll('.zj-sel-bubble button')].find((b) => b.textContent.includes('对话')).click()`)
 const quoteShown = await evalUntil(
   page,
-  `(() => { const s = [...document.querySelectorAll('span')].find((x) => (x.className || '').includes('line-clamp-2')); return s ? s.textContent : null })()`,
+  `(() => { const s = [...document.querySelectorAll('div')].find((x) => (x.className || '').includes('line-clamp-2')); return s ? s.textContent : null })()`,
   (v) => v === SEL,
   8000,
   'agent 引用条显示选中文字'
@@ -279,7 +279,7 @@ await evalUntil(page, `!!document.querySelector('[role="menu"]')`, (v) => v === 
 await page.eval(`[...document.querySelectorAll('[role="menuitem"]')].find((i) => i.textContent.trim() === '添加到对话').click()`)
 const quote2 = await evalUntil(
   page,
-  `(() => { const s = [...document.querySelectorAll('span')].find((x) => (x.className || '').includes('line-clamp-2')); return s ? s.textContent : null })()`,
+  `(() => { const s = [...document.querySelectorAll('div')].find((x) => (x.className || '').includes('line-clamp-2')); return s ? s.textContent : null })()`,
   (v) => typeof v === 'string' && v.includes('潮声'),
   8000,
   '右键添加到对话进引用条'

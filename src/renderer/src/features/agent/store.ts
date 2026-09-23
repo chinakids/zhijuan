@@ -43,9 +43,16 @@ export interface AgentMsg {
    */
   errorText?: string
   /** 错误时可一键重试的载荷（原 prompt/quote/focus），仅在 send 路径的错误上存在 */
-  errorRetry?: { prompt: string; quote: string | null; focus: boolean }
+  errorRetry?: { prompt: string; quote: QuoteRef | null; focus: boolean }
   /** 错误气泡已被手动重试过（按钮置「已重试」，防连点重复发轮） */
   retried?: boolean
+}
+
+/** 划词引用载荷（2026-09-23 体验层）：文本 + 来源显示名（如「正文·第02章_灯塔」）。
+ * src 为空=旧通道/来源未知，发送文案落回面板正文章节名兜底。 */
+export interface QuoteRef {
+  text: string
+  src?: string
 }
 
 /**
@@ -60,20 +67,20 @@ export interface AgentMsg {
 interface AgentState {
   messages: AgentMsg[]
   streaming: boolean
-  quote: string | null
+  quote: QuoteRef | null
   /** 当前激活的项目（AgentPanel 经 setProject 同步）；null=尚未进入项目页 */
   project: string | null
   /** 各项目消息桶（会话内存，id→桶映射见 bucketOf） */
   byProject: Record<string, AgentMsg[]>
-  /** 各项目引用文本（quote 同桶语义，防切项目把上一项目的划词引用带过来） */
-  quoteByProject: Record<string, string | null>
+  /** 各项目引用载荷（quote 同桶语义，防切项目把上一项目的划词引用带过来） */
+  quoteByProject: Record<string, QuoteRef | null>
   /** 切换项目：保存当前桶→加载目标桶；同 id 幂等 */
   setProject: (id: string | null) => void
   setStreaming: (v: boolean) => void
-  setQuote: (q: string | null) => void
+  setQuote: (q: QuoteRef | null) => void
   append: (m: Omit<AgentMsg, 'id'>, opts?: { project?: string }) => void
   patch: (id: string, content: string) => void
-  setError: (id: string, text: string, retryMeta?: { prompt: string; quote: string | null; focus: boolean }) => void
+  setError: (id: string, text: string, retryMeta?: { prompt: string; quote: QuoteRef | null; focus: boolean }) => void
   /** 标记某条错误消息已被手动重试（重试按钮置「已重试」） */
   markRetried: (id: string) => void
   markApplied: (id: string) => void
@@ -151,11 +158,18 @@ export const useAgentStore = create<AgentState>((set) => ({
         // project 首次设置前的消息归入首个目标项目
         byProject[id] = byProject[id] ? [...byProject[id], ...saved] : saved
       }
+      // 引用同桶语义：未分桶（AgentPanel 未挂载页划词，如人物/素材页）的引用并入首个目标项目桶——
+      // 否则划词后回正文 setProject 会按桶读到 null，引用静默丢失（2026-09-23 体验层场景B实锤）。
+      const quoteByProject = { ...s.quoteByProject }
+      if (id !== null && !s.project && s.quote) {
+        if (!quoteByProject[id]) quoteByProject[id] = s.quote
+      }
       return {
         project: id,
         messages: id === null ? [] : (byProject[id] ?? []),
-        quote: id === null ? null : (s.quoteByProject[id] ?? null),
-        byProject
+        quote: id === null ? null : (quoteByProject[id] ?? null),
+        byProject,
+        quoteByProject
       }
     }),
   setStreaming: (v) => set({ streaming: v }),

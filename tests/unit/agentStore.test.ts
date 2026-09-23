@@ -51,13 +51,26 @@ describe('useAgentStore 按项目分桶', () => {
     expect(t.tool).toBe('zj_read_doc')
   })
 
-  it('quote 按项目分桶', () => {
+  it('quote 按项目分桶（含来源字段随桶走）', () => {
     useAgentStore.getState().setProject('p1')
-    useAgentStore.getState().setQuote('q1')
+    useAgentStore.getState().setQuote({ text: 'q1', src: '正文·第01章' })
     useAgentStore.getState().setProject('p2')
     expect(useAgentStore.getState().quote).toBeNull()
     useAgentStore.getState().setProject('p1')
-    expect(useAgentStore.getState().quote).toBe('q1')
+    expect(useAgentStore.getState().quote).toEqual({ text: 'q1', src: '正文·第01章' })
+  })
+
+  it('未进项目页划词（project=null）→ 首次 setProject 后引用保留不丢失', () => {
+    useAgentStore.getState().setProject(null)
+    useAgentStore.getState().setQuote({ text: 'q0', src: '人物·阿七' })
+    expect(useAgentStore.getState().project).toBeNull()
+    useAgentStore.getState().setProject('p1')
+    expect(useAgentStore.getState().quote).toEqual({ text: 'q0', src: '人物·阿七' })
+    // 再切项目：引用仍留在 p1 桶（不被带进 p2）
+    useAgentStore.getState().setProject('p2')
+    expect(useAgentStore.getState().quote).toBeNull()
+    useAgentStore.getState().setProject('p1')
+    expect(useAgentStore.getState().quote).toEqual({ text: 'q0', src: '人物·阿七' })
   })
 
   it('reset 只清当前项目桶', () => {

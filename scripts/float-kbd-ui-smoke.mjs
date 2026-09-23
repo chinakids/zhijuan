@@ -127,7 +127,7 @@ const ae3 = await page.eval(ae())
 ok('动作后焦点回编辑器', ae3.isPM === true, JSON.stringify(ae3))
 await evalUntil(
   page,
-  `[...document.querySelectorAll('span')].some((s) => s.className.includes('line-clamp-2') && s.textContent.includes('雨把港口'))`,
+  `[...document.querySelectorAll('div')].some((d) => d.className.includes('line-clamp-2') && d.textContent.includes('雨把港口'))`,
   Boolean,
   8000,
   'agent 引用条出现'

@@ -110,7 +110,7 @@ ok('气泡在浮层之上（z>60）', Number(popInfo.z) > 60, 'z=' + popInfo.z)
 await page.eval(clickBtn('加入对话', true))
 await evalUntil(
   page,
-  `[...document.querySelectorAll('span')].some((s) => s.className.includes('line-clamp-2') && s.textContent.includes('雨把港口'))`,
+  `[...document.querySelectorAll('div')].some((d) => d.className.includes('line-clamp-2') && d.textContent.includes('雨把港口'))`,
   Boolean,
   8000,
   'agent 引用条出现'

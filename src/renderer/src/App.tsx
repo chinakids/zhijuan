@@ -25,12 +25,17 @@ function Boot() {
   return null
 }
 
-/** 全局桥：编辑器划词浮层「添加到对话」→ 对话引用（任何文档页都生效） */
+/** 全局桥：编辑器划词浮层「添加到对话」→ 对话引用（任何文档页都生效）。
+ * detail 形态（2026-09-23 体验层）：对象 {text, src}（新通道，src=来源显示名）或纯字符串（兼容旧通道，无来源）。 */
 function QuoteBridge() {
   useEffect(() => {
     const h = (e: Event) => {
-      const t = (e as CustomEvent<string>).detail
-      if (typeof t === 'string' && t.trim()) useAgentStore.getState().setQuote(t.trim())
+      const d = (e as CustomEvent).detail
+      if (d && typeof d === 'object' && typeof d.text === 'string' && d.text.trim()) {
+        useAgentStore.getState().setQuote({ text: d.text.trim(), src: typeof d.src === 'string' && d.src ? d.src : undefined })
+      } else if (typeof d === 'string' && d.trim()) {
+        useAgentStore.getState().setQuote({ text: d.trim() })
+      }
     }
     window.addEventListener('zj:quote-text', h)
     return () => window.removeEventListener('zj:quote-text', h)

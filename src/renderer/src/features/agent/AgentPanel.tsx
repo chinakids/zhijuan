@@ -21,7 +21,7 @@ import { expandCommand, filterCommandCandidates, insertCommand, matchFixedComman
 import { skillCommandOf } from '../../../../shared/skills'
 import { createStreamBuffer } from '../../../../shared/streamBuffer'
 import { trimHistoryMessage } from '../../../../shared/historyTrim'
-import { useAgentStore, messageProject, type AgentMsg } from './store'
+import { useAgentStore, messageProject, type AgentMsg, type QuoteRef } from './store'
 import ErrorNotice from './ErrorNotice'
 import { groupToolMeta, isContinuedRead, summarizeGroup, failureFollowupPrompt } from './toolChain'
 import { useUiStore } from '../../store/ui'
@@ -522,12 +522,12 @@ function useSender(props: AgentPanelProps) {
   const abortRef = useRef<{ rid: string } | null>(null)
   // 多轮会话（主人 2026-09-18，F-20260917-12）：生成中再发消息=排队自动续发，不再静默丢弃
   const streamingRef = useRef(false)
-  const pendingRef = useRef<{ raw: string; quote: string | null; focus: boolean; project: string }[]>([])
+  const pendingRef = useRef<{ raw: string; quote: QuoteRef | null; focus: boolean; project: string }[]>([])
   // 本轮流式累积（按项目分桶后，切项目期间 delta 不能依赖「当前桶」读前缀，本地累积为准）
   const streamedRef = useRef('')
 
   const send = useCallback(
-    async (raw: string, quote: string | null, focus = false, opts?: { project?: string }) => {
+    async (raw: string, quote: QuoteRef | null, focus = false, opts?: { project?: string }) => {
       const { projectId: panelProject, chapterRel } = props
       // 本轮归属项目（2026-09-23 体验层，跨项目语义）：错误重试/排队续发以「消息归属」为准、面板项目兜底——
       // 作者在 A 项目发起的轮次（含其重试）必须落回 A 项目对话与装配，不因切到 B 项目而错桶拆散原对话
@@ -540,8 +540,12 @@ function useSender(props: AgentPanelProps) {
       }
       if (!raw.trim()) return
       streamingRef.current = true
-      const content = quote ? `（引用自《${props.chapterTitle}》选中段落）\n> ${quote.replace(/\n/g, '\n> ')}\n\n${raw}` : raw
-      useAgentStore.getState().append({ role: 'user', content, quote: quote ?? undefined }, { project: projectId })
+      // 引用来源标注（2026-09-23 体验层）：以划词时记录的来源为准（quote.src），
+      // 不再用「当前正文章节」——切章/跨文档划词时旧实现会标错来源（探针实锤两场景）。
+      // 旧通道无来源时落回面板章节名兜底。
+      const srcLabel = quote?.src || props.chapterTitle
+      const content = quote ? `（引用自《${srcLabel}》选中段落）\n> ${quote.text.replace(/\n/g, '\n> ')}\n\n${raw}` : raw
+      useAgentStore.getState().append({ role: 'user', content, quote: quote?.text }, { project: projectId })
       useAgentStore.getState().append({ role: 'assistant', content: '' }, { project: projectId })
       streamedRef.current = ''
       setStreaming(true)
@@ -623,7 +627,7 @@ function useSender(props: AgentPanelProps) {
             chapterRel: chapterRel ?? null,
             chapterTitle: props.chapterTitle,
             prompt: raw,
-            quote: quote ?? null,
+            quote: quote?.text ?? null,
             history,
             focus
           },
@@ -1035,7 +1039,7 @@ export default function AgentPanel(props: AgentPanelProps) {
       .filter((m) => m.role !== 'tool')
       .slice(-20)
       .reduce((a, m) => a + trimHistoryMessage(m.content ?? '').length, 0)
-    return his + input.length + (quote ? quote.length + 24 : 0)
+    return his + input.length + (quote ? quote.text.length + 24 : 0)
   }, [messages, input, quote])
 
   // @ 引用注入预算：解析当前输入里的引用标记，按主进程同口径（每条 ≤4000、合计 ≤12000）估算注入量
@@ -1445,8 +1449,15 @@ export default function AgentPanel(props: AgentPanelProps) {
           {quote && (
             <div className="mb-2 flex items-start gap-1.5 rounded bg-surface px-2 py-1.5 text-[11px] text-ink-2">
               <Quote className="mt-0.5 h-3 w-3 shrink-0" />
-              <span className="line-clamp-2 flex-1" title={quote}>{quote}</span>
-              <button onClick={() => useAgentStore.getState().setQuote(null)} className="text-ink-3 hover:text-ink">×</button>
+              <div className="min-w-0 flex-1">
+                {quote.src && (
+                  <div className="truncate" title={`引用自 ${quote.src}`}>
+                    引用自 {quote.src}
+                  </div>
+                )}
+                <div className="line-clamp-2" title={quote.text}>{quote.text}</div>
+              </div>
+              <button onClick={() => useAgentStore.getState().setQuote(null)} className="shrink-0 text-ink-3 hover:text-ink" title="取消引用">×</button>
             </div>
           )}
           <div className="flex items-center gap-2">
