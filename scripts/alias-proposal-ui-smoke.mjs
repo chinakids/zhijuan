@@ -77,7 +77,7 @@ try {
     window.zhijuan.proposals.unshift({
       id: 'demo-alias-1', source: 'agent-chat', chapter: '', slice: '', status: 'pending',
       createdAt: Date.now(),
-      items: [{ target: '人物/沈藏.md', anchor: '', kind: 'replace-text', before: '姓名: 沈藏', after: '姓名: 沈藏\\n别名: [陈师傅, 老陈]', reason: '巡查建议 · 登记称谓别名' }],
+      items: [{ target: '人物/沈藏.md', anchor: '', kind: 'replace-text', before: '姓名: 沈藏', after: '姓名: 沈藏\\n别名: [韩师傅, 老韩]', reason: '巡查建议 · 登记称谓别名' }],
       meta: { note: '称谓发现 · 登记别名' }
     })
     return 'SEEDED'
@@ -115,10 +115,10 @@ try {
     const b = [...document.querySelectorAll('button')].find((x) => x.textContent.includes('前后对照'))
     if (b) b.click()
   })()`)
-  await evalUntil(page, `document.body.innerText.includes('将写入') && document.body.innerText.includes('别名: [陈师傅, 老陈]')`, (v) => v === true, 8000, '前后对照展开')
+  await evalUntil(page, `document.body.innerText.includes('将写入') && document.body.innerText.includes('别名: [韩师傅, 老韩]')`, (v) => v === true, 8000, '前后对照展开')
   const txt = await page.eval(`document.body.innerText`)
   check('卡片「原状」= before（姓名行）', txt.includes('姓名: 沈藏'))
-  check('卡片「将写入」= after（含别名行）', txt.includes('别名: [陈师傅, 老陈]'))
+  check('卡片「将写入」= after（含别名行）', txt.includes('别名: [韩师傅, 老韩]'))
 
   const dir = process.env.HOME + '/Pictures/zhijuan'
   const { mkdirSync } = await import('node:fs')
@@ -131,8 +131,8 @@ try {
     const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === '接受')
     if (b) b.click()
   })()`)
-  await evalUntil(page, `(async () => { try { const d = await window.zhijuan.readDoc('demo-aseya', '人物/沈藏.md'); return (d ?? '').includes('别名: [陈师傅, 老陈]') } catch { return false } })()`, (v) => v === true, 10000, '接受后档案并入')
-  check('接受后 人物/沈藏.md 含「别名: [陈师傅, 老陈]」', true)
+  await evalUntil(page, `(async () => { try { const d = await window.zhijuan.readDoc('demo-aseya', '人物/沈藏.md'); return (d ?? '').includes('别名: [韩师傅, 老韩]') } catch { return false } })()`, (v) => v === true, 10000, '接受后档案并入')
+  check('接受后 人物/沈藏.md 含「别名: [韩师傅, 老韩]」', true)
 
   console.log(`\n全部通过：${pass} 断言`)
   console.log('SCREENSHOT:' + shotFile)

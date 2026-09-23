@@ -80,7 +80,7 @@ try {
       target: '人物/林晓.md', anchor: '切片：第一幕_雾港之夜', kind: 'upsert-section', before: '', after: '- 本幕动向：主动靠近', reason: '测试'
     }])
     window.zhijuan.createProposals('demo-aseya', 'agent-chat', '第2章_灯下.md', '', [{
-      target: '人物/陈默.md', anchor: '', kind: 'append', before: '', after: '- 台词调整', reason: '测试2'
+      target: '人物/韩青.md', anchor: '', kind: 'append', before: '', after: '- 台词调整', reason: '测试2'
     }])
     return 1
   })()`)
@@ -94,7 +94,7 @@ try {
   await evalUntil(page, `document.body.innerText.includes('切片：第一幕_雾港之夜')`, (v) => v === true, 10000, '切片归属显示')
   const cardText = await page.eval(`[...document.querySelectorAll('.rounded-xl')].find((x) => x.innerText?.includes('人物/林晓.md'))?.innerText ?? ''`)
   ok('slice-sync 卡：章+切片归属', cardText.includes('章：第01章_雾港.md') && cardText.includes('切片：第一幕_雾港之夜'), cardText.replace(/\\n/g, ' | ').slice(0, 120))
-  const card2Text = await page.eval(`[...document.querySelectorAll('.rounded-xl')].find((x) => x.innerText?.includes('人物/陈默.md'))?.innerText ?? ''`)
+  const card2Text = await page.eval(`[...document.querySelectorAll('.rounded-xl')].find((x) => x.innerText?.includes('人物/韩青.md'))?.innerText ?? ''`)
   ok('agent 卡：无切片只显示章', card2Text.includes('章：第2章_灯下.md') && !card2Text.includes('切片：'), card2Text.replace(/\\n/g, ' | ').slice(0, 120))
 
   // ④ 无页面异常

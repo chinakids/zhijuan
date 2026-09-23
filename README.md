@@ -89,7 +89,7 @@ npm run start
 
 # 测试与检查
 npm run typecheck
-npm test                 # vitest 单元测试（600+ 用例）
+npm test                 # vitest 单元测试（1159 用例）
 node scripts/serve-renderer.mjs &   # 无头渲染服务
 node scripts/xxx-ui-smoke.mjs       # 无头 UI 冒烟（需本机 Chrome CDP 9224）
 ```

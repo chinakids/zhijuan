@@ -28,7 +28,7 @@ writeFileSync(
     '# 雾渡',
     '',
     '三幕式结构：第一幕 雾港 → 第二幕 灯会 → 第三幕 灯塔。',
-    '主角陈默的终极目标：找到十年前在渡灯会上失踪的妹妹陈曦。',
+    '主角韩青的终极目标：找到十年前在渡灯会上失踪的妹妹陈曦。',
     ''
   ].join('\n'),
   'utf-8'
@@ -59,7 +59,7 @@ chs.forEach(([name, body], i) => {
   const t = new Date(base - (chs.length - 1 - i) * 1000)
   utimesSync(p, t, t)
 })
-writeFileSync(P('人物/陈默.md'), ['# 陈默', '', '档案：灯塔看守人。', ''].join('\n'), 'utf-8')
+writeFileSync(P('人物/韩青.md'), ['# 韩青', '', '档案：灯塔看守人。', ''].join('\n'), 'utf-8')
 writeFileSync(P('人物/林晓.md'), ['# 林晓', '', '档案：渡口杂货店老板。', ''].join('\n'), 'utf-8')
 writeFileSync(P('素材库/桥段_墙上的钟.md'), ['# 桥段：墙上的钟', '', '追忆型开头参考。', ''].join('\n'), 'utf-8')
 writeFileSync(P('素材库/场景_渡口清晨.md'), ['# 场景：渡口清晨', '', '雾气散去的时刻。', ''].join('\n'), 'utf-8')
@@ -99,7 +99,7 @@ const i01 = listBlock.indexOf('第01章_雾港')
 const i02 = listBlock.indexOf('第02章_灯会')
 const i03 = listBlock.indexOf('第03章_灯塔')
 const chOrderOk = i01 >= 0 && i02 > i01 && i03 > i02
-const hasChars = listBlock.includes('陈默') && listBlock.includes('林晓')
+const hasChars = listBlock.includes('韩青') && listBlock.includes('林晓')
 const hasMaterial = listBlock.includes('墙上的钟') && listBlock.includes('渡口清晨')
 console.log('块序=' + orderOk + ' 总纲事实=' + hasName + ' 世界观事实=' + hasRule + ' 正文全量=' + allChs + ' 正文升序=' + chOrderOk + ' 人物路标=' + hasChars + ' 素材路标=' + hasMaterial)
 const dataPass = orderOk && hasName && hasRule && allChs && chOrderOk && hasChars && hasMaterial

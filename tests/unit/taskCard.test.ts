@@ -116,7 +116,7 @@ describe('isTaskStale（采集任务停滞判定；阈值 2 天）', () => {
 describe('isLibraryResultPath（详情预览结果的安全校验）', () => {
   it('管道正常回填的素材路径：通过', () => {
     expect(isLibraryResultPath('素材库/环境/采集_校园老图书馆.md')).toBe(true)
-    expect(isLibraryResultPath('素材库/人物/访谈_陈默.md')).toBe(true)
+    expect(isLibraryResultPath('素材库/人物/访谈_韩青.md')).toBe(true)
   })
 
   it('穿越路径（../）必须挡掉（主进程 readDoc 不防穿越）', () => {

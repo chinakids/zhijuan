@@ -56,7 +56,7 @@ describe('applyAnchor（锚点写入核心算法）', () => {
   })
 
   it('切片锚点不存在 → 追加 H2「## 切片：<名>」（回归：曾追加 H3 漂移）', () => {
-    const text = '# 陈默\n\n## 基础档案\n\n- 姓名：陈默'
+    const text = '# 韩青\n\n## 基础档案\n\n- 姓名：韩青'
     const r = applyAnchor(text, item({ anchor: '切片：第一幕_夜', after: '- 本幕动向：守灯' }))
     expect(r.ok).toBe(true)
     expect(r.out).toContain('## 切片：第一幕_夜')
@@ -78,7 +78,7 @@ describe('applyAnchor（锚点写入核心算法）', () => {
   })
 
   it('锚点精确化：前缀相似不误命中——「夜」不得替换「夜雨」整节（回归：曾 includes 误替换丢数据）', () => {
-    const text = '# 陈默\n\n## 基础档案\n\n- 姓名：陈默\n\n## 切片：第一幕_夜雨\n\n- 雨夜：灯笼与雾\n\n## 成长轨迹\n\n轨迹'
+    const text = '# 韩青\n\n## 基础档案\n\n- 姓名：韩青\n\n## 切片：第一幕_夜雨\n\n- 雨夜：灯笼与雾\n\n## 成长轨迹\n\n轨迹'
     const r = applyAnchor(text, item({ anchor: '切片：第一幕_夜', after: '- 夜：守灯' }))
     expect(r.ok).toBe(true)
     // 「夜雨」整节原样保留
@@ -395,7 +395,7 @@ describe('createSliceProposals（未处置语义精化：正文保存不是失�
 })
 
 describe('extractSectionBody（接受时一致性校验的共用提取，2026-09-20 候选 3）', () => {
-  const doc = '# 陈默\n\n## 基础档案\n\n- 姓名：陈默\n\n## 切片：第一幕_夜\n\n- 动向：守灯\n- 状态：清醒\n\n## 成长轨迹\n\n轨迹内容'
+  const doc = '# 韩青\n\n## 基础档案\n\n- 姓名：韩青\n\n## 切片：第一幕_夜\n\n- 动向：守灯\n- 状态：清醒\n\n## 成长轨迹\n\n轨迹内容'
   it('命中：返回节正文（不含标题行，trim 归一化），截到下一个同级标题前', () => {
     const r = extractSectionBody(doc, '切片：第一幕_夜')
     expect(r.found).toBe(true)
@@ -424,7 +424,7 @@ describe('extractSectionBody（接受时一致性校验的共用提取，2026-09
 })
 
 describe('applyAnchor upsert-section 接受时一致性校验（beforeExact 基线，2026-09-20 候选 3）', () => {
-  const doc = '# 陈默\n\n## 基础档案\n\n- 姓名：陈默\n\n## 切片：第一幕_夜\n\n- 动向：守灯\n\n## 成长轨迹\n\n轨迹'
+  const doc = '# 韩青\n\n## 基础档案\n\n- 姓名：韩青\n\n## 切片：第一幕_夜\n\n- 动向：守灯\n\n## 成长轨迹\n\n轨迹'
   it('基线一致 → 正常整节替换（生成时刻内容未被改动）', () => {
     const r = applyAnchor(doc, item({ anchor: '切片：第一幕_夜', after: '- 动向：离港', beforeExact: '- 动向：守灯' }))
     expect(r.ok).toBe(true)
@@ -443,12 +443,12 @@ describe('applyAnchor upsert-section 接受时一致性校验（beforeExact 基�
     expect(r.msg).toContain('生成时不存在')
   })
   it('基线=字符串（生成时该节存在）而现在找不到该节 → 拒绝（节被删/改名，不再静默追加）', () => {
-    const r = applyAnchor('# 陈默\n\n## 基础档案\n\n基本', item({ anchor: '切片：第一幕_夜', after: '新', beforeExact: '- 旧内容' }))
+    const r = applyAnchor('# 韩青\n\n## 基础档案\n\n基本', item({ anchor: '切片：第一幕_夜', after: '新', beforeExact: '- 旧内容' }))
     expect(r.ok).toBe(false)
     expect(r.msg).toContain('已不存在')
   })
   it('基线=null 且现在无该节 → 正常追加（新动向首落档）', () => {
-    const r = applyAnchor('# 陈默\n\n## 基础档案\n\n基本', item({ anchor: '切片：第一幕_夜', after: '- 新动向', beforeExact: null }))
+    const r = applyAnchor('# 韩青\n\n## 基础档案\n\n基本', item({ anchor: '切片：第一幕_夜', after: '- 新动向', beforeExact: null }))
     expect(r.ok).toBe(true)
     expect(r.out).toContain('## 切片：第一幕_夜')
     expect(r.out).toContain('- 新动向')
@@ -473,19 +473,19 @@ describe('createSliceProposals 生成端基线（beforeExact 写入，2026-09-20
     const proj = join(root, 'p')
     mkdirSync(join(proj, '人物'), { recursive: true })
     writeFileSync(
-      join(proj, '人物/陈默.md'),
-      '# 陈默\n\n## 基础档案\n\n- 姓名：陈默\n\n## 切片：第一幕_夜\n\n- 动向：守灯\n\n## 成长轨迹\n\n轨迹',
+      join(proj, '人物/韩青.md'),
+      '# 韩青\n\n## 基础档案\n\n- 姓名：韩青\n\n## 切片：第一幕_夜\n\n- 动向：守灯\n\n## 成长轨迹\n\n轨迹',
       'utf-8'
     )
   }
   it('upsert-section 写入生成时刻节内容基线（锚点归一化同口径）', () => {
     seedPerson()
-    const r = createSliceProposals(root, 'p', '第1章', '第一幕_夜', [item({ target: '人物/陈默.md', anchor: '切片：第一幕_夜', before: '一句话要点', after: '- 动向：离港' })])
+    const r = createSliceProposals(root, 'p', '第1章', '第一幕_夜', [item({ target: '人物/韩青.md', anchor: '切片：第一幕_夜', before: '一句话要点', after: '- 动向：离港' })])
     expect(r.created[0].items[0].beforeExact).toBe('- 动向：守灯')
   })
   it('该节不存在 → beforeExact=null（生成时无节）', () => {
     seedPerson()
-    const r = createSliceProposals(root, 'p', '第1章', '第一幕_夜', [item({ target: '人物/陈默.md', anchor: '切片：第二幕_昼', after: '- 新动向' })])
+    const r = createSliceProposals(root, 'p', '第1章', '第一幕_夜', [item({ target: '人物/韩青.md', anchor: '切片：第二幕_昼', after: '- 新动向' })])
     expect(r.created[0].items[0].beforeExact).toBeNull()
   })
   it('目标文件不存在 → 跳过基线（undefined，apply 走 IO 失败兜底）', () => {
@@ -494,14 +494,14 @@ describe('createSliceProposals 生成端基线（beforeExact 写入，2026-09-20
   })
   it('非 upsert-section（append/replace-text）不写基线', () => {
     seedPerson()
-    const ra = createSliceProposals(root, 'p', '第1章', '第一幕_夜', [item({ target: '人物/陈默.md', kind: 'append', after: '追加' })])
+    const ra = createSliceProposals(root, 'p', '第1章', '第一幕_夜', [item({ target: '人物/韩青.md', kind: 'append', after: '追加' })])
     expect(ra.created[0].items[0].beforeExact).toBeUndefined()
   })
   it('基线随提案落盘可回读（JSON 保留 null / undefined 不写）', () => {
     seedPerson()
     createSliceProposals(root, 'p', '第1章', '第一幕_夜', [
-      item({ target: '人物/陈默.md', anchor: '切片：第一幕_夜', after: '- 动向：离港' }),
-      item({ target: '人物/陈默.md', anchor: '切片：第二幕_昼', after: '- 新动向' })
+      item({ target: '人物/韩青.md', anchor: '切片：第一幕_夜', after: '- 动向：离港' }),
+      item({ target: '人物/韩青.md', anchor: '切片：第二幕_昼', after: '- 新动向' })
     ])
     const all = listProposals(root, 'p')
     const withBase = all.find((x) => x.items[0].anchor === '切片：第一幕_夜')

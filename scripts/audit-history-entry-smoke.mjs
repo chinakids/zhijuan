@@ -79,8 +79,8 @@ try {
 
   // ② 用 writeDoc 模拟两次重跑（旧内容自动留档 1 版、新内容为当前版）
   const mk = await page.eval(`(async () => {
-    const c1 = '# 审读报告 · 一致性巡查\\n\\n> 织卷写作引擎 · 冒烟一\\n\\n## 一句话结论\\n\\n冒烟：第一版结论。\\n\\n## 条目\\n\\n- 陈默机场值夜（线索 A）\\n'
-    const c2 = '# 审读报告 · 一致性巡查\\n\\n> 织卷写作引擎 · 冒烟二\\n\\n## 一句话结论\\n\\n冒烟：第二版结论。\\n\\n## 条目\\n\\n- 陈默机场值夜（线索 A，依旧）\\n- 新增：第二版条目（线索 B）\\n'
+    const c1 = '# 审读报告 · 一致性巡查\\n\\n> 织卷写作引擎 · 冒烟一\\n\\n## 一句话结论\\n\\n冒烟：第一版结论。\\n\\n## 条目\\n\\n- 韩青机场值夜（线索 A）\\n'
+    const c2 = '# 审读报告 · 一致性巡查\\n\\n> 织卷写作引擎 · 冒烟二\\n\\n## 一句话结论\\n\\n冒烟：第二版结论。\\n\\n## 条目\\n\\n- 韩青机场值夜（线索 A，依旧）\\n- 新增：第二版条目（线索 B）\\n'
     await window.zhijuan.writeDoc(${JSON.stringify(ID)}, ${JSON.stringify(REL)}, c1)
     await window.zhijuan.writeDoc(${JSON.stringify(ID)}, ${JSON.stringify(REL)}, c2)
     return { c1, c2 }

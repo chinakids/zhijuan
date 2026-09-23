@@ -15,6 +15,8 @@ docs/agent-first-优化方向-*.md
 docs/*-进度-*.md
 docs/*-产品规划-*.md
 docs/*-评审*.md
+docs/*-评估-*.md
+docs/写习惯-*.md
 docs/*-走查*.md
 docs/*-冲刺*.md
 docs/*-日志.md
@@ -32,3 +34,5 @@ docs/冒烟回归基线*.md
 dsh-runtime/node_modules/
 dsh-runtime/dshhome/
 dsh-runtime/testwork/
+docs/发布冲刺*.md
+docs/架构评审*.md

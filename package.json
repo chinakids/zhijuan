@@ -1,7 +1,7 @@
 {
   "name": "zhijuan",
   "version": "0.1.0",
-  "description": "织卷 —— AI 辅助小说创作工作台：要素库 + 双曲线编排 + 章节生成",
+  "description": "织卷 —— AI 辅助小说创作工作台：正文为源、设定为流（时间切片 + 提案制 + 创作 agent 协作），纯本地优先。",
   "main": "out/main/index.js",
   "author": "kk",
   "license": "MIT",
@@ -62,5 +62,24 @@
   },
   "allowScripts": {
     "electron@31.7.7": true
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chinakids/zhijuan.git",
+    "directory": ""
+  },
+  "homepage": "https://github.com/chinakids/zhijuan",
+  "bugs": {
+    "url": "https://github.com/chinakids/zhijuan/issues"
+  },
+  "keywords": [
+    "electron",
+    "novel-writing",
+    "ai-writing",
+    "markdown",
+    "local-first",
+    "react",
+    "typescript",
+    "agent"
+  ]
 }

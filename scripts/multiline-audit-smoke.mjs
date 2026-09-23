@@ -74,8 +74,8 @@ try {
   writeDoc(p.id, '人物/林西.md', sec('林西', ['第三幕_雾', '第五幕_灯塔']))
   // 阿七：末幕_归途 跨线同名 → 跳过比较；第三幕_渔火 no=4 单节 → 0 条
   writeDoc(p.id, '人物/阿七.md', sec('阿七', ['末幕_归途', '第三幕_渔火']))
-  // 陈默：过去线内 4→3 降序 → 倒挂 1 条
-  writeDoc(p.id, '人物/陈默.md', sec('陈默', ['第三幕_渔火', '第二幕_旧港']))
+  // 韩青：过去线内 4→3 降序 → 倒挂 1 条
+  writeDoc(p.id, '人物/韩青.md', sec('韩青', ['第三幕_渔火', '第二幕_旧港']))
 
   console.log('--- runChapterOrder（切片时序核查） ---')
   const co = runChapterOrder(p.id)
@@ -105,7 +105,7 @@ try {
   const sorder = sits.filter((i) => i.type === 'timeline')
   const sstruct = sits.filter((i) => i.type === 'structure')
   const ssetting = sits.filter((i) => i.type === 'setting')
-  assert('倒挂条目 = 2（林西 主线 5→3、陈默 过去线 3→2）', sorder.length === 2)
+  assert('倒挂条目 = 2（林西 主线 5→3、韩青 过去线 3→2）', sorder.length === 2)
   assert('跨线同名小节被跳过：与末幕_归途 相关的 timeline 条目 0', sorder.every((i) => !i.where.includes('阿七')))
   assert('阿七 档案零命中', !sits.some((i) => i.where === '人物/阿七.md'))
   assert('无重复/残留条目', sstruct.length === 0 && ssetting.length === 0)

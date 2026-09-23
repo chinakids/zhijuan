@@ -666,7 +666,7 @@ describe('预算截断可见性（2026-09-13 上下文审计第二轮收口）',
         ],
         人物: [
           { file: '人物/周守.md', name: '周守' },
-          { file: '人物/陈默.md', name: '陈默' }
+          { file: '人物/韩青.md', name: '韩青' }
         ],
         素材库: [
           { file: '素材库/b.md', name: '桥段_b' },
@@ -686,7 +686,7 @@ describe('预算截断可见性（2026-09-13 上下文审计第二轮收口）',
     expect(i2).toBeGreaterThan(i1)
     expect(i3).toBeGreaterThan(i2)
     // 其他目录：码位升序（周 U+5468 < 陈 U+9648；场 U+573A < 桥 U+6865）——确定性、跨平台一致
-    expect(doclist.indexOf('周守')).toBeLessThan(doclist.indexOf('陈默'))
+    expect(doclist.indexOf('周守')).toBeLessThan(doclist.indexOf('韩青'))
     expect(doclist.indexOf('场景_a')).toBeLessThan(doclist.indexOf('桥段_b'))
   })
 })

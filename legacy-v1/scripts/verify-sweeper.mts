@@ -29,7 +29,7 @@ function makeProject(): Project {
     worldview: { name: '', city: '', era: '', themes: [], rules: [], background: '' },
     characters: [
       {
-        id: 'c1', name: '许晴', role: '女主', age: 18, isProtagonist: true, tags: ['校花'], fields: [], background: '', relation: '', active: true,
+        id: 'c1', name: '林知秋', role: '女主', age: 18, isProtagonist: true, tags: ['校花'], fields: [], background: '', relation: '', active: true,
         slices: [
           { atChapter: 1, content: '初始：清冷校花', source: 'initial', confirmed: true },
           { atChapter: 3, content: '第三章起：身体变得敏感', source: 'sweep', confirmed: true }
@@ -47,10 +47,10 @@ function makeProject(): Project {
 
 console.log('== 解析 ==')
 check('从 LLM 输出解析出记录（容忍前后文字）', () => {
-  const r = parseAudit('好的，以下是 JSON：\n{"chapterNum":4,"summary":"本章她慢慢接纳了他。","characterStates":[{"name":"许晴","state":"主动抱住了他，不再抗拒"}],"resolved":[],"sown":["下一章她会彻底放开"]}\n希望有帮助')
+  const r = parseAudit('好的，以下是 JSON：\n{"chapterNum":4,"summary":"本章她慢慢接纳了他。","characterStates":[{"name":"林知秋","state":"主动抱住了他，不再抗拒"}],"resolved":[],"sown":["下一章她会彻底放开"]}\n希望有帮助')
   assert.ok(r.record)
   assert.strictEqual(r.record!.summary, '本章她慢慢接纳了他。')
-  assert.strictEqual(r.record!.characterStates[0].charId, '许晴')
+  assert.strictEqual(r.record!.characterStates[0].charId, '林知秋')
 })
 check('无 JSON 时返回错误', () => {
   const r = parseAudit('模型没按要求输出')
@@ -61,21 +61,21 @@ check('无 JSON 时返回错误', () => {
 console.log('== 变化候选 ==')
 check('有状态变化的人物产生候选', () => {
   const p = makeProject()
-  const rec = { chapterNum: 4, summary: 's', characterStates: [{ charId: '许晴', state: '主动抱住了他，不再抗拒' }], resolved: [], sown: [], standingChanges: [] }
+  const rec = { chapterNum: 4, summary: 's', characterStates: [{ charId: '林知秋', state: '主动抱住了他，不再抗拒' }], resolved: [], sown: [], standingChanges: [] }
   const cands = inferChangeCandidates(p, rec)
   assert.ok(cands.length === 1)
   assert.strictEqual(cands[0].targetId, 'c1')
 })
 check('状态与最新切片一致时不产生候选', () => {
   const p = makeProject()
-  const rec = { chapterNum: 4, summary: 's', characterStates: [{ charId: '许晴', state: '第三章起：身体变得敏感' }], resolved: [], sown: [], standingChanges: [] }
+  const rec = { chapterNum: 4, summary: 's', characterStates: [{ charId: '林知秋', state: '第三章起：身体变得敏感' }], resolved: [], sown: [], standingChanges: [] }
   assert.strictEqual(inferChangeCandidates(p, rec).length, 0)
 })
 
 console.log('== 草稿 ==')
 check('toSweepDrafts 生成记录草稿 + 变化草稿，全 pending', () => {
   const p = makeProject()
-  const rec = { chapterNum: 4, summary: 's', characterStates: [{ charId: '许晴', state: '彻底放开自己，不再生涩扭捏' }], resolved: [], sown: [], standingChanges: [] }
+  const rec = { chapterNum: 4, summary: 's', characterStates: [{ charId: '林知秋', state: '彻底放开自己，不再生涩扭捏' }], resolved: [], sown: [], standingChanges: [] }
   const d = toSweepDrafts(p, makeChapter(4, ''), rec, inferChangeCandidates(p, rec))
   assert.ok(d.length >= 2)
   assert.ok(d.every((x) => x.status === 'pending'))
@@ -94,7 +94,7 @@ check('接受记录草稿 → records 追加 + 伏笔同步', () => {
 })
 check('接受人物切片草稿 → 时间线追加 sweep 切片', () => {
   const p = makeProject()
-  const rec = { chapterNum: 4, summary: 's', characterStates: [{ charId: '许晴', state: '已属于他' }], resolved: [], sown: [], standingChanges: [] }
+  const rec = { chapterNum: 4, summary: 's', characterStates: [{ charId: '林知秋', state: '已属于他' }], resolved: [], sown: [], standingChanges: [] }
   const cands = inferChangeCandidates(p, rec)
   const d = toSweepDrafts(p, makeChapter(4, ''), rec, cands)
   p.sweepDrafts = d
@@ -109,7 +109,7 @@ check('接受人物切片草稿 → 时间线追加 sweep 切片', () => {
 })
 check('拒绝草稿标记 rejected 且不动时间线', () => {
   const p = makeProject()
-  const rec = { chapterNum: 4, summary: 's', characterStates: [{ charId: '许晴', state: '变成熟女' }], resolved: [], sown: [], standingChanges: [] }
+  const rec = { chapterNum: 4, summary: 's', characterStates: [{ charId: '林知秋', state: '变成熟女' }], resolved: [], sown: [], standingChanges: [] }
   const d = toSweepDrafts(p, makeChapter(4, ''), rec, inferChangeCandidates(p, rec))
   p.sweepDrafts = d
   const personDraft = d.find((x) => !x.targetId.startsWith('record:'))!

@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    name: Typecheck / Test / Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # CI 只做编译/单测，不 launch Electron——跳过二进制下载提速
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # 主依赖安装（.npmrc 指向 npmmirror，无需额外配置）
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # 无头 UI 冒烟需要本机 Chrome CDP 9224，CI 只跑单元测试与类型检查
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build renderer/main/preload
+        run: npm run build

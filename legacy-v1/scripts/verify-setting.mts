@@ -27,7 +27,7 @@ function legacyProject(): Project {
     characters: [
       {
         id: 'c1',
-        name: '许晴',
+        name: '林知秋',
         role: '女主',
         age: 18,
         isProtagonist: false,

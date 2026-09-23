@@ -53,7 +53,7 @@ assert('project.md 内容真实注入', text.includes('织卷smoke') && text.inc
 assert('含世界观总纲块', ctx.sources.includes('世界观/总纲.md') && text.includes('【世界观总纲】'))
 assert('世界观总纲内容真实注入', text.includes('雾港') && text.includes('回南天'))
 assert('含文档清单块（路标）', text.includes('【文档清单】') && text.includes('正文/：'))
-assert('文档清单列了真实文件名', text.includes('林晓') && text.includes('陈默'))
+assert('文档清单列了真实文件名', text.includes('林晓') && text.includes('韩青'))
 assert('人物目录篇数正确（2 篇）', /人物\/：2 篇/.test(text))
 assert('素材库子目录被纳入递归（有篇数行）', /素材库\/：\d+ 篇/.test(text))
 

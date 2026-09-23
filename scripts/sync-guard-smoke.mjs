@@ -22,10 +22,10 @@ mkdirSync(P('人物'), { recursive: true })
 mkdirSync(P('世界观'), { recursive: true })
 mkdirSync(P('正文'), { recursive: true })
 writeFileSync(P('人物/林晓.md'), '# 林晓\n\n## 基础档案\n\n- 年龄：19\n', 'utf-8')
-writeFileSync(P('人物/陈默.md'), '# 陈默\n\n## 基础档案\n\n- 年龄：24\n', 'utf-8')
+writeFileSync(P('人物/韩青.md'), '# 韩青\n\n## 基础档案\n\n- 年龄：24\n', 'utf-8')
 writeFileSync(
   P('正文/第01章_雾港.md'),
-  ['---', '章号: 1', '题名: 雾港', '切片: 第一幕_雾港之夜', '涉及人物: [林晓, 陈默, 沈藏]', '---', '', '# 雾港', '', '正文一句。'].join('\n'),
+  ['---', '章号: 1', '题名: 雾港', '切片: 第一幕_雾港之夜', '涉及人物: [林晓, 韩青, 沈藏]', '---', '', '# 雾港', '', '正文一句。'].join('\n'),
   'utf-8'
 )
 
@@ -59,24 +59,24 @@ const check = (name, cond) => {
 }
 
 const files = mod.listDocs(pid, '人物').map((d) => d.name)
-check('knownFiles 与真机 listDocs 同口径（剥 .md、按 mtime 排序只是顺序无关）', files.includes('林晓') && files.includes('陈默') && files.length === 2)
+check('knownFiles 与真机 listDocs 同口径（剥 .md、按 mtime 排序只是顺序无关）', files.includes('林晓') && files.includes('韩青') && files.length === 2)
 
 const slice = '第一幕_雾港之夜'
-const cast = ['林晓', '陈默', '沈藏'] // 与约定头「涉及人物」一致
+const cast = ['林晓', '韩青', '沈藏'] // 与约定头「涉及人物」一致
 const mk = (target) => ({ target, anchor: '切片：第一幕_雾港之夜', kind: 'upsert-section', before: '', after: '- 新状态', reason: 'r' })
 
 // 场景 1：正常产物（命中既有档案 + 世界）→ 全保留零 issue
-let items = mod.normalizeSyncItems([mk('人物/林晓.md'), mk('人物/陈默.md'), mk('世界观/切片_第一幕_雾港之夜.md')], slice)
+let items = mod.normalizeSyncItems([mk('人物/林晓.md'), mk('人物/韩青.md'), mk('世界观/切片_第一幕_雾港之夜.md')], slice)
 let g = mod.guardPersonTargets(items, { knownFiles: files, chapterCast: cast })
 check('场景1：命中档案与世界 target 全保留', g.items.length === 3 && g.issues.length === 0)
 check('场景1：世界 target 未被误改', g.items[2].target === '世界观/切片_第一幕_雾港之夜.md')
 
 // 场景 2：编造近名（林晚→林晓）→ 自动纠正
-g = mod.guardPersonTargets([mk('人物/林晚.md')], { knownFiles: files, chapterCast: ['林晓', '陈默'] })
+g = mod.guardPersonTargets([mk('人物/林晚.md')], { knownFiles: files, chapterCast: ['林晓', '韩青'] })
 check('场景2：近名唯一纠正为 人物/林晓.md', g.items.length === 1 && g.items[0].target === '人物/林晓.md' && g.issues[0].action === 'corrected')
 
 // 场景 3：编造且无近名 → 丢弃
-g = mod.guardPersonTargets([mk('人物/顾清欢.md')], { knownFiles: files, chapterCast: ['林晓', '陈默'] })
+g = mod.guardPersonTargets([mk('人物/顾清欢.md')], { knownFiles: files, chapterCast: ['林晓', '韩青'] })
 check('场景3：无近名编造 → 丢弃并记 dropped', g.items.length === 0 && g.issues[0].action === 'dropped' && g.issues[0].reason.includes('不存在'))
 
 // 场景 4：本章涉及人物但未建档（沈藏在涉及人物里、档案不存在）→ 丢弃并明示未建档

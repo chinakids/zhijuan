@@ -353,7 +353,7 @@ const auditDef: SubtaskDef<AuditResult> = {
   // 改回 12288 前先看会话日志 outputTokens/text 占比。
   maxTokens: 20480,
   // 思考档位（2026-09-20 智能层，effort-audit-probe 两现场实测）：consistency default 279.1s/7726 completion
-  // （hit 2 条含陈默身份冲突）vs low 138.7s/4518（hit 同款 high 站位矛盾+衣着，发现集单样本有差异）；
+  // （hit 2 条含韩青身份冲突）vs low 138.7s/4518（hit 同款 high 站位矛盾+衣着，发现集单样本有差异）；
   // perspectives default 303.9s/10257/6 条 vs low 110.5s/3760/7 条（发现集更全、额外命中总纲片区职责冲突）——
   // 检查类=枚举发现问题，命中质量对 think 深度不敏感（与 revision「改」类不同），low 档把 15min 超时风险窗口缩半；
   // 改回默认前先看本探针数据。生效链路=resolveReasoningEffort→driveSession→patch-server-reasoning。

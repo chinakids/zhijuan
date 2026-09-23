@@ -26,18 +26,18 @@ mkdirSync(P('人物'), { recursive: true })
 mkdirSync(P('世界观'), { recursive: true })
 
 const PERSON = (name) => `---\n姓名: ${name}\n身份: 本地体检人物\n---\n\n# ${name}\n\n- 外貌：无\n- 性格：无\n`
-const FM = (no, title) => `---\n章号: ${no}\n题名: ${title}\n切片: 第一幕\n涉及人物: [陈默]\n---\n`
-writeFileSync(P('人物/陈默.md'), PERSON('陈默'), 'utf-8')
-// A：刻意交替（`## 白天·街坊眼里`＝街坊视角 → 陈师傅/老陈；`## 夜里·他自己`＝本名段 → 陈默）
+const FM = (no, title) => `---\n章号: ${no}\n题名: ${title}\n切片: 第一幕\n涉及人物: [韩青]\n---\n`
+writeFileSync(P('人物/韩青.md'), PERSON('韩青'), 'utf-8')
+// A：刻意交替（`## 白天·街坊眼里`＝街坊视角 → 韩师傅/老韩；`## 夜里·他自己`＝本名段 → 韩青）
 writeFileSync(
   P('正文/第01章_街坊.md'),
-  FM(1, '街坊') + '\n## 白天·街坊眼里\n陈师傅搬来梯子。老陈在底下扶着。陈师傅踩了上去，把屋檐的瓦片换好。\n\n## 夜里·他自己\n陈默收工。陈默把扳手擦干净放回工具箱。陈默关了灯，在黑暗里坐了一会儿。\n',
+  FM(1, '街坊') + '\n## 白天·街坊眼里\n韩师傅搬来梯子。老韩在底下扶着。韩师傅踩了上去，把屋檐的瓦片换好。\n\n## 夜里·他自己\n韩青收工。韩青把扳手擦干净放回工具箱。韩青关了灯，在黑暗里坐了一会儿。\n',
   'utf-8'
 )
 // B：无视角标记的单一叙述段乱换
 writeFileSync(
   P('正文/第02章_茶馆.md'),
-  FM(2, '茶馆') + '\n## 午后\n陈默走进茶馆。陈师傅点了一壶茶。老陈坐下来。陈默看着窗外。陈师傅忽然开口。\n',
+  FM(2, '茶馆') + '\n## 午后\n韩青走进茶馆。韩师傅点了一壶茶。老韩坐下来。韩青看着窗外。韩师傅忽然开口。\n',
   'utf-8'
 )
 writeFileSync(P('世界观/切片_第一幕.md'), '---\n切片: 第一幕\n时间: 初秋\n---\n\n# 切片：第一幕\n\n## 环境状态\n雾港近期持续南风。\n', 'utf-8')
@@ -98,7 +98,7 @@ try {
   console.log('=== 0. 规则层：应报 ' + items.length + ' 条 ===')
   const aItem = items.find((i) => i.where.includes('第01章'))
   const bItem = items.find((i) => i.where.includes('第02章'))
-  verdict('A/B 两条应报且 target=人物/陈默.md', !!aItem && !!bItem && aItem.target === '人物/陈默.md' && bItem.target === '人物/陈默.md')
+  verdict('A/B 两条应报且 target=人物/韩青.md', !!aItem && !!bItem && aItem.target === '人物/韩青.md' && bItem.target === '人物/韩青.md')
   verdict('条目自带可执行「别名登记」提案（kind=replace-text）', aItem && bItem && aItem.proposal?.kind === 'replace-text' && bItem.proposal?.kind === 'replace-text', JSON.stringify(aItem?.aliasCandidates) + ' / ' + JSON.stringify(bItem?.aliasCandidates))
 
   // ---- 1. 真模型「让 agent 改」· A（刻意，应保留） ----
@@ -112,8 +112,8 @@ try {
   const finalA = ra.finals.join('\n')
   const bodyEditA = ra.edits.filter((e) => e.file.includes('正文/'))
   const aliasRegA = ra.edits.filter((e) => e.file.includes('人物/') && (e.edits ?? []).some((x) => x.replace?.includes('别名')))
-  // 好：不改正文（说明保留）或只登记别名；坏：正文被机械统一（find 含 陈师傅/老陈 且 replace 只剩单称）
-  const unifiedA = bodyEditA.some((e) => (e.edits ?? []).some((x) => /陈师傅|老陈/.test(x.find ?? '') && !/陈师傅|老陈/.test(x.replace ?? '')))
+  // 好：不改正文（说明保留）或只登记别名；坏：正文被机械统一（find 含 韩师傅/老韩 且 replace 只剩单称）
+  const unifiedA = bodyEditA.some((e) => (e.edits ?? []).some((x) => /韩师傅|老韩/.test(x.find ?? '') && !/韩师傅|老韩/.test(x.replace ?? '')))
   const preserveA = !unifiedA || aliasRegA.length > 0
   verdict(
     'A：未机械统一正文（刻意视角保留）',
@@ -131,7 +131,7 @@ try {
     rb.rec
   )
   const bodyEditB = rb.edits.filter((e) => e.file.includes('正文/'))
-  const unifiedB = bodyEditB.some((e) => (e.edits ?? []).some((x) => /陈师傅|老陈/.test(x.find ?? '') && !/陈师傅|老陈/.test(x.replace ?? '')))
+  const unifiedB = bodyEditB.some((e) => (e.edits ?? []).some((x) => /韩师傅|老韩/.test(x.find ?? '') && !/韩师傅|老韩/.test(x.replace ?? '')))
   verdict('B：正文出统一修改卡（乱换被修）', unifiedB, '正文修改卡=' + bodyEditB.length + ' 错误=' + (rb.errs[0] ?? '无'))
   // 2026-09-15 21:00 轮：focus 预算（12min）验收——B 不再被 8min 截断：无驱动超时错误 + 有收尾 final
   verdict('B：focus 预算下无驱动超时错误', rb.errs.length === 0, rb.errs[0] ?? 'errs 为空')
