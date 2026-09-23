@@ -18,6 +18,8 @@
 //   ZJ_USERDATA = '<字面量路径>'       → 必须含 rmSync(process.env.ZJ_USERDATA 启动清空（否则硬缺口）
 //   ZJ_USERDATA = join(tmp,...)/mkdtemp → 干净（mkdtemp 每跑全新，天然隔离）
 //   ZJ_USERDATA = <const 变量>(=绝对路径字面量) → 同变量 rmSync=干净；只赋未清=硬缺口（2026-09-21 19:30 平台层轮收口）
+//   resetProbeUserdata()（lib/probe-settings.mjs 共享）→ 干净（2026-09-24 07:30 平台层轮适配：判据=调用存在
+//     + 共享实现含 rmSync(dir) + 调用点位于 ZJ_USERDATA 赋值之后；9628ea8 迁移 67 探针后旧判据误报 11 硬缺口）
 //   其他形态                            → 软提示「需人工核对」（出现即请核实）
 //   白名单：zj-bridge.mjs（设计特例豁免，注释见上）
 // 注意：sync-anchor-* 等脚本 bundle 纯函数、不引用 electron-stub 且不读 settings——不入扫描集（判据
@@ -43,8 +45,44 @@ const EXEMPT = new Map([
 
 // ---------- 核心：逐文件形态判定 ----------
 // 返回 { file, kind: 'clean' | 'hard' | 'review', detail }
+
+/** 共享清空路径（2026-09-24 07:30 平台层轮适配，误报根因见头注）：
+ * probes 经 lib/probe-settings.mjs 的 resetProbeUserdata()（rmSync+mkdir+合并真机 llm 三步合一）
+ * 清空——语义强于旧「rmSync 行」，但本审计旧判据只认 rmSync（9628ea8 迁移后 11 个探针误报 hard）。
+ * 判据三连：①脚本确实调用 resetProbeUserdata(；②共享模块该函数实现确实含 rmSync(dir)（防实现
+ * 退化=审计静默放行）；③调用点位于 ZJ_USERDATA 赋值之后（防「先 reset 后赋值」清错目录）。
+ * 任一不满足→分别落到 review / review / hard，不许静默。 */
+function lastUdAssign(content) {
+  const re = /(?:process\.env\.)?ZJ_USERDATA\s*=/g
+  let m
+  let last = -1
+  while ((m = re.exec(content))) last = m.index
+  return last
+}
+function resetImplSafe() {
+  try {
+    const impl = readFileSync(join(SCRIPTS_DIR, 'lib/probe-settings.mjs'), 'utf8')
+    const start = impl.indexOf('export function resetProbeUserdata')
+    if (start === -1) return false
+    const body = impl.slice(start)
+    return /rmSync\s*\(\s*dir\b/.test(body) && /process\.env\.ZJ_USERDATA/.test(body)
+  } catch {
+    return false
+  }
+}
 function assess(content, file) {
   const hasUd = /ZJ_USERDATA\s*=/.test(content)
+  const resetCall = content.indexOf('resetProbeUserdata(')
+  if (resetCall !== -1) {
+    const assignAt = lastUdAssign(content)
+    if (!hasUd || assignAt === -1 || assignAt > resetCall) {
+      return { file, kind: 'hard', detail: '调用 resetProbeUserdata() 前未设 ZJ_USERDATA（或调用先于赋值）——共享清空会作用到旧值/共享默认目录，等于没清' }
+    }
+    if (!resetImplSafe()) {
+      return { file, kind: 'review', detail: 'resetProbeUserdata() 共享实现未含 rmSync(process.env.ZJ_USERDATA) 清空——审计无法确认共享路径安全，请人工核对 lib/probe-settings.mjs' }
+    }
+    return { file, kind: 'clean', detail: '共享 resetProbeUserdata()（probe-settings 三步合一：rmSync+mkdir+合并 llm）' }
+  }
   if (!hasUd) {
     return { file, kind: 'hard', detail: '未设置 ZJ_USERDATA——electron-stub 默认共享 /tmp/zj-smoke-userdata，残留 settings 会污染 libraryRoot→readDoc 全 null（假绿）' }
   }
@@ -132,6 +170,8 @@ function selfcheck() {
   const probeC = join(SCRIPTS_DIR, '_ud-probe-c-smoke.mjs') // 引用 stub + mkdtemp → 必不提示
   const probeD = join(SCRIPTS_DIR, '_ud-probe-d-smoke.mjs') // 引用 stub + 变量形态（const 绝对路径+同变量 rmSync+ZJ_USERDATA=变量）→ 必不提示
   const probeE = join(SCRIPTS_DIR, '_ud-probe-e-smoke.mjs') // 引用 stub + 变量形态但忘 rmSync → 必判硬缺口
+  const probeF = join(SCRIPTS_DIR, '_ud-probe-f-smoke.mjs') // 引用 stub + 赋值后调 resetProbeUserdata() → 必不提示（共享路径，2026-09-24 07:30）
+  const probeG = join(SCRIPTS_DIR, '_ud-probe-g-smoke.mjs') // 引用 stub + resetProbeUserdata() 先于赋值 → 必判硬缺口（清错目录）
   const assert = (name, cond) => {
     console.log(`  ${cond ? '✓' : '✗'} ${name}`)
     cond ? ok++ : bad++
@@ -142,12 +182,16 @@ function selfcheck() {
     writeFileSync(probeC, "// 临时探针 C（自检用，跑完即删）：mkdtemp 干净形态\nimport { mkdtempSync } from 'node:fs'\nconst tmp = mkdtempSync('/tmp/zj-ud-probe-')\nprocess.env.ZJ_USERDATA = tmp\nimport x from 'electron-stub'\nvoid x\n")
     writeFileSync(probeD, "// 临时探针 D（自检用，跑完即删）：变量形态干净（const 绝对路径+同变量 rmSync+ZJ_USERDATA=变量）\nconst ud = '/tmp/zj-ud-probe-d'\nimport { rmSync } from 'node:fs'\nrmSync(ud, { recursive: true, force: true })\nprocess.env.ZJ_USERDATA = ud\nimport x from 'electron-stub'\nvoid x\n")
     writeFileSync(probeE, "// 临时探针 E（自检用，跑完即删）：变量形态但忘 rmSync\nconst ud = '/tmp/zj-ud-probe-e'\nprocess.env.ZJ_USERDATA = ud\nimport x from 'electron-stub'\nvoid x\n")
-    let r = analyze()
+    writeFileSync(probeF, "// 临时探针 F（自检用，跑完即删）：共享 resetProbeUserdata 干净形态\nimport { resetProbeUserdata } from './lib/probe-settings.mjs'\nprocess.env.ZJ_USERDATA = '/tmp/zj-ud-probe-f'\nresetProbeUserdata()\nimport x from 'electron-stub'\nvoid x\n")
+  writeFileSync(probeG, "// 临时探针 G（自检用，跑完即删）：reset 先于赋值=清错目录\nimport { resetProbeUserdata } from './lib/probe-settings.mjs'\nresetProbeUserdata()\nprocess.env.ZJ_USERDATA = '/tmp/zj-ud-probe-g'\nimport x from 'electron-stub'\nvoid x\n")
+  let r = analyze()
     assert('引用 stub 忘设 ZJ_USERDATA 被列硬缺口（正向 A）', r.hard.some((h) => h.file === '_ud-probe-a-smoke.mjs'))
     assert('固定目录无启动清空被列硬缺口（正向 B）', r.hard.some((h) => h.file === '_ud-probe-b-smoke.mjs'))
     assert('mkdtemp 干净形态不被提示（负向 C）', !r.hard.some((h) => h.file === '_ud-probe-c-smoke.mjs') && !r.review.some((h) => h.file === '_ud-probe-c-smoke.mjs'))
     assert('变量形态干净不被提示（负向 D）', !r.hard.some((h) => h.file === '_ud-probe-d-smoke.mjs') && !r.review.some((h) => h.file === '_ud-probe-d-smoke.mjs'))
     assert('变量形态忘清空被列硬缺口（正向 E）', r.hard.some((h) => h.file === '_ud-probe-e-smoke.mjs'))
+    assert('共享 resetProbeUserdata 干净形态不被提示（负向 F）', !r.hard.some((h) => h.file === '_ud-probe-f-smoke.mjs') && !r.review.some((h) => h.file === '_ud-probe-f-smoke.mjs'))
+    assert('reset 先于赋值（清错目录）被列硬缺口（正向 G）', r.hard.some((h) => h.file === '_ud-probe-g-smoke.mjs'))
     assert('zj-bridge 白名单豁免不被提示', !r.hard.some((h) => h.file === 'zj-bridge.mjs'))
   } finally {
     rmSync(probeA, { force: true })
@@ -155,6 +199,8 @@ function selfcheck() {
     rmSync(probeC, { force: true })
     rmSync(probeD, { force: true })
     rmSync(probeE, { force: true })
+    rmSync(probeF, { force: true })
+    rmSync(probeG, { force: true })
   }
   const r2 = analyze()
   assert('清理探针后回到健康基线（无硬缺口/需核对）', r2.hard.length === 0 && r2.review.length === 0)
