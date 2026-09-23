@@ -4,6 +4,9 @@
 // 同构（产品调研见 docs/模块推进/03-平台层.md 2026-09-22 22:30 轮）。v1 零依赖纯拼接：
 // 剥 front matter（织卷内部半结构化元数据不入成品，与 chapter:export 单章导出同口径）
 // ＋ 剥 HTML 注释（分幕缺段占位注释不入成品）＋ 章号/题名作一级标题 ＋ 多线注记。
+// v1.1（2026-09-24）：新增 mdToHtml 纯函数＝「导出作品（Word）」的零依赖转换层
+// （mac 系统 textutil html→docx 已实证，见 docs/模块推进/03-平台层.md 2026-09-24 01:30 轮；
+// 旧结论「docx 需 pandoc=不引」随之修正——textutil 是 mac 内置零依赖路径，win 优雅回退）。
 // 约定：调用方负责收集与线名归一（chapterLine，shared/line.ts 单一权威源），本函数只做拼装。
 
 import { extractFrontMatter } from './fmatter'
@@ -61,4 +64,57 @@ export function compileNovel(chapters: CompileChapterInput[], opts: CompileOptio
     parts.push(`# ${chapterHeading(c.name, fm, c.line, annotate)}\n\n${clean}`)
   }
   return parts.length ? parts.join('\n\n') + '\n' : ''
+}
+
+/** 行内标记：& < > 引号转义后，按 **加粗** → `<strong>`、`代码` → `<code>`、*斜体* → `<em>` 顺序替换。
+ * 转义先于强调：插入的标签含 `<` 但已无 `*` 冲突（强调符非 `<>`）。 */
+function inlineMd(s: string): string {
+  let t = s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+  t = t.replace(/\*\*([^\n*]+?)\*\*/g, '<strong>$1</strong>')
+  t = t.replace(/`([^`\n]+?)`/g, '<code>$1</code>')
+  t = t.replace(/\*([^\n*]+?)\*/g, '<em>$1</em>')
+  return t
+}
+
+/**
+ * 极简 Markdown→HTML（零依赖；「导出作品（Word）」经 mac 系统 textutil 走 html→docx 的转换层）。
+ * 只覆盖小说成品常见标记：标题（#…######，块内只取首行）、段落（空行分隔）、
+ * 无序列表（- / *）、引用（>）、分割线（---）、**加粗**、*斜体*、`代码`；
+ * 其余按纯文本输出（代码块/表格/链接等成品导出不需要，不铺张；确定性、可单测）。
+ * 输出带完整 html 骨架（charset utf-8）——textutil 直接吃此文件。
+ */
+export function mdToHtml(md: string): string {
+  if (!md) return ''
+  const blocks = md.replace(/\r\n?/g, '\n').split(/\n{2,}/)
+  const out: string[] = []
+  for (const raw of blocks) {
+    const lines = raw.split('\n').map((l) => l.trimEnd())
+    const first = lines[0] ?? ''
+    const h = /^(#{1,6})\s+(.+)$/.exec(first)
+    if (h) {
+      out.push(`<h${h[1].length}>${inlineMd(first.slice(h[1].length + 1))}</h${h[1].length}>`)
+      continue
+    }
+    if (/^(-{3,}|\*{3,})$/.test(first.trim())) {
+      out.push('<hr/>')
+      continue
+    }
+    if (/^\s*[-*]\s+/.test(first)) {
+      const items = lines
+        .filter((l) => /^\s*[-*]\s+/.test(l))
+        .map((l) => `<li>${inlineMd(l.replace(/^\s*[-*]\s+/, ''))}</li>`)
+      out.push(`<ul>${items.join('')}</ul>`)
+      continue
+    }
+    if (/^>\s?/.test(first)) {
+      out.push(`<blockquote>${lines.map((l) => inlineMd(l.replace(/^>\s?/, ''))).join('<br/>')}</blockquote>`)
+      continue
+    }
+    out.push(`<p>${lines.map((l) => inlineMd(l)).join('\n')}</p>`)
+  }
+  return `<!DOCTYPE html>\n<html>\n<head><meta charset="utf-8"/></head>\n<body>\n${out.join('\n')}\n</body>\n</html>\n`
 }

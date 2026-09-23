@@ -47,6 +47,11 @@ export const WEAK_MARKERS = ['runChat', 'runSync', '真模型', 'driveSession']
 //   project-ctx-smoke：「真读盘，不依赖模型」（runChat 只是注入块函数名）；
 //   sync-log-ui-smoke：无头 UI 冒烟（devShim），agentSync 是页面 mock 调用（runSync 只出现在注释/口径说明，无引擎/边车/模型）。
 export const REVIEWED_NON_MODEL = new Set([
+  // 2026-09-24 01:5x 平台层轮核对：compile-export-ui-smoke.mjs 与 compile-docx-ui-smoke.mjs（新增）均为
+  // 无头 UI 冒烟（CDP 9224 + devShim 内存 mock 页面，断言首页卡片菜单项与成功 toast；无引擎/边车/模型
+  // fetch 引用——强特征 127.0.0.1(L3/L4) 命中的是 CDP 端口，compileExportDocx 在 devShim 里是示意返回）。
+  'compile-export-ui-smoke.mjs',
+  'compile-docx-ui-smoke.mjs',
   'guard-issues-3entry-ui-smoke.mjs',
   'sync-anchor-smoke.mjs',
   'sync-guard-smoke.mjs',

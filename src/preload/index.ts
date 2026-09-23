@@ -76,6 +76,11 @@ const api = {
     ipcRenderer.invoke('project:compileExport', id) as Promise<
       { ok: true; path: string; chapters: number } | { ok: false; error?: string; cancelled?: boolean }
     >,
+  // 作品编译 v1.1：Word 导出（mac 系统 textutil 零依赖；win/linux 优雅回退）
+  compileExportDocx: (id: string) =>
+    ipcRenderer.invoke('project:compileExportDocx', id) as Promise<
+      { ok: true; path: string; chapters: number } | { ok: false; error?: string; cancelled?: boolean }
+    >,
   revealProject: (id: string) => ipcRenderer.invoke('project:reveal', id),
   openProject: (id: string) => ipcRenderer.invoke('project:open', id) as Promise<boolean>,
   getRecentEntries: () => ipcRenderer.invoke('project:recents') as Promise<RecentEntry[]>,

@@ -721,6 +721,8 @@ const mock = {
   exportProject: async (id: string) => ({ ok: true, dest: '/tmp/导出/' + id }),
   // 作品编译（project:compileExport）：dev 无 fs 不真写文件，返回示意路径 + 章节数（UI 冒烟只断言 ok/path 出现）
   compileExport: async (id: string) => ({ ok: true, path: '/tmp/导出/' + id + '_成品.md', chapters: 3 }),
+  // 作品编译 v1.1 Word 导出（project:compileExportDocx）：同口径示意返回（dev 无 textutil）
+  compileExportDocx: async (id: string) => ({ ok: true, path: '/tmp/导出/' + id + '_成品.docx', chapters: 3 }),
   removeProject: async (id: string) => {
     const i = projects.findIndex((p) => p.id === id)
     if (i >= 0) projects.splice(i, 1)

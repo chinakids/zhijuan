@@ -37,6 +37,7 @@ import { workspaceStatus, ensureWorkspaceDocs, readWorkspaceDoc } from './worksp
 import { appendSaveTrace } from './saveTrace'
 import { runWritingInsights } from './writingInsights'
 import { buildCompiledBody } from './compile'
+import { exportDocx, docxAvailable } from './compileDocx'
 import { listLibraryCategories, createLibraryCategory, searchDocs, recentLibraryDocs } from './library'
 import { listTemplates } from './templates'
 import { workspaceDir } from './settings'
@@ -239,6 +240,26 @@ export function registerIpc() {
     const r = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts)
     if (r.canceled || !r.filePath) return { cancelled: true }
     writeFileAtomic(r.filePath, built.body)
+    return { ok: true, path: r.filePath, chapters: built.chapters }
+  })
+
+  // 作品编译 v1.1：Word 导出（零依赖＝系统 textutil html→docx；win/linux 优雅回退 Markdown）。
+  // 与 compileExport 同模式：buildCompiledBody 只读拼接 → mdToHtml → textutil（src/main/compileDocx.ts）。
+  ipcMain.handle('project:compileExportDocx', async (e, id: string) => {
+    const built = buildCompiledBody(id)
+    if (!built.ok) return { ok: false, error: built.error }
+    if (!built.body) return { ok: false, error: '没有可导出的正文' }
+    if (!docxAvailable()) return { ok: false, error: 'Word 导出需要 macOS 自带的 textutil（当前系统未找到），请改用合并 Markdown 导出' }
+    const opts = {
+      title: '导出作品（Word）',
+      defaultPath: join(app.getPath('documents'), `${basename(projectDir(id))}_成品.docx`),
+      filters: [{ name: 'Word 文档', extensions: ['docx'] }]
+    } as Electron.SaveDialogOptions
+    const win = BrowserWindow.fromWebContents(e.sender)
+    const r = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts)
+    if (r.canceled || !r.filePath) return { cancelled: true }
+    const res = exportDocx(built.body, r.filePath)
+    if (!res.ok) return { ok: false, error: res.error }
     return { ok: true, path: r.filePath, chapters: built.chapters }
   })
 

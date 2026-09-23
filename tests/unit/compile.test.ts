@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compileNovel } from '../../src/shared/compile'
+import { compileNovel, mdToHtml } from '../../src/shared/compile'
 
 const chapter = (name: string, fm: string, body: string) => `${fm}\n${body}`
 
@@ -77,5 +77,39 @@ describe('compileNovel（作品编译·整书合并导出）', () => {
     ])
     expect(out).toContain('# 无号之章\n\nA。')
     expect(out).toContain('# 第2章 第02章_无名\n\nB。')
+  })
+})
+
+describe('mdToHtml（作品编译 Word 导出转换层，零依赖）', () => {
+  it('标题/段落/强调/无序列表转 HTML 骨架', () => {
+    const html = mdToHtml('# 第1章 雾港\n\n雾很大，栈桥**隐没**在灰白里。\n\n- 甲\n- 乙')
+    expect(html).toContain('<!DOCTYPE html>')
+    expect(html).toContain('<h1>第1章 雾港</h1>')
+    expect(html).toContain('<p>雾很大，栈桥<strong>隐没</strong>在灰白里。</p>')
+    expect(html).toContain('<ul><li>甲</li><li>乙</li></ul>')
+  })
+
+  it('特殊字符转义；*斜体* 与 `代码` 行内标记', () => {
+    const html = mdToHtml('A & B < C > D "E"\n\n*斜* 与 `码`')
+    expect(html).toContain('<p>A &amp; B &lt; C &gt; D &quot;E&quot;</p>')
+    expect(html).toContain('<em>斜</em>')
+    expect(html).toContain('<code>码</code>')
+  })
+
+  it('引用块、分割线、二级标题', () => {
+    const html = mdToHtml('> 引言\n\n---\n\n## 小节')
+    expect(html).toContain('<blockquote>引言</blockquote>')
+    expect(html).toContain('<hr/>')
+    expect(html).toContain('<h2>小节</h2>')
+  })
+
+  it('空串 → 空字符串（调用方按「没有可导出的正文」提示）', () => {
+    expect(mdToHtml('')).toBe('')
+  })
+
+  it('未配对强调符按纯文本保留（不产残标签）', () => {
+    const html = mdToHtml('价格 2 * 3')
+    expect(html).toContain('价格 2 * 3')
+    expect(html).not.toContain('<em>')
   })
 })
