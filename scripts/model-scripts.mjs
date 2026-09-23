@@ -36,7 +36,12 @@ export const MODEL_SCRIPTS = new Set([
 //   强特征=几乎必然真模型驱动（出现即可高置信提示）；
 //   弱特征=常见于真模型脚本但也会出现在无模型的数据层/UI 冒烟（runSync/runChat 是页面/数据函数名，
 //           未必走引擎；「真模型」可能是注释描述产物来源）——命中仅提示人工核对，不自动判定。
-export const STRONG_MARKERS = ['LOCAL_LLM_KEY', '127.0.0.1', 'vLLM', 'zj-bridge', 'runDirector', 'runActs', 'runSubtask', 'dsh-runtime']
+// 注：2026-09-24 04:30 平台层轮实测『127.0.0.1』作强特征是坏判据——CDP 无头驱动（9224）与模型地址
+//   同址歧义（实测 202 个未登记脚本 100% 因 fetch('http://127.0.0.1:9224/json/new') 误报=审计失去区分度、
+//   --strict 恒非零失效）；移除后实证：12 名单成员仍 100% 有 LOCAL_LLM_KEY/runChat/runSync/vLLM/
+//   zj-bridge/runDirector/runActs 等命中（零零特征），未登记脚本零命中（无真漏网）。模型特征由其余
+//   markers 承担（真模型脚本必然调用引擎/模型链，不会只靠本地地址）。
+export const STRONG_MARKERS = ['LOCAL_LLM_KEY', 'vLLM', 'zj-bridge', 'runDirector', 'runActs', 'runSubtask', 'dsh-runtime']
 export const WEAK_MARKERS = ['runChat', 'runSync', '真模型', 'driveSession']
 
 // 人工核对过=确非模型类（审计不再提示；理由=核对依据）。2026-09-16 04:30 第一轮审计逐条核对：
