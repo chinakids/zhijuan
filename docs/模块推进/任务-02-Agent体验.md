@@ -19,7 +19,7 @@
 
 ## 三、现状盘点（2026-09-17）
 
-- 已落地：流式生成与取消（含 dsh ABORTED 语义）、工具链连续同工具合并一行×N（默认折叠+展开逐步序号/续读/offset）、折叠组头带组内状态（失败/取消优先）+合计耗时（fa5d5e2）、工具卡 summary 截断（max-w 45%+title）、快捷指令 chips（续写/润色/延伸/巡查/导演 可编辑插入）、划词引用浮层（唯一引用入口，引用选中按钮已删）、EditCard 采纳并写入、AuditDrawer（转提案/让 agent 改/与上次对比）、批注全闭环、TodoCard 完成态（去删除线，Claude Code 范式）、错误气泡一键重试、Agent 面板宽拖拽、输入框引号（引用提示条）、检查菜单收窄（本地规则→状态栏体检）。
+- 已落地：流式生成与取消（含 dsh ABORTED 语义）、工具链连续同工具合并一行×N（默认折叠+展开逐步序号/续读/offset）、折叠组头带组内状态（失败/取消优先）+合计耗时（fa5d5e2）、工具卡 summary 截断（max-w 45%+title）、快捷指令 chips（续写/润色/延伸/巡查/导演 可编辑插入）、划词引用浮层（唯一引用入口，引用选中按钮已删）、EditCard 采纳并写入、AuditDrawer（转提案/让 agent 改/与上次对比）、批注全闭环、TodoCard 完成态（去删除线，Claude Code 范式）、错误气泡一键重试、Agent 面板宽拖拽、输入框引用提示条（节选+「引用自 来源」行+取消×，来源随 doc 相对路径经 quoteSrcOf 生成——2026-09-23 收口）、检查菜单收窄（本地规则→状态栏体检）。
 - 冒烟：tool-chain-ui-smoke / tool-detail-ui-smoke / agent-cancel-ui-smoke / health-bar-ui-smoke / audit-archive / audit-diff / anno-* / float-edge / float-kbd 等。
 
 ## 四、候选（按优先级，下一轮开工先读本节）
@@ -34,6 +34,7 @@
 
 （每轮落档：日期时间 / 四阶段 / 提交号 / 验证；格式沿用模块推进档案。）
 
+- **2026-09-23 08:15–08:5x**：模块档案候选 1（划词引用反馈面）收口，提交 ac5f2ff——引用记录来源 QuoteRef{text,src}：Prose 划词/右键「添加到对话」detail 带 quoteSrc（DocEditor 由 rel 经 quoteSrcOf 生成「类别·名称」；zj:quote-text 兼容旧 string 通道）+ store 未分桶引用并入首项目桶（修人物/素材页划词后回正文引用丢失）+ AgentPanel 提示条来源行「引用自 类别·名称」+发送文案以 quote.src 为准（修切章/跨文档划词来源标错，探针实锤两场景）；quoteSrcOf 单测 6、agentStore +2、quote-src-ui-smoke 13/13、回归 float-kbd 23/23/context-menu-ui/anno-pop/error-retry-bucket/agent-project-bucket/agent-empty 全绿、1155 例三道门绿 + 截图 quote-tip-0845.png。详见 04-体验层.md 迭代日志。
 - **2026-09-23 05:15–05:4x**：模块档案候选 1（错误重试跨项目语义）收口，提交 c3fb655——重试/排队续发按「原消息归属项目」发送（store `messageProject(id)` 归属查询 + `send` opts.project hint，桶读写统一按 hint）；顺带实修 doSend 生成中 Enter 静默丢弃（F-20260917-12 只修 send 内层，用户路径从未生效）；agentStore 单测 +3 / error-retry-bucket-ui-smoke 19/19 / error-notice·agent-project-bucket·agent-empty 回归全绿 / 1140 例三道门绿 + 截图 2 张。详见 04-体验层.md 迭代日志。
 - **2026-09-22 20:15–20:5x**：模块档案候选 3（AgentPanel 对话跨项目保留）收口，提交 78edf4f——按项目分桶（VS Code Copilot per-workspace session 基线）：store byProject/setProject/按 id 路由；useSender asstId 固化+bucketOfSend；agentStore 单测 7 例 + agent-project-bucket-ui-smoke 14/14。详见 04-体验层.md 迭代日志。
 - **2026-09-17 23:15–23:4x**：候选 5（链 [失败→成功] 恢复后组头终态语义）收口，提交 a612ef5——调研（GitHub Actions continue-on-error 官方语义=step 失败允许 job 通过时 run 摘要显示成功；HIG Progress indicators=状态指示瞬态/当前态）+ 落地（summarizeGroup 终态字段 endedFailed/recovered；组头 failed 以 agg 终态为准；「已恢复」中性徽标 zj-chain-recovered 仅尾步失败才红+「让 agent 处理」；失败摘要保留中性色；devShim「链恢复」种子）+ 验证（toolChain 单测 23 例 / chain-recover-ui-smoke 10/10 / 回归 fail-guide 9/9·tool-chain 15/15·tool-cancel 15/15 / 852 例绿）+ 截图 chain-recover-2337a/b.png。
