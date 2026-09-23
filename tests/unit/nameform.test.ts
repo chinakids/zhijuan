@@ -3,12 +3,12 @@ import { nameFormCheck, surnameOf } from '../../src/shared/nameform'
 
 const ch = (file: string, body: string): { file: string; raw: string } => ({
   file,
-  raw: `---\n章号: ${file.match(/(\d+)/)?.[1] ?? '1'}\n题名: ${file}\n涉及人物: [韩青]\n---\n` + body
+  raw: `---\n章号: ${file.match(/(\d+)/)?.[1] ?? '1'}\n题名: ${file}\n涉及人物: [陈默]\n---\n` + body
 })
 
 describe('surnameOf（姓名 → 姓提取）', () => {
   it('常见单姓取首字', () => {
-    expect(surnameOf('韩青')).toBe('韩')
+    expect(surnameOf('陈默')).toBe('陈')
     expect(surnameOf('沈藏')).toBe('沈')
     expect(surnameOf('顾岸')).toBe('顾')
   })
@@ -24,46 +24,46 @@ describe('surnameOf（姓名 → 姓提取）', () => {
 })
 
 describe('nameFormCheck（称谓发现核查纯函数）', () => {
-  it('基础命中：正文「韩师傅」未登记 → low/character/target 指向档案', () => {
+  it('基础命中：正文「陈师傅」未登记 → low/character/target 指向档案', () => {
     const r = nameFormCheck({
-      knownChars: ['韩青'],
-      chapters: [ch('正文/第01章_雾港.md', '韩师傅从门里探出半个头。\n')]
+      knownChars: ['陈默'],
+      chapters: [ch('正文/第01章_雾港.md', '陈师傅从门里探出半个头。\n')]
     })
     expect(r.items).toHaveLength(1)
     const it = r.items[0]
     expect(it.severity).toBe('low')
     expect(it.type).toBe('character')
-    expect(it.what).toContain('「韩师傅」')
-    expect(it.what).toContain('「韩青」')
-    expect(it.target).toBe('人物/韩青.md')
+    expect(it.what).toContain('「陈师傅」')
+    expect(it.what).toContain('「陈默」')
+    expect(it.target).toBe('人物/陈默.md')
     expect(it.where).toContain('正文/第01章_雾港.md')
     expect(r.summary).toContain('1 个')
   })
 
-  it('后缀最长优先：正文「韩老师傅把话说完」→ 报「韩老师傅」（不拆成陈老师）', () => {
+  it('后缀最长优先：正文「陈老师傅把话说完」→ 报「陈老师傅」（不拆成陈老师）', () => {
     const r = nameFormCheck({
-      knownChars: ['韩青'],
-      chapters: [ch('正文/第01章_雾港.md', '韩老师傅把话说完。\n')]
+      knownChars: ['陈默'],
+      chapters: [ch('正文/第01章_雾港.md', '陈老师傅把话说完。\n')]
     })
     expect(r.items).toHaveLength(1)
-    expect(r.items[0].what).toContain('「韩老师傅」')
+    expect(r.items[0].what).toContain('「陈老师傅」')
   })
 
-  it('前缀模式：正文「老韩」「小韩」→ 各一条', () => {
+  it('前缀模式：正文「老陈」「小陈」→ 各一条', () => {
     const r = nameFormCheck({
-      knownChars: ['韩青'],
-      chapters: [ch('正文/第01章_雾港.md', '老韩点了头，小韩没说话。\n')]
+      knownChars: ['陈默'],
+      chapters: [ch('正文/第01章_雾港.md', '老陈点了头，小陈没说话。\n')]
     })
     expect(r.items).toHaveLength(2)
-    expect(r.items.map((i) => i.what).join('')).toContain('「老韩」')
-    expect(r.items.map((i) => i.what).join('')).toContain('「小韩」')
+    expect(r.items.map((i) => i.what).join('')).toContain('「老陈」')
+    expect(r.items.map((i) => i.what).join('')).toContain('「小陈」')
   })
 
   it('已登记为该人物别名 → 不报', () => {
     const r = nameFormCheck({
-      knownChars: ['韩青'],
-      aliasMap: { 韩青: ['韩师傅'] },
-      chapters: [ch('正文/第01章_雾港.md', '韩师傅从门里探出半个头。\n')]
+      knownChars: ['陈默'],
+      aliasMap: { 陈默: ['陈师傅'] },
+      chapters: [ch('正文/第01章_雾港.md', '陈师傅从门里探出半个头。\n')]
     })
     expect(r.items).toHaveLength(0)
     expect(r.summary).toContain('未发现')
@@ -71,28 +71,28 @@ describe('nameFormCheck（称谓发现核查纯函数）', () => {
 
   it('别名冲突（多主）不参与', () => {
     const r = nameFormCheck({
-      knownChars: ['韩青', '韩航'],
-      aliasMap: { 韩青: ['韩师傅'], 韩航: ['韩师傅'] },
-      chapters: [ch('正文/第01章_雾港.md', '韩师傅从门里探出半个头。\n')]
+      knownChars: ['陈默', '陈航'],
+      aliasMap: { 陈默: ['陈师傅'], 陈航: ['陈师傅'] },
+      chapters: [ch('正文/第01章_雾港.md', '陈师傅从门里探出半个头。\n')]
     })
     expect(r.items).toHaveLength(0)
   })
 
   it('归属重叠（同姓两人都未登记同一变体）→ 不报（避免指认错误）', () => {
     const r = nameFormCheck({
-      knownChars: ['韩青', '韩航'],
-      chapters: [ch('正文/第01章_雾港.md', '韩师傅从门里探出半个头。\n')]
+      knownChars: ['陈默', '陈航'],
+      chapters: [ch('正文/第01章_雾港.md', '陈师傅从门里探出半个头。\n')]
     })
     expect(r.items).toHaveLength(0)
   })
 
   it('变体等于他人本名/别名 → 不报', () => {
     const r = nameFormCheck({
-      knownChars: ['韩青', '阿七', '韩师傅'],
-      aliasMap: { 阿七: ['老韩'] },
-      chapters: [ch('正文/第01章_雾港.md', '韩师傅从门里探出半个头。老韩也在场。\n')]
+      knownChars: ['陈默', '阿七', '陈师傅'],
+      aliasMap: { 阿七: ['老陈'] },
+      chapters: [ch('正文/第01章_雾港.md', '陈师傅从门里探出半个头。老陈也在场。\n')]
     })
-    // 韩师傅 = 人物「韩师傅」本名 → 不报；老韩 = 阿七别名 → 不报；唯一剩下的「阿七」无姓 → 无人可报
+    // 陈师傅 = 人物「陈师傅」本名 → 不报；老陈 = 阿七别名 → 不报；唯一剩下的「阿七」无姓 → 无人可报
     expect(r.items).toHaveLength(0)
   })
 
@@ -108,18 +108,18 @@ describe('nameFormCheck（称谓发现核查纯函数）', () => {
 
   it('front matter 与 HTML 注释不计入正文', () => {
     const raw =
-      `---\n章号: 1\n题名: 韩师傅\n涉及人物: [韩青]\n别名: [韩师傅]\n---\n` +
-      '<!-- 韩师傅在注释里 -->\n正文没有称谓。\n'
-    const r = nameFormCheck({ knownChars: ['韩青'], chapters: [{ file: '正文/第01章_雾港.md', raw }] })
+      `---\n章号: 1\n题名: 陈师傅\n涉及人物: [陈默]\n别名: [陈师傅]\n---\n` +
+      '<!-- 陈师傅在注释里 -->\n正文没有称谓。\n'
+    const r = nameFormCheck({ knownChars: ['陈默'], chapters: [{ file: '正文/第01章_雾港.md', raw }] })
     expect(r.items).toHaveLength(0)
   })
 
   it('同一人物×变体只报第一次出现（where 指先到章）', () => {
     const r = nameFormCheck({
-      knownChars: ['韩青'],
+      knownChars: ['陈默'],
       chapters: [
-        ch('正文/第01章_雾港.md', '韩师傅先来。\n'),
-        ch('正文/第02章_灯下.md', '韩师傅又来。\n')
+        ch('正文/第01章_雾港.md', '陈师傅先来。\n'),
+        ch('正文/第02章_灯下.md', '陈师傅又来。\n')
       ]
     })
     expect(r.items).toHaveLength(1)
@@ -137,10 +137,10 @@ describe('nameFormCheck（称谓发现核查纯函数）', () => {
 
   it('单字名/代号人物不参与（阿七的「七爷」不报）', () => {
     const r = nameFormCheck({
-      knownChars: ['阿七', '韩青'],
+      knownChars: ['阿七', '陈默'],
       chapters: [ch('正文/第01章_雾港.md', '七爷在码头等船。\n')]
     })
-    // 只有韩青可查且正文无陈姓称谓 → 零命中
+    // 只有陈默可查且正文无陈姓称谓 → 零命中
     expect(r.items).toHaveLength(0)
   })
 })

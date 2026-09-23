@@ -3,13 +3,13 @@
 // #2 Multiple Names for One Character——同一个人物的多个名称必须克制、有计划地使用并前后一致；
 // 昵称只出现一两次就不值得（"If you find you've called a character some cute nickname but only
 // once or twice, change the reference"）；读者拿着笔记数名字而不是看故事，就是出戏的开始。
-// 中文语境同理：称谓（韩师傅/老韩/沈叔）是人物关系与社会身份的标签，正文里被自然使用但档案未登记时，
+// 中文语境同理：称谓（陈师傅/老陈/沈叔）是人物关系与社会身份的标签，正文里被自然使用但档案未登记时，
 // 机械层三块（presence/unused/conflict）都「看不见」它——unlisted 不命、agent 引用不识别。
 // 本块补上缺口：从人物档案提取姓（复姓优先），枚举常见称谓模式（姓+职业/亲属后缀、老/小/阿/大+姓），
 // 扫全卷正文（剥约定头与 HTML 注释），报「正文用了但档案未登记的疑似称谓」。
 // 与 presence/order/unused/actgaps/sliceord 同构：纯函数、不读盘、输出 AuditResult；零模型、秒级、可高频重跑。
 // 机械层承认局限：只识别「姓+常见后缀 / 老小阿大+姓」两类模式；单字名/代号/网名（无姓可识别）不参与；
-// 三字人名恰好为「姓+单字后缀+名」时可能误报（如「韩叔同」→「韩叔」），low 级提示、方向安全，作者一扫即知。
+// 三字人名恰好为「姓+单字后缀+名」时可能误报（如「陈叔同」→「陈叔」），low 级提示、方向安全，作者一扫即知。
 import { extractFrontMatter } from './fmatter'
 import { conflictedAliases, type PresenceChapter } from './presence'
 import { aliasEditFor } from './aliasEdit'
@@ -100,7 +100,7 @@ function escRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-/** 剥 HTML 注释（分幕缺段占位等），防把注释里的「韩师傅」当正文称谓 */
+/** 剥 HTML 注释（分幕缺段占位等），防把注释里的「陈师傅」当正文称谓 */
 function stripHtmlComments(text: string): string {
   return text.replace(/<!--[\s\S]*?-->/g, '')
 }
@@ -127,7 +127,7 @@ interface PersonInfo {
  * 输出 AuditResult（与审计抽屉同构）。口径：
  * - 只查「已建档且能从名字提取姓」的人物；变体 = 姓+常见后缀 / 老·小·阿·大+姓；
  * - 已登记为该人物别名、别名冲突（多主）、等于任一人物本名/别名、长度 <2 的变体不参与；
- * - 同一变体被两个及以上人物共享（如同姓双雄都未登记「韩师傅」）→ 归属不明，不报；
+ * - 同一变体被两个及以上人物共享（如同姓双雄都未登记「陈师傅」）→ 归属不明，不报；
  * - 每（人物 × 变体）只报第一条命中；命中给出「首次出现于」的上下文片段。
  */
 export function nameFormCheck(opts: {
@@ -245,9 +245,9 @@ export function nameFormCheck(opts: {
 // K.M. Weiland「Does Your Story Maintain Consistency in the Details?」（2011-05-11）举 Gaskell《Wives
 // & Daughters》例：女主角不同阶段被不同人用不同名字称呼——变名/异称可以有叙事理由（关系/视角变化），
 // 但**同章叙述层来回切换**通常是失控；ProWritingAid 的一致性报告只到「拼写/大小写/数字」文字级，
-// 无法识别「韩青=韩师傅=老韩」——织卷人物档案自带姓名/别名映射，可自动归属。
-// 与传统检测不同的是只看**叙述层（引号外）**：对话中人物互相称呼多变是正常的（韩师傅在对话里被叫
-// 「韩师傅」、被叫「老韩」都不算混用），叙述层才是作者用称失控的高发区。
+// 无法识别「陈默=陈师傅=老陈」——织卷人物档案自带姓名/别名映射，可自动归属。
+// 与传统检测不同的是只看**叙述层（引号外）**：对话中人物互相称呼多变是正常的（陈师傅在对话里被叫
+// 「陈师傅」、被叫「老陈」都不算混用），叙述层才是作者用称失控的高发区。
 // 判据（2026-09-15 06:00 轮判框架 + 本轮细化）：同章内同一人物在叙述层使用 ≥2 种不同称呼、且
 // 交替（相邻出现即换称呼）≥3 次才提示；措辞「可能刻意」（自由间接引语/视角切换下异称有叙事语义，
 // 见 Wikipedia Free indirect speech——叙述者可「roam from viewpoint to viewpoint」）。

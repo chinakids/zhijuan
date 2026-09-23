@@ -28,7 +28,7 @@ const base: Project = {
   worldview: { name: '岚州', city: '岚州', era: '当代', themes: ['x'], rules: ['r'], background: '一个很长的背景'.repeat(200) },
   characters: [
     {
-      id: 'c1', name: '林知秋', role: '女主', age: 18, isProtagonist: true, tags: ['校花', '学生'], fields: [], background: '', relation: '', active: true,
+      id: 'c1', name: '许晴', role: '女主', age: 18, isProtagonist: true, tags: ['校花', '学生'], fields: [], background: '', relation: '', active: true,
       slices: [
         { atChapter: 1, content: '初始状态：清冷校花', source: 'initial', confirmed: true },
         { atChapter: 3, content: '第三章起：身体变得敏感', source: 'sweep', confirmed: true, changeLog: '第三章后变化' },
@@ -40,7 +40,7 @@ const base: Project = {
       slices: [{ atChapter: 1, content: '数学老师，温和', source: 'initial', confirmed: true }]
     },
     {
-      id: 'c3', name: '韩青', role: '男主', age: 28, isProtagonist: true, tags: ['维修工'], fields: [], background: '', relation: '', active: true,
+      id: 'c3', name: '陈默', role: '男主', age: 28, isProtagonist: true, tags: ['维修工'], fields: [], background: '', relation: '', active: true,
       slices: [{ atChapter: 1, content: '校工，可出入各学校', source: 'initial', confirmed: true }]
     }
   ],
@@ -67,9 +67,9 @@ function makeProject(over: Partial<Project>): Project {
 console.log('== 召回 ==')
 check('要素提到名字 → 对应人物被选中', () => {
   const p = makeProject({ elements: [] })
-  const c = buildAssembledContext(p, ch(5, '林知秋在琴房'))
+  const c = buildAssembledContext(p, ch(5, '许晴在琴房'))
   const names = c.chars.map((i) => i.target.name)
-  assert.ok(names.includes('林知秋'), '应选中林知秋，实际: ' + names.join(','))
+  assert.ok(names.includes('许晴'), '应选中许晴，实际: ' + names.join(','))
 })
 check('主角恒在（即使无命中）', () => {
   const p = makeProject({})
@@ -90,8 +90,8 @@ check('要素提到场景名 → 场景条目被召回；停用条目不进', ()
 console.log('== 时间旅行（防啃书啃错） ==')
 check('写第 5 章时用第 3 章起的切片（未来第 6 章起的不提前出现）', () => {
   const p = makeProject({})
-  const c = buildAssembledContext(p, ch(5, '林知秋'))
-  const xu = c.chars.find((i) => i.target.name === '林知秋')!
+  const c = buildAssembledContext(p, ch(5, '许晴'))
+  const xu = c.chars.find((i) => i.target.name === '许晴')!
   assert.ok(xu.excerpt.includes('身体变得敏感'), '应取第三章状态，实际: ' + xu.excerpt)
   assert.ok(!xu.excerpt.includes('彻底臣服'), '第六章状态不得提前出现')
 })
@@ -103,32 +103,32 @@ check('人物数上限 ' + BUDGET.charsMax + '，单份档案 ≤' + BUDGET.perC
     slices: [{ atChapter: 1, content: '路人' + k + '的设定'.repeat(300), source: 'initial', confirmed: true }]
   }))
   const p = makeProject({ characters: [...base.characters, ...many] })
-  const c = buildAssembledContext(p, ch(5, '林知秋'))
+  const c = buildAssembledContext(p, ch(5, '许晴'))
   assert.ok(c.chars.length <= BUDGET.charsMax, '人物数 ' + c.chars.length)
   for (const i of c.chars) assert.ok(i.excerpt.length <= BUDGET.perCharMax + 20, '档案超长: ' + i.target.name + ' ' + i.excerpt.length)
 })
 check('未兑现伏笔常驻，已兑现的不出现', () => {
   const p = makeProject({})
-  const c = buildAssembledContext(p, ch(5, '林知秋'))
+  const c = buildAssembledContext(p, ch(5, '许晴'))
   assert.ok(c.openForeshadows.some((f) => f.includes('异能档位')))
   assert.ok(!c.openForeshadows.some((f) => f.includes('玻璃杯')))
 })
 check('前情只带本章之前的（第 5 章时不带第 5 章前情本身的 future）', () => {
   const p = makeProject({})
-  const c = buildAssembledContext(p, ch(5, '林知秋'))
+  const c = buildAssembledContext(p, ch(5, '许晴'))
   assert.ok(c.recent.every((r) => r.chapterNum < 5), '前情章号应都小于 5: ' + c.recent.map((r) => r.chapterNum).join(','))
   assert.ok(c.recent.some((r) => r.chapterNum === 4), '最近的第四章应在场')
 })
 check('较早前情被衰减（占位更少）', () => {
   const p = makeProject({})
-  const c = buildAssembledContext(p, ch(5, '林知秋'))
+  const c = buildAssembledContext(p, ch(5, '许晴'))
   const r1 = c.recent.find((r) => r.chapterNum === 1)!
   const r4 = c.recent.find((r) => r.chapterNum === 4)!
   assert.ok(r1.summary.length < r4.summary.length, '第一章应比第四章短')
 })
 check('composition 可读且显示预算', () => {
   const p = makeProject({})
-  const c = buildAssembledContext(p, ch(5, '林知秋'))
+  const c = buildAssembledContext(p, ch(5, '许晴'))
   const d = describeComposition(c)
   assert.ok(d.includes('预算'))
   console.log('  --- 示例组合诊断 ---')

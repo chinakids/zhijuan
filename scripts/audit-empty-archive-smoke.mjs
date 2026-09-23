@@ -49,9 +49,9 @@ mkdirSync(d + '/正文', { recursive: true })
 mkdirSync(d + '/人物', { recursive: true })
 mkdirSync(d + '/世界观', { recursive: true })
 mkdirSync(d + '/大纲', { recursive: true })
-writeFileSync(d + '/正文/第01章_雾港.md', '---\n章号: 1\n题名: 雾港\n切片: 第一幕\n涉及人物: [韩青]\n---\n正文内容。', 'utf-8')
+writeFileSync(d + '/正文/第01章_雾港.md', '---\n章号: 1\n题名: 雾港\n切片: 第一幕\n涉及人物: [陈默]\n---\n正文内容。', 'utf-8')
 // 预置一份「上次好报告」：必须保持不被覆盖
-const prevReport = '# 审读报告 · 一致性巡查\n\n> 织卷写作引擎 · 2026-09-19 06:00 · 每次重跑覆盖本文件…\n\n## 一句话结论\n\n（无总结）\n\n## 条目（1）\n\n### 1 · [高] 设定冲突\n\n- 位置：第01章\n- 现象：韩青机场值夜与档案冲突\n- 建议：改回\n'
+const prevReport = '# 审读报告 · 一致性巡查\n\n> 织卷写作引擎 · 2026-09-19 06:00 · 每次重跑覆盖本文件…\n\n## 一句话结论\n\n（无总结）\n\n## 条目（1）\n\n### 1 · [高] 设定冲突\n\n- 位置：第01章\n- 现象：陈默机场值夜与档案冲突\n- 建议：改回\n'
 writeFileSync(d + '/大纲/审读_一致性巡查.md', prevReport, 'utf-8')
 
 const mod = await import(pathToFileURL(out).href)

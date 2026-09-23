@@ -33,10 +33,10 @@ let project: Project = {
   worldview: { name: '岚州', city: '岚州', era: '当代', themes: ['校园'], rules: ['主角可出入各校'], background: '封闭式高中。' },
   characters: [
     {
-      id: 'c1', name: '林知秋', role: '女主', age: 18, isProtagonist: true, tags: ['校花', '学生'], fields: [{ key: '皮肤', value: '很白' }], background: '高三级花', relation: '学生'
+      id: 'c1', name: '许晴', role: '女主', age: 18, isProtagonist: true, tags: ['校花', '学生'], fields: [{ key: '皮肤', value: '很白' }], background: '高三级花', relation: '学生'
     } as unknown as Character,
     {
-      id: 'c2', name: '韩青', role: '男主', age: 28, isProtagonist: true, tags: ['维修工'], fields: [], background: '', relation: ''
+      id: 'c2', name: '陈默', role: '男主', age: 28, isProtagonist: true, tags: ['维修工'], fields: [], background: '', relation: ''
     } as unknown as Character
   ],
   chapters: [ch(1), ch(2), ch(3), ch(4), ch(5)],
@@ -55,15 +55,15 @@ check('老项目归一会补全集合字段并给人物建立初始切片', () =
 })
 
 console.log('== 第一回合：写第四章 → 组配（防未来泄） → 审计 → 确认 ==')
-let p = buildAssembledContext(project, ch(4, '林知秋和他在琴房'))
-check('组配只带主角，且林知秋此刻仍是初始状态（第六七章的事不在场）', () => {
-  const xu = p.chars.find((i) => i.target.name === '林知秋')!
-  assert.ok(xu, '林知秋应在场')
+let p = buildAssembledContext(project, ch(4, '许晴和他在琴房'))
+check('组配只带主角，且许晴此刻仍是初始状态（第六七章的事不在场）', () => {
+  const xu = p.chars.find((i) => i.target.name === '许晴')!
+  assert.ok(xu, '许晴应在场')
   assert.ok(xu.excerpt.includes('高三级花'), '应是初始状态')
 })
 
 const fakeAudit = `好的，第四章她发生了变化：
-{"chapterNum":4,"summary":"琴房里她第一次主动抱住了他。","characterStates":[{"name":"林知秋","state":"身体彻底放开，开始主动回应"}],"resolved":[],"sown":["她身体深处藏着秘密"],"standingChanges":[]} `
+{"chapterNum":4,"summary":"琴房里她第一次主动抱住了他。","characterStates":[{"name":"许晴","state":"身体彻底放开，开始主动回应"}],"resolved":[],"sown":["她身体深处藏着秘密"],"standingChanges":[]} `
 const { record } = parseAudit(fakeAudit)
 assert.ok(record)
 const cands = inferChangeCandidates(project, record)
@@ -80,7 +80,7 @@ check('确认前：时间线仍只有初始切片', () => {
 const r = applySweeps(project, drafts.map((d) => d.id))
 project = { ...project, characters: r.characters, elements: r.elements, records: r.records, foreshadows: r.foreshadows, sweepDrafts: r.drafts }
 
-check('确认后：林知秋时间线多了 sweep 切片（第 4 章起）', () => {
+check('确认后：许晴时间线多了 sweep 切片（第 4 章起）', () => {
   const xu = project.characters.find((c) => c.id === 'c1')!
   assert.strictEqual(xu.slices.length, 2)
   assert.strictEqual(xu.slices[1].atChapter, 4)
@@ -95,9 +95,9 @@ check('章节记录已落库', () => {
 })
 
 console.log('== 第二回合：写第五章 → 组配必须用到第四章后的新状态 ==')
-p = buildAssembledContext(project, ch(5, '林知秋'))
+p = buildAssembledContext(project, ch(5, '许晴'))
 check('第五章组配带上的是第四章后的最新状态（不再啃第一章的旧设定）', () => {
-  const xu = p.chars.find((i) => i.target.name === '林知秋')!
+  const xu = p.chars.find((i) => i.target.name === '许晴')!
   assert.ok(xu.excerpt.includes('主动回应'), '应取到新状态，实际: ' + xu.excerpt)
   assert.ok(!xu.excerpt.includes('只是高三级花后续'), '不应退回初始')
 })

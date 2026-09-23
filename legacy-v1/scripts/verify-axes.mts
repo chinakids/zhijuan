@@ -41,7 +41,7 @@ check('旧曲线（axis+points）能被 pivotAxes 合成为一根轴', () => {
 
 console.log('== 多轴自由曲线 ==')
 check('带 axes 时用 axes（忽略 legacy axis）', () => {
-  const c = curve('林知秋', 'character', [], [
+  const c = curve('许晴', 'character', [], [
     { id: 'a1', name: '她的主动权', points: [{ x: 0, y: 20 }, { x: 100, y: 95 }], bands: undefined },
     { id: 'a2', name: '两人距离', points: [{ x: 0, y: 60 }, { x: 100, y: 30 }], bands: shyBands }
   ])

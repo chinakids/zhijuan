@@ -142,17 +142,17 @@ const inputVal = (ph) => `(document.querySelector('input[placeholder=${JSON.stri
 
     // 修改人物（预填可改）→ 创建第 2 章
     await page.eval(fill('input[placeholder="如：夏夜的信"]', '第二章 夜航'))
-    await page.eval(fill('input[placeholder="如：林晚，顾知远"]', '林晚，韩青'))
+    await page.eval(fill('input[placeholder="如：林晚，顾知远"]', '林晚，陈默'))
     await sleep(150)
     await page.eval(clickBtn('创建'))
     await evalUntil(page, pageHas('第2章 · 第二章 夜航'), (v) => v === true, 15000, '第2章列表出现')
     ok('P7 第2章创建成功（第2章 · 第二章 夜航）', true)
 
-    // —— 第三次点「＋」：预填应跟随最新上一章（人物=林晚, 韩青）——
+    // —— 第三次点「＋」：预填应跟随最新上一章（人物=林晚, 陈默）——
     await page.eval(`(() => { const els=[...document.querySelectorAll('button')]; const el=els.find(b=>b.title==='新建章节'); if(!el) return false; el.click(); return true })()`)
     await evalUntil(page, `document.querySelector('input[placeholder="如：夏夜的信"]') !== null`, (v) => v === true, 10000, '第3章建章对话框')
-    ok('P8 预填跟随最新上一章：人物=「林晚，韩青」（非首次缓存）',
-      (await page.eval(inputVal('如：林晚，顾知远'))) === '林晚，韩青')
+    ok('P8 预填跟随最新上一章：人物=「林晚，陈默」（非首次缓存）',
+      (await page.eval(inputVal('如：林晚，顾知远'))) === '林晚，陈默')
     ok('P9 预填跟随最新上一章：切片仍「第一幕_雾港夜」',
       (await page.eval(inputVal('如：第二幕_台风夜（留空则用章号）'))) === '第一幕_雾港夜')
     await page.eval(clickBtn('取消'))
@@ -164,7 +164,7 @@ const inputVal = (ph) => `(document.querySelector('input[placeholder=${JSON.stri
       return await window.zhijuan.readDoc(id, '正文/第02章_第二章 夜航.md') ?? ''
     })()`)
     ok('P10 第2章约定头落盘（切片/涉及人物与输入一致）',
-      raw.includes('切片: 第一幕_雾港夜') && raw.includes('涉及人物: [林晚, 韩青]'),
+      raw.includes('切片: 第一幕_雾港夜') && raw.includes('涉及人物: [林晚, 陈默]'),
       JSON.stringify((raw.match(/^切片:.*$/m) ?? [''])[0]) + ' / ' + JSON.stringify((raw.match(/^涉及人物:.*$/m) ?? [''])[0]))
 
     ok('P11 全程无 JS 异常/console.error', page.errors.length === 0, page.errors.slice(0, 2).join(' ; '))

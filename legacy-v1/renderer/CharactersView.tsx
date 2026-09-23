@@ -104,7 +104,7 @@ export default function CharactersView({ project, onSave }: Props) {
                   checked={selected.isProtagonist}
                   onChange={(e) => updateChar(selected.id, { isProtagonist: e.target.checked })}
                 />
-                贯穿主角（如韩青式人物）
+                贯穿主角（如陈默式人物）
               </label>
             </div>
 

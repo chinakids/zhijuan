@@ -10,7 +10,7 @@ import {
 
 const ch = (file: string, body: string): { file: string; raw: string } => ({
   file,
-  raw: `---\n章号: ${file.match(/(\d+)/)?.[1] ?? '1'}\n题名: ${file}\n涉及人物: [韩青]\n---\n` + body
+  raw: `---\n章号: ${file.match(/(\d+)/)?.[1] ?? '1'}\n题名: ${file}\n涉及人物: [陈默]\n---\n` + body
 })
 
 describe('visibleBodyOf（正文清洗）', () => {

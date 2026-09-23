@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { shouldBlockEmptyRestore } from '../../src/renderer/src/features/sync/guardRestore'
 
-const FM = '---\n章号: 1\n题名: 雾港栈桥\n切片: 第一幕_夜\n涉及人物: [韩青, 林晓]\n---\n'
+const FM = '---\n章号: 1\n题名: 雾港栈桥\n切片: 第一幕_夜\n涉及人物: [陈默, 林晓]\n---\n'
 const BODY = '凌晨两点，雾把栈桥吞了一半。\n'
 
 describe('guardRestore.shouldBlockEmptyRestore（恢复空版本防线判据，P1 F-20260917-10）', () => {

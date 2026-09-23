@@ -64,8 +64,8 @@ describe('writeDoc 写盘审计（write-log.jsonl）', () => {
     const rel = '正文/第01章_雾.md'
     const orig = '# 雾\n\n凌晨两点，雾把栈桥吞了一半。\n'
     store.writeDoc(PID, rel, orig)
-    // 模拟 P1 现场：正文被写成「仅约定头 92B」（真实种子 fm：题名雾港栈桥+韩青/林晓）
-    const fmOnly = '---\n章号: 1\n题名: 雾港栈桥\n切片: 第一幕_夜\n涉及人物: [韩青, 林晓]\n---\n'
+    // 模拟 P1 现场：正文被写成「仅约定头 92B」（真实种子 fm：题名雾港栈桥+陈默/林晓）
+    const fmOnly = '---\n章号: 1\n题名: 雾港栈桥\n切片: 第一幕_夜\n涉及人物: [陈默, 林晓]\n---\n'
     store.writeDoc(PID, rel, fmOnly)
     const entries = listWriteLog(PID, '正文/')
     expect(entries).toHaveLength(1) // 首次写盘无快照条件故不记录
@@ -86,8 +86,8 @@ describe('writeDoc 写盘审计（write-log.jsonl）', () => {
   })
 
   it('非版本化 rel（人物/）写盘 → 不记录', () => {
-    store.writeDoc(PID, '人物/韩青.md', '---\n姓名: 韩青\n---\n\n# 基础档案\n\n- 本职：市政维修处\n')
-    store.writeDoc(PID, '人物/韩青.md', '---\n姓名: 韩青\n---\n\n# 基础档案\n\n- 本职：市政维修处\n- 习惯：眼睛总往天上瞟\n')
+    store.writeDoc(PID, '人物/陈默.md', '---\n姓名: 陈默\n---\n\n# 基础档案\n\n- 本职：市政维修处\n')
+    store.writeDoc(PID, '人物/陈默.md', '---\n姓名: 陈默\n---\n\n# 基础档案\n\n- 本职：市政维修处\n- 习惯：眼睛总往天上瞟\n')
     expect(listWriteLog(PID)).toHaveLength(0)
   })
 

@@ -49,7 +49,7 @@ const assert = (name, cond) => {
   console.log('  ✓ ' + name)
 }
 
-const FM = (no, title) => `---\n章号: ${no}\n题名: ${title}\n切片: 第${no}幕\n涉及人物: [韩青]\n---\n`
+const FM = (no, title) => `---\n章号: ${no}\n题名: ${title}\n切片: 第${no}幕\n涉及人物: [陈默]\n---\n`
 const PERSON = (name, alias) => `---\n姓名: ${name}\n身份: 本地冒烟人物\n${alias ? `别名: [${alias.join(', ')}]\n` : ''}---\n\n# ${name}\n\n- 外貌：无\n- 性格：无\n`
 
 try {
@@ -58,12 +58,12 @@ try {
   if (!p) throw new Error('createProject 失败')
   const libRoot = libraryRoot()
 
-  // 韩青：无别名行（走「姓名行后插入」）；沈藏：已有别名 [沈爷]（走「合并」）
-  writeDoc(p.id, '人物/韩青.md', PERSON('韩青'))
+  // 陈默：无别名行（走「姓名行后插入」）；沈藏：已有别名 [沈爷]（走「合并」）
+  writeDoc(p.id, '人物/陈默.md', PERSON('陈默'))
   writeDoc(p.id, '人物/沈藏.md', PERSON('沈藏', ['沈爷']))
 
-  // 混用：韩青 第1章（韩师傅/老韩/韩青 交替）、沈藏 第2章（沈藏/沈爷 交替）
-  writeDoc(p.id, '正文/第01章_街坊.md', FM(1, '街坊') + '韩师傅搬来梯子。老韩在底下扶着。韩师傅踩了上去。韩青收工。韩青关门。韩青熄灯。\n')
+  // 混用：陈默 第1章（陈师傅/老陈/陈默 交替）、沈藏 第2章（沈藏/沈爷 交替）
+  writeDoc(p.id, '正文/第01章_街坊.md', FM(1, '街坊') + '陈师傅搬来梯子。老陈在底下扶着。陈师傅踩了上去。陈默收工。陈默关门。陈默熄灯。\n')
   writeDoc(p.id, '正文/第02章_码头.md', FM(2, '码头') + '沈藏站在船头。沈爷在码头喊他。沈藏没回头。沈爷又喊。沈藏才应了一声。\n')
 
   const mix = runNameMix(p.id)
@@ -71,31 +71,31 @@ try {
   const mixItems = mix.ok ? mix.result.items : []
   assert('mixform 报 2 条', mixItems.length === 2)
 
-  const chen = mixItems.find((i) => i.target === '人物/韩青.md')
-  assert('韩青条目：aliasCandidates=[韩师傅,老韩]', chen && JSON.stringify(chen.aliasCandidates) === JSON.stringify(['韩师傅', '老韩']))
-  assert('韩青条目：proposal kind=replace-text 且 before=姓名行', chen && chen.proposal && chen.proposal.kind === 'replace-text' && chen.proposal.before === '姓名: 韩青')
-  assert('韩青条目：proposal.after 只含别名行（无建议文本/依据）', chen && chen.proposal && chen.proposal.after === '姓名: 韩青\n别名: [韩师傅, 老韩]' && !chen.proposal.after.includes('若几种称呼') && !chen.proposal.after.includes('> 依据：'))
+  const chen = mixItems.find((i) => i.target === '人物/陈默.md')
+  assert('陈默条目：aliasCandidates=[陈师傅,老陈]', chen && JSON.stringify(chen.aliasCandidates) === JSON.stringify(['陈师傅', '老陈']))
+  assert('陈默条目：proposal kind=replace-text 且 before=姓名行', chen && chen.proposal && chen.proposal.kind === 'replace-text' && chen.proposal.before === '姓名: 陈默')
+  assert('陈默条目：proposal.after 只含别名行（无建议文本/依据）', chen && chen.proposal && chen.proposal.after === '姓名: 陈默\n别名: [陈师傅, 老陈]' && !chen.proposal.after.includes('若几种称呼') && !chen.proposal.after.includes('> 依据：'))
 
   const shen = mixItems.find((i) => i.target === '人物/沈藏.md')
   assert('沈藏条目：变体全已登记 → 无可登记别名 → 不构造 proposal（回退旧行为）', shen && Array.isArray(shen.aliasCandidates) && shen.aliasCandidates.length === 0 && shen.proposal === undefined)
 
-  // 称谓发现核查：韩青 未登记「韩师傅」也应带可执行提案
-  writeDoc(p.id, '正文/第03章_茶馆.md', FM(3, '茶馆') + '韩师傅走进茶馆。韩师傅点了一壶茶。\n')
+  // 称谓发现核查：陈默 未登记「陈师傅」也应带可执行提案
+  writeDoc(p.id, '正文/第03章_茶馆.md', FM(3, '茶馆') + '陈师傅走进茶馆。陈师傅点了一壶茶。\n')
   const form = runNameForms(p.id)
   assert('runNameForms ok', form.ok === true)
-  const formItem = (form.ok ? form.result.items : []).find((i) => i.target === '人物/韩青.md')
-  assert('nameform 条目：aliasCandidates=[韩师傅] + proposal 构造成功', formItem && JSON.stringify(formItem.aliasCandidates) === JSON.stringify(['韩师傅']) && formItem.proposal && formItem.proposal.before === '姓名: 韩青')
+  const formItem = (form.ok ? form.result.items : []).find((i) => i.target === '人物/陈默.md')
+  assert('nameform 条目：aliasCandidates=[陈师傅] + proposal 构造成功', formItem && JSON.stringify(formItem.aliasCandidates) === JSON.stringify(['陈师傅']) && formItem.proposal && formItem.proposal.before === '姓名: 陈默')
 
-  // 应用提案：韩青（replace-text 姓名行）→ 落盘后别名并入、档案其余零污染
+  // 应用提案：陈默（replace-text 姓名行）→ 落盘后别名并入、档案其余零污染
   const propChen = chen.proposal
   const created = createProposals(libRoot, p.id, 'agent-chat', '', '', [propChen])
   assert('createProposals 建成 1 条', created.length === 1)
   const apply = applyProposal(libRoot, p.id, created[0].id)
   assert('applyProposal ok', apply && apply.ok === true)
-  const afterRaw = readDoc(p.id, '人物/韩青.md') ?? ''
-  assert('落盘：约定头含「别名: [韩师傅, 老韩]」', afterRaw.includes('别名: [韩师傅, 老韩]'))
+  const afterRaw = readDoc(p.id, '人物/陈默.md') ?? ''
+  assert('落盘：约定头含「别名: [陈师傅, 老陈]」', afterRaw.includes('别名: [陈师傅, 老陈]'))
   assert('落盘：无「若几种称呼」建议文本、无「> 依据：」', !afterRaw.includes('若几种称呼') && !afterRaw.includes('> 依据：'))
-  assert('落盘：正文部分未被改动（# 韩青 标题与列表仍在）', afterRaw.includes('# 韩青') && afterRaw.includes('- 性格：无'))
+  assert('落盘：正文部分未被改动（# 陈默 标题与列表仍在）', afterRaw.includes('# 陈默') && afterRaw.includes('- 性格：无'))
 
   console.log(`\n全部通过：${pass} 断言`)
 } finally {

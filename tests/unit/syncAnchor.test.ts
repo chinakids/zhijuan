@@ -104,7 +104,7 @@ describe('worldSliceFile（命名约定）', () => {
 })
 
 describe('guardPersonTargets（候选 2e：target 存在性防线）', () => {
-  const opts = { knownFiles: ['林晓', '韩青', '温知微'], chapterCast: ['林晓', '韩青'] }
+  const opts = { knownFiles: ['林晓', '陈默', '陆知微'], chapterCast: ['林晓', '陈默'] }
   const item = (target: string) => ({
     target,
     anchor: '切片：第一幕_夏夜',
@@ -121,7 +121,7 @@ describe('guardPersonTargets（候选 2e：target 存在性防线）', () => {
   })
 
   it('target 无 .md 后缀（模型手抖）且精确命中 → 保留', () => {
-    const r = guardPersonTargets([item('人物/韩青')], opts)
+    const r = guardPersonTargets([item('人物/陈默')], opts)
     expect(r.items).toHaveLength(1)
     expect(r.issues).toHaveLength(0)
   })
@@ -156,17 +156,17 @@ describe('guardPersonTargets（候选 2e：target 存在性防线）', () => {
   })
 
   it('本章涉及人物但未建档 → 丢弃并明示「未建档」（不替作者建档）', () => {
-    const r = guardPersonTargets([item('人物/林晚.md')], { knownFiles: ['林晓', '韩青'], chapterCast: ['林晓', '韩青', '林晚'] })
+    const r = guardPersonTargets([item('人物/林晚.md')], { knownFiles: ['林晓', '陈默'], chapterCast: ['林晓', '陈默', '林晚'] })
     expect(r.items).toHaveLength(0)
     expect(r.issues[0].action).toBe('dropped')
     expect(r.issues[0].reason).toContain('尚未建档')
   })
 
   it('名字前后空格/全角空格 → 规范化后命中现有档案', () => {
-    const r = guardPersonTargets([item('人物/林晓 .md'), item('人物/韩青\u3000.md')], opts)
+    const r = guardPersonTargets([item('人物/林晓 .md'), item('人物/陈默\u3000.md')], opts)
     expect(r.items).toHaveLength(2)
     expect(r.items[0].target).toBe('人物/林晓.md')
-    expect(r.items[1].target).toBe('人物/韩青.md')
+    expect(r.items[1].target).toBe('人物/陈默.md')
   })
 
   it('已知档案为空 → 人物 target 全丢（安全方向：不越权建档）', () => {

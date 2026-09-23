@@ -6,7 +6,7 @@ const draft = [
   '章号: 2',
   '题名: 灯下',
   '切片: 第一幕_夜',
-  '涉及人物: [韩青, 林晓]',
+  '涉及人物: [陈默, 林晓]',
   '状态: 分幕草稿',
   '---',
   '# 灯下（分幕草稿）',
@@ -28,7 +28,7 @@ const chapter = [
   '章号: 2',
   '题名: 灯下',
   '切片: 第一幕_夜',
-  '涉及人物: [韩青, 林晓]',
+  '涉及人物: [陈默, 林晓]',
   '---',
   '# 灯下',
   '',
@@ -123,7 +123,7 @@ describe('adoptActsChapter', () => {
     expect('error' in r).toBe(false)
     const { next } = r as { next: string; body: string }
     expect(next).toContain('章号: 2')
-    expect(next).toContain('涉及人物: [韩青, 林晓]')
+    expect(next).toContain('涉及人物: [陈默, 林晓]')
     expect(next).not.toContain('分幕草稿')
     expect(next).not.toContain('（旧正文')
     expect(next).toContain('第一段正文')

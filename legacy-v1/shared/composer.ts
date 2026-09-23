@@ -51,7 +51,7 @@ function hitScore(text: string, candidates: string[]): number {
     const k = (c ?? '').trim().toLowerCase()
     if (k.length < 2) continue
     if (q.includes(k)) {
-      s += 2 // 候选完整出现在查询里（如「林知秋」「学校琴房」）
+      s += 2 // 候选完整出现在查询里（如「许晴」「学校琴房」）
     } else if (tokens.some((t) => k.includes(t))) {
       s += 1 // 查询的某个词是候选的一部分（如「琴房」→「学校琴房」）
     }
