@@ -1,0 +1,8 @@
+name: Probe
+on:
+  workflow_dispatch:
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo probe-ok
