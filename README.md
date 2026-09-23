@@ -1,52 +1,123 @@
-# 织卷 · AI 辅助小说创作工作台
+# 织卷 · ZHĪJUǍN
 
-把「世界观 + 人物设定 + 章节情绪曲线/人物曲线」结构化，作为输入交给本地 LLM <!-- ann:msswpmxo -->生成<!-- /ann:msswpmxo -->章节<!-- ann:mssxa14k -->正文<!-- /ann:mssxa14k -->的 Electron 桌面应用。
+> AI 辅助小说创作工作台 —— 人与 agent 协作、面向**时间切片**的设定推进，支持「先设定后成文」与「先文沉淀设定」双向闭环。
+
+织卷是一款**纯本地优先**的小说写作软件：正文是唯一的源头，设定会随着写作自动演进（**正文为源、设定为流**）。内置的创作 agent 不替你改一个字——所有对设定的修改都走**提案制**，由你确认后才写入；所有正文改动都出**修改卡**，采纳才落笔。
+
+- 数据明文、可入 git，作品永不锁死在工具里
+- 模型可接本地 vLLM / 任意 OpenAI 兼容端点，也可切云端厂商
+- 无账号、无云同步、无遥测
+
+## 截图
+
+| 项目库 | 正文创作（含 Agent 协作区） |
+|---|---|
+| ![home](docs/screenshots/home.png) | ![novel](docs/screenshots/novel.png) |
+
+| 大纲区（章卡 / 导演板） | 素材库 |
+|---|---|
+| ![outline](docs/screenshots/outline.png) | ![library](docs/screenshots/library.png) |
+
+| 人物设定 | ⌘K 全局命令面板 |
+|---|---|
+| ![characters](docs/screenshots/characters.png) | ![command-palette](docs/screenshots/command-palette.png) |
+
+## 核心特性
+
+**时间切片设定推进**
+- 一章一切片：正文约定头（front matter）声明 `切片` 与 `涉及人物`，保存即触发切片同步，自动把本片的事件/状态演进到对应的人物与世界观文档
+- 双向闭环：先设定后成文（导演板/素材库供料）与先文沉淀设定（保存自动出提案）都走同一条提案链
+
+**提案制（人对 agent 的护栏）**
+- agent 对设定的任何修改都是提案：before 锚点定位 + 过期标记，接受才写入；提案库 `.zhijuan/proposals/` 明文可审计
+
+**Agent 协作区**
+- 边聊边生成：右侧对话框直连写作引擎；选中正文 → 引用选中 → 输入指令
+- 上下文智能装配：当前章 + 前章尾 + 涉及人物 + 切片设定 + 章卡 + 素材索引，预算硬控
+- 工具化 agent：基于写作引擎的织卷域工具（读章节 / 列设定 / 全文搜 / 生成提案 / 一致性巡查），工具调用过程以活动卡形式可见（Todo / Ask / Edit 卡片）
+
+**写作引擎（DeepSeek Harness 边车）**
+- dsh 作为独立子进程由 Electron 主进程拉起，织卷自身只做宿主；织卷域能力以 cordis 插件（`src/plugins/zj-core.ts`）注入
+- `EnginePort` 适配层：换 agent 框架 = 换一个实现，不动调用方
+
+**创作检查阵容**
+- 本章小环：短巡查 / 分层修订（写后即检）
+- 全卷审计：一致性巡查、冷读、多视角审视（LLM 层，结论落档 `大纲/审读_*.md`，含「让 agent 改」处置入口）
+- 机械层（秒级、零 token、常驻）：人物在场核查、称谓一致性、切片时序核查、人物档案腐坏核查、保存前置名单快检
+- 章节导演：动笔前导出导演板——情绪弧分段、每段戏剧任务、波峰定位、人物行为轴、写作红线、钩子（`大纲/<章>_导演.md`）
+
+**批注闭环**
+- 划词批注（意图 + 定位 + 原文），批注扫描自动生成修改提案，接受后删行；批注侧标 / 气泡 / 导航抽屉全键盘可达
+
+**写作体验**
+- Milkdown/ProseMirror 编辑器，正文满宽、字排按 Apple 排版规范；右键菜单接入写作上下文
+- ⌘K 全局命令面板（跨页面/章节/项目直达）
+- 暖纸 / 深色两档主题；窄窗口章节列自动折叠保正文可用宽度；本地优先的正文版本历史（`.zhijuan/history/`）、时间线视图、素材库类别树
+
+## 技术栈
+
+Electron · electron-vite · React 19 · TypeScript · Tailwind v4 · shadcn/ui · Milkdown (ProseMirror) · zustand · vitest · DeepSeek Harness（vendored，`install.sh` 拉取）· 无头 Chrome 冒烟（CDP 9224）
+
+## 架构
+
+四层红线（详见 [架构设计-V2](docs/架构设计-V2.md) 与 [模块设计-V2](docs/模块设计-V2.md)）：
+
+| 层 | 职责 | 约束 |
+|---|---|---|
+| `src/shared` | 纯约定：类型 / front matter / 路径 / provider 适配表 | 无 fs、无 IO，可单测 |
+| `src/main` | 域逻辑与文件操作（含 `agent/` 引擎驱动、审计、大纲、档案） | 数据操作只在此层 |
+| `src/preload` | 薄桥 | 只转发 IPC |
+| `src/renderer` | 页面与交互（editor / agent / outlines / proposals / annotations…） | 不碰文件系统 |
+
+另有 `src/plugins/`（dsh 域插件）与 `dsh-runtime/`（vendored 写作引擎）。
 
 ## 快速开始
 
 ```bash
+# 依赖（npm 镜像见 .npmrc，可按需覆盖）
 npm install
-npm run dev       # 启动开发模式（热更新）
-npm run build    # 编译产物到 out/
+
+# vendored 写作引擎（约 300MB，包含运行时与本地模型支持）
+bash dsh-runtime/install.sh
+
+# 开发（Electron + Vite HMR）
+npm run dev
+
+# 生产构建 / 预览
+npm run build
+npm run start
+
+# 测试与检查
+npm run typecheck
+npm test                 # vitest 单元测试（600+ 用例）
+node scripts/serve-renderer.mjs &   # 无头渲染服务
+node scripts/xxx-ui-smoke.mjs       # 无头 UI 冒烟（需本机 Chrome CDP 9224）
 ```
+
+> `scripts/` 下有 100+ 个 UI 冒烟脚本（`*-ui-smoke.mjs`），覆盖编辑器、Agent、审计、批注、命令面板、窄窗、主题等关键路径。
 
 ## 目录结构
 
 ```
-src/
-  main/          # Electron 主<!-- ann:mssxgq8e -->进程<!-- /ann:mssxgq8e -->：窗口、本地存储、生成引擎（IPC）
-    store.ts     #   <!-- ann:msswqrlh --><!-- ann:mssx8ad9 --><!-- ann:mssxgxph -->项目<!-- /ann:mssxgxph --><!-- /ann:mssx8ad9 --><!-- /ann:msswqrlh -->库读写（文档/织卷项目库，每个项目一个 JSON）
-    generator.ts #   生成引擎：曲线采样 → 拼 prompt → 调 OpenAI 兼容 API
-    index.ts     #   应用入口
-  preload/       # contextBridge 桥（window.zhijuan.*）
-  shared/        # 共享数据模型（types）
-  renderer/      # React 界面（世界观 / 人物 / 章节 三视图）
-    src/components/
-      WorldviewView.tsx    # 世界观编辑
-      <!-- ann:msswqjtn -->CharactersView.tsx<!-- /ann:msswqjtn -->   # 人物档案（自由字段）
-      ChaptersView.tsx     # 章节工作台（要素 + 曲线 + 生成）
-      CurveEditor.tsx      # SVG 双曲线编辑器（可拖拽）
+src/            四层源码（shared / main / preload / renderer）
+src/plugins/    dsh 域插件（zj-core）
+dsh-runtime/    vendored 写作引擎（install.sh 安装，不入库）
+docs/           公开设计文档 + docs/screenshots/
+scripts/        冒烟脚本与工具（serve-renderer、各 UI smoke）
+tests/          单元测试（vitest）
+legacy-v1/      V1 原型归档（仅参考）
 ```
 
-## 数据模型（src/shared/types.ts）
+## 主要文档
 
-- `Project`：一个小说作品（世界观 + 人物 + 章节）
-- `Worldview`：舞台、时代、主题、规则、背景
-- `Character`：人物档案（自由字段，可填九项身体档案）
-- `Chapter`：章节（要素 / 梗概 / 曲线集合 / 情节点 / 正文）
-- `SeriesCurve`：情绪曲线或人物曲线（一条线上的控制点序列）
-- `PlotBeat`：情节点（标注在曲线进度位置上的关键事件）
+- [架构设计-V2](docs/架构设计-V2.md)
+- [模块设计-V2](docs/模块设计-V2.md)
+- [快捷键](docs/快捷键.md)
+- [正文写入与切片同步-口径](docs/正文写入与切片同步-口径.md)
+- [按钮与状态显示-规范](docs/按钮与状态显示-规范.md)
+- [系统菜单-设计口径](docs/系统菜单-设计口径.md)
+- [动效分层](docs/动效分层.md)
 
-## 生成管线
+## License
 
-编辑每条曲线 → 保存后由 `generator.ts` 把曲线按 0-100 进度分段采样成「强度走向」描述、情节点标注在对应位置，连同世界观、人物档案、本章要素一起拼进 prompt，发给局域网 **OpenAI 兼容**端点（默认 `127.0.0.1:8888`，`deepseek-v4-flash-vision-exp-uncensored`；2026-09 vLLM 重启换名，旧 id 0731 已 404/空返）。
-
-**曲线如何真正影响生成**：曲线不是装饰——它被离散化成每一段落的强度值和趋势方向（骤升/缓升/平缓/猛跌），AI 被要求按这些走势推进剧情。
-
-## 数据存放
-
-所有项目保存在 `~/<!-- ann:mssx81xw -->Documents<!-- /ann:mssx81xw -->/织卷项目库/<项目id>/project.json`，一个项目一个目录，纯 JSON，可直接进 git。
-
-## 已知限制
-
-- LLM 配置（baseUrl / model / apiKey）目前写死在 `ChaptersView.tsx` 的 `doGenerate` 里，后续应抽到设置页。
+[MIT](LICENSE) © kk

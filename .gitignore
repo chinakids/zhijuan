@@ -4,3 +4,31 @@ dist/
 release/
 *.log
 .DS_Store
+
+# ── 内部过程文档（本地开发记录，不上传 GitHub；推进器/档案依赖本地文件）──
+docs/模块推进/
+docs/推进器日志.md
+docs/agent-调研与优化-日志.md
+docs/ROADMAP.md
+docs/M1-要素引擎设计.md
+docs/agent-first-优化方向-*.md
+docs/*-进度-*.md
+docs/*-产品规划-*.md
+docs/*-评审*.md
+docs/*-走查*.md
+docs/*-冲刺*.md
+docs/*-日志.md
+docs/反馈清单.md
+docs/质感-*.md
+docs/模型适配接入层*.md
+docs/写作练习*.md
+docs/多时间线叙事*-设计文档*.md
+docs/周交付/
+docs/周交付窗口-*.md
+docs/审读存档*.md
+docs/冒烟回归基线*.md
+
+# ── vendored 引擎 dsh-runtime（本地 install.sh 拉取，大型二进制不入库）──
+dsh-runtime/node_modules/
+dsh-runtime/dshhome/
+dsh-runtime/testwork/
