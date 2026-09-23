@@ -1,7 +1,7 @@
 // 织卷无头冒烟 · 划词引用来源（体验层 2026-09-23 候选1收口）
 // 用法：node scripts/quote-src-ui-smoke.mjs
 // 前置：npm run build；node scripts/serve-renderer.mjs 8899；本机无头 Chrome CDP 127.0.0.1:9224
-// 验收点：① 正文划词「添加到对话」→ 输入区提示条显示来源「正文·第01章…」；
+// 验收点：① 正文划词「添加到对话」→ 输入区提示条显示来源「第1章 · 雾港」（章题名，非文件结构名）；
 //         ② 划词后切到另一章再发送 → 用户气泡来源仍是原章（修跨章节标注错）；
 //         ③ 人物档案页划词 → 回正文发送 → 来源为「人物·阿七」（修跨文档标注错）；
 //         ④ 发送后引用被消费清空；⑤ 全程无 JS 异常。
@@ -135,9 +135,9 @@ await A.cmd('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowDown', code:
 await evalUntil(A, `!!document.querySelector('.zj-sel-bubble')`, Boolean, 8000, '划词浮层出现')
 await A.eval(`document.querySelector('.zj-sel-bubble button[aria-label="添加到对话"]')?.click()`)
 await sleep(300)
-ok('场景A 提示条显示引用来源（正文·第01章）', (await A.eval(`document.body.innerText`)).includes('引用自 正文·第01章'))
+ok('场景A 提示条显示引用来源（第1章 · 雾港）', (await A.eval(`document.body.innerText`)).includes('引用自 第1章 · 雾港'))
 const hintA = await A.eval(`(() => {
-  const el = [...document.querySelectorAll('div')].find((d) => (d.textContent || '').includes('引用自 正文·第01章') && d.children.length <= 1)
+  const el = [...document.querySelectorAll('div')].find((d) => (d.textContent || '').includes('引用自 第1章 · 雾港') && d.children.length <= 1)
   return el ? el.textContent.trim() : ''
 })()`)
 ok('场景A 提示条含节选文本', hintA.length > 0 && hintA.includes('阿七'), hintA.slice(0, 40))
@@ -147,7 +147,7 @@ await evalUntil(A, `!!document.querySelector('.ProseMirror')`, Boolean, 20000, '
 await sleep(500)
 await sendAndWait(A, '请就引用内容给建议')
 const msgA = await lastUserMsg(A)
-ok('场景A 用户气泡来源=原章（第01章）', msgA.includes('（引用自《正文·第01章') && !msgA.includes('第02章'), msgA.slice(0, 120).replace(/\n/g, '⏎'))
+ok('场景A 用户气泡来源=原章（第1章 · 雾港）', msgA.includes('（引用自《第1章 · 雾港》') && !msgA.includes('第02章'), msgA.slice(0, 120).replace(/\n/g, '⏎'))
 ok('场景A 提示条已随发送清空', !(await A.eval(`document.body.innerText`)).includes('取消引用'))
 ok('场景A 无 JS 异常', A.errors.length === 0, A.errors.slice(0, 2).join(' | '))
 await A.eval(`(() => { location.hash = '#/project/demo-aseya/home'; return true })()`).catch(() => {})

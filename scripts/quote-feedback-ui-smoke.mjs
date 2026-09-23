@@ -159,7 +159,7 @@ await evalUntil(B, `!!document.querySelector('.zj-sel-bubble')`, Boolean, 8000, 
 await B.eval(`document.querySelector('.zj-sel-bubble button[aria-label="添加到对话"]')?.click()`)
 await sleep(1200)
 ok('场景B 正文页无「已添加到对话」toast', !(await B.eval(`document.body.innerText`)).includes('已添加到对话'))
-ok('场景B 提示条出现（引用生效）', (await B.eval(`document.body.innerText`)).includes('引用自 正文·第01章'))
+ok('场景B 提示条出现（引用生效）', (await B.eval(`document.body.innerText`)).includes('引用自 第1章 · 雾港'))
 ok('场景B 无 JS 异常', B.errors.length === 0, B.errors.slice(0, 2).join(' | '))
 B.close()
 

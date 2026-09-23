@@ -36,9 +36,12 @@ interface DocEditorProps {
   anno?: boolean
   /** 底部状态条右侧追加内容（如规则体检状态栏；主人 2026-09-17：与「历史/未保存」同排，不单独占行） */
   statusExtra?: ReactNode
+  /** 划词引用来源显示名覆盖（2026-09-24 体验层）：正文章节由 Novel 传「第N章 · 题名」
+   * （与章列/窗口标题同格式，不暴露 `第NN章_题名.md` 文件结构名）；缺省按 rel 推「类别·名称」（quoteSrcOf）。 */
+  quoteSrcLabel?: string
 }
 
-export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty, onSave, className, editorApiRef, saveHandleRef, annotations, anno, statusExtra }: DocEditorProps) {
+export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty, onSave, className, editorApiRef, saveHandleRef, annotations, anno, statusExtra, quoteSrcLabel }: DocEditorProps) {
   const innerApi = useRef<ProseApi | null>(null)
   const apiRef = editorApiRef ?? innerApi
   const rawRef = useRef('') // 磁盘上的原文（含约定头）
@@ -363,7 +366,7 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
           annotations={annotations}
           anno={anno}
           memoryKey={`${projectId}:${rel}`}
-          quoteSrc={quoteSrcOf(rel)}
+          quoteSrc={quoteSrcLabel ?? quoteSrcOf(rel)}
         />
       </div>
       <div className="flex h-7 items-center gap-2 border-t border-hair px-4 text-xs">

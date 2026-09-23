@@ -684,6 +684,9 @@ export default function Novel() {
   )
 
   const cur = chapters.find((c) => c.file === sel)
+  // 划词引用来源覆盖（2026-09-24 体验层）：正文章节显示「第N章 · 题名」（与章列/窗口标题同格式），
+  // 不暴露「第NN章_题名.md」文件结构名；约定头缺失时缺省走 quoteSrcOf（保底可辨）。
+  const quoteSrcLabel = cur?.fm ? `第${cur.fm['章号'] ?? '?'}章 · ${cur.fm['题名'] ?? ''}` : undefined
   // 章卡的 file 是相对 正文/ 的裸名；凡要当项目根相对路径传给主进程处，统一在此拼前缀（见本技能 listDocs 坑）
   const chapterRel = sel ? '正文/' + sel : ''
 
@@ -861,7 +864,7 @@ export default function Novel() {
         {sel ? (
           <>
             <div className="min-h-0 flex-1">
-              <DocEditor projectId={id} rel={chapterRel} withFm extVersion={extVersion} editorApiRef={apiRef} annotations={annotations} onDirty={markDirty} saveHandleRef={saveHandleRef} onSave={() => { void refresh(); void handleChapterSaved(chapterRel) }}
+              <DocEditor projectId={id} rel={chapterRel} withFm extVersion={extVersion} editorApiRef={apiRef} annotations={annotations} onDirty={markDirty} saveHandleRef={saveHandleRef} onSave={() => { void refresh(); void handleChapterSaved(chapterRel) }} quoteSrcLabel={quoteSrcLabel}
                 statusExtra={<HealthBar projectId={id} refreshSignal={extVersion} />}
               />
             </div>
