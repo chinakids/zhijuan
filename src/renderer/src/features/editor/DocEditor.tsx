@@ -351,7 +351,11 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
           apiRef={apiRef}
           value={savedMdRef.current}
           onCreateError={(msg) => setInitErr(msg)}
-          onEdit={(md) => {
+          onEdit={(md, programmatic) => {
+            // 程序化重载回声（setContent 注入的回灌）：以序列化为新保存基准——磁盘原文与
+            // Milkdown 序列化格式永不等（见 244 行注释），不重置基准会误置 dirty；其后
+            // md === savedMdRef.current 的比较自然保持 saved/idle（2026-09-24 创作层根因）。
+            if (programmatic) savedMdRef.current = md
             // 内容恢复非空：清掉「确要清空」待确认态（之后再次清空仍会被拦一次，防误放行）
             if (md) setConfirmEmpty(false)
             setWordCount(countWords(md))

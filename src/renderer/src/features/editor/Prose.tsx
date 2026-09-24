@@ -62,7 +62,7 @@ export interface ProseApi {
 interface ProseProps {
   /** 初始内容（仅首挂载生效；换文件用 key 重建） */
   value: string
-  onEdit?: (md: string) => void
+  onEdit?: (md: string, programmatic?: boolean) => void
   apiRef?: MutableRefObject<ProseApi | null>
   /** 编辑器初始化（Milkdown create）失败回调——默认入口把失败静默成空白编辑器
    * （P1 F-20260917-10 走查：create 拒绝属未处理拒绝，宿主空白且无任何提示）。
@@ -309,6 +309,10 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
       programmaticRef.current = false
     })
   }
+  /** 最近一次 setContent 注入后的序列化结果：markdownUpdated 等值时判定为「程序化重载回声」
+   *（非用户编辑）并以 programmatic=true 传给 onEdit——否则「保存→自身 fs 回灌→重载」会把
+   *「✓ 已保存」覆盖成「● 未保存」（2026-09-24 创作层根因，route-guard E④ 复现）。 */
+  const injectedMdRef = useRef<string | null>(null)
   const typewriterPlugin = useMemo(
     () =>
       makeTypewriterPlugin({
@@ -994,7 +998,15 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
         ctx.set(prosePluginsCtx, [annoPlugin, selPlugin, emptyHintPlugin, focusPlugin, typewriterPlugin, macTextKeysPlugin, pastePlainPlugin, quotePairPlugin].filter((p): p is NonNullable<typeof p> => !!p))
         ctx.get(listenerCtx).markdownUpdated((_, md) => {
           if (!liveRef.current) return
-          onEditRef.current?.(md)
+          // 程序化重载回声判定：内容与最近 setContent 注入的序列化完全等值 → 非用户编辑（见
+          // injectedMdRef 注释）；匹配后清空，后续用户真实编辑正常触发。
+          let programmatic = false
+          if (injectedMdRef.current !== null) {
+            const inj = injectedMdRef.current
+            injectedMdRef.current = null
+            if (inj === md) programmatic = true
+          }
+          onEditRef.current?.(md, programmatic || undefined)
           // 工具栏撤销/重做可用态随之重读（文档变更才影响 history 深度）
           setHistTick((t) => t + 1)
           // 查找条打开且有关键词时：正文被编辑 → 重算匹配并刷新高亮（不跳转，不打扰光标）
@@ -1088,6 +1100,10 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
             const parser = ctx.get(parserCtx)
             const doc = parser(md)
             view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, doc))
+            // 记录注入后的序列化（listener 异步触发时按等值判定程序化回声；内容未变化则不触发，
+            // 残留值由下次不匹配自动清空——即便误留，也只在「用户编辑恰好等于注入序列化」时误判
+            // 一次，且该场景本就与已保存内容无差异）
+            injectedMdRef.current = ctx.get(serializerCtx)(view.state.doc)
             // 静默重载（外部写入磁盘→extVersion→灌回）：恢复记忆光标，但不抢焦点
             // （用户此刻可能正在 Agent 面板/别处；回到编辑器时自然落在记忆位置）
             const mk = memoryKeyRef.current
