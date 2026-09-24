@@ -34,7 +34,11 @@ export default function AtMentionMenu({
 
   if (!items.length) {
     return (
-      <div className="zj-at-menu absolute bottom-full left-0 right-0 z-20 mb-1 rounded-lg border border-hair bg-surface px-3 py-2 text-[11px] text-ink-3 shadow-[var(--shadow)] animate-in fade-in duration-100">
+      <div
+        id="zj-at-menu"
+        role="status"
+        className="zj-at-menu absolute bottom-full left-0 right-0 z-20 mb-1 rounded-lg border border-hair bg-surface px-3 py-2 text-[11px] text-ink-3 shadow-[var(--shadow)] animate-in fade-in duration-100"
+      >
         没有匹配的 @ 引用
       </div>
     )
@@ -42,6 +46,9 @@ export default function AtMentionMenu({
   return (
     <div
       ref={listRef}
+      id="zj-at-menu"
+      role="listbox"
+      aria-label="引用候选"
       className="zj-at-menu absolute bottom-full left-0 right-0 z-20 mb-1 max-h-52 overflow-y-auto rounded-lg border border-hair bg-surface p-1 shadow-[var(--shadow)] animate-in fade-in duration-100"
     >
       {items.map((c, i) => {
@@ -50,6 +57,9 @@ export default function AtMentionMenu({
           <button
             key={c.type + '|' + c.file}
             data-idx={i}
+            id={`zj-at-item-${i}`}
+            role="option"
+            aria-selected={i === active}
             onMouseEnter={() => onActiveChange(i)}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => onPick(i)}

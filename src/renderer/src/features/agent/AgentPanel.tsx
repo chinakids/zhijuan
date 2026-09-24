@@ -898,6 +898,8 @@ export default function AgentPanel(props: AgentPanelProps) {
 
   // ---------- 输入框 @ 引用（GitHub/Slack mention 范式；数据懒加载 + 会话缓存） ----------
   const taRef = useRef<HTMLTextAreaElement>(null)
+  // 上次 select 事件的选区快照（2026-09-24 幽灵 selectionchange 防护：caret 未变的 select 事件跳过重解析）
+  const lastSelRef = useRef<{ s: number; e: number } | null>(null)
   const atDataRef = useRef<AtCandidate[]>([])
   const [atTrg, setAtTrg] = useState<{ at: number; length: number; query: string } | null>(null)
   const [atItems, setAtItems] = useState<AtCandidate[]>([])
@@ -1234,6 +1236,13 @@ export default function AgentPanel(props: AgentPanelProps) {
       <textarea
         ref={taRef}
         value={input}
+        role="combobox"
+        aria-expanded={!!atTrg || !!cmdTrg}
+        aria-controls={atTrg ? 'zj-at-menu' : cmdTrg ? 'zj-cmd-menu' : undefined}
+        aria-autocomplete="list"
+        aria-activedescendant={
+          atTrg ? `zj-at-item-${atActive}` : cmdTrg ? `zj-cmd-item-${cmdActive}` : undefined
+        }
         onChange={(e) => {
           const v = e.target.value
           setInput(v)
@@ -1242,7 +1251,16 @@ export default function AgentPanel(props: AgentPanelProps) {
         }}
         onSelect={(e) => {
           const el = e.currentTarget
-          refreshInput(el.value, el.selectionStart ?? 0)
+          const s = el.selectionStart ?? 0
+          const en = el.selectionEnd ?? 0
+          const last = lastSelRef.current
+          lastSelRef.current = { s, e: en }
+          // 幽灵 selectionchange（2026-09-24 体验层实锤）：Escape 等取消类按键的默认行为会在
+          // caret 实际未变时也发一次 select 事件（isTrusted 键盘路径；页面内 dispatch 不触发，
+          // at-mention 冒烟因此一直没暴露）。若选区与上次相同则跳过重解析——否则 @/命令浮层
+          // 刚被 Esc 关闭又被这里重新打开（fl 层闪回）。
+          if (last && last.s === s && last.e === en) return
+          refreshInput(el.value, s)
         }}
         onCompositionStart={() => {
           // IME 组合期收起 @/命令浮层：组合候选窗与浮层同屏=双重菜单打架，且浮层不得在组合期解析/选择
@@ -1256,6 +1274,14 @@ export default function AgentPanel(props: AgentPanelProps) {
         onKeyDown={(e) => {
           if (onAtKeyDown(e)) return
           if (onCmdKeyDown(e)) return
+          // 生成中 Esc = 停止生成（HIG Keyboards「Esc cancel the current action or process」；
+          // Claude Code 同范式）。浮层优先（@/命令选择态按 Esc 先取消选择，再按才停止）；
+          // IME 组合期交还输入法（候选确认/取消是输入法语义，不触发停止）。
+          if (e.key === 'Escape' && sending && !(e.nativeEvent as { isComposing?: boolean }).isComposing) {
+            e.preventDefault()
+            stop()
+            return
+          }
           if (e.key === 'Enter' && !e.shiftKey) {
             // IME 选字回车（isComposing）只确认候选，不发送
             if ((e.nativeEvent as { isComposing?: boolean }).isComposing) return
@@ -1501,7 +1527,14 @@ export default function AgentPanel(props: AgentPanelProps) {
                 )}
                 <div className="line-clamp-2" title={quote.text}>{quote.text}</div>
               </div>
-              <button onClick={() => useAgentStore.getState().setQuote(null)} className="shrink-0 text-ink-3 hover:text-ink" title="取消引用">×</button>
+              <button
+                onClick={() => useAgentStore.getState().setQuote(null)}
+                className="shrink-0 text-ink-3 hover:text-ink"
+                title="取消引用"
+                aria-label="取消引用"
+              >
+                ×
+              </button>
             </div>
           )}
           <div className="flex items-center gap-2">
