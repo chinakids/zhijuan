@@ -62,7 +62,17 @@ const opened = await evalJs(`(() => {
 check('点击更多操作按钮', String(opened).startsWith('ok:'), String(opened))
 await sleep(600)
 
-// [2] 菜单同时出现两项：合并 Markdown（既有）与 Word（新增）
+// [1.5] 展开「导出作品」子菜单（Radix Sub 由 pointermove 进入 trigger 打开；trigger 带 aria-haspopup=menu）
+const subOpened = await evalJs(`(() => {
+  const t = [...document.querySelectorAll('[role="menuitem"]')].find((x) => x.innerText.includes('导出作品') && x.getAttribute('aria-haspopup') === 'menu')
+  if (!t) return 'no-sub'
+  for (const type of ['pointermove', 'pointerenter', 'mouseover']) t.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerType: 'mouse' }))
+  return 'ok'
+})()`)
+check('展开导出作品子菜单', subOpened === 'ok', String(subOpened))
+await sleep(500)
+
+// [2] 子菜单同时出现两项：合并 Markdown（既有）与 Word（新增）
 const mdItem = await evalJs(`[...document.querySelectorAll('[role="menuitem"], button')].some((x) => x.innerText.includes('导出作品（合并 Markdown）'))`)
 const docxItem = await evalJs(`[...document.querySelectorAll('[role="menuitem"], button')].some((x) => x.innerText.includes('导出作品（Word）'))`)
 check('菜单含「导出作品（合并 Markdown）」', mdItem === true)

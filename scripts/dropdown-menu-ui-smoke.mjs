@@ -70,7 +70,7 @@ const triggerState = (page, sel) => page.eval(`(() => {
 })()`)
 
 const MENU_ITEMS = `[...document.querySelectorAll('[role="menu"]')].map(m => ({
-  items: [...m.querySelectorAll('[role="menuitem"]')].map(i => ({ t: i.textContent.trim(), icon: !!i.querySelector('svg'), dis: i.getAttribute('aria-disabled'), op: getComputedStyle(i).opacity })),
+  items: [...m.querySelectorAll('[role="menuitem"]')].map(i => ({ t: i.textContent.trim(), icon: !!i.querySelector('svg'), dis: i.getAttribute('aria-disabled'), op: getComputedStyle(i).opacity, sub: i.getAttribute('aria-haspopup') || null })),
   seps: m.querySelectorAll('[role="separator"]').length,
   bg: getComputedStyle(m).backgroundColor
 }))`
@@ -91,7 +91,8 @@ const aOpen = await openMenuBySel(A, `[...document.querySelectorAll('button')].f
 ok('A1 菜单可打开', aOpen === 'OK', aOpen)
 await sleep(700)
 const aMenu = (await A.eval(MENU_ITEMS))[0]
-ok('A2 菜单 3 项且每项带 icon（HIG 组内 icon 统一）', !!aMenu && aMenu.items.length === 3 && aMenu.items.every((i) => i.icon), JSON.stringify(aMenu?.items?.map((i) => i.t)))
+ok('A2 菜单 4 项且每项带 icon（HIG 组内 icon 统一）', !!aMenu && aMenu.items.length === 4 && aMenu.items.every((i) => i.icon), JSON.stringify(aMenu?.items?.map((i) => i.t)))
+ok('A2b 「导出作品」为子菜单触发器（作品编译三格式收敛，aria-haspopup=menu）', !!aMenu && aMenu.items.some((i) => i.t.includes('导出作品') && i.sub === 'menu'), JSON.stringify(aMenu?.items?.filter((i) => i.sub)))
 ok('A3 「导出到…」带省略号（需要更多信息才完成）', !!aMenu && aMenu.items.some((i) => i.t.includes('导出到…')))
 const aColors = await A.eval(`(() => [...document.querySelectorAll('[role="menuitem"]')].map(i => ({ t: i.textContent.trim(), color: getComputedStyle(i).color })))()`)
 const delItem = aColors.find((i) => i.t.includes('废纸篓'))

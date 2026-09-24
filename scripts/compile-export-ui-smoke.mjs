@@ -56,7 +56,17 @@ const opened = await evalJs(`(() => {
 check('点击更多操作按钮', String(opened).startsWith('ok:'), String(opened))
 await sleep(600)
 
-// [2] 菜单出现「导出作品（合并 Markdown）」项
+// [1.5] 展开「导出作品」子菜单（Radix Sub 由 pointermove 进入 trigger 打开；trigger 带 aria-haspopup=menu）
+const subOpened = await evalJs(`(() => {
+  const t = [...document.querySelectorAll('[role="menuitem"]')].find((x) => x.innerText.includes('导出作品') && x.getAttribute('aria-haspopup') === 'menu')
+  if (!t) return 'no-sub'
+  for (const type of ['pointermove', 'pointerenter', 'mouseover']) t.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerType: 'mouse' }))
+  return 'ok'
+})()`)
+check('展开导出作品子菜单', subOpened === 'ok', String(subOpened))
+await sleep(500)
+
+// [2] 子菜单出现「导出作品（合并 Markdown）」项
 const itemShown = await evalJs(`(() => {
   const items = [...document.querySelectorAll('[role="menuitem"], button')]
   return items.some((x) => x.innerText.includes('导出作品（合并 Markdown）'))

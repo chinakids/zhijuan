@@ -26,6 +26,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
   DropdownMenuTrigger
 } from '../components/ui/dropdown-menu'
 
@@ -389,24 +392,31 @@ export default function Home() {
                       }}>
                         <FolderOutput className="h-4 w-4" /> 导出到…
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => {
-                        e.stopPropagation()
-                        void exportCompiled(p.id, p.name)
-                      }}>
-                        <FileDown className="h-4 w-4" /> 导出作品（合并 Markdown）
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => {
-                        e.stopPropagation()
-                        void exportCompiledDocx(p.id, p.name)
-                      }}>
-                        <FileText className="h-4 w-4" /> 导出作品（Word）
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => {
-                        e.stopPropagation()
-                        void exportCompiledEpub(p.id, p.name)
-                      }}>
-                        <BookOpen className="h-4 w-4" /> 导出作品（EPUB）
-                      </DropdownMenuItem>
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>
+                          <FileDown className="h-4 w-4" /> 导出作品
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent>
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation()
+                            void exportCompiled(p.id, p.name)
+                          }}>
+                            <FileDown className="h-4 w-4" /> 导出作品（合并 Markdown）
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation()
+                            void exportCompiledDocx(p.id, p.name)
+                          }}>
+                            <FileText className="h-4 w-4" /> 导出作品（Word）
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation()
+                            void exportCompiledEpub(p.id, p.name)
+                          }}>
+                            <BookOpen className="h-4 w-4" /> 导出作品（EPUB）
+                          </DropdownMenuItem>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
                       <DropdownMenuItem
                         className="text-danger focus:text-danger"
                         onClick={(e) => {
