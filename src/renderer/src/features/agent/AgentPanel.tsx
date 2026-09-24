@@ -773,6 +773,32 @@ export default function AgentPanel(props: AgentPanelProps) {
   const [audit, setAudit] = useState<{ open: boolean; tab: AuditKind }>({ open: false, tab: 'consistency' })
   // 固定逻辑命令（/巡查 /导演）执行中：锁发送防连点
   const [fxBusy, setFxBusy] = useState(false)
+  // 忙时固定命令排队（2026-09-24 体验层，候选 3⑥）：生成中/导演执行中输入 /巡查 /导演 → 队列+toast 后
+  // 自动按序执行——Claude Code 命令排队语义（轮次结束后逐条执行，docs.claude.com interactive-mode
+  // 「Queue messages while Claude works」）；与「消息已排队」同族，消除忙时静默丢弃面的最后残留
+  const fxPendingRef = useRef<{ raw: string; cmd: ZjCommand; args: string; projectId: string }[]>([])
+  // fxBusy 的 ref 镜像：drain 的 setTimeout 回调须读实时值（闭包里的 fxBusy 已过期——消息续发 80ms 后
+  // sending 才翻转，闭包值会误判「空闲」而让导演任务与对话生成并行）
+  const fxBusyRef = useRef(false)
+  useEffect(() => {
+    fxBusyRef.current = fxBusy
+  }, [fxBusy])
+  // 排队固定命令的自动执行（2026-09-24）：空闲（无对话生成、无导演任务）时按序执行；
+  // 150ms 迟滞 > 消息队列续发 80ms——消息（对话主通道）先出、命令紧随，避免导演任务与对话生成并行（保持 fxBusy 锁语义）；
+  // 条目带排队时项目快照（与 c3fb655 消息续发 project hint 同口径）：项目已切走则保留在队列直至切回，不跨项目执行/落错桶
+  useEffect(() => {
+    if (sending || fxBusy) return
+    const t = setTimeout(() => {
+      if (useAgentStore.getState().streaming || fxBusyRef.current) return
+      const nxt = fxPendingRef.current[0]
+      if (!nxt) return
+      if (nxt.projectId !== props.projectId) return // 项目已切走：命令归属原项目，切回后 effect 再触发执行
+      fxPendingRef.current.shift()
+      void runFixed(nxt.raw, nxt.cmd, nxt.args)
+    }, 150)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runFixed 每 render 重建，仅按忙态/项目变化触发；队列在 ref 中
+  }, [sending, fxBusy, props.projectId])
   // 取消路径（2026-09-12）：点「停止」作废在途结果（token 递增），并把取消标记发给主进程（跳过落资产）
   const fxTokenRef = useRef(0)
   const fxAidRef = useRef<string | null>(null)
@@ -1139,14 +1165,32 @@ export default function AgentPanel(props: AgentPanelProps) {
 
   async function doSend() {
     const v = input
-    if (fxBusy || !v.trim()) return
     const fx = matchFixedCommand(v)
+    // 固定逻辑命令执行中（/导演，2026-09-24）：命令排队随后自动执行；普通消息提示可见不静默（保持
+    // 既有「导演进行中锁发送」的防并发语义——主进程引擎会话与对话生成不并行）
+    if (fxBusy) {
+      if (!v.trim()) return
+      if (fx) {
+        fxPendingRef.current.push({ raw: v, cmd: fx.cmd, args: fx.args, projectId: props.projectId })
+        setInput('')
+        toast.add({ kind: 'info', title: '命令已排队', description: '导演任务完成后会自动执行。' })
+        return
+      }
+      toast.add({ kind: 'info', title: '导演任务执行中', description: '可点「停止导演任务」取消后，再发送消息。' })
+      return
+    }
+    if (!v.trim()) return
     const prompt = expandCommand(v, props.chapterTitle) ?? v
     if (sending) {
       // 生成中再发（2026-09-23 体验层补 F-20260917-12 的用户路径缺口）：非固定命令交 send 的
       // 排队队列自动续发（toast「消息已排队」），不再被 sending 守卫静默丢弃（曾实测 Enter 无响应且输入保留）；
-      // 固定命令（/巡查 /导演）维持既有串行语义——生成中 Enter 不触发，避免与在途轮抢执行
-      if (fx) return
+      // 固定命令（/巡查 /导演）同语义排队（Claude Code 命令排队：轮次结束后逐条执行）——生成中 Enter 不再无反馈
+      if (fx) {
+        fxPendingRef.current.push({ raw: v, cmd: fx.cmd, args: fx.args, projectId: props.projectId })
+        setInput('')
+        toast.add({ kind: 'info', title: '命令已排队', description: '上一条还在生成中，完成之后会自动执行这条命令。' })
+        return
+      }
       setInput('')
       void send(prompt.trim(), quote)
       return
