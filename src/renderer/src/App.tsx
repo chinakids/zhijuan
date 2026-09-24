@@ -1,19 +1,10 @@
 import { useEffect } from 'react'
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { RouterProvider } from 'react-router-dom'
 import { TooltipProvider } from './components/ui/tooltip'
 import { useAppStore } from './store/app'
 import { useAgentStore } from './features/agent/store'
+import { router } from './router'
 import WindowChrome from './components/WindowChrome'
-import Home from './pages/Home'
-import Workspace from './pages/Workspace'
-import Novel from './pages/Novel'
-import Characters from './pages/Characters'
-import Worldview from './pages/Worldview'
-import Outline from './pages/Outline'
-import Timeline from './pages/Timeline'
-import Library from './pages/Library'
-import Settings from './pages/Settings'
-import CommandPalette from './features/command/CommandPalette'
 import MenuBridge from './features/menu/menuBus'
 import { Toaster, toast } from './components/ui/toast'
 
@@ -64,25 +55,9 @@ export default function App() {
       <div className="flex h-screen flex-col overflow-hidden">
         <WindowChrome />
         <div className="relative min-h-0 flex-1">
-          <HashRouter>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              {/* 全局设置页（系统菜单 织卷→设置… 指向 #/settings；项目内 SectionNav 仍走 /project/:id/settings） */}
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/project/:id" element={<Workspace />}>
-                <Route index element={<Navigate to="novel" replace />} />
-                <Route path="novel" element={<Novel />} />
-                <Route path="characters" element={<Characters />} />
-                <Route path="worldview" element={<Worldview />} />
-                <Route path="outline" element={<Outline />} />
-                <Route path="timeline" element={<Timeline />} />
-                <Route path="library" element={<Library />} />
-                <Route path="settings" element={<Settings />} />
-              </Route>
-            </Routes>
-            {/* 全局命令面板：⌘K 导航（须在 Router 内，用 router hooks） */}
-            <CommandPalette />
-          </HashRouter>
+          {/* data router（createHashRouter 单例，见 router.tsx）：useBlocker 路由级守卫的前提；
+              命令面板/各页/嵌套路由都在 Shell 内。 */}
+          <RouterProvider router={router} />
         </div>
       </div>
       {/* 全局通知堆栈：右上角，层级高于面板/抽屉，透明不挡交互 */}

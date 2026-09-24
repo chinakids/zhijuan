@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams, useSearchParams, useOutletContext } from 'react-router-dom'
+import { useParams, useSearchParams, useOutletContext, useBlocker, type BlockerFunction } from 'react-router-dom'
 import { Plus, BookOpen, PanelLeftOpen, PanelLeftClose, X, MoreHorizontal } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import type { ChapterEntry, ChapterCheckKind, UnlistedHit, MissingHit } from '../../../shared/types'
@@ -689,6 +689,28 @@ export default function Novel() {
     // 保存被拦/失败（空写防线/IO 错，ok 非 true）：内容未落盘 → 留在本章，状态条已有原因说明，不丢内容
     if (ok === true && t) setSel(t)
   }
+  // 路由级离开守卫（2026-09-24 创作层）：正文有未保存改动时任何路由导航离开正文页（侧栏切页/⌘K/
+  // 系统菜单/回首页/切项目/引擎徽章→设置）→ 三选确认，防「写一半查设定切页丢稿」。切章守卫
+  // （sel=组件内状态，非路由）与关窗守卫（beforeunload）都覆盖不到这条面；Novel 卸载=未保存内容丢失。
+  // useBlocker 须 data router（createHashRouter 单例，见 router.tsx——引擎徽章/系统菜单原直接改
+  // window.location.hash 属外部导航，data router 下 blocker 对其「fail silently in production」（本地
+  // v7.18.3 源码警告原文），已一并改走 router.navigate）。blocked 时才有 proceed/reset（IDLE 为 void）。
+  const routeBlocker = useBlocker(
+    useCallback<BlockerFunction>(
+      ({ currentLocation, nextLocation }) =>
+        dirtyRef.current && currentLocation.pathname !== nextLocation.pathname,
+      []
+    )
+  )
+  const routeBlocked = routeBlocker.state === 'blocked'
+  function discardRoute() {
+    if (routeBlocker.state === 'blocked') routeBlocker.proceed()
+  }
+  async function saveAndRoute() {
+    const ok = await saveHandleRef.current?.()
+    // 保存被拦/失败（空写防线/IO 错，ok 非 true）：内容未落盘 → 留在本页，状态条已有原因说明，不丢内容
+    if (ok === true && routeBlocker.state === 'blocked') routeBlocker.proceed()
+  }
 
   // 章列行操作菜单（「⋯」下拉 与 右键 共源渲染）：HIG Context menus——两个菜单形态一致、动作一致，
   // 破坏性项（删除）置末 + danger 红字（HIG「list them at the end and identify them as destructive」）
@@ -1046,6 +1068,21 @@ export default function Novel() {
             <Button variant="outline" onClick={() => setPendingClose(false)}>取消</Button>
             <Button variant="outline" onClick={discardClose} className="text-danger">不保存关闭</Button>
             <Button onClick={() => void saveAndClose()}>保存并关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* 路由级离开守卫（2026-09-24 创作层）：与切章/关窗守卫同族同形态——dirty 时经侧栏/⌘K/
+          系统菜单/回首页/切项目离开正文页 → 三选确认，防「写一半查设定切页丢稿」。 */}
+      <Dialog open={routeBlocked} onOpenChange={(o) => !o && routeBlocker.state === 'blocked' && routeBlocker.reset()}>
+        <DialogContent className="sm:max-w-md" outsideDismiss={false}>
+          <DialogHeader>
+            <DialogTitle>有未保存的改动</DialogTitle>
+            <DialogDescription>当前章节有未保存的内容，离开后将丢失。</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => routeBlocker.state === 'blocked' && routeBlocker.reset()}>取消</Button>
+            <Button variant="outline" onClick={discardRoute} className="text-danger">不保存离开</Button>
+            <Button onClick={() => void saveAndRoute()}>保存并离开</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

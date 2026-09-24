@@ -6,6 +6,7 @@ import { useEffect } from 'react'
 import type { MenuActionId } from '../../../../shared/types'
 import { shouldSkipKeydown, type MenuActionStamp } from '../../../../shared/menuDedup'
 import { useUiStore } from '../../store/ui'
+import { router } from '../../router'
 import ShortcutHelp from '../command/ShortcutHelp'
 import { reportMenuState } from './menuState'
 
@@ -35,7 +36,9 @@ export function handleMenuAction(id: MenuActionId): void {
   lastMenuAction = { id, at: Date.now() }
   switch (id) {
     case 'settings':
-      window.location.hash = '#/settings'
+      // 走 data router 导航（routeGuard 拦截面全覆盖；直接改 location.hash=外部导航，createHashRouter
+      // 下 blocker 对它会「fail silently in production」——本地 v7.18.3 源码警告原文）
+      void router.navigate('/settings')
       break
     case 'shortcutHelp':
       useUiStore.getState().setShortcutHelpOpen(true)

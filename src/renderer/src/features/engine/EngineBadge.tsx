@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { cn } from '../../lib/utils'
+import { router } from '../../router'
 
 /** 顶栏常驻引擎状态点：绿=在线 / 红=离线；点击去设置页。默认每 20s 轮询。
- * 注意：本组件会被挂在 **Router 之外**（WindowChrome 里），所以不能依赖 react-router 的 hook，
- * 跳转直接用 hash（我们用的是 HashRouter）。 */
+ * 注意：本组件被挂在 **Router 之外**（WindowChrome 里），不能依赖 react-router 的 hook；
+ * 跳转走 router.navigate（data router 单例全局可用——2026-09-24 创作层：原直接改
+ * window.location.hash 属外部导航，createHashRouter 下 useBlocker 守卫对它会
+ * 「fail silently in production」（本地 v7.18.3 源码警告原文），统一路由入口保证守卫全覆盖）。 */
 export default function EngineBadge() {
   const [sid, setSid] = useState('')
   const [s, setS] = useState<{ online: boolean | null; label?: string; tip?: string }>({ online: null })
@@ -32,7 +35,7 @@ export default function EngineBadge() {
   return (
     <button
       onClick={() => {
-        if (sid) window.location.hash = '/project/' + sid + '/settings'
+        if (sid) void router.navigate('/project/' + sid + '/settings')
       }}
       title={s.tip ? `${s.label}（${s.tip}）` : s.label}
       className={cn(
