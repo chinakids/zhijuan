@@ -20,6 +20,7 @@ import { makeTypewriterPlugin } from './typewriter'
 import EditorToolbar from './EditorToolbar'
 import FindBar from './FindBar'
 import { findInDoc, type FindPos } from './finder'
+import { replaceOne, replaceAll as replaceAllInDoc } from './findReplace'
 import { saveScroll, takeScroll } from './scrollMemory'
 import { anchorFromPos, restoreCursorSelection, saveCursor, takeCursor } from './cursorMemory'
 import { EMPTY_ACTIVE, activeEq, readToolbarActive, type ActiveState } from './toolbarActive'
@@ -93,8 +94,20 @@ interface WinWithEditors {
     close: () => void
     next: () => void
     prev: () => void
-    getState: () => { open: boolean; query: string; total: number; current: number }
+    getState: () => {
+      open: boolean
+      query: string
+      total: number
+      current: number
+      replacement: string
+      matches: Array<{ from: number; to: number }>
+      selFrom: number | null
+      selTo: number | null
+    }
     goTo: (idx: number) => void
+    setReplacement: (r: string) => void
+    replaceCurrent: () => void
+    replaceAll: () => void
   }
 }
 
@@ -757,12 +770,15 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
    */
   const [findOpen, setFindOpen] = useState(false)
   const [findQuery, setFindQuery] = useState('')
+  const [findReplace, setFindReplace] = useState('')
   const [findCount, setFindCount] = useState({ total: 0, current: -1 })
   const findRef = useRef<{ matches: FindPos[]; current: number }>({ matches: [], current: -1 })
   const findOpenRef = useRef(false)
   const findQueryRef = useRef('')
+  const findReplaceRef = useRef('')
   findOpenRef.current = findOpen
   findQueryRef.current = findQuery
+  findReplaceRef.current = findReplace
 
   const getView = (): any => {
     let v: any = null
@@ -873,6 +889,58 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
     applyFindHighlight(view, st.matches, cur)
     jumpTo(view, st.matches[cur])
     setFindCount({ total: st.matches.length, current: cur })
+  }
+
+  /* —— 查找替换（macOS 文本应用 Find & Replace 语义；TextEdit/Pages/VS Code 同基线）——
+   * 「替换」=替换当前匹配并定位下一处（跳过替换区，避免替换文本含查找词时原地循环）；
+   * 「全部替换」=同一事务内从后往前替换全部匹配（一次撤销记录），完成后重新计数并清高亮重算。
+   * 替换是编辑器内容变更（dispatch→markdownUpdated→onEdit=dirty），保存走既有 ⌘S 链路。 */
+  const recalcAfterReplace = (view: any, afterFrom: number | null) => {
+    const q = findQueryRef.current.trim()
+    const matches = q ? findInDoc(view.state.doc, q) : []
+    let cur = -1
+    if (matches.length) {
+      if (afterFrom !== null) {
+        let i = matches.findIndex((m) => m.from >= afterFrom)
+        if (i < 0) i = 0
+        cur = i
+        jumpTo(view, matches[i])
+      } else {
+        cur = 0
+      }
+    }
+    findRef.current = { matches, current: cur }
+    applyFindHighlight(view, matches, cur)
+    setFindCount({ total: matches.length, current: cur })
+  }
+
+  const doReplace = (all: boolean) => {
+    const view = getView()
+    const st = findRef.current
+    if (!view || !st.matches.length) return
+    const repl = findReplaceRef.current
+    const tr = all
+      ? replaceAllInDoc(view.state, st.matches, repl)
+      : replaceOne(view.state, st.matches[st.current].from, st.matches[st.current].to, repl)
+    if (!tr.steps.length) return
+    view.dispatch(tr)
+    // 替换后重新查找：单个替换跳过替换区（from >= 原 from + 替换文本长）；全部替换定位第一处
+    if (all) recalcAfterReplace(view, null)
+    else {
+      const m = st.matches[st.current]
+      recalcAfterReplace(view, m.from + repl.length)
+    }
+  }
+
+  const replaceCurrent = () => {
+    const view = getView()
+    if (!view) return
+    doReplace(false)
+  }
+  const replaceAllNow = () => {
+    const view = getView()
+    if (!view) return
+    doReplace(true)
   }
 
   /* ⌘E（HIG Keyboards：E = Use the selection for a find operation）——用模型选区设置查找词：
@@ -1207,6 +1275,12 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
           next: () => stepFind(1),
           prev: () => stepFind(-1),
           goTo,
+          setReplacement: (r: string) => {
+            findReplaceRef.current = r
+            setFindReplace(r)
+          },
+          replaceCurrent,
+          replaceAll: replaceAllNow,
           getState: () => {
             const view = edRef.current
               ? (() => {
@@ -1223,6 +1297,7 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
               query: findQueryRef.current,
               total: findRef.current.matches.length,
               current: findRef.current.current,
+              replacement: findReplaceRef.current,
               matches: findRef.current.matches.slice(0, 3),
               selFrom: sel ? sel.from : null,
               selTo: sel ? sel.to : null
@@ -1261,12 +1336,18 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
         <FindBar
           open={findOpen}
           query={findQuery}
+          replacement={findReplace}
           total={findCount.total}
           current={findCount.current}
           onQueryChange={(q) => {
             setFindQuery(q)
             recalcFind(q, true)
           }}
+          onReplacementChange={(r) => {
+            setFindReplace(r)
+          }}
+          onReplace={() => replaceCurrent()}
+          onReplaceAll={() => replaceAllNow()}
           onNext={() => stepFind(1)}
           onPrev={() => stepFind(-1)}
           onClose={closeFind}

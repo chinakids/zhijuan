@@ -298,14 +298,21 @@
   color: var(--accent);
 }
 
-/* ===== 正文查找条（Apple HIG Keyboards：⌘F/⌘G/⇧⌘G；形态参照 macOS Find bar，贴工具栏下沿） ===== */
+/* ===== 正文查找条（Apple HIG Keyboards：⌘F/⌘G/⇧⌘G；形态参照 macOS Find bar，贴工具栏下沿；第二行=查找替换） ===== */
 .zj-findbar {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
   padding: 5px 8px;
   border-bottom: 1px solid var(--hair);
   background: var(--surface-2);
+  min-width: 0;
+}
+.zj-findbar .zj-find-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
 }
 .zj-findbar .zj-find-ico {
@@ -356,6 +363,33 @@
 .zj-findbar .zj-find-btn:hover { background: var(--well); color: var(--ink); }
 .zj-findbar .zj-find-btn:disabled { opacity: 0.35; cursor: default; }
 .zj-findbar .zj-find-btn:disabled:hover { background: none; color: var(--ink-2); }
+/* 替换行：占位图标对齐查找行（同一视觉间隙），按钮=同级次要行动（常规动作）、窄窗不换行不挤压 */
+.zj-findbar .zj-find-repl-row { padding-left: 20px; }
+.zj-findbar .zj-find-repl { flex: 0 1 200px; }
+.zj-findbar .zj-find-act {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  color: var(--ink-2);
+  white-space: nowrap;
+  transition: background 120ms, color 120ms;
+}
+.zj-findbar .zj-find-act:hover { background: var(--well); color: var(--ink); }
+.zj-findbar .zj-find-act:disabled { opacity: 0.35; cursor: default; }
+.zj-findbar .zj-find-act:disabled:hover { background: none; color: var(--ink-2); }
+/* 窄查找条（正文列被 Agent 面板/窄窗挤压时）：替换行放弃图标对齐、收紧间距——按钮文字保留，
+ * 容器查询按查找条自身宽度响应（Chromium 126 支持），宽窗零影响（HIG：窄空间允许降级）。 */
+.zj-findbar { container-type: inline-size; }
+@container (max-width: 320px) {
+  .zj-findbar .zj-find-repl-row { padding-left: 4px; gap: 3px; }
+  .zj-findbar .zj-find-act { padding: 0 5px; }
+}
 .dark .zj-findbar { background: var(--surface-2); border-bottom-color: var(--hair); }
 
 /* 查找高亮（CSS Custom Highlight API：命中-柔和、当前-强调；Electron 31/Chromium 126 原生支持） */
