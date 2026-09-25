@@ -25,6 +25,7 @@ export const MENU_ITEM_ID: Record<MenuActionId, string> = {
   newChapter: 'zj-menu-newChapter',
   save: 'zj-menu-save',
   findOpen: 'zj-menu-findOpen',
+  findReplace: 'zj-menu-findReplace',
   findUseSel: 'zj-menu-findUseSel',
   findNext: 'zj-menu-findNext',
   findPrev: 'zj-menu-findPrev',
@@ -44,6 +45,7 @@ export function menuEnabledFor(state: MenuStateReport, id: MenuActionId): boolea
       return state.route === 'project'
     case 'save':
     case 'findOpen':
+    case 'findReplace':
     case 'findUseSel':
     case 'findNext':
     case 'findPrev':
@@ -112,6 +114,7 @@ function macTemplate(h: MenuHandlers): MenuItemConstructorOptions[] {
           label: '查找',
           submenu: [
             { label: '查找…', id: MENU_ITEM_ID.findOpen, accelerator: 'CmdOrCtrl+F', click: () => h.onMenuAction('findOpen') },
+            { label: '查找与替换…', id: MENU_ITEM_ID.findReplace, accelerator: 'CmdOrCtrl+Alt+F', click: () => h.onMenuAction('findReplace') },
             { label: '用选区设置查找词', id: MENU_ITEM_ID.findUseSel, accelerator: 'CmdOrCtrl+E', click: () => h.onMenuAction('findUseSel') },
             { label: '查找下一处', id: MENU_ITEM_ID.findNext, accelerator: 'CmdOrCtrl+G', click: () => h.onMenuAction('findNext') },
             { label: '查找上一处', id: MENU_ITEM_ID.findPrev, accelerator: 'Shift+Cmd+G', click: () => h.onMenuAction('findPrev') }
@@ -185,6 +188,7 @@ function winTemplate(h: MenuHandlers): MenuItemConstructorOptions[] {
           label: '查找',
           submenu: [
             { label: '查找…', id: MENU_ITEM_ID.findOpen, accelerator: 'CmdOrCtrl+F', click: () => h.onMenuAction('findOpen') },
+            { label: '查找与替换…', id: MENU_ITEM_ID.findReplace, accelerator: 'CmdOrCtrl+Alt+F', click: () => h.onMenuAction('findReplace') },
             { label: '用选区设置查找词', id: MENU_ITEM_ID.findUseSel, accelerator: 'CmdOrCtrl+E', click: () => h.onMenuAction('findUseSel') },
             { label: '查找下一处', id: MENU_ITEM_ID.findNext, accelerator: 'CmdOrCtrl+G', click: () => h.onMenuAction('findNext') },
             { label: '查找上一处', id: MENU_ITEM_ID.findPrev, accelerator: 'Shift+CmdOrCtrl+G', click: () => h.onMenuAction('findPrev') }

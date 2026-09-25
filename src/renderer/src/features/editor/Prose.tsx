@@ -763,12 +763,14 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
     focusEditor()
   }
 
-  /* —— 文中查找（Apple HIG Keyboards：⌘F / ⌘G / ⇧⌘G / Esc）——
+  /* —— 文中查找（Apple HIG Keyboards：⌘F / ⌥⌘F 查找与替换 / ⌘G / ⇧⌘G / Esc）——
    * 纯前端实现：finder.ts 出匹配位置 → CSS Custom Highlight API 高亮（Chromium 原生，不引插件）
    * → 当前匹配用 TextSelection 选中并滚动（与编辑器真实的选区/光标一致）。
    * 行为口径（对齐 macOS 文本应用）：输入即跳第一处；⌘G/⇧⌘G 循环；Esc 关闭并清高亮（保留搜索词）。
    */
   const [findOpen, setFindOpen] = useState(false)
+  const [findFocusReplace, setFindFocusReplace] = useState(false)
+  const [findFocusReq, setFindFocusReq] = useState(0)
   const [findQuery, setFindQuery] = useState('')
   const [findReplace, setFindReplace] = useState('')
   const [findCount, setFindCount] = useState({ total: 0, current: -1 })
@@ -846,7 +848,7 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
   const recalcRef = useRef(recalcFind)
   recalcRef.current = recalcFind
 
-  const openFind = () => {
+  const openFind = (focusReplace = false) => {
     const view = getView()
     if (!view) return
     const sel = view.state.selection
@@ -855,6 +857,8 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
     if (!pre.trim()) pre = findQueryRef.current
     setFindOpen(true)
     setFindQuery(pre)
+    setFindFocusReplace(focusReplace)
+    if (focusReplace) setFindFocusReq((n) => n + 1)
     recalcFind(pre, true)
   }
 
@@ -957,7 +961,7 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
     recalcFind(t, true)
   }
 
-  /* 全局快捷键：⌘F 打开查找（预填选区/上次词）、⌘E 用选区设查找词、⌘G/⇧⌘G 下一处/上一处、
+  /* 全局快捷键：⌘F 打开查找（预填选区/上次词）、⌥⌘F 查找与替换（聚焦替换输入）、⌘E 用选区设查找词、⌘G/⇧⌘G 下一处/上一处、
    * Esc 关闭（查找条开，或 ⌘E 设置后有活跃高亮/匹配时都拦截——结束本次查找）。 */
   const findActionsRef = useRef({ open: openFind, close: closeFind, step: stepFind, useSel: setFindFromSelection })
   findActionsRef.current = { open: openFind, close: closeFind, step: stepFind, useSel: setFindFromSelection }
@@ -1009,6 +1013,13 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
       if (!(e.metaKey || e.ctrlKey)) return
       const k = e.key.toLowerCase()
       if (k === 'f') {
+        if (e.altKey) {
+          // ⌥⌘F：查找与替换（macOS 文本应用标准键；TextEdit/Pages 同键）——打开并聚焦替换输入
+          if (isMenuJustHandled('findReplace')) return
+          e.preventDefault()
+          findActionsRef.current.open(true)
+          return
+        }
         if (isMenuJustHandled('findOpen')) return
         e.preventDefault()
         findActionsRef.current.open()
@@ -1034,6 +1045,7 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
     const h = (ev: Event) => {
       const kind = (ev as CustomEvent).detail
       if (kind === 'findOpen') findActionsRef.current.open()
+      else if (kind === 'findReplace') findActionsRef.current.open(true)
       else if (kind === 'findUseSel') findActionsRef.current.useSel()
       else if (kind === 'findNext') findActionsRef.current.step(1)
       else if (kind === 'findPrev') findActionsRef.current.step(-1)
@@ -1339,6 +1351,8 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
           replacement={findReplace}
           total={findCount.total}
           current={findCount.current}
+          focusReplace={findFocusReplace}
+          focusReq={findFocusReq}
           onQueryChange={(q) => {
             setFindQuery(q)
             recalcFind(q, true)

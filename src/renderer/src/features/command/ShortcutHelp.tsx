@@ -61,6 +61,7 @@ const GROUPS: { title: string; rows: { label: string; keys: string[] }[] }[] = [
     title: '查找（正文页）',
     rows: [
       { label: '在正文中查找（有选区时预填）', keys: ['⌘F'] },
+      { label: '查找与替换（打开并聚焦替换输入）', keys: ['⌥⌘F'] },
       { label: '用选区设置查找词（不展开查找条）', keys: ['⌘E'] },
       { label: '下一处 / 上一处', keys: ['⌘G', '⇧⌘G'] },
       { label: '结束本次查找（清除高亮）', keys: ['Esc'] }

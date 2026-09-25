@@ -2,7 +2,7 @@ import { ArrowDown, ArrowUp, Search, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 
 /**
- * 正文查找条（Apple HIG Keyboards：⌘F 打开查找窗 / ⌘G 下一处 / ⇧⌘G 上一处 / ⌘E 用选区搜索）。
+ * 正文查找条（Apple HIG Keyboards：⌘F 打开查找窗 / ⌥⌘F 查找与替换（聚焦替换输入） / ⌘G 下一处 / ⇧⌘G 上一处 / ⌘E 用选区搜索）。
  * 形态参照 macOS 文本应用的 Find bar：贴合工具栏下沿、无边框浮起；第二行=查找与替换
  * （TextEdit/Pages/VS Code 同基线：替换输入 + 「替换」当前 + 「全部替换」）。
  * 纯受控展示组件，查找/替换逻辑由 Prose.tsx（持 view）闭环。
@@ -15,6 +15,10 @@ export interface FindBarProps {
   total: number
   /** 当前匹配序号（0-based）；无匹配时为 -1 */
   current: number
+  /** 打开/重开时聚焦替换输入（⌥⌘F「查找与替换」；TextEdit/Pages 同键） */
+  focusReplace?: boolean
+  /** 聚焦请求令牌：值变化即按 focusReplace 目标重新聚焦（查找条已开时重按 ⌥⌘F 也回焦替换输入） */
+  focusReq?: number
   onQueryChange: (q: string) => void
   onReplacementChange: (r: string) => void
   onReplace: () => void
@@ -30,6 +34,8 @@ export default function FindBar({
   replacement,
   total,
   current,
+  focusReplace = false,
+  focusReq = 0,
   onQueryChange,
   onReplacementChange,
   onReplace,
@@ -43,10 +49,11 @@ export default function FindBar({
 
   useEffect(() => {
     if (open) {
-      inputRef.current?.focus()
-      inputRef.current?.select()
+      const el = focusReplace ? replRef.current : inputRef.current
+      el?.focus()
+      el?.select()
     }
-  }, [open])
+  }, [open, focusReplace, focusReq])
 
   if (!open) return null
   const none = total === 0

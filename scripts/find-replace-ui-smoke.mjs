@@ -159,6 +159,40 @@ const ok = (name, cond, extra = '') => {
     await evalUntil(page, `document.querySelector('.zj-findbar') === null`, (v) => v === true, 5000, 'Esc 关闭查找条')
     ok('R9 Esc 关闭查找条', true, '')
 
+    // ④b ⌥⌘F 查找与替换标准键（macOS 文本应用惯例，TextEdit/Pages 同键）：打开并聚焦替换输入
+    await keyCombo(page, 'f', 'KeyF', 5, 70) // meta(4)+alt(1)=5 = ⌥⌘F
+    await evalUntil(page, `document.querySelector('.zj-findbar') !== null`, (v) => v === true, 8000, '⌥⌘F 打开查找条')
+    await evalUntil(page, `document.activeElement?.classList.contains('zj-find-repl')`, (v) => v === true, 5000, '⌥⌘F 后焦点在替换输入')
+    ok('R10 ⌥⌘F 打开查找条且焦点=替换输入', true, '')
+    // 已打开时重按 ⌥⌘F：回焦替换输入（先让焦点离开）
+    await page.eval(`(() => { const i = document.querySelector('.zj-find-input'); if (i) i.focus(); return true })()`)
+    await keyCombo(page, 'f', 'KeyF', 5, 70)
+    await evalUntil(page, `document.activeElement?.classList.contains('zj-find-repl')`, (v) => v === true, 5000, '重按 ⌥⌘F 回焦替换输入')
+    ok('R11 查找条已开时重按 ⌥⌘F 回焦替换输入', true, '')
+    // ⌘F 回归：聚焦查询输入
+    await keyCombo(page, 'f', 'KeyF', 4, 70)
+    await evalUntil(page, `document.activeElement?.classList.contains('zj-find-input')`, (v) => v === true, 5000, '⌘F 聚焦查询输入')
+    ok('R12 ⌘F 打开聚焦查询输入（回归）', true, '')
+    // 系统菜单「查找与替换…」经 MENU_EV_FIND 分发（devShim __ZJ_MENU_EMIT 模拟主进程菜单动作）
+    await page.eval(`(() => { const i = document.querySelector('.zj-find-input'); if (i) i.focus(); return true })()`)
+    await page.eval(`window.__ZJ_MENU_EMIT('findReplace')`)
+    await evalUntil(page, `document.activeElement?.classList.contains('zj-find-repl')`, (v) => v === true, 5000, '菜单动作聚焦替换输入')
+    ok('R13 菜单「查找与替换…」分发后焦点=替换输入', true, '')
+    // Tab 序走查：替换输入 → 「替换」 → 「全部替换」（行内从左到右，两行从上到下，与 macOS 文本查找条同构）
+    const tab = async () => {
+      await page.cmd('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 })
+      await page.cmd('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 })
+      await sleep(250)
+      return page.eval(`document.activeElement?.textContent || document.activeElement?.getAttribute('aria-label') || ''`)
+    }
+    const t1 = await tab()
+    ok('R14 Tab 从替换输入→「替换」按钮', t1 === '替换', t1)
+    const t2 = await tab()
+    ok('R15 Tab 从「替换」→「全部替换」按钮', t2 === '全部替换', t2)
+    // 收尾：Esc 清态（衔接下一段窄窗走查）
+    await keyCombo(page, 'Escape', 'Escape', 0, 27)
+    await evalUntil(page, `document.querySelector('.zj-findbar') === null`, (v) => v === true, 5000, 'Esc 收尾关闭')
+
     // ⑤ 窄窗（正文列被挤压）替换行零溢出 + dark 语义色（container 查询紧凑模式）
     await page.eval(`window.__ZJ_FIND.open('灯')`)
     await evalUntil(page, `document.querySelector('.zj-findbar') !== null`, (v) => v === true, 8000, '重开查找条')

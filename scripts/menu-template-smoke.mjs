@@ -82,6 +82,7 @@ const EXPECT = [
     { sep: true },
     { label: '查找', sub: [
       { label: '查找…', acc: 'CmdOrCtrl+F', click: 'fn' },
+      { label: '查找与替换…', acc: 'CmdOrCtrl+Alt+F', click: 'fn' },
       { label: '用选区设置查找词', acc: 'CmdOrCtrl+E', click: 'fn' },
       { label: '查找下一处', acc: 'CmdOrCtrl+G', click: 'fn' },
       { label: '查找上一处', acc: 'Shift+Cmd+G', click: 'fn' }
@@ -145,8 +146,8 @@ const walk = (items) => {
   }
 }
 walk(menu.buildMenuTemplate(h2))
-const expectIds = ['__about__', 'settings', 'newProject', 'newChapter', 'save', 'findOpen', 'findUseSel', 'findNext', 'findPrev', 'shortcutHelp', '__docs__']
-ok('自定义项 click 触发且 id 集合=设计表 10 通道+2 主进程动作', deepEq(gotIds, expectIds), JSON.stringify(gotIds))
+const expectIds = ['__about__', 'settings', 'newProject', 'newChapter', 'save', 'findOpen', 'findReplace', 'findUseSel', 'findNext', 'findPrev', 'shortcutHelp', '__docs__']
+ok('自定义项 click 触发且 id 集合=设计表 11 通道+2 主进程动作', deepEq(gotIds, expectIds), JSON.stringify(gotIds))
 
 // ---------- 3) registerMenuActions 全链路（用 bundle 内联 stub——见文件头坑注） ----------
 const sends = []
@@ -189,7 +190,7 @@ ok('自定义项 id 齐全且唯一（MENU_ITEM_ID 全量）', JSON.stringify([.
 const ENABLE_MATRIX = [
   [{ route: 'home', editor: false }, { newProject: true, newChapter: false, save: false, findOpen: false, settings: true }],
   [{ route: 'project', editor: false }, { newProject: false, newChapter: true, save: false, findOpen: false, settings: true }],
-  [{ route: 'project', editor: true }, { newProject: false, newChapter: true, save: true, findOpen: true, findUseSel: true, findNext: true, findPrev: true, settings: true }],
+  [{ route: 'project', editor: true }, { newProject: false, newChapter: true, save: true, findOpen: true, findReplace: true, findUseSel: true, findNext: true, findPrev: true, settings: true }],
   [{ route: 'other', editor: true }, { newProject: false, newChapter: false, save: true, shortcutHelp: true }]
 ]
 let matrixOk = true
@@ -259,6 +260,7 @@ const EXP_WIN_ACC = {
   [menu.MENU_ITEM_ID.settings]: 'CmdOrCtrl+,',
   [menu.MENU_ITEM_ID.save]: 'CmdOrCtrl+S',
   [menu.MENU_ITEM_ID.findOpen]: 'CmdOrCtrl+F',
+  [menu.MENU_ITEM_ID.findReplace]: 'CmdOrCtrl+Alt+F',
   [menu.MENU_ITEM_ID.findUseSel]: 'CmdOrCtrl+E',
   [menu.MENU_ITEM_ID.findNext]: 'CmdOrCtrl+G',
   [menu.MENU_ITEM_ID.findPrev]: 'Shift+CmdOrCtrl+G'
@@ -302,7 +304,10 @@ const ALLOW = process.env.ZJ_SMOKE_ALLOW ? process.env.ZJ_SMOKE_ALLOW.split(',')
 
 const docsMd = readFileSync(join(root, 'docs/快捷键.md'), 'utf8').replace(/\u2212/g, '-')
 
-// A) 菜单 → 文档
+// A) 菜单 → 文档：mac 模板每个显式 accelerator 必须与文档已有组合一一对应（菜单漏档=可发现性缺失）。
+//    修饰符顺序归一：Electron accelerator 语法顺序（Cmd+Alt+F）与用户符号惯例（⌥⌘F）可能不同，
+//    按「修饰符集合+键名」规范比较（2026-09-25 查找与替换接入时实踩：新组合 ⌥⌘F 被语法序判漏）。
+const canon = (s) => s.replace(/^([⌘⇧⌥⌃]+)(.+)$/, (_, m, k) => [...m].sort().join('') + k)
 const macAccSet = new Set()
 const collectAcc = (items) => {
   for (const m of items) {
@@ -311,20 +316,30 @@ const collectAcc = (items) => {
   }
 }
 collectAcc(menu.buildMenuTemplate(h, 'darwin'))
-const menuNotDoc = [...macAccSet].filter((s) => !docsMd.includes(s))
-ok('mac 菜单全部显式 accelerator 均在 docs/快捷键.md 有记录（菜单⊆文档）', menuNotDoc.length === 0, JSON.stringify(menuNotDoc))
-
-// B) 文档表格 → 菜单∪应用内处理：只解析表格行第一格快捷键列（备注/说明文字不含契约）
+const menuCanon = new Set([...macAccSet].map(canon))
+// 文档全文组合（A 用：菜单组合在文档任何位置出现过即可=已记档；B 用表格第一格=契约面）
+const docAll = new Set()
+for (const line of docsMd.split('\n')) {
+  for (const tok of line.matchAll(/[⌘⇧⌥⌃]+[A-Za-z0-9+,\-\[\]]*/g)) {
+    const t = tok[0].replace(/\u2212/g, '-')
+    if (t.length > 1) docAll.add(canon(t))
+  }
+}
 const docCombos = new Set()
 for (const line of docsMd.split('\n')) {
   if (!line.startsWith('|')) continue
   const cell = line.split('|')[1] ?? ''
-  for (const tok of cell.matchAll(/[⌘⇧⌥⌃][A-Za-z0-9+,\-\[\]]*/g)) {
+  for (const tok of cell.matchAll(/[⌘⇧⌥⌃]+[A-Za-z0-9+,\-\[\]]*/g)) {
     const t = tok[0].replace(/\u2212/g, '-')
     if (t.length > 1) docCombos.add(t)
   }
 }
-const docUnwired = [...docCombos].filter((s) => !macAccSet.has(s) && !ALLOW.includes(s))
+const docCanon = new Set([...docCombos].map(canon))
+const menuNotDoc = [...menuCanon].filter((s) => !docAll.has(s))
+ok('mac 菜单全部显式 accelerator 均在 docs/快捷键.md 有记录（菜单⊆文档，修饰符顺序归一）', menuNotDoc.length === 0, JSON.stringify(menuNotDoc))
+
+// B) 文档表格 → 菜单∪应用内处理：只解析表格行第一格快捷键列（备注/说明文字不含契约）
+const docUnwired = [...docCanon].filter((s) => !menuCanon.has(s) && !ALLOW.map(canon).includes(s))
 ok('docs/快捷键.md 表格每个键盘组合均已接线（⊆ 菜单 ∪ 应用内处理 allowlist）', docUnwired.length === 0, `未接线组合: ${JSON.stringify(docUnwired)}（allowlist=${JSON.stringify(ALLOW)}）`)
 
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`)

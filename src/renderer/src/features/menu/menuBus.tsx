@@ -53,6 +53,7 @@ export function handleMenuAction(id: MenuActionId): void {
       emitMenuEvent(MENU_EV_SAVE, id)
       break
     case 'findOpen':
+    case 'findReplace':
     case 'findUseSel':
     case 'findNext':
     case 'findPrev':

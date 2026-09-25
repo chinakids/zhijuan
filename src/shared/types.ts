@@ -549,6 +549,7 @@ export type MenuActionId =
   | 'newChapter'
   | 'save'
   | 'findOpen'
+  | 'findReplace'
   | 'findUseSel'
   | 'findNext'
   | 'findPrev'
