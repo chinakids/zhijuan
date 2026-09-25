@@ -608,6 +608,7 @@ function useSender(props: AgentPanelProps) {
           .slice(-20)
           .map((m) => ({ role: m.role, content: m.content }))
         let metaSeq = 0
+        let truncated = false
         const metaStack: string[] = []
         const activeMeta = (): string => metaStack[metaStack.length - 1] ?? ''
         const bucketOfSend = () => bucketOf()
@@ -657,6 +658,7 @@ function useSender(props: AgentPanelProps) {
                 useAgentStore.getState().upsertTool({ id: eid, kind: 'edit', file: e.file, edits: e.edits, editState: 'pending', project: projectId })
               }
             } else if (e.type === 'todo') useAgentStore.getState().upsertTool({ id: rid, kind: 'todo', items: e.items ?? [], project: projectId })
+            else if (e.type === 'truncated') truncated = true // 输出被 token 上限截断（主进程 translate 转发 turn/end max-tokens）
             else if (e.type === 'ask')
               useAgentStore
                 .getState()
@@ -669,6 +671,14 @@ function useSender(props: AgentPanelProps) {
         if (r === 'aborted') {
           const base = streamedRef.current || lastAsst()?.content || ''
           streamedRef.current = base + '\n\n（已停止）'
+          patch(streamedRef.current)
+        } else if (truncated) {
+          // 输出截断终态标记（2026-09-25 智能层，候选 1「finish=length 截断提示面」）：
+          // 主进程已把 turn/end reason=max-tokens 转发为 truncated 事件；与「（已停止）」同为终态标记族——
+          // 残缺正文必须可见提示，否则作者会当它完整（内容丢失不可见）。默认正文类回复是唯一不受
+          // 弱结果兜底保护的通道（子任务有 lastRaw 重试），此处补上最后一层。
+          const base = streamedRef.current || lastAsst()?.content || ''
+          streamedRef.current = base + '\n\n（输出已截断）'
           patch(streamedRef.current)
         }
       } catch (e) {

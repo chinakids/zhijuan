@@ -1551,6 +1551,17 @@ const mock = {
       emit({ requestId: rid, type: 'done' })
       return { ok: true }
     }
+    // 输出截断演示（2026-09-25 智能层，候选 1「finish=length 截断提示面」）：prompt 含「模拟截断」时——
+    // 先给部分增量、再发 truncated 事件（真机=turn/end reason=max-tokens 由 translate 转发）、final 为残缺文本；
+    // 用于验证「（输出已截断）」终态标记渲染链（残缺正文必须可见提示）
+    if (/模拟截断/.test(input.prompt)) {
+      emit({ requestId: rid, type: 'delta', text: '渔火在潮声里明明灭灭，他拢了拢衣领，沿着湿漉漉的石阶往下走' })
+      await demoDelay()
+      emit({ requestId: rid, type: 'truncated' })
+      emit({ requestId: rid, type: 'final', text: '渔火在潮声里明明灭灭，他拢了拢衣领，沿着湿漉漉的石阶往下走' })
+      emit({ requestId: rid, type: 'done' })
+      return { ok: true }
+    }
     // 思考过程演示
     emit({ requestId: rid, type: 'think', text: '先看一下当前章节里需要改的位置，再决定怎么改…' })
     await new Promise((r) => setTimeout(r, 40))

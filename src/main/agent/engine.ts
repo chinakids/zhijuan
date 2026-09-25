@@ -31,6 +31,7 @@ export type AgentOutEvent =
   | { requestId: string; type: 'meta-done'; tool: string; message: string; ok?: boolean; result?: string } // 工具结果摘要（ok=false=工具失败）+ 结果全文（供细节展开）
   | { requestId: string; type: 'edit'; file: string; edits: import('../../shared/types').EditItem[] } // 正文修改提案（IDE 前/>后，待采纳）
   | { requestId: string; type: 'final'; text: string } // 本轮最终答复
+  | { requestId: string; type: 'truncated' } // 本轮输出被 token 上限截断（turn/end reason=max-tokens；内容不完整，渲染层需提示）
   | { requestId: string; type: 'done' }
   | { requestId: string; type: 'aborted' } // 用户点了停止（模型可能在边上跑完）
   | { requestId: string; type: 'error'; message: string }
@@ -247,6 +248,13 @@ export function translate(n: DriveEvent, requestId: string, emit: (e: AgentOutEv
       ok: !failed,
       result: text.slice(0, 4000) // 完整结果正文（失败时含完整报错，展开可查）
     })
+  } else if (t === 'turn/end') {
+    // 输出截断信号（2026-09-25 智能层，候选 1「finish=length 截断提示面」）：
+    // dsh 的 turn/end 携带 reason（TurnEndReason 联合类型）；kind='max-tokens' = 至少一步到达
+    // 输出 token 上限（wire finish_reason='length' 的映射，见 dsh-llm-deepseek mapFinishReason）。
+    // 此前该信号完全被忽略——长正文续写被截断时作者看到的是一段「看似完整」的残缺正文（内容丢失不可见）。
+    // 只透传事件，渲染层提示由体验层（线 B）承接。
+    if (d.reason?.kind === 'max-tokens') emit({ requestId, type: 'truncated' })
   } else if (t === 'todo/write') {
     const todos = Array.isArray(d.todos)
       ? d.todos.map((x: any) => ({ content: String(x?.content ?? ''), status: x?.status }))

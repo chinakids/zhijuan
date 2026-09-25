@@ -186,7 +186,7 @@ export interface EditItem {
 /** agent 流事件（主进程 → 渲染层，按 requestId 认领） */
 export interface AgentEvent {
   requestId: string
-  type: 'delta' | 'meta' | 'meta-done' | 'think' | 'edit' | 'final' | 'done' | 'aborted' | 'error' | 'todo' | 'ask'
+  type: 'delta' | 'meta' | 'meta-done' | 'think' | 'edit' | 'final' | 'truncated' | 'done' | 'aborted' | 'error' | 'todo' | 'ask'
   text?: string
   /** type = meta-done 时工具是否成功（缺省视为成功；false 渲染失败态） */
   ok?: boolean
