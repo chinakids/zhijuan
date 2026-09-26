@@ -47,6 +47,10 @@ export interface AgentMsg {
   errorRetry?: { prompt: string; quote: QuoteRef | null; focus: boolean }
   /** 错误气泡已被手动重试过（按钮置「已重试」，防连点重复发轮） */
   retried?: boolean
+  /** 轮次终态标记（2026-09-26 体验层从 content 剥离为独立状态元素）：
+   *  stopped=用户主动停止（中性，预期结果）；truncated=输出被 token 上限截断（警示）。
+   *  content 保持纯模型文本——标记不再拼进正文，避免被当正文/污染后续轮次历史载荷。 */
+  terminalMark?: 'stopped' | 'truncated'
 }
 
 /** 划词引用载荷（2026-09-23 体验层）：文本 + 来源显示名（正文章节=「第N章 · 题名」，其他文档=「类别·名称」，如「人物·阿七」）。
@@ -87,6 +91,8 @@ interface AgentState {
   markApplied: (id: string) => void
   /** 向消息追加思考增量（assistant 消息；仅在存在时追加） */
   appendThinking: (id: string, text: string) => void
+  /** 标记轮次终态（stopped=用户停止 / truncated=输出截断）；终态与 content 分离存 */
+  markTerminal: (id: string, mark: 'stopped' | 'truncated') => void
   /** upsert 一个 tool 消息（按 id）：todo 用全量替换，ask 用新增，meta 标记工具活动，edit 落正文修改卡 */
   upsertTool: (m: Omit<AgentMsg, 'role' | 'id' | 'content'> & { id: string; content?: string; project?: string }) => void
   /** 标记某个编辑卡的状态 */
@@ -204,6 +210,11 @@ export const useAgentStore = create<AgentState>((set) => ({
   markRetried: (id) =>
     set((s) => {
       const partial = mutateBucket(s, id, (bucket) => bucket.map((x) => (x.id === id ? { ...x, retried: true } : x)))
+      return partial ?? {}
+    }),
+  markTerminal: (id, mark) =>
+    set((s) => {
+      const partial = mutateBucket(s, id, (bucket) => bucket.map((x) => (x.id === id ? { ...x, terminalMark: mark } : x)))
       return partial ?? {}
     }),
   markApplied: (id) =>

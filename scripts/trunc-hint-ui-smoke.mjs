@@ -123,6 +123,40 @@ try {
   if (jsErrors.length) throw new Error('JS 异常：' + jsErrors.join(' | ').slice(0, 500))
   console.log('OK ③ 全程无 JS 异常（双通道 ' + errors.length + ' 条原始收集）')
 
+  // ④ 终态为独立状态行（2026-09-26 体验层：标记剥离自 content）——标记文本全页恰出现一次，
+  //    且位于 zj-terminal-truncated 状态行（不再作为正文的一部分被 ReactMarkdown 渲染）
+  const cnt = await page.eval(`document.body.innerText.split('（输出已截断）').length - 1`)
+  if (cnt !== 1) throw new Error('「（输出已截断）」出现 ' + cnt + ' 次（应为 1 次=独立状态行）')
+  const tl = await page.eval(
+    `(() => { const el = document.querySelector('[data-testid="zj-terminal-truncated"]'); return el ? el.textContent : '' })()`
+  )
+  if (!tl.includes('（输出已截断）')) throw new Error('截断状态行缺失：' + tl)
+  console.log('OK ④ 终态为独立状态行（剥离自 content，警示色行）')
+
+  // ⑤ 「模拟中断」停止终态（devShim：think→meta→delta→aborted）= 独立中性状态行 zj-terminal-stopped
+  await evalUntil(page, `!document.querySelector('button[aria-label="停止生成"]')`, (v) => v === true, 10000, '第一轮流结束')
+  await page.eval(`(() => {
+    const ta = document.querySelector('textarea')
+    ta.focus()
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(ta), 'value').set
+    setter.call(ta, '模拟中断')
+    ta.dispatchEvent(new Event('input', { bubbles: true }))
+    return true
+  })()`)
+  await sleep(400)
+  await page.eval(`(() => {
+    const ta = document.querySelector('textarea')
+    ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    return true
+  })()`)
+  await evalUntil(page, `document.body.innerText`, (v) => v.includes('（已停止）'), 25000, '停止终态标记')
+  await sleep(600)
+  const sl = await page.eval(
+    `(() => { const el = document.querySelector('[data-testid="zj-terminal-stopped"]'); return el ? el.textContent : '' })()`
+  )
+  if (!sl.includes('（已停止）')) throw new Error('停止状态行缺失：' + sl)
+  console.log('OK ⑤ 「模拟中断」停止终态=独立中性状态行')
+
   // 契约截图（主人 2026-09-12：UI/功能实现留图）
   const shot = await page.cmd('Page.captureScreenshot', { format: 'png' })
   if (shot?.data) {

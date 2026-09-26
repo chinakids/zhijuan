@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Rea
 import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Quote, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, Users, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, ListChecks, Waypoints, RefreshCw, CircleSlash, CornerUpRight } from 'lucide-react'
+import { Quote, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, Users, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, ListChecks, Waypoints, RefreshCw, CircleSlash, CircleAlert, CornerUpRight } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import type { ProseApi } from '../editor/Prose'
@@ -23,6 +23,7 @@ import { createStreamBuffer } from '../../../../shared/streamBuffer'
 import { trimHistoryMessage } from '../../../../shared/historyTrim'
 import { useAgentStore, messageProject, type AgentMsg, type QuoteRef } from './store'
 import ErrorNotice from './ErrorNotice'
+import { parseTerminalSuffix, TERMINAL_TEXT, type TerminalMark } from './terminalMark'
 import { groupToolMeta, isContinuedRead, summarizeGroup, failureFollowupPrompt } from './toolChain'
 import { useUiStore } from '../../store/ui'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
@@ -516,6 +517,24 @@ function ThinkingBlock({ text, active }: { text: string; active?: boolean }) {
   )
 }
 
+/* ---------- 轮次终态标记（2026-09-26 体验层）：独立状态行，与 content 分离 ----------
+   分级口径=HIG Feedback「match the significance to how it's delivered」+
+   「don't warn when the outcome is the expected result」：
+   stopped=用户主动停止=预期结果→中性（11px/ink-3）；truncated=输出触顶=非自愿内容不全→警示（warn 语义色）。
+   文案行=文案口径表既有行（「（已停止）」「（输出已截断）」），勿改文本。 */
+function TerminalMarkLine({ mark }: { mark: TerminalMark }) {
+  const truncated = mark === 'truncated'
+  return (
+    <div
+      data-testid={truncated ? 'zj-terminal-truncated' : 'zj-terminal-stopped'}
+      className={cn('mt-1.5 flex items-center gap-1 text-[11px]', truncated ? 'text-warn' : 'text-ink-3')}
+    >
+      {truncated ? <CircleAlert className="h-3 w-3 shrink-0" /> : <CircleSlash className="h-3 w-3 shrink-0" />}
+      <span>{TERMINAL_TEXT[mark]}</span>
+    </div>
+  )
+}
+
 function useSender(props: AgentPanelProps) {
   const setStreaming = useAgentStore((s) => s.setStreaming)
   const streaming = useAgentStore((s) => s.streaming)
@@ -680,21 +699,20 @@ function useSender(props: AgentPanelProps) {
                 .upsertTool({ id: rid + '-a-' + (e.batch ?? ''), kind: 'ask', questions: e.questions ?? [], batch: e.batch ?? '', project: projectId })
           }
         )
-        // 收尾：冲刷残余增量（done/aborted 已到，事件不再来；须在「已停止」附加前，顺序才正确）
+        // 收尾：冲刷残余增量（done/aborted 已到，事件不再来；须在终态标记设定前，顺序才正确）
         thinkBuf.flushNow()
         deltaBuf.flushNow()
+        // 终态标记（2026-09-26 体验层视觉走查）：从 content 剥离为独立状态元素——
+        // content 保持纯模型文本；标记不再拼进正文（被当正文/污染后续轮次历史载荷）。
         if (r === 'aborted') {
-          const base = streamedRef.current || lastAsst()?.content || ''
-          streamedRef.current = base + '\n\n（已停止）'
-          patch(streamedRef.current)
+          const targetId = asstId || lastAsst()?.id
+          if (targetId) useAgentStore.getState().markTerminal(targetId, 'stopped')
         } else if (truncated) {
-          // 输出截断终态标记（2026-09-25 智能层，候选 1「finish=length 截断提示面」）：
-          // 主进程已把 turn/end reason=max-tokens 转发为 truncated 事件；与「（已停止）」同为终态标记族——
+          // 主进程已把 turn/end reason=max-tokens 转发为 truncated 事件；与「（已停止）」同为终态标记族。
           // 残缺正文必须可见提示，否则作者会当它完整（内容丢失不可见）。默认正文类回复是唯一不受
           // 弱结果兜底保护的通道（子任务有 lastRaw 重试），此处补上最后一层。
-          const base = streamedRef.current || lastAsst()?.content || ''
-          streamedRef.current = base + '\n\n（输出已截断）'
-          patch(streamedRef.current)
+          const targetId = asstId || lastAsst()?.id
+          if (targetId) useAgentStore.getState().markTerminal(targetId, 'truncated')
         }
       } catch (e) {
         fail(String((e as Error).message || e))
@@ -1520,12 +1538,24 @@ export default function AgentPanel(props: AgentPanelProps) {
                   {m.role === 'assistant' && m.thinking && <ThinkingBlock text={m.thinking} active={streaming} />}
                   {m.role === 'assistant' ? (
                     <div className="prose min-w-0 break-words">
-                      {/* 错误语义化（2026-09-16 智能层候选3）：错误时 content=已流式部分（保留），
-                          错误文案在 ErrorNotice；旧 append 路径（content 即错误文案）不出 markdown */}
-                      {(!m.error || m.errorText) && (
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content || (m.error ? '' : streaming ? '正在生成…' : '')}</ReactMarkdown>
-                      )}
-                      {m.error && <ErrorNotice messages={messages} idx={idx} onRetry={onErrorRetry} />}
+                      {/* 终态标记（2026-09-26 体验层）：与 content 分离的独立状态行；parseTerminalSuffix
+                          兼容旧会话内消息（旧实现曾在 content 尾部拼过 `\n\n（已停止）`/`\n\n（输出已截断）`） */}
+                      {(() => {
+                        const { body, mark } = parseTerminalSuffix(m.content || '')
+                        const terminal = m.terminalMark ?? mark
+                        const showBody = !m.error || !!m.errorText
+                        return (
+                          <>
+                            {showBody && (
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {body || (m.error ? '' : streaming ? '正在生成…' : '')}
+                              </ReactMarkdown>
+                            )}
+                            {terminal && showBody && <TerminalMarkLine mark={terminal} />}
+                            {m.error && <ErrorNotice messages={messages} idx={idx} onRetry={onErrorRetry} />}
+                          </>
+                        )
+                      })()}
                     </div>
                   ) : (
                     <span className="whitespace-pre-wrap break-words">{m.content}</span>
