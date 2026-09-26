@@ -27,7 +27,8 @@ export interface AgentMsg {
   /** meta 卡：工具开始时刻（performance.now）与耗时（meta-done 时计算，ms） */
   startedAt?: number
   elapsedMs?: number
-  /** meta 卡：轮次以停止/错误终了时该工具仍未返回结果（渲染「已取消」中性终态，停转圈） */
+  /** 轮次以停止/错误终了时该卡未收尾（中性「已取消」终态）：meta=工具未返回结果（停转圈），
+   *  ask=问题未作答（冻结交互），todo=清单未全部完成（冻结未完成项） */
   cancelled?: boolean
   /** edit 卡：目标文件与修改条目 */
   file?: string

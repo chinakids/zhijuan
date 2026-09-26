@@ -581,7 +581,14 @@ function useSender(props: AgentPanelProps) {
       // meta-done 的工具卡若一直悬置会永久转圈（作者无法判断工具是没返回还是卡死）——统一落「已取消」
       // 中性终态并冻结耗时。真机取消路径 dsh 会补发合成失败结果（ABORTED_BEFORE_DISPATCH→失败态），
       // 此处兜底的是 error 终了（驱动超时/引擎异常）与事件缺失场景，幂等（已 done/cancelled 不重复标）。
-      const settleTrailingTools = () => {
+      // ask/todo 卡终态（2026-09-26 智能层候选1）：轮次以停止/错误终了时，未作答提问与未完成任务清单
+      // 必须落可见中性终态（「已取消」）——否则作者看到永久转圈/可提交按钮，误以为 agent 仍在干活或
+      // 仍期待回答。依据：Claude Agent SDK 官方 todo 生命周期只有 pending/in_progress/completed/deleted、
+      // 没有取消态（docs/claude.com/en/agent-sdk/todo-tracking），取消后的呈现由宿主应用负责——轮次终了
+      // 原因（ResultMessage.subtype: success/error_max_turns/error_during_execution 等）与清单状态是
+      // 解耦的两套状态机（agent-loop.md「Handle the result」「Check the subtype」），宿主必须自行结合。
+      // 仅 aborted/error 标（done 正常终局时 ask 必已作答，todo 应为全完成；devShim 演示卡不被误标）。
+      const settleTrailingTools = (final: 'done' | 'error' | 'aborted') => {
         const now = performance.now()
         // 按「本轮归属项目」的桶遍历（分桶后：流式期间切项目，messages 已换桶，不能读当前桶）
         const s = useAgentStore.getState()
@@ -596,9 +603,17 @@ function useSender(props: AgentPanelProps) {
                 cancelled: true,
                 elapsedMs: m.startedAt != null ? Math.max(0, now - m.startedAt) : m.elapsedMs
               })
+            continue
+          }
+          if (final === 'done') continue
+          if (m.kind === 'ask' && !m.answered && !m.cancelled) {
+            useAgentStore.getState().upsertTool({ id: m.id, kind: 'ask', cancelled: true, project: projectId })
+          } else if (m.kind === 'todo' && !m.cancelled && m.items?.some((i) => i.status !== 'completed')) {
+            useAgentStore.getState().upsertTool({ id: m.id, kind: 'todo', cancelled: true, project: projectId })
           }
         }
       }
+      let r: 'done' | 'error' | 'aborted' = 'done'
       try {
         attachAgentBridge()
         abortRef.current = { rid }
@@ -621,7 +636,7 @@ function useSender(props: AgentPanelProps) {
           streamedRef.current += t
           patch(streamedRef.current, false)
         })
-        const r = await harnessSend(
+        r = await harnessSend(
           {
             requestId: rid,
             projectId,
@@ -684,7 +699,7 @@ function useSender(props: AgentPanelProps) {
       } catch (e) {
         fail(String((e as Error).message || e))
       } finally {
-        settleTrailingTools()
+        settleTrailingTools(r)
         setStreaming(false)
         streamingRef.current = false
         abortRef.current = null
@@ -1443,7 +1458,7 @@ export default function AgentPanel(props: AgentPanelProps) {
             if (m.role === 'tool') {
               if (m.kind === 'todo' && m.items) return (
                 <div key={m.id} className="w-full">
-                  <TodoCard items={m.items} />
+                  <TodoCard items={m.items} cancelled={m.cancelled} />
                 </div>
               )
               if (m.kind === 'ask' && m.questions && m.batch)
@@ -1454,6 +1469,7 @@ export default function AgentPanel(props: AgentPanelProps) {
                       batch={m.batch}
                       questions={m.questions}
                       answered={m.answered}
+                      cancelled={m.cancelled}
                       onAnswered={() => useAgentStore.getState().markAsked(m.id)}
                     />
                   </div>

@@ -1493,6 +1493,41 @@ const mock = {
       emit({ requestId: rid, type: 'aborted' })
       return { ok: true }
     }
+    // 提问/清单被停止演示（2026-09-26 智能层候选1）：prompt 含「提问被停」时——发出任务清单与提问
+    // 后直接补发 aborted（=停止时提问未作答/任务未完成），用于验证 ask/todo 卡「已取消」中性终态；
+    // 真机的 aborted 由 agentCancel 补发（见下），这里直接发同一事件（渲染层只认事件）
+    if (/提问被停/.test(input.prompt)) {
+      emit({
+        requestId: rid,
+        type: 'todo',
+        items: [
+          { content: '读取当前章节与人物设定', status: 'completed' },
+          { content: '给出续写建议', status: 'in_progress' },
+          { content: '等待确认后应用到正文', status: 'pending' }
+        ]
+      })
+      await demoDelay()
+      emit({
+        requestId: rid,
+        type: 'ask',
+        batch: 'dev-stop-1',
+        questions: [
+          {
+            id: 'q_style',
+            header: '风格选择',
+            question: '这段续写打算用什么语气？',
+            options: [
+              { label: '保持现状', description: '延续全章的沉郁氛围' },
+              { label: '轻快一些', description: '给人物一个透气的瞬间' }
+            ],
+            multiSelect: false
+          }
+        ]
+      })
+      await demoDelay()
+      emit({ requestId: rid, type: 'aborted' })
+      return { ok: true }
+    }
     // 技能激活演示（2026-09-21 skill 运行层）：显式 /倒叙开篇法 或提及「倒叙开篇法」→ 回复体现技能内容
     if (/倒叙开篇法/.test(input.prompt)) {
       emit({ requestId: rid, type: 'think', text: '对齐《倒叙开篇法》：先定高光一幕，再切起因…' })

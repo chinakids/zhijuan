@@ -13,6 +13,8 @@ interface Props {
   onAnswered: () => void
   /** 已有已提交记录（store.answered）：重挂后恢复「已提交」态，防止重复提交 */
   answered?: boolean
+  /** 轮次以停止/错误终了时问题未作答（2026-09-26 智能层候选1）：冻结交互并落「已取消 · 问题未作答」中性终态 */
+  cancelled?: boolean
 }
 
 /** 单选（默认）选项项的选中态 */
@@ -33,12 +35,14 @@ function pickOne(list: string[], v: string): string[] {
   return list.includes(v) ? [] : [v]
 }
 
-export default function AskCard({ id, batch, questions, onAnswered, answered }: Props) {
+export default function AskCard({ id, batch, questions, onAnswered, answered, cancelled }: Props) {
   const [sel, setSel] = useState<Sel[]>(() => initSel(questions))
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(answered ?? false)
   const [err, setErr] = useState('')
   const ready = sel.some((s) => s.options.length > 0 || s.custom.trim())
+  // 已取消=轮次停止/错误终了且未作答：交互冻结（提交按钮隐藏、选项与输入禁用），仅留中性终态声明
+  const isCancelled = !!cancelled && !submitted
 
   async function submit() {
     if (!ready || submitting) return
@@ -80,6 +84,7 @@ export default function AskCard({ id, batch, questions, onAnswered, answered }: 
                     <button
                       key={op.label}
                       type="button"
+                      disabled={isCancelled}
                       onClick={() =>
                         setSel((prev) => {
                           const next = prev.slice()
@@ -92,7 +97,8 @@ export default function AskCard({ id, batch, questions, onAnswered, answered }: 
                       }
                       className={cn(
                         'flex w-full items-start gap-2 rounded-lg border px-2 py-1.5 text-left transition-colors',
-                        checked ? 'border-accent bg-accent/10' : 'border-hair hover:bg-surface-2'
+                        checked ? 'border-accent bg-accent/10' : 'border-hair hover:bg-surface-2',
+                        isCancelled && 'pointer-events-none opacity-60'
                       )}
                     >
                       <span
@@ -115,6 +121,7 @@ export default function AskCard({ id, batch, questions, onAnswered, answered }: 
             ) : null}
             <input
               value={sel[qi].custom}
+              disabled={isCancelled}
               onChange={(e) =>
                 setSel((prev) => {
                   const next = prev.slice()
@@ -123,13 +130,17 @@ export default function AskCard({ id, batch, questions, onAnswered, answered }: 
                 })
               }
               placeholder="或直接输入你的回答…"
-              className="mt-1.5 h-8 w-full rounded-lg border border-hair bg-surface-2 px-2 text-xs text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/60"
+              className="mt-1.5 h-8 w-full rounded-lg border border-hair bg-surface-2 px-2 text-xs text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/60 disabled:opacity-60"
             />
           </div>
         ))}
       </div>
       <div className="mt-2.5 flex items-center gap-2">
-        {submitted ? (
+        {isCancelled ? (
+          <span data-testid="ask-cancelled" className="flex items-center gap-1 text-xs text-ink-3">
+            <HelpCircle className="h-3.5 w-3.5" /> 已取消 · 问题未作答
+          </span>
+        ) : submitted ? (
           <span className="flex items-center gap-1 text-xs text-success">
             <Check className="h-3.5 w-3.5" /> 已提交，模型继续中…
           </span>
