@@ -1,17 +1,19 @@
 // 织卷真模型冒烟 · 「停止生成」真中断链路（智能层 2026-09-14）
-// 用法：cd ~/Desktop/织卷 && LOCAL_LLM_KEY=local node scripts/cancel-live.mjs
-// 前提：dsh-runtime 已装（node_modules 存在）、vLLM 127.0.0.1:8888 在线、patch-server-cancel 已重放（install.sh 会自动做）。
+// 用法：cd ~/Desktop/织卷 && node scripts/cancel-live.mjs
+// 前提：dsh-runtime 已装（node_modules 存在）、vLLM 在线（经 probe-settings 从真机 settings 合并，
+//       勿写死 127.0.0.1——发布脱敏后 providers 默认=127 占位、本机已 DEAD，见 lib/probe-settings.mjs）、
+//       patch-server-cancel 已重放（install.sh 会自动做）。
 // 链路：长输出任务 → 数秒后 cancelTurn（session/cancel RPC → 引擎 agent.cancel）→
 //       断言 driveSession 快速返回（不等模型跑完）＋ 引擎侧出现 aborted 收尾 ＋ 同一会话后续可正常用。
 import { build as esbuild } from 'esbuild'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { rmSync } from 'node:fs'
+import { resetProbeUserdata } from './lib/probe-settings.mjs'
 
 const root = resolve(import.meta.dirname, '..')
 process.env.ZJ_APP_PATH = root
 process.env.ZJ_USERDATA = '/tmp/zj-smoke-cancel-live'
-rmSync(process.env.ZJ_USERDATA, { recursive: true, force: true })
+resetProbeUserdata()
 const out = '/tmp/cancel-live-bundle.mjs'
 
 await esbuild({
