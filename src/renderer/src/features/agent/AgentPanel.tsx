@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Rea
 import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Quote, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, Users, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, ListChecks, Waypoints, RefreshCw, CircleSlash, CircleAlert, CornerUpRight } from 'lucide-react'
+import { Quote, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, Users, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, ListChecks, Waypoints, RefreshCw, CircleSlash, CircleAlert, CornerUpRight, MoreHorizontal } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import type { ProseApi } from '../editor/Prose'
@@ -24,6 +24,7 @@ import { trimHistoryMessage } from '../../../../shared/historyTrim'
 import { useAgentStore, messageProject, type AgentMsg, type QuoteRef } from './store'
 import ErrorNotice from './ErrorNotice'
 import { parseTerminalSuffix, TERMINAL_TEXT, type TerminalMark } from './terminalMark'
+import { clipBody, REPLY_DISPLAY_CAP } from './clip'
 import { groupToolMeta, isContinuedRead, summarizeGroup, failureFollowupPrompt } from './toolChain'
 import { useUiStore } from '../../store/ui'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
@@ -56,7 +57,7 @@ interface AgentPanelProps {
   onChapterCheck?: (tab?: ChapterCheckKind) => void
 }
 
-const CHAR_LIMIT = 60000 // 渲染层单条回复显示截断上限（非上下文预算；预算见 shared/contextCaps）
+// 单条回复显示截断上限已移入 ./clip（REPLY_DISPLAY_CAP；content 存全量、渲染层截断，见 2026-09-27 体验层候选 1）
 let ridSeq = 0
 const newRid = () => 'r' + Date.now().toString(36) + (ridSeq++).toString(36)
 
@@ -535,6 +536,19 @@ function TerminalMarkLine({ mark }: { mark: TerminalMark }) {
   )
 }
 
+/* ---------- 显示截断提示（2026-09-27 体验层候选 1 收口）：内容完整、仅显示截断 → 中性不警示 ----------
+   与 TerminalMarkLine 同款 11px 状态行样式；语义区分=terminalMark truncated 是引擎 max-tokens 触顶
+   （内容不完→警示），本提示是渲染层显示上限（内容完整，仅显示前 N 字→中性）。
+   文案=文案口径表行「（回复较长，仅显示前 N 字）」。 */
+function ClipNote({ cap }: { cap: number }) {
+  return (
+    <div data-testid="zj-clip-note" className="mt-1.5 flex items-center gap-1 text-[11px] text-ink-3">
+      <MoreHorizontal className="h-3 w-3 shrink-0" />
+      <span>{`（回复较长，仅显示前 ${cap} 字）`}</span>
+    </div>
+  )
+}
+
 function useSender(props: AgentPanelProps) {
   const setStreaming = useAgentStore((s) => s.setStreaming)
   const streaming = useAgentStore((s) => s.streaming)
@@ -584,11 +598,13 @@ function useSender(props: AgentPanelProps) {
         const msgs = bucketOf()
         return [...msgs].reverse().find((m) => m.role === 'assistant') ?? msgs[msgs.length - 1]
       }
-      const patch = (t: string, trunc = true) => {
+      const patch = (t: string) => {
         const targetId = asstId || lastAsst()?.id
         if (!targetId) return
-        const v = trunc && t.length > CHAR_LIMIT ? t.slice(0, CHAR_LIMIT) + '…（截断）' : t
-        useAgentStore.getState().patch(targetId, v)
+        // 2026-09-27 体验层候选 1（CHAR_LIMIT 评估收口）：content 存全量——
+        // 旧实现 final 时 slice(60000)+'…（截断）' 写回 content（历史载荷丢长回复尾部+标记污染模型上下文）；
+        // 显示截断移至渲染层（clipBody），引擎侧 trimHistoryMessage 为历史保头尾，无需在此丢尾。
+        useAgentStore.getState().patch(targetId, t)
       }
       const fail = (txt: string) => {
         // 2026-09-16 智能层候选3：错误不替换已流式内容（store 改为 errorText 独立存），并附重试载荷；
@@ -653,7 +669,7 @@ function useSender(props: AgentPanelProps) {
         })
         const deltaBuf = createStreamBuffer((t) => {
           streamedRef.current += t
-          patch(streamedRef.current, false)
+          patch(streamedRef.current)
         })
         r = await harnessSend(
           {
@@ -1544,12 +1560,19 @@ export default function AgentPanel(props: AgentPanelProps) {
                         const { body, mark } = parseTerminalSuffix(m.content || '')
                         const terminal = m.terminalMark ?? mark
                         const showBody = !m.error || !!m.errorText
+                        // 显示截断（2026-09-27 体验层候选 1）：content 已全量入 store——仅渲染前 REPLY_DISPLAY_CAP 字；
+                        // 完整内容仍在会话与后续历史载荷（引擎 trimHistoryMessage 保头尾），提示中性不警示
+                        // （与 terminalMark truncated=引擎 max-tokens 内容不完不同语义）。
+                        const clip = clipBody(body || (m.error ? '' : streaming ? '正在生成…' : ''))
                         return (
                           <>
                             {showBody && (
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {body || (m.error ? '' : streaming ? '正在生成…' : '')}
-                              </ReactMarkdown>
+                              <>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {clip.text}
+                                </ReactMarkdown>
+                                {clip.clipped && <ClipNote cap={REPLY_DISPLAY_CAP} />}
+                              </>
                             )}
                             {terminal && showBody && <TerminalMarkLine mark={terminal} />}
                             {m.error && <ErrorNotice messages={messages} idx={idx} onRetry={onErrorRetry} />}

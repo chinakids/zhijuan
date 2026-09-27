@@ -30,6 +30,7 @@ import { dedupeRejectedSliceItems, unsettledSameOf } from '../../../shared/propo
 import { auditDocMarkdown } from '../../../shared/auditDoc'
 import { parseAnnotationCsv, segmentFromText, escapeCsvField } from '../../../shared/annotations'
 import { scrollMemorySnapshot } from '../features/editor/scrollMemory'
+import { useAgentStore } from '../features/agent/store'
 import { isVersionedRel } from '../../../shared/versionedRel'
 import type { RecentEntry } from '../../../shared/projects'
 import type { SkillMeta, SkillDraft, SkillWriteResult } from '../../../shared/skills'
@@ -1586,6 +1587,20 @@ const mock = {
       emit({ requestId: rid, type: 'done' })
       return { ok: true }
     }
+    // 超长回复演示（2026-09-27 体验层，候选 1「CHAR_LIMIT 渲染层截断评估」收口）：prompt 含「模拟超长」时
+    // 产出 >60000 字回复（两段增量+final 全量），验证「content 存全量 + 渲染层仅显示前 60000 字 + 中性提示」；
+    // 与「模拟截断」（引擎 max-tokens=内容不完）语义不同——本演示为显示截断，内容完整。
+    if (/模拟超长/.test(input.prompt)) {
+      const unit = '渔火在潮声里明明灭灭，他拢了拢衣领，沿着湿漉漉的石阶往下走。'
+      const big = unit.repeat(Math.ceil(61000 / unit.length)).slice(0, 61000)
+      emit({ requestId: rid, type: 'delta', text: big.slice(0, 5000) })
+      await demoDelay()
+      emit({ requestId: rid, type: 'delta', text: big.slice(5000) })
+      await demoDelay()
+      emit({ requestId: rid, type: 'final', text: big })
+      emit({ requestId: rid, type: 'done' })
+      return { ok: true }
+    }
     // 输出截断演示（2026-09-25 智能层，候选 1「finish=length 截断提示面」）：prompt 含「模拟截断」时——
     // 先给部分增量、再发 truncated 事件（真机=turn/end reason=max-tokens 由 translate 转发）、final 为残缺文本；
     // 用于验证「（输出已截断）」终态标记渲染链（残缺正文必须可见提示）
@@ -2447,6 +2462,8 @@ export function ensureDevShim() {
   window.zhijuan = buildEmptyProbe(buildFailProbe(mock as unknown as typeof window.zhijuan))
   // 无头冒烟用：暴露全局 Toast API（与 __ZJ_EDITORS 同级的测试面，仅 devShim 存在）
   ;(window as unknown as { __ZJ_TOAST: typeof toast }).__ZJ_TOAST = toast
+  // 无头冒烟用：暴露 agent 会话 store 只读面（验证 content 存全量等断言；仅 devShim 存在）
+  ;(window as unknown as { __ZJ_AGENT_STORE: typeof useAgentStore }).__ZJ_AGENT_STORE = useAgentStore
   // 无头冒烟用：模拟主进程菜单动作（真机走 ipcMain send('menu:action') → preload onMenuAction）
   const emitMenu = (id: MenuActionId) => {
     for (const h of menuListeners) h({ id })
