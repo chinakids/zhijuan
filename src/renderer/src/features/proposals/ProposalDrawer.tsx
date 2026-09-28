@@ -273,6 +273,22 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
   const [allBusy, setAllBusy] = useState(false)
   const [precheckOpen, setPrecheckOpen] = useState(false)
   const [staleCount, setStaleCount] = useState(0)
+  // 2026-09-28：全部拒绝（批量否决）——与「全部接受」对称。拒绝=显式裁决且织卷无 re-open
+  // （GitHub dismiss 有 re-open，织卷 rejected 卡不可撤销）→ 必须带信息充足的确认框防误触。
+  const [rejectAllOpen, setRejectAllOpen] = useState(false)
+  const [allRejectBusy, setAllRejectBusy] = useState(false)
+  async function doAllReject() {
+    setAllRejectBusy(true)
+    try {
+      for (const p of pending) {
+        await window.zhijuan.rejectProposal(projectId, p.id)
+        reportErr(p.id, '')
+      }
+    } finally {
+      setAllRejectBusy(false)
+      onChanged()
+    }
+  }
   async function doAllApply() {
     // 批量动作失败可见性（2026-09-16 00:45 轮；21:45 观察③）：旧实现 `if (r.ok)` 静默吞失败——
     // 与单卡 doApply（toast 兜底 + errMap 卡片红字）不对齐。SAP Fiori「Processing Multiple Items」：
@@ -371,7 +387,8 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
             <div className="mb-2 flex items-center gap-2">
               <span className="text-xs font-medium text-warn">待确认 {pending.length}</span>
               <span className="flex-1" />
-              <Button size="sm" className="h-7 px-2 text-[11px]" onClick={() => void allApply()} disabled={allBusy}>全部接受</Button>
+              <Button variant="outline" size="sm" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px]" onClick={() => setRejectAllOpen(true)} disabled={allBusy || allRejectBusy}>全部拒绝</Button>
+              <Button size="sm" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px]" onClick={() => void allApply()} disabled={allBusy || allRejectBusy}>全部接受</Button>
             </div>
           )}
           {pending.length === 0 && done.length === 0 && stale.length === 0 && (
@@ -408,6 +425,20 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
           <DialogFooter>
             <Button variant="outline" onClick={() => { setPrecheckOpen(false); setAllBusy(false) }}>取消</Button>
             <Button onClick={() => { setPrecheckOpen(false); void doAllApply() }}>仍全部接受</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* 2026-09-28：全部拒绝确认——拒绝=显式裁决且 rejected 不可撤销（无 re-open），
+          批量误触后果×N；确认携带后果信息（NN/g Error Prevention：确认须带新信息）*/}
+      <Dialog open={rejectAllOpen} onOpenChange={(v) => { if (!v) { setRejectAllOpen(false) } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>拒绝全部提案？</DialogTitle>
+            <DialogDescription>将拒绝 {pending.length} 条提案。拒绝后，同类修改不再重复提出；如需重新处理，可重新扫描批注或再次保存。确定全部拒绝吗？</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectAllOpen(false)}>取消</Button>
+            <Button variant="destructive" onClick={() => { setRejectAllOpen(false); void doAllReject() }}>全部拒绝</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
