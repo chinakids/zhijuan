@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Rea
 import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Quote, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, Users, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, ListChecks, Waypoints, RefreshCw, CircleSlash, CircleAlert, CornerUpRight, MoreHorizontal } from 'lucide-react'
+import { Quote, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, ChevronUp, Users, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, ListChecks, Waypoints, RefreshCw, CircleSlash, CircleAlert, CornerUpRight, MoreHorizontal } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import type { ProseApi } from '../editor/Prose'
@@ -539,12 +539,28 @@ function TerminalMarkLine({ mark }: { mark: TerminalMark }) {
 /* ---------- 显示截断提示（2026-09-27 体验层候选 1 收口）：内容完整、仅显示截断 → 中性不警示 ----------
    与 TerminalMarkLine 同款 11px 状态行样式；语义区分=terminalMark truncated 是引擎 max-tokens 触顶
    （内容不完→警示），本提示是渲染层显示上限（内容完整，仅显示前 N 字→中性）。
-   文案=文案口径表行「（回复较长，仅显示前 N 字）」。 */
-function ClipNote({ cap }: { cap: number }) {
+   文案=文案口径表行「（回复较长，仅显示前 N 字）」。
+   展开入口（2026-09-28 体验层候选 1「查看完整回复」）：截断提示行的展开动作按消息 id 会话内记录
+   （阅读动作非偏好，不落盘）；展开态渲染 content 全量（ReactMarkdown 全文），与 toast「查看明细/
+   收起明细」同款 aria 与样式（aria-expanded + 11px accent 文字按钮），HIG Feedback「near the items
+   it describes」。文案数字与 REPLY_DISPLAY_CAP 同源（cap 透传）。 */
+function ClipNote({ cap, expanded, onToggle }: { cap: number; expanded: boolean; onToggle: () => void }) {
+  const tip = expanded ? '已展开完整回复' : `（回复较长，仅显示前 ${cap} 字）`
   return (
-    <div data-testid="zj-clip-note" className="mt-1.5 flex items-center gap-1 text-[11px] text-ink-3">
-      <MoreHorizontal className="h-3 w-3 shrink-0" />
-      <span>{`（回复较长，仅显示前 ${cap} 字）`}</span>
+    <div data-testid="zj-clip-note" className="mt-1.5 flex min-w-0 items-center gap-1 text-[11px] text-ink-3">
+      {expanded ? <Check className="h-3 w-3 shrink-0" /> : <MoreHorizontal className="h-3 w-3 shrink-0" />}
+      <span className="min-w-0 flex-1 truncate" title={tip}>
+        {tip}
+      </span>
+      <button
+        type="button"
+        aria-expanded={expanded}
+        onClick={onToggle}
+        className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded px-0.5 py-px text-[11px] text-accent transition-colors hover:bg-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 active:opacity-80"
+      >
+        {expanded ? '收起' : '查看完整回复'}
+        {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+      </button>
     </div>
   )
 }
@@ -768,6 +784,9 @@ export default function AgentPanel(props: AgentPanelProps) {
   }, [messages])
   const metaById = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages])
   const [input, setInput] = useState('')
+  // 超长回复展开态（2026-09-28 体验层候选 1「查看完整回复」）：显示截断提示行的展开动作按消息 id
+  // 会话内记录（阅读动作非偏好，不落盘）；展开后渲染该条 content 全量。
+  const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({})
   // 消息按项目分桶（体验层 2026-09-22，任务线-02/04-体验层 五候选3 收口）：
   // 切项目时切换对话桶，Agent 装配与消息列表保持一致（VS Code Copilot Chat 官方语义=session scoped to workspace）
   useEffect(() => {
@@ -1564,14 +1583,26 @@ export default function AgentPanel(props: AgentPanelProps) {
                         // 完整内容仍在会话与后续历史载荷（引擎 trimHistoryMessage 保头尾），提示中性不警示
                         // （与 terminalMark truncated=引擎 max-tokens 内容不完不同语义）。
                         const clip = clipBody(body || (m.error ? '' : streaming ? '正在生成…' : ''))
+                        // 展开态（2026-09-28）：显示截断提示行「查看完整回复」→ 本条渲染 content 全量；
+                        // 收起回到显示截断。state 按消息 id 会话内记录，不写 store（content 始终全量）。
+                        const isExpanded = !!expandedReplies[m.id]
+                        const shown = isExpanded ? body : clip.text
                         return (
                           <>
                             {showBody && (
                               <>
                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                  {clip.text}
+                                  {shown}
                                 </ReactMarkdown>
-                                {clip.clipped && <ClipNote cap={REPLY_DISPLAY_CAP} />}
+                                {clip.clipped && (
+                                  <ClipNote
+                                    cap={REPLY_DISPLAY_CAP}
+                                    expanded={isExpanded}
+                                    onToggle={() =>
+                                      setExpandedReplies((s) => ({ ...s, [m.id]: !s[m.id] }))
+                                    }
+                                  />
+                                )}
                               </>
                             )}
                             {terminal && showBody && <TerminalMarkLine mark={terminal} />}

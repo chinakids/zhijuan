@@ -145,7 +145,52 @@ try {
   if (oldCnt !== 0) throw new Error('「…（截断）」仍在正文出现 ' + oldCnt + ' 次（应 0）')
   console.log('OK ④ 旧标记「…（截断）」全页零出现')
 
-  // ⑤ 无 JS 异常
+  // ⑥ 「查看完整回复」展开（2026-09-28 体验层候选 1）：点击提示行按钮 → 本条渲染 content 全量（61000 字）
+  const btnTxt = await page.eval(`(() => { const b = document.querySelector('[data-testid="zj-clip-note"] button'); return b ? (b.textContent||'').trim() : '' })()`)
+  if (btnTxt !== '查看完整回复') throw new Error('展开按钮缺失或文案异常：' + btnTxt)
+  const expAttr = await page.eval(`document.querySelector('[data-testid="zj-clip-note"] button').getAttribute('aria-expanded')`)
+  if (expAttr !== 'false') throw new Error('收起态 aria-expanded 应为 false：' + expAttr)
+  await page.eval(`(() => { const b = document.querySelector('[data-testid="zj-clip-note"] button'); b.click(); return true })()`)
+  await sleep(600)
+  const plenExp = await page.eval(`(() => {
+    const pros = [...document.querySelectorAll('.prose')]
+    const p = pros[pros.length - 1]?.querySelector('p')
+    return p ? p.textContent.length : -1
+  })()`)
+  if (plenExp !== 61000) throw new Error('展开后 <p> 渲染长度异常：' + plenExp + '（应=61000 全量）')
+  const expTxt = await page.eval(`(() => { const el = document.querySelector('[data-testid="zj-clip-note"]'); return el ? el.textContent : '' })()`)
+  if (!expTxt.includes('已展开完整回复') || !expTxt.includes('收起')) throw new Error('展开态提示行异常：' + expTxt)
+  const expAttr2 = await page.eval(`document.querySelector('[data-testid="zj-clip-note"] button').getAttribute('aria-expanded')`)
+  if (expAttr2 !== 'true') throw new Error('展开态 aria-expanded 应为 true：' + expAttr2)
+  console.log('OK ⑥ 展开后渲染全量 61000 字 + 提示行「已展开完整回复」+ 「收起」（aria-expanded=true）')
+  // 展开态契约截图（改动处=提示行展开按钮）
+  {
+    const shot = await page.cmd('Page.captureScreenshot', { format: 'png' })
+    if (shot?.data) {
+      const fs = await import('node:fs')
+      const hh = String(new Date().getHours()).padStart(2, '0')
+      const mm = String(new Date().getMinutes()).padStart(2, '0')
+      fs.mkdirSync(process.env.HOME + '/Pictures/zhijuan', { recursive: true })
+      const p2 = `${process.env.HOME}/Pictures/zhijuan/clip-expanded-${hh}${mm}.png`
+      fs.writeFileSync(p2, Buffer.from(shot.data, 'base64'))
+      console.log('SCREENSHOT(expanded):', p2)
+    }
+  }
+
+  // ⑦ 收起：点击「收起」→ 回到显示截断 60000 字
+  await page.eval(`(() => { const b = document.querySelector('[data-testid="zj-clip-note"] button'); b.click(); return true })()`)
+  await sleep(600)
+  const plenBack = await page.eval(`(() => {
+    const pros = [...document.querySelectorAll('.prose')]
+    const p = pros[pros.length - 1]?.querySelector('p')
+    return p ? p.textContent.length : -1
+  })()`)
+  if (plenBack !== 60000) throw new Error('收起后 <p> 渲染长度异常：' + plenBack + '（应=60000 显示截断）')
+  const noteCnt2 = await page.eval(`document.body.innerText.split('（回复较长，仅显示前 60000 字）').length - 1`)
+  if (noteCnt2 !== 1) throw new Error('收起后提示文案出现 ' + noteCnt2 + ' 次（应为 1）')
+  console.log('OK ⑦ 收起后回到显示截断 60000 字 + 提示恢复')
+
+  // ⑤ 无 JS 异常（含展开/收起全程）
   await sleep(500)
   const jsErrors = errors.filter((e) => !/favicon|ResizeObserver loop/i.test(e))
   if (jsErrors.length) throw new Error('JS 异常：' + jsErrors.join(' | ').slice(0, 500))
