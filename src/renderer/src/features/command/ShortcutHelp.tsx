@@ -73,6 +73,16 @@ const GROUPS: { title: string; rows: { label: string; keys: string[] }[] }[] = [
       { label: '选中后浮层：复制 / 引用进右侧对话', keys: ['点击浮层按钮'] },
       { label: '右键菜单：剪切 / 复制 / 粘贴 / 全选 / 添加到对话', keys: ['按右键'] }
     ]
+  },
+  {
+    title: 'Agent 对话（右侧面板）',
+    rows: [
+      { label: '发送消息', keys: ['Enter'] },
+      { label: '换行（不发送）', keys: ['⇧Enter'] },
+      { label: '输入框为空时回取最近发送的草稿', keys: ['↑'] },
+      { label: '生成中停止生成（未产出回复时草稿自动回到输入框）', keys: ['Esc'] },
+      { label: '插入引用 / 命令', keys: ['@', '/'] }
+    ]
   }
 ]
 
