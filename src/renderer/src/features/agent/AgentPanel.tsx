@@ -21,6 +21,7 @@ import { expandCommand, filterCommandCandidates, insertCommand, matchFixedComman
 import { skillCommandOf } from '../../../../shared/skills'
 import { createStreamBuffer } from '../../../../shared/streamBuffer'
 import { trimHistoryMessage } from '../../../../shared/historyTrim'
+import { shouldRestorePromptAfterAbort } from './draftRestore'
 import { useAgentStore, messageProject, type AgentMsg, type QuoteRef } from './store'
 import ErrorNotice from './ErrorNotice'
 import { parseTerminalSuffix, TERMINAL_TEXT, type TerminalMark } from './terminalMark'
@@ -566,7 +567,10 @@ function ClipNote({ cap, expanded, onToggle }: { cap: number; expanded: boolean;
   )
 }
 
-function useSender(props: AgentPanelProps) {
+function useSender(
+  props: AgentPanelProps,
+  onRestoreDraft?: (d: { raw: string; quote: QuoteRef | null }) => void
+) {
   const setStreaming = useAgentStore((s) => s.setStreaming)
   const streaming = useAgentStore((s) => s.streaming)
   const abortRef = useRef<{ rid: string } | null>(null)
@@ -575,6 +579,9 @@ function useSender(props: AgentPanelProps) {
   const pendingRef = useRef<{ raw: string; quote: QuoteRef | null; focus: boolean; project: string }[]>([])
   // 本轮流式累积（按项目分桶后，切项目期间 delta 不能依赖「当前桶」读前缀，本地累积为准）
   const streamedRef = useRef('')
+  // 最近发送草稿，按归属项目索引（2026-09-29 体验层候选 1）：中断恢复与输入框 ↑ 回取共用单一来源——
+  // 停止时若本轮未产出正文，恢复草稿可编辑重发；响应已开始后作者也可 ↑ 回取调整（Claude Code 同范式）
+  const draftsRef = useRef(new Map<string, { raw: string; quote: QuoteRef | null }>())
 
   const send = useCallback(
     async (raw: string, quote: QuoteRef | null, focus = false, opts?: { project?: string }) => {
@@ -590,6 +597,7 @@ function useSender(props: AgentPanelProps) {
       }
       if (!raw.trim()) return
       streamingRef.current = true
+      draftsRef.current.set(projectId, { raw, quote })
       // 引用来源标注（2026-09-23 体验层）：以划词时记录的来源为准（quote.src），
       // 不再用「当前正文章节」——切章/跨文档划词时旧实现会标错来源（探针实锤两场景）。
       // 旧通道无来源时落回面板章节名兜底。
@@ -760,20 +768,32 @@ function useSender(props: AgentPanelProps) {
         streamingRef.current = false
         abortRef.current = null
         useAgentStore.getState().setQuote(null)
+        // 中断草稿恢复（2026-09-29 体验层候选 1·任务线-02 候选 6「响应开始前中断→恢复原 prompt 草稿重发」）：
+        // 作者在响应未产出任何正文前停止（误停/模型慢），原输入已清空——把本轮草稿恢复到输入框可编辑重发，
+        // 避免长 prompt 重打（Claude Code Ctrl+C 同范式）；已产出正文不恢复（有内容=本轮已开始，按 ↑ 回取）。
+        // 判定口径=shouldRestorePromptAfterAbort（仅 aborted 且正文 delta 为空；think 不算响应已开始）。
+        if (shouldRestorePromptAfterAbort(r, streamedRef.current)) {
+          const d = draftsRef.current.get(projectId)
+          if (d) onRestoreDraft?.(d)
+        }
         // 队列续发：上一条收尾后自动发送下一条排队消息（F-20260917-12）；
         // 携带排队时的归属项目（2026-09-23 体验层）：排队期间切项目，续发仍落原对话而非当前面板项目
         const nxt = pendingRef.current.shift()
         if (nxt) setTimeout(() => void send(nxt.raw, nxt.quote, nxt.focus, { project: nxt.project }), 80)
       }
     },
-    [props, streaming]
+    [props, streaming, onRestoreDraft]
   )
 
   const stop = useCallback(() => {
     if (abortRef.current) cancelAgent(abortRef.current.rid)
   }, [])
 
-  return { send, stop, streaming }
+  // 输入框 ↑ 回取（2026-09-29 体验层候选 1·任务线-02 候选 6）：取最近发送草稿（按归属项目；中断恢复
+  // 与回取共用 draftsRef 单一来源——恢复的是「实际发送的内容」，与消息气泡严格一致）。
+  const recallLastDraft = useCallback((pid: string) => draftsRef.current.get(pid) ?? null, [])
+
+  return { send, stop, streaming, recallLastDraft }
 }
 
 export default function AgentPanel(props: AgentPanelProps) {
@@ -790,6 +810,8 @@ export default function AgentPanel(props: AgentPanelProps) {
   }, [messages])
   const metaById = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages])
   const [input, setInput] = useState('')
+  // 输入框 ref（2026-09-29 上移：中断草稿恢复回调在 useSender 前需要引用；@ 引用浮层同用）
+  const taRef = useRef<HTMLTextAreaElement>(null)
   // 超长回复展开态（2026-09-28 体验层候选 1「查看完整回复」）：显示截断提示行的展开动作按消息 id
   // 会话内记录（阅读动作非偏好，不落盘）；展开后渲染该条 content 全量。
   const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({})
@@ -815,7 +837,23 @@ export default function AgentPanel(props: AgentPanelProps) {
       alive = false
     }
   }, [])
-  const { send, stop, streaming: sending } = useSender(props)
+  // 中断草稿恢复（2026-09-29 体验层候选 1·任务线-02 候选 6「响应开始前中断→恢复原 prompt 草稿重发」）：
+  // useSender 在「停止且本轮未产出正文」时回调本函数——把原输入恢复到输入框（可编辑重发，Claude Code
+  // Ctrl+C 同范式）；引用节选一并恢复（与发送前状态一致）；恢复后聚焦输入框并落光标到末尾（便于直接改/重发）。
+  const restoreDraftCb = useCallback((d: { raw: string; quote: QuoteRef | null }) => {
+    setInput(d.raw)
+    useAgentStore.getState().setQuote(d.quote)
+    requestAnimationFrame(() => {
+      taRef.current?.focus()
+      const n = taRef.current?.value.length ?? d.raw.length
+      try {
+        taRef.current?.setSelectionRange(n, n)
+      } catch {
+        /* 忽略 */
+      }
+    })
+  }, [])
+  const { send, stop, streaming: sending, recallLastDraft } = useSender(props, restoreDraftCb)
   // 「让 agent 改」注册槽：审计抽屉（含规则体检状态栏 HealthBar）经 store 调用本页发送函数（F-20260916-05 迁移补链）
   useEffect(() => {
     useAgentStore.getState().setSendHandler((text) => void send(text, null, true))
@@ -981,7 +1019,6 @@ export default function AgentPanel(props: AgentPanelProps) {
   }, [])
 
   // ---------- 输入框 @ 引用（GitHub/Slack mention 范式；数据懒加载 + 会话缓存） ----------
-  const taRef = useRef<HTMLTextAreaElement>(null)
   // 上次 select 事件的选区快照（2026-09-24 幽灵 selectionchange 防护：caret 未变的 select 事件跳过重解析）
   const lastSelRef = useRef<{ s: number; e: number } | null>(null)
   const atDataRef = useRef<AtCandidate[]>([])
@@ -1358,6 +1395,22 @@ export default function AgentPanel(props: AgentPanelProps) {
         onKeyDown={(e) => {
           if (onAtKeyDown(e)) return
           if (onCmdKeyDown(e)) return
+          // 输入框为空时 ↑=回取最近发送草稿（2026-09-29 体验层候选 1·任务线-02 候选 6「靠 Up 键回取」；
+          // Claude Code/终端惯例）：响应已开始后停止/正常完成的场景，作者可 ↑ 取回 prompt 调整重发。
+          // @/命令浮层打开时由上面分支消费；IME 组合期交还输入法（候选确认语义）。
+          if (
+            e.key === 'ArrowUp' &&
+            !sending &&
+            input.trim() === '' &&
+            !(e.nativeEvent as { isComposing?: boolean }).isComposing
+          ) {
+            const prev = recallLastDraft(props.projectId)
+            if (prev) {
+              e.preventDefault()
+              restoreDraftCb(prev)
+              return
+            }
+          }
           // 生成中 Esc = 停止生成（HIG Keyboards「Esc cancel the current action or process」；
           // Claude Code 同范式）。浮层优先（@/命令选择态按 Esc 先取消选择，再按才停止）；
           // IME 组合期交还输入法（候选确认/取消是输入法语义，不触发停止）。
