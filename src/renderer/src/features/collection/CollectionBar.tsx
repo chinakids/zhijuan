@@ -10,7 +10,7 @@ import { Label } from '../../components/ui/label'
 import { Textarea } from '../../components/ui/textarea'
 import { cn } from '../../lib/utils'
 import { useFsChanged } from '../fs/useFsEvents'
-import { isLibraryResultPath, isTaskStale, parseTaskCard, rebuildTaskCardForRetry } from '../../../../shared/taskCard'
+import { isLibraryResultPath, isTaskStale, parseTaskCard, rebuildTaskCardForRetry, taskCardDoc, taskCardFileName } from '../../../../shared/taskCard'
 
 /* ===== 织卷 S5 · 采集栏：任务卡列表 + 发起采集表单 ===== */
 
@@ -126,25 +126,9 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
     if (!id || !demand.trim()) return
     setSaving(true)
     const ts = Date.now()
-    const name = '任务_' + new Date(ts).toISOString().replace(/[-:TZ]/g, '').slice(0, 14)
+    const name = taskCardFileName(ts)
     const kws = keywords.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
-    const fm = [
-      '---',
-      'status: pending',
-      '类别: ' + (category.trim() || '环境'),
-      '关键词: [' + kws.join(', ') + ']',
-      '需求: ' + demand.replace(/\n/g, ' '),
-      '来源: ' + source.trim(),
-      '创建: ' + new Date(ts).toLocaleString('sv'),
-      '---',
-      '',
-      '# 采集任务：' + demand.replace(/\n/g, ' ').slice(0, 20),
-      '',
-      '**需求详情**：' + demand,
-      '',
-      '（由管道的后台代理按关键词抓取并回填，App 侧只负责登记。）',
-      ''
-    ].join('\n')
+    const fm = taskCardDoc({ demand, keywords: kws, category: category.trim(), source: source.trim(), ts })
     await window.zhijuan.writeDoc(id, '素材库/采集池/' + name + '.md', fm)
     setOpen(false)
     setDemand(''); setKeywords(''); setCategory('环境'); setSource('')

@@ -62,25 +62,33 @@ export function taskCardFileName(ts: number): string {
 /**
  * 新建任务卡文本（模块设计 §十一 通道约定：front matter status: pending / 类别 / 关键词 /
  * 需求 / 来源 / 创建 + 描述正文）。纯函数零 fs，可单测。
- * 2026-09-29 智能层：agent 采集建议（CollectCard）使用本函数；CollectionBar 表单内联旧模板
- * 待收敛到本函数（登记平台层协作，防两处模板漂移）。
+ * 2026-09-29 平台层收敛：CollectionBar「发起采集」表单与 CollectCard（agent 建议）共用本函数，
+ * 撤除内联旧模板——任务卡模板单一来源，防两处漂移（「类别」trim 兜底、创建时间与文件名同源）。
  */
-export function taskCardDoc(opts: { demand: string; keywords: string[]; category: string; source?: string; note?: string }): string {
-  const demand = (opts.demand || '').replace(/\n/g, ' ')
+export function taskCardDoc(opts: {
+  demand: string
+  keywords: string[]
+  category: string
+  source?: string
+  note?: string
+  ts?: number
+}): string {
+  const raw = opts.demand || ''
+  const demand = raw.replace(/\n/g, ' ')
   const kws = (opts.keywords || []).map((s) => s.trim()).filter(Boolean)
   const fm = [
     '---',
     'status: pending',
-    '类别: ' + (opts.category || '环境'),
+    '类别: ' + ((opts.category || '').trim() || '环境'),
     '关键词: [' + kws.join(', ') + ']',
     '需求: ' + demand,
     '来源: ' + (opts.source ?? '').trim(),
-    '创建: ' + new Date().toLocaleString('sv'),
+    '创建: ' + new Date(opts.ts ?? Date.now()).toLocaleString('sv'),
     '---',
     '',
     '# 采集任务：' + demand.slice(0, 20),
     '',
-    '**需求详情**：' + demand
+    '**需求详情**：' + raw
   ]
   if (opts.note) fm.push('', '**说明**：' + opts.note.replace(/\n/g, ' '))
   fm.push('', '（由管道的后台代理按关键词抓取并回填，App 侧只负责登记。）', '')

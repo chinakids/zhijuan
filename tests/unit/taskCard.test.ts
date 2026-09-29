@@ -161,6 +161,21 @@ describe('taskCardDoc / taskCardFileName / normDemand（2026-09-29 智能层：a
     expect(d.body).not.toContain('**说明**')
   })
 
+  it('全空白类别同样兜底「环境」；正文「需求详情」保留原文换行（front matter 才压平）', () => {
+    const text = taskCardDoc({ demand: '雨夜\n码头', keywords: ['雨'], category: '   ' })
+    const d = parseTaskCard(text)
+    expect(d.category).toBe('环境')
+    expect(d.demand).toBe('雨夜 码头')
+    expect(d.body).toContain('**需求详情**：雨夜\n码头')
+  })
+
+  it('ts 透传：创建时间与文件名同源（toLocaleString sv 本地时区）', () => {
+    const ts = Date.UTC(2026, 8, 29, 1, 2, 3)
+    const d = parseTaskCard(taskCardDoc({ demand: 'x', keywords: [], category: '环境', ts }))
+    expect(d.createdAt).toBe(new Date(ts).toLocaleString('sv'))
+    expect(taskCardFileName(ts)).toMatch(/^任务_\d{14}$/)
+  })
+
   it('normDemand：去首尾与内部空白（查重同口径）', () => {
     expect(normDemand(' 校园 图书馆 ')).toBe(normDemand('校园图书馆'))
     expect(normDemand('雨夜码头')).not.toBe(normDemand('雨夜'))

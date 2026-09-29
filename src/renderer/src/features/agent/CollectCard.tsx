@@ -63,11 +63,12 @@ export default function CollectCard({
         useAgentStore.getState().setCollectState(id, 'created', '已有进行中的同需求任务（' + dupFile + '），未重复创建')
         return
       }
-      const name = taskCardFileName(Date.now())
+      const ts = Date.now()
+      const name = taskCardFileName(ts)
       const ok = await window.zhijuan.writeDoc(
         projectId,
         '素材库/采集池/' + name + '.md',
-        taskCardDoc({ demand: suggestion.demand, keywords: suggestion.keywords, category, note: suggestion.note })
+        taskCardDoc({ demand: suggestion.demand, keywords: suggestion.keywords, category, note: suggestion.note, ts })
       )
       useAgentStore.getState().setCollectState(
         id,
