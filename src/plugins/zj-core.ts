@@ -295,6 +295,59 @@ export const tools: ToolDef[] = [
       const payload = JSON.stringify({ file, edits: out }, null, 2)
       return `（已为 ${file} 生成修改方案，共 ${out.length} 处；作者采纳后才会写入；完整载荷见下）\n★ZJ_EDIT★\n` + payload + '\n★ZJ_END★'
     }
+  },
+  {
+    name: 'zj_collect_suggest',
+    description:
+      '为织卷作品提出「素材采集建议」：当写作需要而手头资料不足的具体现实细节（器物、场景、行业、地域知识等）时，给出采集需求建议。不写盘——作者在界面上确认后才会创建采集任务卡（素材库/采集池/任务_*.md），由本机管道后台抓取回填成素材。仅当确实缺少可支撑写作的细节时使用，不要为无关琐事提建议。',
+    parameters: {
+      base: {
+        type: 'string',
+        required: true,
+        description: '作品根目录（绝对路径）'
+      },
+      demand: {
+        type: 'string',
+        required: true,
+        description: '采集需求：要采什么素材（一句话，具体到可搜索，如「九十年代小城火车站候车室的常见陈设与氛围」）'
+      },
+      keywords: {
+        type: 'string',
+        required: true,
+        description: '搜索关键词 JSON 数组字符串，如 ["火车站候车室","九十年代","候车室陈设"]'
+      },
+      category: {
+        type: 'string',
+        required: false,
+        description: '建议放入的素材库类别（默认 环境；作者确认时可改）'
+      },
+      note: {
+        type: 'string',
+        required: false,
+        description: '为什么建议（可选）：与本作当前写作的关联，如「第03章雾港线候车室场景需要具体细节支撑」'
+      }
+    },
+    output: { schema: { type: 'string' }, render: (_a, v) => [{ type: 'text', text: String(v) }] },
+    async execute(args, exec) {
+      const demand = String(args.demand ?? '').trim()
+      if (!demand) return '（zj_collect_suggest 缺少 demand：说明要采什么素材）'
+      let keywords: string[] = []
+      if (Array.isArray(args.keywords)) keywords = args.keywords.map((x: unknown) => String(x))
+      else if (typeof args.keywords === 'string') {
+        try {
+          keywords = JSON.parse(args.keywords)
+        } catch {
+          return '（zj_collect_suggest 的 keywords 须是合法 JSON 数组字符串）'
+        }
+        if (!Array.isArray(keywords)) return '（zj_collect_suggest 的 keywords 须是合法 JSON 数组字符串）'
+        keywords = keywords.map((x: unknown) => String(x))
+      } else return '（zj_collect_suggest 缺少 keywords）'
+      keywords = keywords.map((s: string) => s.trim()).filter(Boolean)
+      const category = String(args.category ?? '').trim() || '环境'
+      const note = String(args.note ?? '').trim()
+      const payload = JSON.stringify({ demand, keywords, category, note }, null, 2)
+      return `（已生成采集建议，作者确认后才会创建任务卡；完整载荷见下）\n★ZJ_COLLECT★\n` + payload + '\n★ZJ_END★'
+    }
   }
 ]
 

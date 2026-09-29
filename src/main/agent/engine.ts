@@ -30,6 +30,7 @@ export type AgentOutEvent =
   | { requestId: string; type: 'meta'; tool: string; args?: string; argsJson?: string } // 工具开始（参数摘要 + 完整参数 JSON，供细节展开）
   | { requestId: string; type: 'meta-done'; tool: string; message: string; ok?: boolean; result?: string } // 工具结果摘要（ok=false=工具失败）+ 结果全文（供细节展开）
   | { requestId: string; type: 'edit'; file: string; edits: import('../../shared/types').EditItem[] } // 正文修改提案（IDE 前/>后，待采纳）
+  | { requestId: string; type: 'collect'; suggestion: import('../../shared/types').CollectSuggestion } // 素材采集建议（作者确认后创建采集任务卡）
   | { requestId: string; type: 'final'; text: string } // 本轮最终答复
   | { requestId: string; type: 'truncated' } // 本轮输出被 token 上限截断（turn/end reason=max-tokens；内容不完整，渲染层需提示）
   | { requestId: string; type: 'done' }
@@ -240,6 +241,15 @@ export function translate(n: DriveEvent, requestId: string, emit: (e: AgentOutEv
         return
       }
     }
+    // zj_collect_suggest：把结构化建议转成「采集建议卡」（作者确认后创建采集任务卡，见 CollectCard）
+    if (name === 'zj_collect_suggest' && !failed) {
+      const sug = extractCollectPayload(text)
+      if (sug) {
+        emit({ requestId, type: 'collect', suggestion: sug })
+        emit({ requestId, type: 'meta-done', tool: name, message: '已生成素材采集建议，确认后创建采集任务', result: text.slice(0, 4000) })
+        return
+      }
+    }
     emit({
       requestId,
       type: 'meta-done',
@@ -287,6 +297,29 @@ function extractEditPayload(text: string): { file: string; edits: import('../../
     const obj = JSON.parse(raw.slice(a, b + 1))
     if (!Array.isArray(obj.edits)) return null
     return { file: String(obj.file ?? ''), edits: obj.edits }
+  } catch {
+    return null
+  }
+}
+
+/** 从 zj_collect_suggest 的返回文本里提取结构化载荷（工具会把 JSON 包在 ★ZJ_COLLECT★ … ★ZJ_END★ 里）
+ * 2026-09-29 智能层候选 1：agent 素材采集建议（模块设计 §6.4）。放松解析=剥标记后取首尾花括号。 */
+export function extractCollectPayload(text: string): import('../../shared/types').CollectSuggestion | null {
+  const m = text.match(/★ZJ_COLLECT★\n([\s\S]*?)\n★ZJ_END★/)
+  const raw = m ? m[1] : text
+  const a = raw.indexOf('{')
+  const b = raw.lastIndexOf('}')
+  if (a < 0 || b <= a) return null
+  try {
+    const obj = JSON.parse(raw.slice(a, b + 1))
+    const demand = String(obj?.demand ?? '').trim()
+    if (!demand) return null
+    return {
+      demand,
+      keywords: Array.isArray(obj.keywords) ? obj.keywords.map((x: unknown) => String(x).trim()).filter(Boolean) : [],
+      category: typeof obj.category === 'string' && obj.category.trim() ? obj.category.trim() : '环境',
+      note: typeof obj.note === 'string' ? obj.note : ''
+    }
   } catch {
     return null
   }

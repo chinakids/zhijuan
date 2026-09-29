@@ -183,10 +183,24 @@ export interface EditItem {
   after?: string
 }
 
+/** agent 素材采集建议（zj_collect_suggest 生成，UI 以建议卡呈现，作者确认后才创建采集任务卡）
+ * 模块设计 §6.4「agent 可做之事：建议素材采集（生成任务卡草稿）」——模型只出建议不写盘，
+ * 确认后按 §十一 通道约定落 素材库/采集池/任务_<ts>.md（status: pending=管道唯一处理判据）。 */
+export interface CollectSuggestion {
+  /** 采集需求（一句话，具体到可搜） */
+  demand: string
+  /** 搜索关键词 */
+  keywords: string[]
+  /** 建议放入的素材库类别（作者确认时可改） */
+  category: string
+  /** 为什么建议（可选）：与本作当前写作的关联 */
+  note: string
+}
+
 /** agent 流事件（主进程 → 渲染层，按 requestId 认领） */
 export interface AgentEvent {
   requestId: string
-  type: 'delta' | 'meta' | 'meta-done' | 'think' | 'edit' | 'final' | 'truncated' | 'done' | 'aborted' | 'error' | 'todo' | 'ask'
+  type: 'delta' | 'meta' | 'meta-done' | 'think' | 'edit' | 'collect' | 'final' | 'truncated' | 'done' | 'aborted' | 'error' | 'todo' | 'ask'
   text?: string
   /** type = meta-done 时工具是否成功（缺省视为成功；false 渲染失败态） */
   ok?: boolean
@@ -209,6 +223,8 @@ export interface AgentEvent {
   file?: string
   /** type = edit 时的修改条目 */
   edits?: EditItem[]
+  /** type = collect 时的素材采集建议（作者确认后创建采集任务卡） */
+  suggestion?: CollectSuggestion
 }
 
 /** 文件系统事件（watcher 广播给渲染层） */

@@ -1446,6 +1446,40 @@ const mock = {
       mock.agentListeners.forEach((h) => h(e))
     }
     await demoDelay()
+    // 素材采集建议演示（2026-09-29 智能层候选 1：agent 建议素材采集）：prompt 含「建议采集」时——
+    // 真机=模型经 zj_collect_suggest 工具返回载荷 → translate 发 collect 事件；dev 直接模拟事件流
+    // （连同工具活动卡一起，验证「建议卡 + 工具卡」交互）
+    if (/建议采集/.test(input.prompt)) {
+      emit({ requestId: rid, type: 'think', text: '这段候车室的年代细节资料不足，先给一条采集建议…' })
+      await demoDelay()
+      emit({
+        requestId: rid,
+        type: 'meta',
+        tool: 'zj_collect_suggest',
+        args: '{"demand":"九十年代小城火车站候车室的常见陈设","keywords":["火车站候车室","九十年代","候车室陈设"]}',
+        argsJson: JSON.stringify({ demand: '九十年代小城火车站候车室的常见陈设与氛围', keywords: ['火车站候车室', '九十年代', '候车室陈设'], category: '环境' })
+      })
+      await demoDelay()
+      emit({
+        requestId: rid,
+        type: 'collect',
+        suggestion: {
+          demand: '九十年代小城火车站候车室的常见陈设与氛围',
+          keywords: ['火车站候车室', '九十年代', '候车室陈设'],
+          category: '环境',
+          note: '第03章雾港线候车室场景需要具体年代细节支撑'
+        }
+      })
+      await demoDelay()
+      emit({ requestId: rid, type: 'meta-done', tool: 'zj_collect_suggest', message: '已生成素材采集建议，确认后创建采集任务' })
+      await demoDelay()
+      emit({ requestId: rid, type: 'delta', text: '候车室一幕的年代细节我手头资料不够，建议先采一份备着。' })
+      await demoDelay()
+      emit({ requestId: rid, type: 'final', text: '候车室一幕的年代细节我手头资料不够，建议先采一份备着。' })
+      await demoDelay()
+      emit({ requestId: rid, type: 'done' })
+      return { ok: true }
+    }
     // 超时中断演示（2026-09-16 智能层候选3）：prompt 含「模拟超时」时——先给部分增量+正文修改方案，
     // 再发顶层 error 事件（不发 final/done，与真机「引擎驱动超时 → error 事件」同构）；
     // 用于验证错误态「成果保留（warn 降级提示）+ 重试」渲染链路

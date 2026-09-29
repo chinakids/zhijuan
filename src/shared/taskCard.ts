@@ -54,6 +54,42 @@ export function rebuildTaskCardForRetry(v: TaskCardView): string {
   return fm.join('\n') + '\n' + body + '\n'
 }
 
+/** 任务卡文件名（与「任务_<14位时间戳>.md」约定一致；ts 毫秒时间戳） */
+export function taskCardFileName(ts: number): string {
+  return '任务_' + new Date(ts).toISOString().replace(/[-:TZ]/g, '').slice(0, 14)
+}
+
+/**
+ * 新建任务卡文本（模块设计 §十一 通道约定：front matter status: pending / 类别 / 关键词 /
+ * 需求 / 来源 / 创建 + 描述正文）。纯函数零 fs，可单测。
+ * 2026-09-29 智能层：agent 采集建议（CollectCard）使用本函数；CollectionBar 表单内联旧模板
+ * 待收敛到本函数（登记平台层协作，防两处模板漂移）。
+ */
+export function taskCardDoc(opts: { demand: string; keywords: string[]; category: string; source?: string; note?: string }): string {
+  const demand = (opts.demand || '').replace(/\n/g, ' ')
+  const kws = (opts.keywords || []).map((s) => s.trim()).filter(Boolean)
+  const fm = [
+    '---',
+    'status: pending',
+    '类别: ' + (opts.category || '环境'),
+    '关键词: [' + kws.join(', ') + ']',
+    '需求: ' + demand,
+    '来源: ' + (opts.source ?? '').trim(),
+    '创建: ' + new Date().toLocaleString('sv'),
+    '---',
+    '',
+    '# 采集任务：' + demand.slice(0, 20),
+    '',
+    '**需求详情**：' + demand
+  ]
+  if (opts.note) fm.push('', '**说明**：' + opts.note.replace(/\n/g, ' '))
+  fm.push('', '（由管道的后台代理按关键词抓取并回填，App 侧只负责登记。）', '')
+  return fm.join('\n')
+}
+
+/** 需求文本归一（查重用）：去首尾空白与内部空白，避免「校园 图书馆」与「校园图书馆」被判不同 */
+export const normDemand = (s: string): string => s.trim().replace(/\s+/g, '')
+
 /** 任务卡文本 → UI 友好的详情结构（无约定头时按空卡处理，字段全空、body=原文） */
 export function parseTaskCard(text: string): TaskCardView {
   const { fm, body } = extractFrontMatter(text)

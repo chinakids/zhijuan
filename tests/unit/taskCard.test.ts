@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isLibraryResultPath, isTaskStale, parseTaskCard, rebuildTaskCardForRetry, STALE_TASK_MS } from '../../src/shared/taskCard'
+import { isLibraryResultPath, isTaskStale, normDemand, parseTaskCard, rebuildTaskCardForRetry, taskCardDoc, taskCardFileName, STALE_TASK_MS } from '../../src/shared/taskCard'
 
 // 样例：与真机管道回填后的任务卡格式一致（素材库验收项目实测）
 const DONE_CARD = [
@@ -130,5 +130,39 @@ describe('isLibraryResultPath（详情预览结果的安全校验）', () => {
     expect(isLibraryResultPath('素材库/环境/结果.txt')).toBe(false)
     expect(isLibraryResultPath('')).toBe(false)
     expect(isLibraryResultPath('素材库')).toBe(false)
+  })
+})
+
+describe('taskCardDoc / taskCardFileName / normDemand（2026-09-29 智能层：agent 采集建议落卡模板）', () => {
+  it('任务卡文件名符合「任务_<14位时间戳>」约定', () => {
+    expect(taskCardFileName(Date.UTC(2026, 8, 29, 1, 2, 3))).toMatch(/^任务_\d{14}$/)
+  })
+
+  it('生成的任务卡 front matter 与 parseTaskCard 往返一致（status: pending=管道唯一处理判据）', () => {
+    const text = taskCardDoc({
+      demand: '九十年代小城火车站候车室的常见陈设与氛围',
+      keywords: ['火车站候车室', '九十年代', '候车室陈设'],
+      category: '环境',
+      note: '第03章雾港线候车室场景需要具体年代细节支撑'
+    })
+    const d = parseTaskCard(text)
+    expect(d.status).toBe('pending')
+    expect(d.category).toBe('环境')
+    expect(d.keywords).toEqual(['火车站候车室', '九十年代', '候车室陈设'])
+    expect(d.demand).toBe('九十年代小城火车站候车室的常见陈设与氛围')
+    expect(d.body).toContain('**说明**：第03章雾港线候车室场景需要具体年代细节支撑')
+    expect(d.body).not.toContain('status:')
+  })
+
+  it('空类别兜底「环境」；换行需求压平；note 可缺省', () => {
+    const d = parseTaskCard(taskCardDoc({ demand: '雨夜\n码头', keywords: ['雨', '码头'], category: '' }))
+    expect(d.category).toBe('环境')
+    expect(d.demand).toBe('雨夜 码头')
+    expect(d.body).not.toContain('**说明**')
+  })
+
+  it('normDemand：去首尾与内部空白（查重同口径）', () => {
+    expect(normDemand(' 校园 图书馆 ')).toBe(normDemand('校园图书馆'))
+    expect(normDemand('雨夜码头')).not.toBe(normDemand('雨夜'))
   })
 })

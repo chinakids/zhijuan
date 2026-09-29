@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { TodoItem, AskQuestion, EditItem } from '../../../../shared/types'
+import type { TodoItem, AskQuestion, EditItem, CollectSuggestion } from '../../../../shared/types'
 
 export interface AgentMsg {
   id: string
@@ -11,7 +11,7 @@ export interface AgentMsg {
   /** 思考过程（本轮 assistant 消息上可折叠展示） */
   thinking?: string
   /** tool 角色的卡片类型 */
-  kind?: 'todo' | 'ask' | 'meta' | 'edit'
+  kind?: 'todo' | 'ask' | 'meta' | 'edit' | 'collect'
   items?: TodoItem[]
   questions?: AskQuestion[]
   batch?: string
@@ -38,6 +38,11 @@ export interface AgentMsg {
   /** edit 卡：采纳/拒绝态 */
   editState?: 'pending' | 'applied' | 'rejected' | 'error'
   editError?: string
+  /** collect 卡（2026-09-29 智能层：agent 素材采集建议）：建议载荷与处置态 */
+  suggestion?: CollectSuggestion
+  collectState?: 'pending' | 'created' | 'ignored'
+  /** collect 卡：创建结果（任务卡文件名或查重提示） */
+  collectResult?: string
   /**
    * 本轮错误文案（2026-09-16 智能层候选3）：错误时 content 保留已流式内容/思考，错误文案独立存这里；
    * 旧「append 错误」路径（巡查/导演等直接 append）无此字段——content 即错误文案（bare 路径）。
@@ -97,6 +102,8 @@ interface AgentState {
   upsertTool: (m: Omit<AgentMsg, 'role' | 'id' | 'content'> & { id: string; content?: string; project?: string }) => void
   /** 标记某个编辑卡的状态 */
   setEditState: (id: string, state: 'applied' | 'rejected' | 'error', error?: string) => void
+  /** 标记采集建议卡的处置态（created=已创建任务卡/查重命中，ignored=作者放弃） */
+  setCollectState: (id: string, state: 'created' | 'ignored', result?: string) => void
   markAsked: (id: string) => void
   /** 清空当前项目的对话（其他项目桶不受影响） */
   reset: () => void
@@ -248,6 +255,13 @@ export const useAgentStore = create<AgentState>((set) => ({
     set((s) => {
       const partial = mutateBucket(s, id, (bucket) =>
         bucket.map((x) => (x.id === id ? { ...x, editState: state, editError: error } : x))
+      )
+      return partial ?? {}
+    }),
+  setCollectState: (id, state, result) =>
+    set((s) => {
+      const partial = mutateBucket(s, id, (bucket) =>
+        bucket.map((x) => (x.id === id ? { ...x, collectState: state, collectResult: result } : x))
       )
       return partial ?? {}
     }),

@@ -27,7 +27,7 @@ vi.mock('../../src/main/agent/syncAnchor', async (importOriginal) => ({
   guardPersonTargets: (...a: unknown[]) => mocks.guardPersonTargets(...a)
 }))
 
-import { runChat, abortRequest, runSync, translate } from '../../src/main/agent/engine'
+import { runChat, abortRequest, runSync, translate, extractCollectPayload } from '../../src/main/agent/engine'
 
 const chunk = (text: string) => ({
   method: 'session.event',
@@ -221,5 +221,41 @@ describe('runSync 产出解析健康（候选 2f：静默空加固）', () => {
     expect((r as any).items).toHaveLength(0)
     expect((r as any).guard.issues).toHaveLength(1)
     expect(mocks.driveSession).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('extractCollectPayload（zj_collect_suggest 载荷提取，2026-09-29 智能层）', () => {
+  it('标准载荷：剥 ★ZJ_COLLECT★ 标记取出 demand/keywords/category/note', () => {
+    const text =
+      '（已生成采集建议，作者确认后才会创建任务卡）\n★ZJ_COLLECT★\n' +
+      JSON.stringify({
+        demand: '九十年代小城火车站候车室的常见陈设与氛围',
+        keywords: ['火车站候车室', '九十年代'],
+        category: '环境',
+        note: '第03章需细节支撑'
+      }) +
+      '\n★ZJ_END★'
+    const s = extractCollectPayload(text)
+    expect(s).not.toBeNull()
+    expect(s?.demand).toBe('九十年代小城火车站候车室的常见陈设与氛围')
+    expect(s?.keywords).toEqual(['火车站候车室', '九十年代'])
+    expect(s?.category).toBe('环境')
+    expect(s?.note).toBe('第03章需细节支撑')
+  })
+
+  it('缺失/空 demand → null（不产生空建议卡）', () => {
+    expect(extractCollectPayload('★ZJ_COLLECT★\n{"demand":"  ","keywords":[]}\n★ZJ_END★')).toBeNull()
+    expect(extractCollectPayload('模型没走工具，就说了句话')).toBeNull()
+  })
+
+  it('category 空兜底「环境」；keywords 非数组过滤为空；note 可缺省', () => {
+    const s = extractCollectPayload('★ZJ_COLLECT★\n{"demand":"雨夜码头","keywords":"坏值","category":""}\n★ZJ_END★')
+    expect(s?.category).toBe('环境')
+    expect(s?.keywords).toEqual([])
+    expect(s?.note).toBe('')
+  })
+
+  it('非法 JSON（散文混入）→ null', () => {
+    expect(extractCollectPayload('★ZJ_COLLECT★\n这不是 JSON\n★ZJ_END★')).toBeNull()
   })
 })

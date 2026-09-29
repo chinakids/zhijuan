@@ -30,6 +30,7 @@ import { useUiStore } from '../../store/ui'
 import { sendAgent as harnessSend, cancelAgent, attachAgentBridge } from './harness'
 import TodoCard from './TodoCard'
 import AskCard from './AskCard'
+import CollectCard from './CollectCard'
 import AuditDrawer from '../audit/AuditDrawer'
 import AtMentionMenu from './AtMentionMenu'
 import CommandMenu from './CommandMenu'
@@ -722,6 +723,11 @@ function useSender(props: AgentPanelProps) {
               if (e.file && e.edits?.length) {
                 const eid = rid + '-e' + Date.now().toString(36)
                 useAgentStore.getState().upsertTool({ id: eid, kind: 'edit', file: e.file, edits: e.edits, editState: 'pending', project: projectId })
+              }
+            } else if (e.type === 'collect') {
+              if (e.suggestion) {
+                const cid = rid + '-c' + Date.now().toString(36)
+                useAgentStore.getState().upsertTool({ id: cid, kind: 'collect', suggestion: e.suggestion, collectState: 'pending', project: projectId })
               }
             } else if (e.type === 'todo') useAgentStore.getState().upsertTool({ id: rid, kind: 'todo', items: e.items ?? [], project: projectId })
             else if (e.type === 'truncated') truncated = true // 输出被 token 上限截断（主进程 translate 转发 turn/end max-tokens）
@@ -1537,6 +1543,18 @@ export default function AgentPanel(props: AgentPanelProps) {
                       state={m.editState}
                       error={m.editError}
                       projectId={props.projectId}
+                    />
+                  </div>
+                )
+              if (m.kind === 'collect' && m.suggestion)
+                return (
+                  <div key={m.id} className="w-full">
+                    <CollectCard
+                      id={m.id}
+                      suggestion={m.suggestion}
+                      projectId={props.projectId}
+                      state={m.collectState}
+                      result={m.collectResult}
                     />
                   </div>
                 )
