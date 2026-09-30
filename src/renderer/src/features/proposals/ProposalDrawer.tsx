@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, X, FileText, GitCompare, Inbox, ChevronDown, Trash2, RefreshCw } from 'lucide-react'
+import { Check, X, FileText, GitCompare, Inbox, ChevronDown, Trash2, RefreshCw, RotateCcw } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Proposal, SyncIssue } from '../../../../shared/types'
@@ -183,6 +183,11 @@ function ItemCard({ p, projectId, onChanged, err, onErr, focused }: { p: Proposa
     onErr(p.id, '')
     onChanged()
   }
+  async function doReopen() {
+    await window.zhijuan.reopenProposal(projectId, p.id)
+    onErr(p.id, '')
+    onChanged()
+  }
   async function doDiscard() {
     await window.zhijuan.discardProposal(projectId, p.id)
     onErr(p.id, '')
@@ -247,6 +252,11 @@ function ItemCard({ p, projectId, onChanged, err, onErr, focused }: { p: Proposa
         {p.status === 'stale' && (
           <Button size="sm" variant="ghost" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px] text-danger hover:bg-danger-soft hover:text-danger [&_svg]:size-3" onClick={() => void doDiscard()} title="清除这条过期提案">
             <Trash2 className="mr-1" /> 清除
+          </Button>
+        )}
+        {p.status === 'rejected' && (
+          <Button size="sm" variant="ghost" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px] [&_svg]:size-3" onClick={() => void doReopen()} title="拒绝后改变主意？把它恢复为待确认，可再接受或再拒绝（GitHub dismiss re-open 同语义）">
+            <RotateCcw className="mr-1" /> 重新提议
           </Button>
         )}
         <span className="text-[10px] text-ink-3">来自：{p.source === 'slice-sync' ? '正文保存同步' : p.source === 'annotation-sync' ? '批注同步' : 'agent'}</span>

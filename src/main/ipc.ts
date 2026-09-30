@@ -7,7 +7,7 @@ import type { AppSettings, FsEvent, ProposalItem, EditItem, Proposal, SaveTraceE
 import { adoptActsChapter } from '../shared/actsAdopt'
 import { countWords } from '../shared/count'
 import { extractFrontMatter } from '../shared/fmatter'
-import { listProposals, createProposals, createSliceProposals, applyProposal, rejectProposal, discardProposal } from './proposals'
+import { listProposals, createProposals, createSliceProposals, applyProposal, rejectProposal, reopenProposal, discardProposal } from './proposals'
 import { listLines, listSlices } from './slices'
 import { listSnapshots, readSnapshot } from './history'
 import { registerAgentIpc } from './agent/ipc'
@@ -333,6 +333,7 @@ export function registerIpc() {
     return res
   })
   ipcMain.handle('proposal:discard', (_e, id: string, pid: string) => discardProposal(libraryRoot(), id, pid))
+  ipcMain.handle('proposal:reopen', (_e, id: string, pid: string) => reopenProposal(libraryRoot(), id, pid))
 
   // 批注定时优化（主人 2026-09-12）：扫描项目批注 csv → 引擎改写 → 提案制闭环
   ipcMain.handle('annotations:scan', (_e, id: string) => scanAnnotations(id))

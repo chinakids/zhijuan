@@ -1313,6 +1313,13 @@ const mock = {
     }
     return !!p
   },
+  // 重新提议（2026-09-30 创作层）：与真机 reopenProposal 同口径=仅 rejected → pending（可再接受/再拒绝）
+  reopenProposal: async (_id: string, pid: string) => {
+    const p = mock.proposals.find((x) => x.id === pid)
+    if (!p || p.status !== 'rejected') return false
+    p.status = 'pending'
+    return true
+  },
   discardProposal: async (_id: string, pid: string) => {
     const i = mock.proposals.findIndex((x) => x.id === pid && x.status === 'stale')
     if (i < 0) return false

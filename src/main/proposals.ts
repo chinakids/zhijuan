@@ -239,6 +239,20 @@ export function rejectProposal(root: string, projectId: string, id: string): boo
   return true
 }
 
+/** 重新提议（2026-09-30 创作层）：把已拒绝提案恢复为 pending，作者可再接受/再拒绝。
+ * 语义=GitHub code scanning dismiss 的 re-open（官方「Closed 列表中可重开」「later realize you
+ *  need to fix the alert → reopen it and fix the problem」）——拒绝=显式裁决但非不可逆；
+ * 只对 rejected 生效（pending 本就待确认、accepted 已应用无回退意义）。
+ * 与同款抑制自洽：re-open 后该卡已非 rejected，dedupeRejectedSliceItems 不再抑制它，
+ * 但 unsettledSameOf（未处置同款复用）会命中这张 pending 卡——下次保存同款不新建、不复弹旧裁决。 */
+export function reopenProposal(root: string, projectId: string, id: string): boolean {
+  const p = findStatus(root, projectId, id)
+  if (!p || p.status !== 'rejected') return false
+  p.status = 'pending'
+  write(root, projectId, p)
+  return true
+}
+
 /** 清除一条已过期提案（仅 stale 有效）：删除提案文件，让「已过期」条目可以从界面被清理，
  * 否则 stale 提案永久残留（reject 只对 pending 生效，界面又无入口）。 */
 export function discardProposal(root: string, projectId: string, id: string): boolean {

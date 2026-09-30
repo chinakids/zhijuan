@@ -154,6 +154,7 @@ const api = {
     ipcRenderer.invoke('proposal:apply', id, pid) as Promise<{ ok: boolean; applied: string[]; errors: string[]; retryable?: boolean }>,
   rejectProposal: (id: string, pid: string) => ipcRenderer.invoke('proposal:reject', id, pid) as Promise<boolean>,
   discardProposal: (id: string, pid: string) => ipcRenderer.invoke('proposal:discard', id, pid) as Promise<boolean>,
+  reopenProposal: (id: string, pid: string) => ipcRenderer.invoke('proposal:reopen', id, pid) as Promise<boolean>,
 
   // 批注定时优化：扫描项目内 *_批注.csv → 生成修改提案（结果 note 供 toast）
   scanAnnotations: (id: string) =>

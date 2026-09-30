@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { applyAnchor, applyProposal, createProposals, createSliceProposals, invalidateChapter, listProposals, migrateChapter, rejectProposal, discardProposal, staleSliceSyncByChapter } from '../../src/main/proposals'
+import { applyAnchor, applyProposal, createProposals, createSliceProposals, invalidateChapter, listProposals, migrateChapter, rejectProposal, reopenProposal, discardProposal, staleSliceSyncByChapter } from '../../src/main/proposals'
 import { extractSectionBody } from '../../src/shared/proposalSection'
 import type { ProposalItem } from '../../src/shared/types'
 
@@ -281,6 +281,43 @@ describe('rejectProposal', () => {
     expect(rejectProposal(root, 'p', p.id)).toBe(true)
     expect(listProposals(root, 'p')[0].status).toBe('rejected')
     expect(rejectProposal(root, 'p', p.id)).toBe(false)
+  })
+})
+
+describe('reopenProposal（重新提议，2026-09-30 创作层）', () => {
+  const writeRaw = (name: string, status: string) => {
+    const d = join(root, 'p', '.zhijuan', 'proposals')
+    mkdirSync(d, { recursive: true })
+    writeFileSync(join(d, name), JSON.stringify({ id: name, source: 'slice-sync', chapter: '正文/第01章_雾港.md', slice: 's', status, createdAt: 1, items: [item({})] }))
+  }
+  it('rejected → pending 可重开；重开后回到待确认可再拒绝（可逆闭环）', () => {
+    const [p] = createProposals(root, 'p', 'slice-sync', '第1章', 's', [item({})])
+    expect(rejectProposal(root, 'p', p.id)).toBe(true)
+    expect(reopenProposal(root, 'p', p.id)).toBe(true)
+    expect(listProposals(root, 'p')[0].status).toBe('pending')
+    // 可逆：重开后仍可再拒绝（再拒绝=再次显式裁决）
+    expect(rejectProposal(root, 'p', p.id)).toBe(true)
+    expect(listProposals(root, 'p')[0].status).toBe('rejected')
+  })
+  it('pending 不可重开（本就待确认）；不存在的 id 返回 false', () => {
+    const [p] = createProposals(root, 'p', 'agent-chat', '第1章', 's', [item({})])
+    expect(reopenProposal(root, 'p', p.id)).toBe(false)
+    expect(reopenProposal(root, 'p', 'no-such-id')).toBe(false)
+  })
+  it('accepted（已应用）不可重开', () => {
+    writeRaw('a.json', 'accepted')
+    expect(reopenProposal(root, 'p', 'a.json')).toBe(false)
+  })
+  it('重开后同款再保存：未处置复用旧卡（不再被「已拒绝历史」抑制、也不新建）', () => {
+    // 构造：拒绝同款 → 重开（此时该卡 pending）→ 再保存触发 createSliceProposals 同款
+    const [p] = createProposals(root, 'p', 'slice-sync', '正文/第01章_雾港.md', '雾港夜', [item({ after: '动向X' })])
+    expect(rejectProposal(root, 'p', p.id)).toBe(true)
+    expect(reopenProposal(root, 'p', p.id)).toBe(true)
+    const r = createSliceProposals(root, 'p', '正文/第01章_雾港.md', '雾港夜', [item({ after: '动向X' })])
+    expect(r.suppressed).toBe(0) // 已重开=不再是「已拒绝历史」
+    expect(r.kept).toBe(1) // 命中未处置同款（pending 保护复用）
+    expect(r.created.length).toBe(0)
+    expect(listProposals(root, 'p')[0].status).toBe('pending')
   })
 })
 
