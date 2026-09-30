@@ -792,8 +792,13 @@ function useSender(
   // 输入框 ↑ 回取（2026-09-29 体验层候选 1·任务线-02 候选 6）：取最近发送草稿（按归属项目；中断恢复
   // 与回取共用 draftsRef 单一来源——恢复的是「实际发送的内容」，与消息气泡严格一致）。
   const recallLastDraft = useCallback((pid: string) => draftsRef.current.get(pid) ?? null, [])
+  // 固定命令草稿记录（2026-09-30 体验层候选 1·09-29 观察项①）：/导演 启动时把命令原文写入同一
+  // draftsRef（同源模式）——停止导演任务时恢复命令到输入框，↑ 回取同样可达（与普通消息中断恢复同族）。
+  const recordDraft = useCallback((pid: string, d: { raw: string; quote: QuoteRef | null }) => {
+    draftsRef.current.set(pid, d)
+  }, [])
 
-  return { send, stop, streaming, recallLastDraft }
+  return { send, stop, streaming, recallLastDraft, recordDraft }
 }
 
 export default function AgentPanel(props: AgentPanelProps) {
@@ -853,7 +858,13 @@ export default function AgentPanel(props: AgentPanelProps) {
       }
     })
   }, [])
-  const { send, stop, streaming: sending, recallLastDraft } = useSender(props, restoreDraftCb)
+  const {
+    send,
+    stop,
+    streaming: sending,
+    recallLastDraft,
+    recordDraft
+  } = useSender(props, restoreDraftCb)
   // 「让 agent 改」注册槽：审计抽屉（含规则体检状态栏 HealthBar）经 store 调用本页发送函数（F-20260916-05 迁移补链）
   useEffect(() => {
     useAgentStore.getState().setSendHandler((text) => void send(text, null, true))
@@ -1235,6 +1246,9 @@ export default function AgentPanel(props: AgentPanelProps) {
         st.append({ role: 'assistant', content: '先选中一个章节再 `/导演`；导演板是按章生成的。', error: true }, { project: pid })
         return
       }
+      // 固定命令草稿（2026-09-30 体验层候选 1·09-29 观察项①）：导演命令启动即记录——中点「停止导演
+      // 任务」时恢复原命令到输入框可编辑重发（与普通消息中断恢复 draftsRef 同源，↑ 回取亦可达）。
+      recordDraft(pid, { raw, quote: null })
       const aid = 'fx-' + Date.now().toString(36)
       const token = ++fxTokenRef.current
       const t0 = performance.now()
@@ -1284,6 +1298,14 @@ export default function AgentPanel(props: AgentPanelProps) {
       role: 'assistant',
       content: '已取消导演任务：不再等待生成，导演板不会写入大纲。'
     }, { project: props.projectId })
+    // 命令草稿恢复（2026-09-30 体验层候选 1·09-29 观察项①）：停止后原输入已被清空——把刚记录的
+    // /导演 命令恢复回输入框（可编辑不代发；中止未落盘上方已提示）。与普通消息中断恢复（2026-09-29
+    // f615e87）同族同范式（Claude Code 停止=输入保留）；导演执行中作者已开始打的新消息优先保留（不覆盖，
+    // 草稿仍可 ↑ 回取）。
+    if (!input.trim()) {
+      const d = recallLastDraft(props.projectId)
+      if (d) restoreDraftCb(d)
+    }
   }
 
   async function doSend() {
