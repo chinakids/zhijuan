@@ -76,6 +76,10 @@ async function drive(tab) {
   }
   const bodyHas = (t) => ev(`document.body.innerText.includes(${JSON.stringify(t)})`)
   const countHas = (t) => ev(`(document.body.innerText.split(${JSON.stringify(t)}).length - 1)`)
+  // 用户消息气泡（bg-accent）是否已含文本——排队条目可视化上线后（08:15 轮），
+  // 「命令未入对话」断言不用 innerText 整体判断（队列条目本身含命令文本），改用气泡级判断
+  const userBubbleHas = (t) =>
+    ev(`[...document.querySelectorAll('div')].some((x) => x.classList.contains('bg-accent') && x.innerText.includes(${JSON.stringify(t)}))`)
   const gotoCh = async (pid, ch) => {
     const chPart = ch ? '?ch=' + encodeURIComponent(ch) : ''
     await ev(`location.hash = '#/project/${pid}/novel${chPart}'`)
@@ -95,7 +99,7 @@ async function drive(tab) {
       await sleep(250)
     }
   }
-  return { ev, cmd, sendMsg, sendCmd, inputVal, waitIdle, bodyHas, countHas, gotoCh, until, exceptions, ws }
+  return { ev, cmd, sendMsg, sendCmd, inputVal, waitIdle, bodyHas, countHas, userBubbleHas, gotoCh, until, exceptions, ws }
 }
 let fail = 0
 const ok = (cond, label) => {
@@ -117,7 +121,7 @@ await d.sendMsg('/巡查 本章') // 含参数（令牌含空格）/ 浮层不�
 ok((await d.bodyHas('命令已排队')), 'A1-① 生成中固定命令→「命令已排队」toast')
 ok((await d.inputVal()) === '', 'A1-② 排队后输入框清空')
 ok(!(await d.bodyHas('已调起本章小环·短巡查')), 'A1-③ 生成中未立即执行命令')
-ok(!(await d.bodyHas('/巡查 本章\n')), 'A1-③ 命令用户消息未立即入对话')
+ok(!(await d.userBubbleHas('/巡查 本章')), 'A1-③ 命令未以用户消息入对话（队列条目中可见=排队中）')
 // 切走项目：命令应保留在队列（归属原项目），不跨项目执行
 await d.gotoCh('demo-order', null)
 await d.waitIdle()

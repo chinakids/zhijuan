@@ -49,6 +49,7 @@ import { toast } from '../../components/ui/toast'
 import { describeSyncEvidence } from '../../../../shared/syncEvidence'
 import type { SyncIssue } from '../../../../shared/types'
 import type { SliceSyncResult } from '../sync/sliceSync'
+import { collectQueued, newQid, removeQueuedByQid } from './queueVis'
 
 interface AgentPanelProps {
   projectId: string
@@ -569,14 +570,16 @@ function ClipNote({ cap, expanded, onToggle }: { cap: number; expanded: boolean;
 
 function useSender(
   props: AgentPanelProps,
-  onRestoreDraft?: (d: { raw: string; quote: QuoteRef | null }) => void
+  onRestoreDraft?: (d: { raw: string; quote: QuoteRef | null }) => void,
+  onQueueChange?: () => void
 ) {
   const setStreaming = useAgentStore((s) => s.setStreaming)
   const streaming = useAgentStore((s) => s.streaming)
   const abortRef = useRef<{ rid: string } | null>(null)
   // 多轮会话（主人 2026-09-18，F-20260917-12）：生成中再发消息=排队自动续发，不再静默丢弃
   const streamingRef = useRef(false)
-  const pendingRef = useRef<{ raw: string; quote: QuoteRef | null; focus: boolean; project: string }[]>([])
+  // 排队条目含 qid（2026-09-30 候选 1·队列可视化）：逐条可取消、渲染 key 用；仅会话内 refs，非数据契约
+  const pendingRef = useRef<{ qid: string; raw: string; quote: QuoteRef | null; focus: boolean; project: string }[]>([])
   // 本轮流式累积（按项目分桶后，切项目期间 delta 不能依赖「当前桶」读前缀，本地累积为准）
   const streamedRef = useRef('')
   // 最近发送草稿，按归属项目索引（2026-09-29 体验层候选 1）：中断恢复与输入框 ↑ 回取共用单一来源——
@@ -591,8 +594,9 @@ function useSender(
       const projectId = opts?.project ?? panelProject
       if (streamingRef.current) {
         if (!raw.trim()) return
-        pendingRef.current.push({ raw, quote, focus, project: projectId })
+        pendingRef.current.push({ qid: newQid(), raw, quote, focus, project: projectId })
         toast.add({ kind: 'info', title: '消息已排队', description: '上一条还在生成中，完成之后会自动发送这条。' })
+        onQueueChange?.()
         return
       }
       if (!raw.trim()) return
@@ -779,10 +783,13 @@ function useSender(
         // 队列续发：上一条收尾后自动发送下一条排队消息（F-20260917-12）；
         // 携带排队时的归属项目（2026-09-23 体验层）：排队期间切项目，续发仍落原对话而非当前面板项目
         const nxt = pendingRef.current.shift()
-        if (nxt) setTimeout(() => void send(nxt.raw, nxt.quote, nxt.focus, { project: nxt.project }), 80)
+        if (nxt) {
+          onQueueChange?.()
+          setTimeout(() => void send(nxt.raw, nxt.quote, nxt.focus, { project: nxt.project }), 80)
+        }
       }
     },
-    [props, streaming, onRestoreDraft]
+    [props, streaming, onRestoreDraft, onQueueChange]
   )
 
   const stop = useCallback(() => {
@@ -798,7 +805,7 @@ function useSender(
     draftsRef.current.set(pid, d)
   }, [])
 
-  return { send, stop, streaming, recallLastDraft, recordDraft }
+  return { send, stop, streaming, recallLastDraft, recordDraft, pendingRef }
 }
 
 export default function AgentPanel(props: AgentPanelProps) {
@@ -815,6 +822,14 @@ export default function AgentPanel(props: AgentPanelProps) {
   }, [messages])
   const metaById = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages])
   const [input, setInput] = useState('')
+  // 排队条目变更信号（2026-09-30 候选 1·队列可视化）：两条队列都在 refs 中（drain 读实时值），
+  // 可视化渲染需重渲染信号——push/出队/取消处 bump 一次；仅 UI 信号，不参与队列逻辑
+  const [queueTick, setQueueTick] = useState(0)
+  const bumpQueue = useCallback(() => setQueueTick((t) => t + 1), [])
+  // 忙时固定命令排队（2026-09-24 体验层，候选 3⑥）：生成中/导演执行中输入 /巡查 /导演 → 队列+toast 后
+  // 自动按序执行——Claude Code 命令排队语义（轮次结束后逐条执行，docs.claude.com interactive-mode
+  // 「Queue messages while Claude works」）；与「消息已排队」同族，消除忙时静默丢弃面的最后残留
+  const fxPendingRef = useRef<{ qid: string; raw: string; cmd: ZjCommand; args: string; projectId: string }[]>([])
   // 输入框 ref（2026-09-29 上移：中断草稿恢复回调在 useSender 前需要引用；@ 引用浮层同用）
   const taRef = useRef<HTMLTextAreaElement>(null)
   // 超长回复展开态（2026-09-28 体验层候选 1「查看完整回复」）：显示截断提示行的展开动作按消息 id
@@ -863,8 +878,23 @@ export default function AgentPanel(props: AgentPanelProps) {
     stop,
     streaming: sending,
     recallLastDraft,
-    recordDraft
-  } = useSender(props, restoreDraftCb)
+    recordDraft,
+    pendingRef
+  } = useSender(props, restoreDraftCb, bumpQueue)
+  // 排队条目可视化（2026-09-30 候选 1·候选三06 观察项转正）：refs 变更不触发渲染——queueTick 作变更信号；
+  // 渲染层只读 refs 组装配对（collectQueued 纯函数），不出队不删改机制（drain 语义 8ec9cdb 不动）
+  const queuedEntries = useMemo(
+    () => collectQueued(pendingRef.current, fxPendingRef.current, props.projectId),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 队列在 refs 中，按变更信号 tick 重算
+    [queueTick, props.projectId]
+  )
+  const cancelQueued = useCallback(
+    (qid: string) => {
+      if (removeQueuedByQid(pendingRef.current, qid)) bumpQueue()
+      if (removeQueuedByQid(fxPendingRef.current, qid)) bumpQueue()
+    },
+    [bumpQueue]
+  )
   // 「让 agent 改」注册槽：审计抽屉（含规则体检状态栏 HealthBar）经 store 调用本页发送函数（F-20260916-05 迁移补链）
   useEffect(() => {
     useAgentStore.getState().setSendHandler((text) => void send(text, null, true))
@@ -906,10 +936,6 @@ export default function AgentPanel(props: AgentPanelProps) {
   const [audit, setAudit] = useState<{ open: boolean; tab: AuditKind }>({ open: false, tab: 'consistency' })
   // 固定逻辑命令（/巡查 /导演）执行中：锁发送防连点
   const [fxBusy, setFxBusy] = useState(false)
-  // 忙时固定命令排队（2026-09-24 体验层，候选 3⑥）：生成中/导演执行中输入 /巡查 /导演 → 队列+toast 后
-  // 自动按序执行——Claude Code 命令排队语义（轮次结束后逐条执行，docs.claude.com interactive-mode
-  // 「Queue messages while Claude works」）；与「消息已排队」同族，消除忙时静默丢弃面的最后残留
-  const fxPendingRef = useRef<{ raw: string; cmd: ZjCommand; args: string; projectId: string }[]>([])
   // fxBusy 的 ref 镜像：drain 的 setTimeout 回调须读实时值（闭包里的 fxBusy 已过期——消息续发 80ms 后
   // sending 才翻转，闭包值会误判「空闲」而让导演任务与对话生成并行）
   const fxBusyRef = useRef(false)
@@ -927,6 +953,7 @@ export default function AgentPanel(props: AgentPanelProps) {
       if (!nxt) return
       if (nxt.projectId !== props.projectId) return // 项目已切走：命令归属原项目，切回后 effect 再触发执行
       fxPendingRef.current.shift()
+      bumpQueue()
       void runFixed(nxt.raw, nxt.cmd, nxt.args)
     }, 150)
     return () => clearTimeout(t)
@@ -1316,9 +1343,10 @@ export default function AgentPanel(props: AgentPanelProps) {
     if (fxBusy) {
       if (!v.trim()) return
       if (fx) {
-        fxPendingRef.current.push({ raw: v, cmd: fx.cmd, args: fx.args, projectId: props.projectId })
+        fxPendingRef.current.push({ qid: newQid(), raw: v, cmd: fx.cmd, args: fx.args, projectId: props.projectId })
         setInput('')
         toast.add({ kind: 'info', title: '命令已排队', description: '导演任务完成后会自动执行。' })
+        bumpQueue()
         return
       }
       toast.add({ kind: 'info', title: '导演任务执行中', description: '可点「停止导演任务」取消后，再发送消息。' })
@@ -1331,9 +1359,10 @@ export default function AgentPanel(props: AgentPanelProps) {
       // 排队队列自动续发（toast「消息已排队」），不再被 sending 守卫静默丢弃（曾实测 Enter 无响应且输入保留）；
       // 固定命令（/巡查 /导演）同语义排队（Claude Code 命令排队：轮次结束后逐条执行）——生成中 Enter 不再无反馈
       if (fx) {
-        fxPendingRef.current.push({ raw: v, cmd: fx.cmd, args: fx.args, projectId: props.projectId })
+        fxPendingRef.current.push({ qid: newQid(), raw: v, cmd: fx.cmd, args: fx.args, projectId: props.projectId })
         setInput('')
         toast.add({ kind: 'info', title: '命令已排队', description: '上一条还在生成中，完成之后会自动执行这条命令。' })
+        bumpQueue()
         return
       }
       setInput('')
@@ -1714,6 +1743,33 @@ export default function AgentPanel(props: AgentPanelProps) {
           {streaming && (
             <div className="flex items-center gap-2 px-2 text-[11px] text-ink-3">
               <LoadingIndicator size={12} /> 生成中…
+            </div>
+          )}
+          {/* 排队条目可视化（2026-09-30 候选 1·候选三06 观察项转正）：Claude Code 现行范式=queued entries
+              列在 conversation 灰显（code.claude.com interactive-mode「lists the queued entries in the
+              conversation until it sends them」「show in gray until Claude starts responding」）——排队条目
+              以灰显气泡渲染在消息流末尾（不入 store/不进上下文载荷），发送时出队入流；逐条可取消。
+              仅显示当前面板项目的排队条目（跨项目排队保留原桶，切回可见，drain 语义 8ec9cdb 不动） */}
+          {queuedEntries.length > 0 && (
+            <div data-testid="agent-queue" className="flex flex-col gap-2">
+              {queuedEntries.map((q) => (
+                <div key={q.qid} data-testid="agent-queue-item" className="flex justify-end">
+                  <div className="relative max-w-[92%] rounded-xl border border-hair bg-well px-3 py-2 pr-8 text-[13px] leading-relaxed text-ink-2">
+                    <div className="mb-0.5 text-[10px] leading-4 text-ink-3">
+                      已排队 · {q.kind === 'cmd' ? '命令' : '消息'} · 完成后按序发送
+                    </div>
+                    <div className="whitespace-pre-wrap break-words">{q.text}</div>
+                    <button
+                      onClick={() => cancelQueued(q.qid)}
+                      title="取消排队"
+                      aria-label="取消排队"
+                      className="absolute right-1.5 top-1.5 rounded p-0.5 leading-none text-ink-3 transition-colors hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
