@@ -283,8 +283,8 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
   const [allBusy, setAllBusy] = useState(false)
   const [precheckOpen, setPrecheckOpen] = useState(false)
   const [staleCount, setStaleCount] = useState(0)
-  // 2026-09-28：全部拒绝（批量否决）——与「全部接受」对称。拒绝=显式裁决且织卷无 re-open
-  // （GitHub dismiss 有 re-open，织卷 rejected 卡不可撤销）→ 必须带信息充足的确认框防误触。
+  // 2026-09-28：全部拒绝（批量否决）——与「全部接受」对称。拒绝=显式裁决、可逐条「重新提议」撤销
+  // （GitHub dismiss re-open 同构，2026-09-30）→ 批量仍是多裁决叠加，确认框须带后果信息防误触。
   const [rejectAllOpen, setRejectAllOpen] = useState(false)
   const [allRejectBusy, setAllRejectBusy] = useState(false)
   async function doAllReject() {
@@ -438,8 +438,8 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* 2026-09-28：全部拒绝确认——拒绝=显式裁决且 rejected 不可撤销（无 re-open），
-          批量误触后果×N；确认携带后果信息（NN/g Error Prevention：确认须带新信息）*/}
+      {/* 2026-09-28：全部拒绝确认——拒绝=显式裁决（可逐条「重新提议」撤销，2026-09-30）、
+          批量=多裁决叠加；确认携带后果信息（NN/g Error Prevention：确认须带新信息）*/}
       <Dialog open={rejectAllOpen} onOpenChange={(v) => { if (!v) { setRejectAllOpen(false) } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
