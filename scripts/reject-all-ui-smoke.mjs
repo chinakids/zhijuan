@@ -130,7 +130,7 @@ try {
   })()`)
   await evalUntil(page, `document.body.innerText.includes('拒绝全部提案？')`, (v) => v === true, 10000, '确认框标题')
   const desc = await page.eval(`([...document.querySelectorAll('[role="dialog"]')].map((d) => d.innerText).join(' ') || '')`)
-  ok('确认框携带后果与计数', desc.includes('将拒绝 3 条提案') && desc.includes('同类修改不再重复提出'), desc.slice(0, 200))
+  ok('确认框携带后果与计数', desc.includes('将拒绝 3 条提案') && desc.includes('同类修改不再重复提出') && desc.includes('重新提议'), desc.slice(0, 200))
   const dialogRejectBtns = await page.eval(`(() => {
     const d = [...document.querySelectorAll('[role="dialog"]')].find((x) => (x.innerText || '').includes('拒绝全部提案？'))
     return d ? [...d.querySelectorAll('button')].filter((x) => x.innerText === '全部拒绝').length : -1

@@ -444,7 +444,7 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>拒绝全部提案？</DialogTitle>
-            <DialogDescription>将拒绝 {pending.length} 条提案。拒绝后，同类修改不再重复提出；如需重新处理，可重新扫描批注或再次保存。确定全部拒绝吗？</DialogDescription>
+            <DialogDescription>将拒绝 {pending.length} 条提案。拒绝后，同类修改不再重复提出；如需撤销，可在已处理组逐条「重新提议」恢复。确定全部拒绝吗？</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRejectAllOpen(false)}>取消</Button>
