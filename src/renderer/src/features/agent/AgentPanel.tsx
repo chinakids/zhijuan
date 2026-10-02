@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Rea
 import { flushSync } from 'react-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Quote, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, ChevronUp, Users, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, ListChecks, Waypoints, RefreshCw, CircleSlash, CircleAlert, CornerUpRight, MoreHorizontal } from 'lucide-react'
+import { Quote, RotateCcw, Send, ShieldAlert, BookOpenCheck, Check, X, Brain, Square, FileText, ChevronRight, ChevronDown, ChevronUp, Users, CircleX, PenLine, Sparkles, Expand, SearchCheck, Clapperboard, ListChecks, Waypoints, RefreshCw, CircleSlash, CircleAlert, CornerUpLeft, CornerUpRight, MoreHorizontal } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import type { ProseApi } from '../editor/Prose'
@@ -49,7 +49,7 @@ import { toast } from '../../components/ui/toast'
 import { describeSyncEvidence } from '../../../../shared/syncEvidence'
 import type { SyncIssue } from '../../../../shared/types'
 import type { SliceSyncResult } from '../sync/sliceSync'
-import { collectQueued, newQid, removeQueuedByQid } from './queueVis'
+import { collectQueued, composeTakeBackInput, newQid, removeQueuedByQid } from './queueVis'
 
 interface AgentPanelProps {
   projectId: string
@@ -892,6 +892,54 @@ export default function AgentPanel(props: AgentPanelProps) {
     (qid: string) => {
       if (removeQueuedByQid(pendingRef.current, qid)) bumpQueue()
       if (removeQueuedByQid(fxPendingRef.current, qid)) bumpQueue()
+    },
+    [bumpQueue]
+  )
+  // 排队条目取回/编辑（2026-10-02 体验层候选 1·观察项①转正；Claude Code「Take back what you queued」：
+  // 「removes them from the queue and puts them in the input box, one per line, ahead of any text you had
+  // typed. Edit the text and press Enter to queue it again as one entry, or clear the input box to drop it」
+  // ——终端用 Up 取回；织卷是 GUI（↑ 已承载草稿回取 2026-09-29 f615e87，键位语义不冲突），队列条目
+  // 气泡直接给「取回编辑」按钮：出队 + 恢复输入框可编辑（消息连引用一并恢复），在途草稿不覆盖（取回文本
+  // 前置+换行=CC «ahead of any text you had typed» 同语义）；编辑后 Enter/发送走既有 doSend（生成中
+  // 自然重新入列=CC «queue it again as one entry»）；清空输入框即丢弃（× 取消路径仍保留）。
+  const takeBackQueued = useCallback(
+    (qid: string) => {
+      const msg = removeQueuedByQid(pendingRef.current, qid)
+      if (msg) {
+        bumpQueue()
+        const next = composeTakeBackInput(taRef.current?.value ?? '', msg.raw)
+        // 恢复为「编辑取回内容」场景：关闭 @/命令浮层（程序化重置非用户输入），引用一并恢复
+        setAtTrg(null)
+        setCmdTrg(null)
+        setInput(next)
+        if (msg.quote) useAgentStore.getState().setQuote(msg.quote)
+        requestAnimationFrame(() => {
+          taRef.current?.focus()
+          const n = msg.raw.length
+          try {
+            taRef.current?.setSelectionRange(n, n)
+          } catch {
+            /* 忽略 */
+          }
+        })
+        return
+      }
+      const cmd = removeQueuedByQid(fxPendingRef.current, qid)
+      if (cmd) {
+        bumpQueue()
+        setAtTrg(null)
+        setCmdTrg(null)
+        setInput(composeTakeBackInput(taRef.current?.value ?? '', cmd.raw))
+        requestAnimationFrame(() => {
+          taRef.current?.focus()
+          const n = cmd.raw.length
+          try {
+            taRef.current?.setSelectionRange(n, n)
+          } catch {
+            /* 忽略 */
+          }
+        })
+      }
     },
     [bumpQueue]
   )
@@ -1754,19 +1802,31 @@ export default function AgentPanel(props: AgentPanelProps) {
             <div data-testid="agent-queue" className="flex flex-col gap-2">
               {queuedEntries.map((q) => (
                 <div key={q.qid} data-testid="agent-queue-item" className="flex justify-end">
-                  <div className="relative max-w-[92%] rounded-xl border border-hair bg-well px-3 py-2 pr-8 text-[13px] leading-relaxed text-ink-2">
-                    <div className="mb-0.5 text-[10px] leading-4 text-ink-3">
+                  <div className="relative max-w-[92%] rounded-xl border border-hair bg-well px-3 py-2 pr-12 text-[13px] leading-relaxed text-ink-2">
+                    <div className="mb-0.5 pr-9 text-[10px] leading-4 text-ink-3">
                       已排队 · {q.kind === 'cmd' ? '命令' : '消息'} · 完成后按序发送
                     </div>
                     <div className="whitespace-pre-wrap break-words">{q.text}</div>
-                    <button
-                      onClick={() => cancelQueued(q.qid)}
-                      title="取消排队"
-                      aria-label="取消排队"
-                      className="absolute right-1.5 top-1.5 rounded p-0.5 leading-none text-ink-3 transition-colors hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
-                    >
-                      ×
-                    </button>
+                    <div className="absolute right-1.5 top-1.5 flex items-center">
+                      <button
+                        onClick={() => takeBackQueued(q.qid)}
+                        title="取回编辑"
+                        aria-label="取回编辑"
+                        data-testid="agent-queue-takeback"
+                        className="rounded p-0.5 leading-none text-ink-3 transition-colors hover:bg-surface hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                      >
+                        <CornerUpLeft className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => cancelQueued(q.qid)}
+                        title="取消排队"
+                        aria-label="取消排队"
+                        data-testid="agent-queue-cancel"
+                        className="rounded p-0.5 leading-none text-ink-3 transition-colors hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

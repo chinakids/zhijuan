@@ -71,6 +71,7 @@ async function drive(tab) {
     await sleep(500)
   }
   const bodyHas = (t) => ev(`document.body.innerText.includes(${JSON.stringify(t)})`)
+  const patrolCount = () => ev(`(document.body.innerText.match(/已调起本章小环·短巡查/g) || []).length`)
   const queueItems = () =>
     ev(`[...document.querySelectorAll('[data-testid="agent-queue-item"]')].map((x) => x.innerText.replace(/\\n/g, ' ⏎ '))`)
   const queueCount = () => ev(`document.querySelectorAll('[data-testid="agent-queue-item"]').length`)
@@ -97,7 +98,7 @@ async function drive(tab) {
       await sleep(250)
     }
   }
-  return { ev, cmd, sendMsg, inputVal, waitIdle, bodyHas, queueItems, queueCount, cancelFirst, userBubbleHas, gotoCh, until, exceptions, ws }
+  return { ev, cmd, sendMsg, pressEnter, insertText, inputVal, waitIdle, bodyHas, patrolCount, queueItems, queueCount, cancelFirst, userBubbleHas, gotoCh, until, exceptions, ws }
 }
 let fail = 0
 const ok = (cond, label) => {
@@ -176,6 +177,55 @@ ok((await d.bodyHas('已调起本章小环·短巡查（右侧抽屉')), 'C3-②
 await d.until(() => d.ev(`document.querySelectorAll('[data-testid="agent-queue-item"]').length === 0`), 10000, 'C4 队列清空')
 ok((await d.queueCount()) === 0, 'C4-① 执行后队列清空')
 ok(d.exceptions.length === 0, 'C5 无 JS 异常（' + d.exceptions.length + '）' + (d.exceptions[0] ? '：' + d.exceptions[0] : ''))
+
+// ---------- 场景 D：排队消息「取回」——出队回输入框可编辑（CC「Take back what you queued」，2026-10-02）----------
+// Claude Code 官方：Press Up from the first line of the input box to take back the queued messages… removes
+// them from the queue and puts them in the input box, one per line, ahead of any text you had typed. Edit
+// the text and press Enter to queue it again as one entry. 织卷 GUI 化=气泡「取回编辑」按钮（↑ 已承载草稿
+// 回取 f615e87 键位不冲突）；取回=出队+回输入框可编辑，在途草稿不覆盖（取回文本前置+换行）。
+await d.waitIdle()
+await d.sendMsg('再续一章。')
+await d.until(() => d.ev(`!!document.querySelector('button[title="停止生成"]')`), 8000, 'D 流式开始')
+await sleep(600)
+await d.sendMsg('取回测试消息')
+await d.until(() => d.ev(`document.querySelectorAll('[data-testid="agent-queue-item"]').length >= 1`), 5000, 'D1 消息入列')
+ok((await d.queueCount()) === 1, 'D1-① 生成中排队消息条目出现')
+await d.ev(`(() => { const t = document.querySelector('textarea'); if (t) { t.focus(); return true } return false })()`)
+await d.cmd('Input.insertText', { text: '我的新想法' })
+await sleep(150)
+ok((await d.inputVal()) === '我的新想法', 'D2-① 在途草稿已输入（取回不覆盖的对照）')
+await d.ev(`document.querySelector('[data-testid="agent-queue-takeback"]')?.click()`)
+await d.until(() => d.ev(`document.querySelectorAll('[data-testid="agent-queue-item"]').length === 0`), 5000, 'D3 取回后队列清空')
+ok((await d.queueCount()) === 0, 'D3-① 取回=出队（不再排队）')
+const dv = await d.inputVal()
+ok(dv.includes('取回测试消息') && dv.includes('我的新想法'), 'D3-② 取回文本回输入框且保留在途草稿：' + JSON.stringify(dv))
+ok(dv.indexOf('取回测试消息') < dv.indexOf('我的新想法'), 'D3-③ 取回文本前置（CC ahead of any text you had typed）')
+// 编辑后 Enter=重新入列（CC queue it again as one entry）——取回不是丢弃，可改可重发
+await d.pressEnter()
+await d.until(() => d.ev(`document.querySelectorAll('[data-testid="agent-queue-item"]').length >= 1`), 6000, 'D4-① 重发=重新入列')
+ok((await d.queueCount()) === 1, 'D4-① 生成中重发重新入列（可编辑重排）')
+ok((await d.queueItems())[0]?.includes('取回测试消息'), 'D4-② 入列内容=取回编辑后的文本')
+await d.cancelFirst()
+await d.until(() => d.ev(`document.querySelectorAll('[data-testid="agent-queue-item"]').length === 0`), 5000, 'D4-③ 收尾取消')
+await d.waitIdle()
+ok(d.exceptions.length === 0, 'D5 无 JS 异常（' + d.exceptions.length + '）' + (d.exceptions[0] ? '：' + d.exceptions[0] : ''))
+
+// ---------- 场景 E：排队命令「取回」——命令原文回输入框、不自动执行 ----------
+await d.sendMsg('再续一章。')
+await d.until(() => d.ev(`!!document.querySelector('button[title="停止生成"]')`), 8000, 'E 流式开始')
+await sleep(600)
+await d.sendMsg('/巡查 本章')
+await d.until(() => d.ev(`document.querySelectorAll('[data-testid="agent-queue-item"]').length >= 1`), 5000, 'E1 命令入列')
+ok((await d.bodyHas('已排队 · 命令')), 'E1-① 条目标记「已排队 · 命令」')
+// 记录当前「巡查已调起」消息数（C 场景曾执行过巡查，对话流有残留——不能用 bodyHas 一刀切）
+const patrolBase = await d.patrolCount()
+await d.ev(`document.querySelector('[data-testid="agent-queue-takeback"]')?.click()`)
+await d.until(() => d.ev(`document.querySelectorAll('[data-testid="agent-queue-item"]').length === 0`), 5000, 'E2 取回后队列清空')
+ok((await d.inputVal()) === '/巡查 本章', 'E2-① 命令原文回输入框（可编辑重发）')
+await d.waitIdle()
+await sleep(1200)
+ok((await d.patrolCount()) === patrolBase, 'E3-① 取回的命令未自动执行（无新巡查调起）')
+ok(d.exceptions.length === 0, 'E4 无 JS 异常（' + d.exceptions.length + '）' + (d.exceptions[0] ? '：' + d.exceptions[0] : ''))
 
 console.log(fail === 0 ? '\nALL PASS' : `\n${fail} FAIL`)
 process.exit(fail === 0 ? 0 : 1)

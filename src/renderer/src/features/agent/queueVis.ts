@@ -54,3 +54,13 @@ export function removeQueuedByQid<T extends { qid: string }>(arr: T[], qid: stri
 export function newQid(): string {
   return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8)
 }
+
+/**
+ * 取回排版（2026-10-02 体验层候选 1「排队条目取回/编辑」；Claude Code「Take back what you queued」：
+ * 「puts them in the input box, one per line, ahead of any text you had typed」——取回文本放在
+ * 作者在途输入之前、各占一行）。输入框为空=直接放入；非空=取回文本换行前置（不覆盖在途草稿）。
+ */
+export function composeTakeBackInput(existing: string, taken: string): string {
+  if (!existing.trim()) return taken
+  return taken + '\n' + existing
+}
