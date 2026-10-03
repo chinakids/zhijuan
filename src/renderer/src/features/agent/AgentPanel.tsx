@@ -1526,8 +1526,8 @@ export default function AgentPanel(props: AgentPanelProps) {
           }
         }}
         placeholder="让 agent 做什么…"
-        title="Enter 发送 · @ 引用 · / 命令 · Shift+Enter 换行"
-        className="max-h-40 min-h-[64px] w-full resize-none rounded-xl border border-hair bg-surface pb-9 pl-2.5 pr-11 pt-2 text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/60"
+        title="Enter 发送 · Shift+Enter 换行 · @ 引用 · / 命令 · ↑ 回取草稿"
+        className="max-h-40 min-h-[64px] w-full resize-none overflow-y-auto rounded-xl border border-hair bg-surface pb-9 pl-2.5 pr-11 pt-2 text-[13px] text-ink placeholder:text-ink-3 focus:outline-none focus:ring-2 focus:ring-accent/60 [field-sizing:content]"
       />
       {/* @ 引用浮层（GitHub/Slack mention 范式：固定在输入框上方） */}
       {atTrg && (
@@ -1559,6 +1559,7 @@ export default function AgentPanel(props: AgentPanelProps) {
           <button
             onClick={stopFx}
             title="停止导演任务（结果不落盘）"
+            aria-label="停止导演任务"
             className="flex h-7 w-7 items-center justify-center rounded-full border border-hair bg-surface-2 text-ink-2 transition-colors hover:text-danger"
           >
             <Square className="h-3 w-3" />
@@ -1568,6 +1569,7 @@ export default function AgentPanel(props: AgentPanelProps) {
             onClick={doSend}
             disabled={!input.trim()}
             title="发送"
+            aria-label="发送"
             className={cn(
               'flex h-7 w-7 items-center justify-center rounded-full transition-all',
               input.trim() ? 'bg-accent text-accent-ink hover:brightness-95' : 'bg-surface-2 text-ink-3'
