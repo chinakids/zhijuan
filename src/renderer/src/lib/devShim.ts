@@ -1743,6 +1743,19 @@ const mock = {
     }
     const demo =
       '（dev 模式模拟回复）\n\n刚把当前章节和人物相关设定读了一遍。结合现在的进度，建议先从灯入手：让主角在雨夜里再靠近一次那盏旧灯，把「灯语约定」的伏笔再点一下，然后留一个悬念给下一幕。\n\n要不要我直接按这个思路把这一段写出来？'
+    // 消息流排版演示（2026-10-04 体验层走查种子）：prompt 含「排版演示」时回复含长文/列表/代码块/引用/标题/表格，
+    // 用于无头走查与冒烟断言 ReactMarkdown 在窄面板的字排、行宽与断行、段落间距、代码块与列表样式
+    if (/排版演示/.test(input.prompt)) {
+      const dense =
+        '# 第二幕 · 雾港\n\n## 雨夜前奏\n\n这一段用来检验长文本在消息流里的排版。海风湿漉漉地贴着窗面，阿七把灯芯拨低了一线，光就缩成一颗琥珀色的核，在玻璃的呵气里微微晃动。她听到雨在铁皮屋顶上走，步子不紧不慢，像某个迟到的人一直在附近徘徊。远处泊船的铁链拖过栈桥，声音被水咽掉一半，剩下的一半落在她耳膜上，沉得像一块湿透的绒布。\n\n她忽然想起那晚的事。\n\n### 三件要记的事\n\n- 灯语约定：右侧窗台点灯，表示「等你回来」；左侧连闪两下，表示「有人来过」。\n- 旧船票的日期是 1998 年 7 月 13 日，和码头改造公告同一天。\n- 码头守夜人姓韩，右手少了半截食指，一直戴着皮手套。\n\n### 操作顺序\n\n1. 先检查灯罩有没有漏雨。\n2. 再把灯油换成了老周留下的那罐。\n3. 最后把船票压在窗台下的砖缝里，用火漆封好。\n\n> 雾气会记住每个在码头上说过谎的人。\n\n代码实现如下：\n\n```js\nfunction waitForRain(port) {\n  return new Promise((resolve) => setTimeout(resolve, port.rainDelay))\n}\n```\n\n行内代码 `waitForRain(port)` 在第三幕还会用一次。超长英文单词断行测试：pneumonoultramicroscopicsilicovolcanoconiosis supercalifragilisticexpialidocious https://example.com/very/long/path/to/a/resource#fragment-123456789。\n\n| 时刻 | 灯位 | 含义 |\n| --- | --- | --- |\n| 22:00 | 右侧 | 等你回来 |\n| 23:30 | 左侧×2 | 有人来过 |\n\n**结论**：这盏灯与船票是同一根线。'
+      for (let i = 0; i < dense.length; i += 8) {
+        emit({ requestId: rid, type: 'delta', text: dense.slice(i, i + 8) })
+        await demoDelay()
+      }
+      emit({ requestId: rid, type: 'final', text: dense })
+      emit({ requestId: rid, type: 'done' })
+      return { ok: true }
+    }
     // 流式压力演示：prompt 含「流式压力」时高频发射大量 think/delta 增量（3ms 间隔），
     // 验证渲染层帧级节流（streamBuffer）合并后内容完整无丢失（真实 reasoning 高频流模拟）
     if (/流式压力/.test(input.prompt)) {

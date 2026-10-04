@@ -1744,7 +1744,7 @@ export default function AgentPanel(props: AgentPanelProps) {
                   )}
                   {m.role === 'assistant' && m.thinking && <ThinkingBlock text={m.thinking} active={streaming} />}
                   {m.role === 'assistant' ? (
-                    <div className="prose min-w-0 break-words">
+                    <div className="prose agent-prose min-w-0 break-words">
                       {/* 终态标记（2026-09-26 体验层）：与 content 分离的独立状态行；parseTerminalSuffix
                           兼容旧会话内消息（旧实现曾在 content 尾部拼过 `\n\n（已停止）`/`\n\n（输出已截断）`） */}
                       {(() => {

@@ -119,6 +119,19 @@
 .prose table { border-collapse: collapse; margin: 0.5em 0; font-size: 0.9em }
 .prose th, .prose td { border: 1px solid var(--hair); padding: 0.3em 0.6em }
 
+/* 消息流（Agent 回复区）专属字排走查（2026-10-04 体验层）：HIG Typography「legibility + hierarchy +
+   loose leading for long passages」——标题层级与正文可辨、段落间距明显大于行距、代码块不双重缩小。
+   作用域仅 .agent-prose（AgentPanel 消息流），共享 .prose 的 CollectionBar/其它面零影响。 */
+.agent-prose h1 { font-size: 1.35em }
+.agent-prose h2 { font-size: 1.15em }
+.agent-prose h3, .agent-prose h4 { font-size: 1.05em }
+.agent-prose p { margin: 0.65em 0 }
+.agent-prose ul, .agent-prose ol { margin: 0.65em 0 }
+.agent-prose li { margin: 0.25em 0 }
+.agent-prose li > p { margin: 0.25em 0 }
+.agent-prose li > ul, .agent-prose li > ol { margin: 0.25em 0 }
+.agent-prose pre code { font-size: 1em; line-height: inherit }
+
 html,
 body,
 #root {
