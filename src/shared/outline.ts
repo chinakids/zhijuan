@@ -3,7 +3,7 @@
 // 真机（main/agent/outline.ts 回建）、删除章后的索引重建（main/store.ts）与渲染层
 // devShim（无头冒烟）共用同一套口径——避免「无头 mock 与真机不一致」假绿（2026-09-12 创作层）。
 import type { OutlineCard } from './types'
-import { setFrontMatterField } from './fmatter'
+import { removeFrontMatterField, setFrontMatterField } from './fmatter'
 import { DEFAULT_LINE } from './line'
 
 /**
@@ -111,6 +111,18 @@ export function syncChapterNameInDoc(raw: string, oldTitle: string, newTitle: st
 export function syncChapterSliceInDoc(raw: string, newSlice: string): string {
   if (!newSlice) return raw
   const next = setFrontMatterField(raw, '切片', newSlice)
+  return next === raw ? raw : next
+}
+
+/**
+ * 章节「时间线」修改后同步写作副产物（章卡/导演板/分幕）fm 里的 `时间线` 字段：
+ * 与建章透传口径一致（2026-09-17 29e4355：非主线才写字段，缺省=主线零冗余）——新线非主线 → set；
+ * 新线为空/主线 → 移除字段；正文/小节文字不动（时间线不进副产物 H1/正文行，与 syncChapterSliceInDoc 同构）。
+ * 无约定头/无变化幂等返回原文。
+ */
+export function syncChapterLineInDoc(raw: string, newLine: string): string {
+  const s = (newLine ?? '').trim()
+  const next = s && s !== DEFAULT_LINE ? setFrontMatterField(raw, '时间线', s) : removeFrontMatterField(raw, '时间线')
   return next === raw ? raw : next
 }
 

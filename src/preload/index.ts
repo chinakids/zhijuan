@@ -105,6 +105,11 @@ const api = {
     ipcRenderer.invoke('chapter:editSlice', id, rel, newSlice) as Promise<
       { ok: boolean; oldSlice?: string; newSlice?: string; synced?: number; staled?: number; error?: string }
     >,
+  // 章节「时间线」修改：改正文约定头（空/主线=移除字段）+ 大纲副产物 fm 同步（引用面收口见 store.editChapterLine）
+  editChapterLine: (id: string, rel: string, newLine: string) =>
+    ipcRenderer.invoke('chapter:editLine', id, rel, newLine) as Promise<
+      { ok: boolean; oldLine?: string; newLine?: string; synced?: number; error?: string }
+    >,
   deleteChapter: (id: string, rel: string) =>
     ipcRenderer.invoke('chapter:delete', id, rel) as Promise<{ ok: boolean; error?: string; cleaned?: number }>,
   exportChapter: (id: string, rel: string) =>

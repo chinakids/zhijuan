@@ -15,10 +15,11 @@ import {
   FSWatcher
 } from 'fs'
 import { writeFileAtomic } from './fsutil'
-import { extractFrontMatter, serializeFrontMatter, setFrontMatterField } from '../shared/fmatter'
+import { removeFrontMatterField, extractFrontMatter, serializeFrontMatter, setFrontMatterField } from '../shared/fmatter'
 import { posixRel, toPosix } from '../shared/relpath'
-import { isOutlineCardRel, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterSliceInDoc } from '../shared/outline'
+import { isOutlineCardRel, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterLineInDoc, syncChapterSliceInDoc } from '../shared/outline'
 import { isMaterialCard } from '../shared/materialCard'
+import { chapterLine, DEFAULT_LINE } from '../shared/line'
 import { listChapterEntries } from '../shared/chapters'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, SKELETON_TEMPLATES, DOT_DIR } from '../shared/paths'
 import { sanitizeFile } from '../shared/paths'
@@ -491,6 +492,63 @@ export function editChapterSlice(id: string, rel: string, newSlice: string): Edi
   let staled = 0
   try { staled = staleSliceSyncByChapter(libraryRoot(), id, rel) } catch { /* best-effort */ }
   return { ok: true, oldSlice, newSlice: s, synced, staled }
+}
+
+export interface EditChapterLineResult {
+  ok: boolean
+  oldLine?: string
+  /** 归一后的新线名（空/主线 → DEFAULT_LINE） */
+  newLine?: string
+  /** 大纲副产物（章卡/导演板/分幕）fm「时间线」字段同步条数 */
+  synced?: number
+  error?: string
+}
+
+/**
+ * 章节「时间线」修改（约定头字段编辑收口补齐：题名有重命名、涉及人物有补入/移出 quick-fix、
+ * 切片名有 editChapterSlice，唯 2026-09-16 多时间线的 `时间线` 字段建章后无入口——此前只能外部盲改 YAML）。
+ * 语义与建章写字段口径一致（Novel.tsx createChapter：非主线才写字段，缺省=主线）：
+ *  - 新值为空/「主线」→ 移除 `时间线` 字段（主线即缺省，零冗余）；
+ *  - 新值为其他 → 写 `时间线: <值>`；
+ * 引用面（与 editChapterSlice 同构审计）：
+ *  - 大纲/ 同名写作副产物（章卡/导演板/分幕）fm `时间线` 字段 → best-effort 同步
+ *    （syncChapterLineInDoc；索引文档不展示线 → 不重建）；
+ *  - 提案不动（slice-sync 锚点/target 只携带章名与切片名，不含线名；线不参与切片提取/同步）。
+ * 不触发切片同步：线是叙事维度，切片提取与设定流同步均与线无关；装配/审计/时间线页/线枚举
+ * 全部正文为源现扫（slices.ts listSlices 逐次扫描），改约定头即生效，无派生状态要维护。
+ */
+export function editChapterLine(id: string, rel: string, newLine: string): EditChapterLineResult {
+  const bad = !rel || !rel.startsWith('正文/') || !rel.endsWith('.md') || rel.startsWith('/') || rel.split('/').some((s) => s === '..')
+  if (bad) return { ok: false, error: '路径不合法' }
+  const oldAbs = abs(id, rel)
+  if (!existsSync(oldAbs)) return { ok: false, error: '章节不存在' }
+  const raw = readFileSync(oldAbs, 'utf-8')
+  const { fm } = extractFrontMatter(raw)
+  if (!fm) return { ok: false, error: '该文件没有约定头，不是织卷章节' }
+  const oldLine = String(fm['时间线'] ?? '')
+  const s = (newLine ?? '').trim()
+  // 归一比较：未写/空/「主线」等价（chapterLine 缺省=主线），相同则幂等早退（零写盘零快照）
+  if (chapterLine({ 时间线: oldLine }) === (s || DEFAULT_LINE)) return { ok: true, oldLine, newLine: s || DEFAULT_LINE }
+  const next = s && s !== DEFAULT_LINE ? setFrontMatterField(raw, '时间线', s) : removeFrontMatterField(raw, '时间线')
+  if (next === raw) return { ok: true, oldLine, newLine: s || DEFAULT_LINE }
+  writeDoc(id, rel, next)
+  let synced = 0
+  const dir = join(projectDir(id), '大纲')
+  if (existsSync(dir)) {
+    const base = basename(rel).replace(/\.md$/, '')
+    for (const e of siblingMatches(readdirSync(dir), base)) {
+      try {
+        const f = join(dir, e)
+        const cur = readFileSync(f, 'utf-8')
+        const n = syncChapterLineInDoc(cur, s)
+        if (n !== cur) {
+          writeDoc(id, '大纲/' + e, n)
+          synced++
+        }
+      } catch { /* best-effort */ }
+    }
+  }
+  return { ok: true, oldLine, newLine: s || DEFAULT_LINE, synced }
 }
 
 /** 删除章节：先删 大纲/ 下同名写作副产物（走系统废纸篓，可恢复），再删正文本身。

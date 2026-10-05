@@ -268,6 +268,70 @@ describe('editChapterSlice（切片名修改：正文约定头 + 大纲副产物
   })
 })
 
+describe('editChapterLine（时间线修改：正文约定头 空/主线移除字段 + 大纲副产物 fm 同步；不触提案）', () => {
+  it('改入过去线：正文约定头写入、大纲副产物 fm「时间线」同步新值，正文行不动', () => {
+    const rel = seedChapter()
+    const r = store.editChapterLine(pid, rel, '过去线')
+    expect(r.ok).toBe(true)
+    expect(r.oldLine).toBe('')
+    expect(r.newLine).toBe('过去线')
+    expect(r.synced).toBe(2)
+    const ch = store.readDoc(pid, rel) ?? ''
+    expect(ch).toContain('时间线: 过去线')
+    expect(ch).toContain('# 雾港')
+    expect(ch).toContain('正文内容。')
+    const card = store.readDoc(pid, '大纲/第01章_雾港.md') ?? ''
+    expect(card).toContain('时间线: 过去线')
+    expect(card).toContain('> 对应正文：正文/第01章_雾港.md')
+    expect(card).toContain('手工补充：保留旧题名也无妨')
+    const dir = store.readDoc(pid, '大纲/第01章_雾港_导演.md') ?? ''
+    expect(dir).toContain('时间线: 过去线')
+  })
+
+  it('改回主线（空值）→ 移除「时间线」字段（非主线才写字段口径）；再改回过去线往返幂等一致', () => {
+    const rel = seedChapter()
+    store.editChapterLine(pid, rel, '过去线')
+    const r = store.editChapterLine(pid, rel, '')
+    expect(r.ok).toBe(true)
+    expect(r.newLine).toBe('主线')
+    expect(r.synced).toBe(2)
+    const ch = store.readDoc(pid, rel) ?? ''
+    expect(ch).not.toContain('时间线:')
+    const card = store.readDoc(pid, '大纲/第01章_雾港.md') ?? ''
+    expect(card).not.toContain('时间线:')
+    // 显式「主线」与空值等价（缺省=主线，零冗余）
+    store.editChapterLine(pid, rel, '过去线')
+    const r2 = store.editChapterLine(pid, rel, '主线')
+    expect(r2.ok).toBe(true)
+    expect((store.readDoc(pid, rel) ?? '').includes('时间线:')).toBe(false)
+  })
+
+  it('引用面：slice-sync pending 提案不被置 stale（线不参与提案锚点/切片提取）', () => {
+    const rel = seedChapter()
+    createProposals(holder.projects(), pid, 'slice-sync', rel, '第一幕', [propItem('旧状态')])
+    store.editChapterLine(pid, rel, '过去线')
+    expect(listProposals(holder.projects(), pid)[0].status).toBe('pending')
+  })
+
+  it('幂等：值归一相等（未写=主线）→ ok 且不写盘（内容不变）', () => {
+    const rel = seedChapter()
+    const before = store.readDoc(pid, rel)
+    const r = store.editChapterLine(pid, rel, '主线')
+    expect(r.ok).toBe(true)
+    expect(r.newLine).toBe('主线')
+    expect(store.readDoc(pid, rel)).toBe(before)
+    const r2 = store.editChapterLine(pid, rel, '')
+    expect(store.readDoc(pid, rel)).toBe(before)
+  })
+
+  it('防御：路径不合法 / 章节不存在 / 无约定头', () => {
+    expect(store.editChapterLine(pid, '正文/../project.md', '过去线').ok).toBe(false)
+    expect(store.editChapterLine(pid, '正文/不存在.md', '过去线').ok).toBe(false)
+    store.writeDoc(pid, '正文/无约定头.md', '# 只有正文')
+    expect(store.editChapterLine(pid, '正文/无约定头.md', '过去线').ok).toBe(false)
+  })
+})
+
 describe('deleteChapter（删除：正文 + 大纲副产物 + 历史目录进废纸篓）', () => {
   it('正文与同名大纲副产物全部 trashItem，历史目录一并移走（可恢复），cleaned 计数正确', async () => {
     const rel = seedChapter()

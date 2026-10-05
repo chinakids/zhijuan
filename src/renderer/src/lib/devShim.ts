@@ -1,7 +1,7 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
 import type { AgentEvent, AppSettings, ChapterEntry, OutlineCard, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult, MenuActionEvent, MenuActionId, MenuStateReport, SyncIssue, SyncEvidence, SyncLogEntry, SaveTraceEntry } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
-import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterSliceInDoc } from '../../../shared/outline'
+import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterLineInDoc, syncChapterSliceInDoc } from '../../../shared/outline'
 import { isMaterialCard } from '../../../shared/materialCard'
 import type { ProjectStats } from '../../../shared/types'
 import { listChapterEntries } from '../../../shared/chapters'
@@ -14,7 +14,7 @@ import { AGENT_PANEL_DEFAULT_WIDTH } from '../../../shared/uiPrefs'
 import { sanitizeFile, DEFAULT_FILES, SKELETON_TEMPLATES } from '../../../shared/paths'
 import { clipLogError } from '../../../shared/syncLogShared'
 import { nextProjectId } from '../../../shared/projects'
-import { extractFrontMatter, setFrontMatterField } from '../../../shared/fmatter'
+import { extractFrontMatter, removeFrontMatterField, setFrontMatterField } from '../../../shared/fmatter'
 import { adoptActsChapter } from '../../../shared/actsAdopt'
 import { countWords } from '../../../shared/count'
 import { unlistedInBody, listedFrom, parseAliases, unusedAliasCheck, presenceCheck, chapterMissingFromRaw } from '../../../shared/presence'
@@ -668,7 +668,7 @@ const mock = {
       dir,
       inited: wsDocs.size > 0,
       docs: [...wsDocs.keys()]
-        .map((file) => ({ file, name: file.replace(/\\.md$/, '') }))
+        .map((file) => ({ file, name: file.replace(/\.md$/, '') }))
         .sort((a, b) => a.name.localeCompare(b.name, 'zh'))
     }
   },
@@ -847,10 +847,10 @@ const mock = {
     docs.set(k, setFrontMatterField(cur, '切片', s))
     fsEmit(_id, rel)
     let synced = 0
-    const base = rel.split('/').pop()!.replace(/\\.md$/, '')
+    const base = rel.split('/').pop()!.replace(/\.md$/, '')
     for (const key of [...docs.keys()]) {
       if (!key.startsWith(_id + '/大纲/')) continue
-      const nm = key.slice((_id + '/大纲/').length).replace(/\\.md$/, '')
+      const nm = key.slice((_id + '/大纲/').length).replace(/\.md$/, '')
       if (nm === base || nm.startsWith(base + '_')) {
         const rawDoc = docs.get(key)
         if (rawDoc !== undefined) {
@@ -871,6 +871,37 @@ const mock = {
       }
     }
     return { ok: true, oldSlice, newSlice: s, synced, staled }
+  },
+  // 章节「时间线」修改（真机 store.editChapterLine 同语义：正文约定头（空/主线=移除字段）+ 大纲副产物 fm 时间线字段同步；线不参与提案锚点/切片提取，不置 stale、不触发切片同步）
+  editChapterLine: async (_id: string, rel: string, newLine: string) => {
+    if (!rel?.startsWith('正文/') || !rel.endsWith('.md') || rel.split('/').some((s) => s === '..')) return { ok: false, error: '路径不合法' }
+    const k = _id + '/' + rel
+    const cur = docs.get(k)
+    if (cur === undefined) return { ok: false, error: '章节不存在' }
+    const oldLine = String(extractFrontMatter(cur).fm?.['时间线'] ?? '')
+    const s = (newLine ?? '').trim()
+    if (chapterLine({ 时间线: oldLine }) === (s || DEFAULT_LINE)) return { ok: true, oldLine, newLine: s || DEFAULT_LINE }
+    const next = s && s !== DEFAULT_LINE ? setFrontMatterField(cur, '时间线', s) : removeFrontMatterField(cur, '时间线')
+    docs.set(k, next)
+    fsEmit(_id, rel)
+    let synced = 0
+    const base = rel.split('/').pop()!.replace(/\.md$/, '')
+    for (const key of [...docs.keys()]) {
+      if (!key.startsWith(_id + '/大纲/')) continue
+      const nm = key.slice((_id + '/大纲/').length).replace(/\.md$/, '')
+      if (nm === base || nm.startsWith(base + '_')) {
+        const rawDoc = docs.get(key)
+        if (rawDoc !== undefined) {
+          const nextDoc = syncChapterLineInDoc(rawDoc, s)
+          if (nextDoc !== rawDoc) {
+            docs.set(key, nextDoc)
+            synced++
+            fsEmit(_id, '大纲/' + nm + '.md')
+          }
+        }
+      }
+    }
+    return { ok: true, oldLine, newLine: s || DEFAULT_LINE, synced }
   },
   deleteChapter: async (_id: string, rel: string) => {
     const k = _id + '/' + rel

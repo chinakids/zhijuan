@@ -132,6 +132,9 @@ export default function Novel() {
   // 章节「切片」名修改（约定头字段编辑收口）：正文约定头 + 大纲副产物 fm 同步 + 旧切片提案置 stale
   const [sliceEditing, setSliceEditing] = useState<ChapterEntry | null>(null)
   const [sliceVal, setSliceVal] = useState('')
+  // 章节「时间线」修改（2026-10-05 创作层：多线叙事建章后无改线入口=约定头字段编辑收口补齐）
+  const [lineEditing, setLineEditing] = useState<ChapterEntry | null>(null)
+  const [lineVal, setLineVal] = useState('')
   const [deleting, setDeleting] = useState<ChapterEntry | null>(null)
   // 切章未保存守卫（2026-09-23 创作层）：dirty 时点其他章节 → 确认（保存并切换/不保存切换/取消），
   // 防「写了一半点错章/随手切章丢稿」。dirtyRef 由 DocEditor onDirty 实时维护（只读，不参与保存行为）。
@@ -600,6 +603,28 @@ export default function Novel() {
       description: `${r.newSlice}${r.synced ? `（已同步 ${r.synced} 篇大纲副产物）` : ''}${r.staled ? `；${r.staled} 条旧切片提案已过期` : ''}；旧切片设定已保留为历史、不再参与后续同步`
     })
   }
+  async function doEditLine() {
+    if (!id || !lineEditing) return
+    let r: Awaited<ReturnType<typeof window.zhijuan.editChapterLine>>
+    try {
+      r = await window.zhijuan.editChapterLine(id, '正文/' + lineEditing.file, lineVal)
+    } catch (e) {
+      toast.add({ kind: 'error', title: '修改时间线失败', description: String((e as Error).message ?? e) })
+      return
+    }
+    if (!r.ok) {
+      toast.add({ kind: 'error', title: '修改时间线失败', description: r.error })
+      return
+    }
+    setLineEditing(null)
+    await refresh()
+    // 线不参与切片提取/提案锚点，无需刷新提案；装配/审计/时间线页/线枚举均正文为源现扫，改约定头即生效
+    toast.add({
+      kind: 'success',
+      title: '已更新时间线',
+      description: `${lineEditing.fm?.['题名'] ?? lineEditing.name} 已改入「${r.newLine}」${r.synced ? `（已同步 ${r.synced} 篇大纲副产物）` : ''}；该章在「到本章为止」装配与章节序审计中按新线计算，切片设定不变`
+    })
+  }
   async function doDelete() {
     if (!id || !deleting) return
     let r: Awaited<ReturnType<typeof window.zhijuan.deleteChapter>>
@@ -732,6 +757,16 @@ export default function Novel() {
         }}
       >
         修改切片名
+      </Item>
+      <Item
+        onSelect={() => {
+          setLineEditing(c)
+          setLineVal(String(c.fm?.['时间线'] ?? ''))
+          // 改线对话框的「已有时间线」快捷 chips：与建章向导同源（listLines 正文为源现扫），打开时加载
+          void window.zhijuan.listLines(id).then(setLineOpts).catch(() => setLineOpts([]))
+        }}
+      >
+        修改时间线
       </Item>
       <Item onSelect={() => void doExport(c)}>导出 md</Item>
       <Sep />
@@ -1262,6 +1297,58 @@ export default function Novel() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setSliceEditing(null)}>取消</Button>
             <Button onClick={() => void doEditSlice()} disabled={!sliceVal.trim()}>保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 章节「时间线」修改（2026-10-05 创作层：与修改切片名同族；空/主线=移除字段=主线，非主线才写字段） */}
+      <Dialog open={!!lineEditing} onOpenChange={(o) => !o && setLineEditing(null)}>
+        <DialogContent className="sm:max-w-md" outsideDismiss={false}>
+          <DialogHeader>
+            <DialogTitle>修改时间线</DialogTitle>
+            <DialogDescription>
+              本章归属线变更后，「到本章为止」的装配、章节序审计与时间线视图都按新线重新计算；切片名与此前已落档的设定文件不变。留空或填「主线」即主线。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label>时间线</Label>
+            <Input
+              autoFocus
+              data-testid="edit-line-input"
+              value={lineVal}
+              placeholder={`如：过去线（留空默认${DEFAULT_LINE}）`}
+              onChange={(e) => setLineVal(e.target.value)}
+              onKeyDown={(e) => {
+                // IME 组合期 Enter 只确认候选，不改线（F-IME-03）
+                if (isImeComposing(e)) return
+                if (e.key === 'Enter' && lineEditing) void doEditLine()
+              }}
+            />
+            {lineOpts.length > 1 && (
+              <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="已有时间线">
+                {lineOpts.map((l, i) => (
+                  <button
+                    key={l.name}
+                    type="button"
+                    data-testid={`edit-line-chip-${i}`}
+                    onClick={() => setLineVal(l.name)}
+                    title={`${l.name}（${l.chapters} 章）`}
+                    className={cn(
+                      'inline-flex shrink-0 items-center whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60',
+                      lineVal === l.name
+                        ? 'border-accent/50 bg-accent-soft text-accent'
+                        : 'border-hair bg-surface text-ink-2 hover:bg-well hover:text-ink'
+                    )}
+                  >
+                    {l.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLineEditing(null)}>取消</Button>
+            <Button onClick={() => void doEditLine()}>保存</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
