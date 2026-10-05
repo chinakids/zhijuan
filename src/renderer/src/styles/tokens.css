@@ -131,6 +131,13 @@
 .agent-prose li > p { margin: 0.25em 0 }
 .agent-prose li > ul, .agent-prose li > ol { margin: 0.25em 0 }
 .agent-prose pre code { font-size: 1em; line-height: inherit }
+/* 消息流宽表防护（2026-10-05 体验层，GitHub 官方 markdown CSS 先例
+   sindresorhus/github-markdown-css L333：display:block+width:max-content+max-width:100%+overflow:auto；
+   本环境 Chromium 对照实验补证：中文长文本下 max-width:100% 会触发列压缩（4 列表实测压到
+   28px/列竖排不可读），必须叠加 td/th white-space:nowrap 锁列宽——宽表出横向滚动、列保持单行，
+   3 列表内容短则自然宽<容器、零滚动零影响。 */
+.agent-prose table { display: block; width: max-content; max-width: 100%; overflow-x: auto }
+.agent-prose th, .agent-prose td { white-space: nowrap }
 
 html,
 body,

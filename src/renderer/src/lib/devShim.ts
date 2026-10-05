@@ -1787,6 +1787,20 @@ const mock = {
       emit({ requestId: rid, type: 'done' })
       return { ok: true }
     }
+    // 消息流宽表溢出演示（2026-10-05 体验层走查种子）：prompt 含「宽表演示」时回复含
+    // 4 列表/长 URL 表——模型常给对比/结构类表格，窄面板无 overflow 包裹会撑破气泡右缘，
+    // 用于复现实锤与冒烟断言横向滚动的修复（「排版演示」的 3 列表种子保持不动，零回归）
+    if (/宽表演示/.test(input.prompt)) {
+      const wide =
+        '# 人物刻画对照\n\n先给你一张人物对照表，方便核对各线伏笔与出场设定。\n\n| 人物 | 身份 | 首次出场章节 | 关键伏笔与后续走向 |\n| --- | --- | --- | --- |\n| 沈藏 | 守夜人，原码头工人 | 第01章 雾港栈桥 | 右手少了半截食指，一直戴着皮手套；与 1998 年码头改造公告上的失踪名单有未解交集，中段需要回收「灯语约定」这条线，结尾与旧船票的日期形成闭环 |\n| 阿七 | 灯塔看守学徒 | 第03章 灯塔 | 总在雨夜靠近旧灯，把灯芯拨低一线；她对「右侧点灯」的解读与沈藏口头版本存在偏差，这条偏差值需要留到第七章引爆 |\n| 林晓 | 旅店老板娘 | 第02章 雨夜旅店 | 经营记录里夹着 1998 年的码头员工名册，自己声称「什么都没留下」，但账本背后的铅笔批注内容与其说法矛盾 |\n\n补充链资料地址：\n\n| 资料 | 地址 |\n| --- | --- |\n| 码头改造公告扫描件 | https://example.com/docs/scanned/1998-port-reconstruction-notice.pdf#page=2&zoom=150&annotations=full-text-search-tokenized-copy-9732 |\n| 船票日期核对页 | https://example.com/verify/date/1998-07-13?from=port&ref=chapter-01-draft&token=7f2a91c4e8b6d3f0a5c97e11b8d6452090aa77fe |\n\n**结论**：四条时间线的伏笔归属已分成两组，第二组与第一组在第七章会汇合。'
+      for (let i = 0; i < wide.length; i += 8) {
+        emit({ requestId: rid, type: 'delta', text: wide.slice(i, i + 8) })
+        await demoDelay()
+      }
+      emit({ requestId: rid, type: 'final', text: wide })
+      emit({ requestId: rid, type: 'done' })
+      return { ok: true }
+    }
     // 流式压力演示：prompt 含「流式压力」时高频发射大量 think/delta 增量（3ms 间隔），
     // 验证渲染层帧级节流（streamBuffer）合并后内容完整无丢失（真实 reasoning 高频流模拟）
     if (/流式压力/.test(input.prompt)) {
