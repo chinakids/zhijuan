@@ -143,7 +143,9 @@ const clip = await ev(`(() => {
 if (clip) {
   const shot = await cmd('Page.captureScreenshot', { format: 'png', clip: { x: clip.x, y: clip.y, width: Math.min(clip.w, clip.dw), height: Math.min(clip.h, clip.dh), scale: 2 } })
   const fs = await import('node:fs')
-  const p = `/Users/USER/Pictures/zhijuan/healthbar-${new Date().toISOString().slice(11, 16).replace(':', '')}.png`
+  const { mkdirSync } = await import('node:fs')
+  mkdirSync(`${process.env.HOME}/Pictures/zhijuan`, { recursive: true })
+  const p = `${process.env.HOME}/Pictures/zhijuan/healthbar-${new Date().toISOString().slice(11, 16).replace(':', '')}.png`
   fs.writeFileSync(p, Buffer.from(shot.data, 'base64'))
   console.log('SHOT', p)
 }

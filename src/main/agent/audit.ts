@@ -5,6 +5,7 @@ import { readDoc, listChapters, listDocs, writeDoc } from '../store'
 import { presenceCheck, unusedAliasCheck, parseAliases, listedFrom, unlistedInBody, chapterMissingFromRaw } from '../../shared/presence'
 import { nameFormCheck, nameMixCheck } from '../../shared/nameform'
 import { overuseItems } from '../../shared/wordfreq'
+import { repeatItems } from '../../shared/repeat'
 import { actGapsCheck } from '../../shared/actGaps'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { chapterOrderCheck } from '../../shared/chapterorder'
@@ -43,7 +44,8 @@ const AUDIT_NAMES: Record<AuditKind, string> = {
   sliceord: '档案切片核查',
   nameform: '称谓发现核查',
   mixform: '称谓混用核查',
-  overuse: '用词重复核查'
+  overuse: '用词重复核查',
+  repeat: '复读检测核查'
 }
 
 /** 审计结果存档的相对路径：大纲/审读_<名>.md */
@@ -249,6 +251,21 @@ export function runOveruse(
   }
 }
 
+// ===== 复读检测核查（本地规则层，零模型、秒级） =====
+// 章内句/段级复读（完全重复句/段 + 同形句首）——人机协作特有的模型复读面（续写复述前文句子/整段复写），
+// 与 overuse（词表式频率）互补：overuse 管「词」、repeat 管「句/段」。判据与建议口径见 shared/repeat.ts
+// （2026-10-06 智能层接线；调研结论=ProWritingAid 官方 writing-reports/repetition-checker/Tip#17/Tip#7）。
+export function runRepeat(
+  projectId: string
+): { ok: true; result: AuditResult } | { ok: false; error: string } {
+  try {
+    const items = repeatItems(readVolumeChapters(projectId))
+    return { ok: true, result: { summary: '', items } }
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message ?? e) }
+  }
+}
+
 /** 审计结果 → 可入 git 的 markdown 存档（纯函数，可单测；模板单源在 shared/auditDoc.ts，devShim 同用） */
 export function auditToMarkdown(
   result: AuditResult,
@@ -387,6 +404,7 @@ export async function runAudit(
   if (kind === 'nameform') return runNameForms(projectId)
   if (kind === 'mixform') return runNameMix(projectId)
   if (kind === 'overuse') return runOveruse(projectId)
+  if (kind === 'repeat') return runRepeat(projectId)
   // 多视角审视是独立能力，参数不同（无 kind），单独路由
   const r =
     kind === 'perspectives'
