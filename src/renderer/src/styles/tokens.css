@@ -116,8 +116,15 @@
 .prose pre { background: var(--surface-2); border: 1px solid var(--hair); border-radius: 8px; padding: 0.6em 0.8em; overflow-x: auto; font-size: 0.85em; line-height: 1.5 }
 .prose pre code { background: none; padding: 0 }
 .prose blockquote { border-left: 3px solid var(--accent); margin: 0.5em 0; padding-left: 0.7em; color: var(--ink-2) }
-.prose table { border-collapse: collapse; margin: 0.5em 0; font-size: 0.9em }
-.prose th, .prose td { border: 1px solid var(--hair); padding: 0.3em 0.6em }
+/* 宽表防护（2026-10-06 体验层提升为共享规则；先例=GitHub 官方 markdown CSS
+   sindresorhus/github-markdown-css L335-341：display:block+width:max-content+max-width:100%+overflow:auto，
+   api.github.com raw 实抓确认；本环境 Chromium 对照实验补证：中文长文本下只加 max-width:100%
+   会触发列压缩（4 列表实测压到 28px/列竖排不可读），必须叠加 td/th white-space:nowrap 锁列宽——
+   宽表出横向滚动、列保持单行；内容短的 3 列表自然宽<容器、零滚动零影响。
+   作用域=共享 .prose：消息流(.agent-prose 继承)、CollectionBar 素材预览/任务卡正文、ProposalDrawer
+   before/after 三面同机制同处置；12px 预览语境实测 5 列压到列宽 29-67px/行高 43-60px 不可读。 */
+.prose table { border-collapse: collapse; margin: 0.5em 0; font-size: 0.9em; display: block; width: max-content; max-width: 100%; overflow-x: auto }
+.prose th, .prose td { border: 1px solid var(--hair); padding: 0.3em 0.6em; white-space: nowrap }
 
 /* 消息流（Agent 回复区）专属字排走查（2026-10-04 体验层）：HIG Typography「legibility + hierarchy +
    loose leading for long passages」——标题层级与正文可辨、段落间距明显大于行距、代码块不双重缩小。
@@ -131,13 +138,9 @@
 .agent-prose li > p { margin: 0.25em 0 }
 .agent-prose li > ul, .agent-prose li > ol { margin: 0.25em 0 }
 .agent-prose pre code { font-size: 1em; line-height: inherit }
-/* 消息流宽表防护（2026-10-05 体验层，GitHub 官方 markdown CSS 先例
-   sindresorhus/github-markdown-css L333：display:block+width:max-content+max-width:100%+overflow:auto；
-   本环境 Chromium 对照实验补证：中文长文本下 max-width:100% 会触发列压缩（4 列表实测压到
-   28px/列竖排不可读），必须叠加 td/th white-space:nowrap 锁列宽——宽表出横向滚动、列保持单行，
-   3 列表内容短则自然宽<容器、零滚动零影响。 */
-.agent-prose table { display: block; width: max-content; max-width: 100%; overflow-x: auto }
-.agent-prose th, .agent-prose td { white-space: nowrap }
+/* 宽表防护已提升为共享 .prose 规则（见上方 2026-10-06 注），消息流经 .agent-prose 继承类继承生效；
+   10-05 版这里曾独立声明 `.agent-prose table`（display:block+width:max-content+max-width:100%+overflow-x:auto
+   + td/th nowrap），与共享规则完全一致，去重后行为零变化（msgflow-wide-table-ui-smoke 复核）。 */
 
 html,
 body,
