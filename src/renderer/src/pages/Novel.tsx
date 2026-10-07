@@ -15,6 +15,7 @@ import { Textarea } from '../components/ui/textarea'
 import { cn } from '../lib/utils'
 import { isImeComposing } from '../lib/ime'
 import DocEditor from '../features/editor/DocEditor'
+import ChapterNav from '../features/editor/ChapterNav'
 import HealthBar from '../features/audit/HealthBar'
 import { runSliceSync } from '../features/sync/sliceSync'
 import { useColFold } from '../features/common/useColFold'
@@ -958,7 +959,12 @@ export default function Novel() {
           <>
             <div className="min-h-0 flex-1">
               <DocEditor projectId={id} rel={chapterRel} withFm extVersion={extVersion} editorApiRef={apiRef} annotations={annotations} onDirty={markDirty} saveHandleRef={saveHandleRef} onSave={() => { void refresh(); void handleChapterSaved(chapterRel) }} quoteSrcLabel={quoteSrcLabel}
-                statusExtra={<HealthBar projectId={id} refreshSignal={extVersion} />}
+                statusExtra={
+                  <>
+                    <ChapterNav list={chapters} sel={sel} onGo={requestSwitch} hidden={effectiveNarrow} />
+                    <HealthBar projectId={id} refreshSignal={extVersion} />
+                  </>
+                }
               />
             </div>
           </>
