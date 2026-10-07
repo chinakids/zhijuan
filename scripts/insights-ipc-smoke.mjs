@@ -10,7 +10,7 @@ import { pathToFileURL } from 'url'
 import { build as esbuild } from 'esbuild'
 
 const root = resolve(import.meta.dirname, '..')
-const PJ = process.env.ZJ_PJ || '/Users/USER/Documents/织卷项目库/织卷smoke'
+const PJ = process.env.ZJ_PJ || `${process.env.HOME}/Documents/织卷项目库/织卷smoke`
 if (!existsSync(PJ)) {
   console.error(`✗ 测试项目不存在：${PJ}（可 ZJ_PJ=<项目路径> 指定）`)
   process.exit(1)

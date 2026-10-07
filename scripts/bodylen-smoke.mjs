@@ -39,7 +39,7 @@ await esbuild({
 })
 
 // 库根=~/Documents/织卷项目库（legacy 非空保持原地，无需 settings）；两个临时项目跑完即删
-const lib = '/Users/USER/Documents/织卷项目库'
+const lib = `${process.env.HOME}/Documents/织卷项目库`
 const seedBody = readFileSync(lib + '/织卷smoke/正文/第01章_雾港栈桥.md', 'utf-8')
 const fmOnly = '---\n章号: 1\n题名: 雾港栈桥\n切片: 第一幕_夜\n涉及人物: [陈默]\n---\n'
 for (const [id, content] of [

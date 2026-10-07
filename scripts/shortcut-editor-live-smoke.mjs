@@ -191,7 +191,7 @@ const ok = (name, cond, extra = '') => {
     ok('T10 ⌘F 打开查找条', findOpen === true && st10.open === true, JSON.stringify(st10))
     if (process.env.ZJ_SHOT) {
       const s = await page.cmd('Page.captureScreenshot', { format: 'png' })
-      const dir = process.env.ZJ_SHOT_DIR || '/Users/USER/Pictures/zhijuan'
+      const dir = process.env.ZJ_SHOT_DIR || `${process.env.HOME}/Pictures/zhijuan`
       mkdirSync(dir, { recursive: true })
       const file = `${dir}/shortcut-editor-live-${new Date().toTimeString().slice(0, 5).replace(':', '')}.png`
       writeFileSync(file, Buffer.from(s.data, 'base64'))

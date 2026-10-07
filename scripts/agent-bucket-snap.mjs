@@ -3,7 +3,7 @@
 import { writeFileSync } from 'node:fs'
 const CDP = 'http://127.0.0.1:9224'
 const BASE = process.env.ZJ_SMOKE_BASE || 'http://127.0.0.1:8899'
-const DIR = '/Users/USER/Pictures/zhijuan'
+const DIR = `${process.env.HOME}/Pictures/zhijuan`
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 async function openTab(url) {
   const r = await fetch(CDP + '/json/new?' + encodeURIComponent(url), { method: 'PUT' })

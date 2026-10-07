@@ -2,7 +2,7 @@
 // 用法：node scripts/input-autogrow-shot.mjs
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
-const OUT = '/Users/chinakids/Pictures/zhijuan'
+const OUT = `${process.env.HOME}/Pictures/zhijuan`
 mkdirSync(OUT, { recursive: true })
 const CDP = 'http://127.0.0.1:9224'
 const BASE = 'http://127.0.0.1:8123'

@@ -12,7 +12,7 @@ import { writeFileSync } from 'node:fs'
 
 async function shot(page, name) {
   const r = await page.cmd('Page.captureScreenshot', { format: 'png' })
-  const dir = process.env.ZJ_SHOT_DIR || '/Users/USER/Pictures/zhijuan'
+  const dir = process.env.ZJ_SHOT_DIR || `${process.env.HOME}/Pictures/zhijuan`
   writeFileSync(dir + '/' + name, Buffer.from(r.data, 'base64'))
   console.log('SHOT ' + dir + '/' + name)
 }

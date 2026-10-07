@@ -74,6 +74,6 @@ async function shot(name) {
 }
 
 const hh = new Date().toTimeString().slice(0, 5).replace(':', '')
-await shot({ qs: '&zj-slice=雾港夜', expect: '✓ 无设定变化', out: `/Users/USER/Pictures/zhijuan/sync-race-kept-${hh}.png` })
-await shot({ qs: '&zj-slice=雾港夜&zj-fail-x=agentSync', expect: '✗ 切片同步失败', out: `/Users/USER/Pictures/zhijuan/sync-race-fail-${hh}.png` })
+await shot({ qs: '&zj-slice=雾港夜', expect: '✓ 无设定变化', out: `${process.env.HOME}/Pictures/zhijuan/sync-race-kept-${hh}.png` })
+await shot({ qs: '&zj-slice=雾港夜&zj-fail-x=agentSync', expect: '✗ 切片同步失败', out: `${process.env.HOME}/Pictures/zhijuan/sync-race-fail-${hh}.png` })
 process.exit(0)

@@ -6,9 +6,10 @@
 import { writeFileSync, rmSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 
-const CONFIG = `import { resolve } from 'path'\nimport { defineConfig } from 'vite'\nimport react from '@vitejs/plugin-react'\nimport tailwindcss from '@tailwindcss/vite'\n\nexport default defineConfig({\n  root: resolve('/Users/USER/Desktop/织卷/src/renderer'),\n  plugins: [react(), tailwindcss()],\n  server: { port: 5210, strictPort: true, host: '127.0.0.1' }\n})\n`
-writeFileSync('/Users/USER/Desktop/织卷/vite.config.mjs', CONFIG)
-const dev = spawn('npx', ['vite'], { cwd: '/Users/USER/Desktop/织卷', stdio: 'ignore', detached: false })
+const HOME = process.env.HOME
+const CONFIG = `import { resolve } from 'path'\nimport { defineConfig } from 'vite'\nimport react from '@vitejs/plugin-react'\nimport tailwindcss from '@tailwindcss/vite'\n\nexport default defineConfig({\n  root: resolve('${HOME}/Desktop/织卷/src/renderer'),\n  plugins: [react(), tailwindcss()],\n  server: { port: 5210, strictPort: true, host: '127.0.0.1' }\n})\n`
+writeFileSync(`${process.env.HOME}/Desktop/织卷/vite.config.mjs`, CONFIG)
+const dev = spawn('npx', ['vite'], { cwd: `${process.env.HOME}/Desktop/织卷`, stdio: 'ignore', detached: false })
 
 const CDP = 'http://127.0.0.1:9224'
 const SPA = 'http://127.0.0.1:5210'
@@ -22,7 +23,7 @@ for (let i = 0; i < 40; i++) {
   try { const r = await fetch(`${SPA}/?cb=1`); if (r.ok) { up = true; break } } catch {}
   await sleep(500)
 }
-if (!up) { console.log('FAIL dev server 未起'); dev.kill(); rmSync('/Users/USER/Desktop/织卷/vite.config.mjs'); process.exit(1) }
+if (!up) { console.log('FAIL dev server 未起'); dev.kill(); rmSync(`${process.env.HOME}/Desktop/织卷/vite.config.mjs`); process.exit(1) }
 
 const r = await fetch(`${CDP}/json/new?about:blank`, { method: 'PUT' })
 const target = await r.json()
@@ -90,5 +91,5 @@ ok(errors.length === 0, `全程零 JS 异常 (${errors.length})`)
 console.log(fail === 0 ? '== ALL PASS ==' : `== FAIL=${fail} ==`)
 ws.close()
 dev.kill()
-rmSync('/Users/USER/Desktop/织卷/vite.config.mjs')
+rmSync(`${process.env.HOME}/Desktop/织卷/vite.config.mjs`)
 process.exit(fail === 0 ? 0 : 1)

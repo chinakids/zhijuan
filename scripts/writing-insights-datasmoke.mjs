@@ -33,7 +33,7 @@ const {
   shouldRunInsights
 } = await import(pathToFileURL(out).href)
 
-const PJ = process.env.ZJ_PJ || '/Users/USER/Documents/织卷项目库/织卷smoke'
+const PJ = process.env.ZJ_PJ || `${process.env.HOME}/Documents/织卷项目库/织卷smoke`
 
 function listFiles(dir) {
   if (!dir) return []

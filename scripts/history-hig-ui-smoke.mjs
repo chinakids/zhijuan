@@ -11,7 +11,7 @@ import { writeFileSync, mkdirSync } from 'node:fs'
 const CDP = 'http://127.0.0.1:9224'
 const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
 const REL = '正文/第01章_雾港.md'
-const SHOT_DIR = '/Users/USER/Pictures/zhijuan'
+const SHOT_DIR = `${process.env.HOME}/Pictures/zhijuan`
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function openTab(url) {

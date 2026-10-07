@@ -71,8 +71,8 @@ try {
   const shot = await page.cmd('Page.captureScreenshot', { format: 'png' })
   if (shot && shot.data) {
     const fs = await import('node:fs')
-    fs.writeFileSync('/Users/USER/Pictures/zhijuan/history-empty-0613.png', Buffer.from(shot.data, 'base64'))
-    console.log('SCREENSHOT: /Users/USER/Pictures/zhijuan/history-empty-0613.png')
+    fs.writeFileSync(`${process.env.HOME}/Pictures/zhijuan/history-empty-0613.png`, Buffer.from(shot.data, 'base64'))
+    console.log(`SCREENSHOT: ${process.env.HOME}/Pictures/zhijuan/history-empty-0613.png`)
   }
   ok('无 JS 异常', page.errors.length === 0, page.errors.join(' | ').slice(0, 200))
 } catch (e) {

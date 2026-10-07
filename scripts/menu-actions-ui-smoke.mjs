@@ -202,7 +202,7 @@ const ok = (name, cond, extra = '') => {
     // 可选截图（ZJ_SHOT=1 时，存到 ~/Pictures/zhijuan/<名字>-<HHMM>.png；home-stats 冒烟同款规格）
     if (process.env.ZJ_SHOT) {
       const s = await page.cmd('Page.captureScreenshot', { format: 'png' })
-      const dir = process.env.ZJ_SHOT_DIR || '/Users/USER/Pictures/zhijuan'
+      const dir = process.env.ZJ_SHOT_DIR || `${process.env.HOME}/Pictures/zhijuan`
       mkdirSync(dir, { recursive: true })
       const file = `${dir}/find-menu-dedup-${new Date().toTimeString().slice(0, 5).replace(':', '')}.png`
       writeFileSync(file, Buffer.from(s.data, 'base64'))
@@ -218,7 +218,7 @@ const ok = (name, cond, extra = '') => {
     ok('P8.1 速查面板含「关闭当前浮层（Esc）」行', true)
     if (process.env.ZJ_SHOT) {
       const s = await page.cmd('Page.captureScreenshot', { format: 'png' })
-      const dir = process.env.ZJ_SHOT_DIR || '/Users/USER/Pictures/zhijuan'
+      const dir = process.env.ZJ_SHOT_DIR || `${process.env.HOME}/Pictures/zhijuan`
       mkdirSync(dir, { recursive: true })
       const file = `${dir}/shortcut-help-${new Date().toTimeString().slice(0, 5).replace(':', '')}.png`
       writeFileSync(file, Buffer.from(s.data, 'base64'))

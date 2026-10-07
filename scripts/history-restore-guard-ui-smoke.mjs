@@ -115,9 +115,9 @@ ok('确认态复位（按钮回到「恢复此版本」）', after.btnBack === t
 // 截图存档（主人确认防线 UI）
 const shot = await page.cmd('Page.captureScreenshot', { format: 'png' })
 const fs = await import('node:fs')
-const name = '/Users/USER/Pictures/zhijuan/history-restore-guard-' + new Date().toISOString().slice(11, 16).replace(':', '') + '.png'
+const name = `${process.env.HOME}/Pictures/zhijuan/history-restore-guard-` + new Date().toISOString().slice(11, 16).replace(':', '') + '.png'
 try {
-  fs.mkdirSync('/Users/USER/Pictures/zhijuan', { recursive: true })
+  fs.mkdirSync(`${process.env.HOME}/Pictures/zhijuan`, { recursive: true })
   fs.writeFileSync(name, Buffer.from(shot.data, 'base64'))
   console.log('SCREENSHOT: ' + name)
 } catch (e) {

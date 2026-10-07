@@ -100,7 +100,7 @@ async function shot(page, selector, name, pad = 12) {
   if (!clip) return null
   const shotR = await page.cmd('Page.captureScreenshot', { format: 'png', clip: { x: clip.x, y: clip.y, width: Math.min(clip.w, clip.dw), height: Math.min(clip.h, clip.dh), scale: 2 } })
   const ts = new Date().toISOString().slice(11, 16).replace(':', '')
-  const p = `/Users/USER/Pictures/zhijuan/${name}-${ts}.png`
+  const p = `${process.env.HOME}/Pictures/zhijuan/${name}-${ts}.png`
   fs.writeFileSync(p, Buffer.from(shotR.data, 'base64'))
   console.log('SHOT ' + p)
   return p

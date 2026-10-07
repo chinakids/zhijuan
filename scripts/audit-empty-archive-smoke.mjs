@@ -41,7 +41,7 @@ await esbuild({
   logLevel: 'warning'
 })
 
-const lib = '/Users/USER/Documents/织卷项目库'
+const lib = `${process.env.HOME}/Documents/织卷项目库`
 const pid = 'zj-auditempty'
 const d = lib + '/' + pid
 rmSync(d, { recursive: true, force: true })

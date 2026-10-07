@@ -159,7 +159,7 @@ async function run() {
   const shot = async (name) => {
     const r = await page.cmd('Page.captureScreenshot', { format: 'png' })
     const fs = await import('node:fs')
-    fs.writeFileSync('/Users/USER/Pictures/zhijuan/' + name, Buffer.from(r.data, 'base64'))
+    fs.writeFileSync(`${process.env.HOME}/Pictures/zhijuan/` + name, Buffer.from(r.data, 'base64'))
     console.log('SHOT', name)
   }
   await page.cmd('Emulation.setDeviceMetricsOverride', { width: 1280, height: 713, deviceScaleFactor: 1, mobile: false })
