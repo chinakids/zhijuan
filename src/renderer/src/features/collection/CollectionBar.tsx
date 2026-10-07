@@ -10,6 +10,8 @@ import { Label } from '../../components/ui/label'
 import { Textarea } from '../../components/ui/textarea'
 import { cn } from '../../lib/utils'
 import { useFsChanged } from '../fs/useFsEvents'
+import { toast } from '../../store/toasts'
+import { isImeComposing } from '../../lib/ime'
 import { isLibraryResultPath, isTaskStale, parseTaskCard, rebuildTaskCardForRetry, taskCardDoc, taskCardFileName } from '../../../../shared/taskCard'
 
 /* ===== 织卷 S5 · 采集栏：任务卡列表 + 发起采集表单 ===== */
@@ -53,6 +55,9 @@ function staleDays(mtimeMs: number, nowMs: number): number {
 /** 需求文本归一（查重用）：去首尾空白与内部空白，避免「校园 图书馆」与「校园图书馆」被判不同 */
 const normDemand = (s: string): string => s.trim().replace(/\s+/g, '')
 
+/** 刷新失败 toast 节流（模块级，跨渲染保持）：5s 内不重复弹 */
+let lastRefreshErrAt = 0
+
 export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: number }) {
   const { id = '' } = useParams()
   const [tasks, setTasks] = useState<TaskInfo[]>([])
@@ -70,26 +75,41 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
   const [confirmDelete, setConfirmDelete] = useState<TaskInfo | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  // 刷新失败：toast 节流（5s 内不重复弹），失败时保留旧列表（不闪空）
   const refresh = useCallback(async () => {
     if (!id) return
-    const list = await window.zhijuan.listDocs(id, '素材库/采集池')
-    const nowMs = Date.now()
-    const infos: TaskInfo[] = []
-    for (const d of list) {
-      // listDocs 返回相对 relDir 的路径，需拼回「素材库/采集池/」前缀（否则 readDoc 读到项目根同名文件/空）
-      const text = (await window.zhijuan.readDoc(id, '素材库/采集池/' + d.file)) ?? ''
-      const v = parseTaskCard(text)
-      const s = text.match(/^#\s*(.+)$/m)
-      infos.push({
-        file: d.file,
-        mtime: d.mtime,
-        status: normalizeStatus(v.status),
-        summary: s ? s[1].slice(0, 40) : d.file.replace(/\.md$/, ''),
-        demand: v.demand,
-        stale: isTaskStale(v.status, d.mtime, nowMs)
-      })
+    try {
+      const list = await window.zhijuan.listDocs(id, '素材库/采集池')
+      const nowMs = Date.now()
+      const infos: TaskInfo[] = []
+      for (const d of list) {
+        // listDocs 返回相对 relDir 的路径，需拼回「素材库/采集池/」前缀（否则 readDoc 读到项目根同名文件/空）
+        let text = ''
+        try {
+          text = (await window.zhijuan.readDoc(id, '素材库/采集池/' + d.file)) ?? ''
+        } catch {
+          // 单卡读失败：跳过该卡（保留其余）；真机 readDoc 对不可读返回 null（静默语义），reject 仅防御
+          continue
+        }
+        const v = parseTaskCard(text)
+        const s = text.match(/^#\s*(.+)$/m)
+        infos.push({
+          file: d.file,
+          mtime: d.mtime,
+          status: normalizeStatus(v.status),
+          summary: s ? s[1].slice(0, 40) : d.file.replace(/\.md$/, ''),
+          demand: v.demand,
+          stale: isTaskStale(v.status, d.mtime, nowMs)
+        })
+      }
+      setTasks(infos)
+    } catch (e) {
+      const now = Date.now()
+      if (now - lastRefreshErrAt > 5000) {
+        lastRefreshErrAt = now
+        toast.add({ kind: 'error', title: '刷新采集任务失败', description: String((e as Error).message ?? e).slice(0, 120) })
+      }
     }
-    setTasks(infos)
   }, [id])
 
   useEffect(() => {
@@ -109,7 +129,12 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
   async function openView(t: TaskInfo) {
     setView(t)
     setPreview(null)
-    setViewText((await window.zhijuan.readDoc(id, '素材库/采集池/' + t.file)) ?? '')
+    try {
+      setViewText((await window.zhijuan.readDoc(id, '素材库/采集池/' + t.file)) ?? '')
+    } catch (e) {
+      setView(null)
+      toast.add({ kind: 'error', title: '预览读取失败', description: String((e as Error).message ?? e).slice(0, 120) })
+    }
   }
 
   /** 结果行点击：读素材文件 → 详情内只读预览；已展开则收起 */
@@ -118,44 +143,76 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
       setPreview(null)
       return
     }
-    const text = (await window.zhijuan.readDoc(id, rel)) ?? null
-    setPreview({ rel, text })
+    try {
+      const text = (await window.zhijuan.readDoc(id, rel)) ?? null
+      setPreview({ rel, text })
+    } catch (e) {
+      setPreview(null)
+      toast.add({ kind: 'error', title: '预览读取失败', description: String((e as Error).message ?? e).slice(0, 120) })
+    }
   }
 
   async function submit() {
-    if (!id || !demand.trim()) return
+    if (!id || !demand.trim() || saving) return
     setSaving(true)
-    const ts = Date.now()
-    const name = taskCardFileName(ts)
-    const kws = keywords.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
-    const fm = taskCardDoc({ demand, keywords: kws, category: category.trim(), source: source.trim(), ts })
-    await window.zhijuan.writeDoc(id, '素材库/采集池/' + name + '.md', fm)
-    setOpen(false)
-    setDemand(''); setKeywords(''); setCategory('环境'); setSource('')
-    setSaving(false)
-    await refresh()
+    try {
+      const ts = Date.now()
+      const name = taskCardFileName(ts)
+      const kws = keywords.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
+      const fm = taskCardDoc({ demand, keywords: kws, category: category.trim(), source: source.trim(), ts })
+      await window.zhijuan.writeDoc(id, '素材库/采集池/' + name + '.md', fm)
+      setOpen(false)
+      setDemand(''); setKeywords(''); setCategory('环境'); setSource('')
+      await refresh()
+    } catch (e) {
+      // 写入失败：弹窗与已填内容保留（可就地重试），按钮态复位
+      toast.add({ kind: 'error', title: '提交任务失败', description: String((e as Error).message ?? e).slice(0, 120) })
+    } finally {
+      setSaving(false)
+    }
   }
 
   /** 删除任务卡：走 doc:delete（进系统废纸篓可恢复），完成后关详情回列表（fs 事件也会触发刷新） */
   async function doDelete(t: TaskInfo) {
     setDeleting(true)
-    await window.zhijuan.deleteDoc(id, '素材库/采集池/' + t.file)
-    setDeleting(false)
-    setConfirmDelete(null)
-    setView(null)
-    setPreview(null)
-    await refresh()
+    try {
+      const r = await window.zhijuan.deleteDoc(id, '素材库/采集池/' + t.file)
+      if (!r.ok) throw new Error(r.error || '删除失败')
+      setConfirmDelete(null)
+      setView(null)
+      setPreview(null)
+      await refresh()
+    } catch (e) {
+      // 删除失败：确认框保留（可重试/取消），按钮态复位
+      toast.add({ kind: 'error', title: '删除任务失败', description: String((e as Error).message ?? e).slice(0, 120) })
+    } finally {
+      setDeleting(false)
+    }
   }
 
   /** 重发：按现卡字段重建为全新 pending 卡（清结果/完成，mtime 随写盘更新）——管道会重新处理 */
   async function doRetry(t: TaskInfo) {
     if (!t) return
-    const text = (await window.zhijuan.readDoc(id, '素材库/采集池/' + t.file)) ?? ''
-    const next = rebuildTaskCardForRetry(parseTaskCard(text))
-    await window.zhijuan.writeDoc(id, '素材库/采集池/' + t.file, next)
-    setView(null)
-    setPreview(null)
-    await refresh()
+    try {
+      const text = (await window.zhijuan.readDoc(id, '素材库/采集池/' + t.file)) ?? ''
+      const next = rebuildTaskCardForRetry(parseTaskCard(text))
+      await window.zhijuan.writeDoc(id, '素材库/采集池/' + t.file, next)
+      setView(null)
+      setPreview(null)
+      await refresh()
+    } catch (e) {
+      // 重发失败：详情保留（可就地重试）
+      toast.add({ kind: 'error', title: '重发任务失败', description: String((e as Error).message ?? e).slice(0, 120) })
+    }
+  }
+
+  /** 发起采集表单：单行字段 Enter=提交（HIG Buttons「primary button responds to the Return key」；IME 组合期 Enter 只确认候选不提交；多行 Textarea 保持换行语义不接） */
+  const fieldSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isImeComposing(e)) return
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      void submit()
+    }
   }
 
   return (
@@ -203,8 +260,15 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
-              <Label>需求描述 *</Label>
-              <Textarea rows={3} placeholder="如：校园图书馆的老旧细节——木地板、借书卡、靠窗的旧阅览室" value={demand} onChange={(e) => setDemand(e.target.value)} />
+              <Label htmlFor="collect-demand">需求描述 *</Label>
+              <Textarea
+                id="collect-demand"
+                rows={3}
+                autoFocus
+                placeholder="如：校园图书馆的老旧细节——木地板、借书卡、靠窗的旧阅览室"
+                value={demand}
+                onChange={(e) => setDemand(e.target.value)}
+              />
               {demand.trim() &&
                 (() => {
                   const dup = tasks.find(
@@ -219,17 +283,17 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>关键词（逗号分隔）</Label>
-                <Input placeholder="如：旧图书馆，借书卡" value={keywords} onChange={(e) => setKeywords(e.target.value)} />
+                <Label htmlFor="collect-keywords">关键词（逗号分隔）</Label>
+                <Input id="collect-keywords" placeholder="如：旧图书馆，借书卡" value={keywords} onChange={(e) => setKeywords(e.target.value)} onKeyDown={fieldSubmit} />
               </div>
               <div className="space-y-1.5">
-                <Label>目标类别</Label>
-                <Input placeholder="环境" value={category} onChange={(e) => setCategory(e.target.value)} />
+                <Label htmlFor="collect-category">目标类别</Label>
+                <Input id="collect-category" placeholder="环境" value={category} onChange={(e) => setCategory(e.target.value)} onKeyDown={fieldSubmit} />
               </div>
             </div>
             <div className="space-y-1.5">
-              <Label>来源偏好（可选）</Label>
-              <Input placeholder="如：知乎问答、博客；默认搜索引擎" value={source} onChange={(e) => setSource(e.target.value)} />
+              <Label htmlFor="collect-source">来源偏好（可选）</Label>
+              <Input id="collect-source" placeholder="如：知乎问答、博客；默认搜索引擎" value={source} onChange={(e) => setSource(e.target.value)} onKeyDown={fieldSubmit} />
             </div>
           </div>
           <DialogFooter>
