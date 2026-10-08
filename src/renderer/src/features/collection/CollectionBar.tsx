@@ -13,6 +13,7 @@ import { useFsChanged } from '../fs/useFsEvents'
 import { toast } from '../../store/toasts'
 import { isImeComposing } from '../../lib/ime'
 import { isLibraryResultPath, isTaskStale, parseTaskCard, rebuildTaskCardForRetry, taskCardDoc, taskCardFileName } from '../../../../shared/taskCard'
+import { countWords } from '../../../../shared/count'
 
 /* ===== 织卷 S5 · 采集栏：任务卡列表 + 发起采集表单 ===== */
 
@@ -260,7 +261,13 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
-              <Label htmlFor="collect-demand">需求描述 *</Label>
+              <div className="flex items-baseline justify-between gap-2">
+                <Label htmlFor="collect-demand">需求描述 *</Label>
+                {/* 2026-10-08 体验层：需求长度提示（观察项转正）——长需求填完不可见长度；计数走
+                    项目统一 countWords 口径（中文按字、连续西文按一词）；贴字段首行、不占新行；
+                    HIG 无强制条款但 macOS 写作工具（TextEdit/Pages 状态栏字数统计）同族先例。 */}
+                {demand.trim() && <span className="shrink-0 text-[11px] text-ink-3">{countWords(demand)} 字</span>}
+              </div>
               <Textarea
                 id="collect-demand"
                 rows={3}
