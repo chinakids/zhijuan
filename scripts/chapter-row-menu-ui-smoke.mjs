@@ -2,9 +2,9 @@
 // 用法：node scripts/chapter-row-menu-ui-smoke.mjs
 // 前置：npm run build；node scripts/serve-renderer.mjs 8123；本机无头 Chrome CDP 127.0.0.1:9224
 // 验收点：① 每一章行尾「章节操作」按钮存在；选中行常显、未选中行 hover 才显示（opacity 类断言）
-//         ② 点击「⋯」→ Radix 下拉菜单 5 项（重命名/修改切片名/修改时间线/导出 md/删除，删除 danger）
+//         ② 点击「⋯」→ Radix 下拉菜单 7 项（重命名/修改切片名/修改时间线/上移/下移/导出 md/删除，删除 danger）
 //         ③ 「重命名」入口走通 Dialog（不改数据，仅验证打开）
-//         ④ 右键行 → Radix ContextMenu 打开（与下拉同 5 项）→ 点击外部关闭
+//         ④ 右键行 → Radix ContextMenu 打开（与下拉同 7 项）→ 点击外部关闭
 //         ⑤ 全程无 JS 异常；截图两态。
 const CDP = 'http://127.0.0.1:9224'
 const BASE = process.env.ZJ_SMOKE_BASE || 'http://localhost:8123'
@@ -125,12 +125,14 @@ try {
   ok('选中行按钮常显', true)
   ok('未选中行按钮仍隐藏', (await page.eval(moreBtnFor('第2章 · 灯塔'))) === '0')
 
-  // ② 点击选中行「⋯」→ Radix 下拉菜单 5 项
+  // ② 点击选中行「⋯」→ Radix 下拉菜单 7 项
   await page.eval(pointerSeq(`(() => { const row = [...document.querySelectorAll('aside button')].find(b => (b.innerText||'').includes('第1章 · 雾港')); return row.parentElement.querySelector('[aria-label="章节操作"]') })()`))
-  await evalUntil(page, `document.querySelectorAll('[role=menuitem]').length`, (v) => v === 5, 8000, '下拉菜单 5 项')
+  await evalUntil(page, `document.querySelectorAll('[role=menuitem]').length`, (v) => v === 7, 8000, '下拉菜单 7 项')
   ok('下拉菜单：重命名', (await page.eval(menuHas('重命名'))) === true)
   ok('下拉菜单：修改切片名', (await page.eval(menuHas('修改切片名'))) === true)
   ok('下拉菜单：修改时间线', (await page.eval(menuHas('修改时间线'))) === true)
+  ok('下拉菜单：上移', (await page.eval(menuHas('上移'))) === true)
+  ok('下拉菜单：下移', (await page.eval(menuHas('下移'))) === true)
   ok('下拉菜单：导出 md', (await page.eval(menuHas('导出 md'))) === true)
   ok('下拉菜单：删除（danger 项）', (await page.eval(menuHas('删除'))) === true)
   await shot(page, 'chapter-row-menu-dropdown-0530')
@@ -142,15 +144,15 @@ try {
   await page.eval(`(() => { const b = [...document.querySelectorAll('[role=dialog] button')].find(x => (x.innerText||'').trim() === '取消'); if (b) b.click(); return !!b })()`)
   await sleep(300)
 
-  // ④ 右键第 2 章 → ContextMenu 打开（同 5 项）→ 点击菜单外关闭
+  // ④ 右键第 2 章 → ContextMenu 打开（同 7 项）→ 点击菜单外关闭
   await page.eval(`(() => {
     const btn = [...document.querySelectorAll('aside button')].find(b => (b.innerText || '').includes('第2章 · 灯塔'))
     if (!btn) return false
     btn.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 120, clientY: 220, button: 2 }))
     return true
   })()`)
-  await evalUntil(page, `document.querySelectorAll('[role=menuitem]').length`, (v) => v === 5, 8000, '右键菜单 5 项')
-  ok('右键菜单：与下拉同 5 项', (await page.eval(menuHas('重命名'))) === true && (await page.eval(menuHas('修改切片名'))) === true && (await page.eval(menuHas('修改时间线'))) === true && (await page.eval(menuHas('导出 md'))) === true && (await page.eval(menuHas('删除'))) === true)
+  await evalUntil(page, `document.querySelectorAll('[role=menuitem]').length`, (v) => v === 7, 8000, '右键菜单 7 项')
+  ok('右键菜单：与下拉同 7 项', (await page.eval(menuHas('重命名'))) === true && (await page.eval(menuHas('修改切片名'))) === true && (await page.eval(menuHas('修改时间线'))) === true && (await page.eval(menuHas('上移'))) === true && (await page.eval(menuHas('下移'))) === true && (await page.eval(menuHas('导出 md'))) === true && (await page.eval(menuHas('删除'))) === true)
   await shot(page, 'chapter-row-menu-context-0530')
   // 点菜单外（body 左上）关闭
   await page.eval(`document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerType: 'mouse', clientX: 5, clientY: 5 }))`)

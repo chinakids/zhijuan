@@ -1,7 +1,8 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
 import type { AgentEvent, AppSettings, ChapterEntry, OutlineCard, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult, MenuActionEvent, MenuActionId, MenuStateReport, SyncIssue, SyncEvidence, SyncLogEntry, SaveTraceEntry } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
-import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterLineInDoc, syncChapterSliceInDoc } from '../../../shared/outline'
+import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterLineInDoc, syncChapterNoInDoc, syncChapterSliceInDoc } from '../../../shared/outline'
+import { reorderPlan } from '../../../shared/chapterReorder'
 import { isMaterialCard } from '../../../shared/materialCard'
 import type { ProjectStats } from '../../../shared/types'
 import { listChapterEntries } from '../../../shared/chapters'
@@ -979,6 +980,62 @@ const mock = {
       }
     }
     return { ok: true, oldLine, newLine: s || DEFAULT_LINE, synced }
+  },
+  // 章节「上移/下移」重排（真机 store.reorderChapter 同语义：与相邻章交换章号=文件名前缀+约定头；大纲副产物随章改名+章卡 fm 章号同步+索引重建；历史 key 迁移；proposals 指针迁移）
+  reorderChapter: async (_id: string, rel: string, dir: number) => {
+    if (!rel?.startsWith('正文/') || !rel.endsWith('.md') || rel.split('/').some((s) => s === '..')) return { ok: false, error: '路径不合法' }
+    const entries = devChapterEntries(_id).map((c) => ({ file: c.file, title: String(c.fm?.['题名'] ?? '') }))
+    const plan = reorderPlan(entries, rel.replace(/^正文\//, ''), dir)
+    if (!plan.ok) return { ok: false, error: plan.error }
+    const { a, b, aNew, bNew, aNum, bNum } = plan
+    const ka = _id + '/正文/' + a
+    const kb = _id + '/正文/' + b
+    if (!docs.has(ka) || !docs.has(kb)) return { ok: false, error: '章节文件不存在' }
+    const rawA = docs.get(ka)!
+    const rawB = docs.get(kb)!
+    docs.set(_id + '/正文/' + aNew, setFrontMatterField(rawA, '章号', String(aNum)))
+    docs.set(_id + '/正文/' + bNew, setFrontMatterField(rawB, '章号', String(bNum)))
+    docs.delete(ka)
+    docs.delete(kb)
+    fsEmit(_id, '正文/' + a)
+    fsEmit(_id, '正文/' + b)
+    fsEmit(_id, '正文/' + aNew)
+    fsEmit(_id, '正文/' + bNew)
+    // 大纲副产物：文件名随章改名 + 章卡 fm 章号同步 + 索引重建（与真机 best-effort 同语义）
+    const baseOf = (n: string) => n.replace(/\.md$/, '')
+    for (const [oldN, newN, no] of [[a, aNew, aNum], [b, bNew, bNum]] as const) {
+      for (const key of [...docs.keys()]) {
+        if (!key.startsWith(_id + '/大纲/')) continue
+        const f = key.slice((_id + '/大纲/').length)
+        const nm = f.replace(/\.md$/, '')
+        if (nm === baseOf(oldN) || nm.startsWith(baseOf(oldN) + '_')) {
+          const newF = f.replace(baseOf(oldN), baseOf(newN))
+          const moved = _id + '/大纲/' + newF
+          if (!docs.has(moved)) {
+            const rawDoc = docs.get(key)
+            if (rawDoc !== undefined) {
+              const nextDoc = syncChapterNoInDoc(rawDoc, no)
+              docs.set(moved, nextDoc !== rawDoc ? nextDoc : rawDoc)
+              docs.delete(key)
+            }
+          }
+          fsEmit(_id, '大纲/' + f)
+          fsEmit(_id, '大纲/' + newF)
+        }
+      }
+    }
+    devRefreshOutlineIndex(_id)
+    // 版本历史 key 迁移
+    const hkA = histories.get(ka)
+    if (hkA) { histories.set(_id + '/正文/' + aNew, hkA); histories.delete(ka) }
+    const hkB = histories.get(kb)
+    if (hkB) { histories.set(_id + '/正文/' + bNew, hkB); histories.delete(kb) }
+    // proposals.chapter 指针迁移（与真机 migrateChapter 同语义）
+    for (const p of mock.proposals) {
+      if (p.chapter === '正文/' + a) p.chapter = '正文/' + aNew
+      else if (p.chapter === '正文/' + b) p.chapter = '正文/' + bNew
+    }
+    return { ok: true, aRel: '正文/' + aNew, bRel: '正文/' + bNew }
   },
   deleteChapter: async (_id: string, rel: string) => {
     const k = _id + '/' + rel

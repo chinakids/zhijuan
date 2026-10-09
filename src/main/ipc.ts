@@ -31,6 +31,7 @@ import {
   renameChapter,
   editChapterSlice,
   editChapterLine,
+  reorderChapter,
   deleteChapter,
   watchProject
 } from './store'
@@ -210,6 +211,7 @@ export function registerIpc() {
   ipcMain.handle('chapter:rename', (_e, id: string, rel: string, newTitle: string) => renameChapter(id, rel, newTitle))
   ipcMain.handle('chapter:editSlice', (_e, id: string, rel: string, newSlice: string) => editChapterSlice(id, rel, newSlice))
   ipcMain.handle('chapter:editLine', (_e, id: string, rel: string, newLine: string) => editChapterLine(id, rel, newLine))
+  ipcMain.handle('chapter:reorder', (_e, id: string, rel: string, dir: number) => reorderChapter(id, rel, dir))
   ipcMain.handle('chapter:delete', (_e, id: string, rel: string) => deleteChapter(id, rel))
   ipcMain.handle('chapter:export', async (e, id: string, rel: string) => {
     const cur = readDoc(id, rel)

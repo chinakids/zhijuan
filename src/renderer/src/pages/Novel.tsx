@@ -658,6 +658,38 @@ export default function Novel() {
     else toast.add({ kind: 'success', title: '已导出单章', description: r.path })
   }
 
+  // 章节「上移/下移」重排（2026-10-09 创作层）：与相邻章交换章号（文件名前缀+约定头），
+  // 大纲副产物/版本历史/提案指针随同迁移；当前章有未保存改动且被重排波及（选中章或其相邻章的文件名会变，
+  // 编辑器按 rel 重载会丢未存内容）→ 拦截提示（与「切章守卫」同保护动机；重排不改正文体，无自动保存副作用）。
+  async function doMove(c: ChapterEntry, dir: -1 | 1) {
+    if (!id) return
+    const idx = chapters.findIndex((x) => x.file === c.file)
+    const nb = chapters[idx + dir]
+    if (dirtyRef.current && (c.file === sel || nb?.file === sel)) {
+      toast.add({ kind: 'error', title: '当前章节有未保存的改动', description: '请先保存后再重排章节' })
+      return
+    }
+    let r: Awaited<ReturnType<typeof window.zhijuan.reorderChapter>>
+    try {
+      r = await window.zhijuan.reorderChapter(id, '正文/' + c.file, dir)
+    } catch (e) {
+      toast.add({ kind: 'error', title: '重排失败', description: String((e as Error).message ?? e) })
+      return
+    }
+    if (!r.ok) {
+      toast.add({ kind: 'error', title: '重排失败', description: r.error })
+      return
+    }
+    const movedName = c.fm?.['题名'] ?? c.name
+    toast.add({ kind: 'success', title: `已${dir === -1 ? '上移' : '下移'}`, description: `${movedName}（已与相邻章交换章号）` })
+    // 选中跟随新文件名（仅当选中章被波及；否则编辑器不受影响）
+    if (sel === c.file) setSel((r.aRel ?? r.bRel ?? '').replace(/^正文\//, ''))
+    else if (nb && sel === nb.file) setSel((r.bRel ?? r.aRel ?? '').replace(/^正文\//, ''))
+    await refresh()
+    // proposals.chapter 指针被迁移（migrateChapter），刷新顶栏计数与抽屉（.zhijuan 内变化无 fs 事件）
+    void useProposalStore.getState().refresh(id)
+  }
+
   // 切章守卫（2026-09-23 创作层）：当前章有未保存改动时，点其他章节先弹确认——「保存并切换」走
   // DocEditor 的 doSave（含空写拦截等全部既有防线，true=已写盘才切）；「不保存切换」=显式丢弃；
   // 「取消」=留在本章。非 dirty 直接切（零打扰；NN/g「确认过频成路障」只在内容有风险时弹）。
@@ -769,6 +801,20 @@ export default function Novel() {
       >
         修改时间线
       </Item>
+      {/* 章节重排（2026-10-09 创作层）：上移=与前一章交换章号，下移=与后一章交换；边界禁用（HIG 置灰示态） */}
+      {(() => {
+        const idx = chapters.findIndex((x) => x.file === c.file)
+        return (
+          <>
+            <Item disabled={idx <= 0} onSelect={() => void doMove(c, -1)}>
+              上移
+            </Item>
+            <Item disabled={idx < 0 || idx >= chapters.length - 1} onSelect={() => void doMove(c, 1)}>
+              下移
+            </Item>
+          </>
+        )
+      })()}
       <Item onSelect={() => void doExport(c)}>导出 md</Item>
       <Sep />
       <Item className="text-danger focus:bg-danger/10 focus:text-danger" onSelect={() => setDeleting(c)}>

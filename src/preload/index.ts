@@ -110,6 +110,9 @@ const api = {
     ipcRenderer.invoke('chapter:editLine', id, rel, newLine) as Promise<
       { ok: boolean; oldLine?: string; newLine?: string; synced?: number; error?: string }
     >,
+  // 章节「上移/下移」重排：与相邻章交换章号（文件名「第N章」前缀 + 约定头），大纲副产物/版本历史/提案指针随同迁移
+  reorderChapter: (id: string, rel: string, dir: number) =>
+    ipcRenderer.invoke('chapter:reorder', id, rel, dir) as Promise<{ ok: boolean; aRel?: string; bRel?: string; error?: string }>,
   deleteChapter: (id: string, rel: string) =>
     ipcRenderer.invoke('chapter:delete', id, rel) as Promise<{ ok: boolean; error?: string; cleaned?: number }>,
   exportChapter: (id: string, rel: string) =>

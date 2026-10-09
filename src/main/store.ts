@@ -17,7 +17,8 @@ import {
 import { writeFileAtomic } from './fsutil'
 import { removeFrontMatterField, extractFrontMatter, serializeFrontMatter, setFrontMatterField } from '../shared/fmatter'
 import { posixRel, toPosix } from '../shared/relpath'
-import { isOutlineCardRel, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterLineInDoc, syncChapterSliceInDoc } from '../shared/outline'
+import { isOutlineCardRel, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterLineInDoc, syncChapterNoInDoc, syncChapterSliceInDoc } from '../shared/outline'
+import { reorderPlan } from '../shared/chapterReorder'
 import { isMaterialCard } from '../shared/materialCard'
 import { chapterLine, DEFAULT_LINE } from '../shared/line'
 import { listChapterEntries } from '../shared/chapters'
@@ -549,6 +550,86 @@ export function editChapterLine(id: string, rel: string, newLine: string): EditC
     }
   }
   return { ok: true, oldLine, newLine: s || DEFAULT_LINE, synced }
+}
+
+/** 章节「上移/下移」重排（2026-10-09 创作层）：与相邻章交换章号——文件名「第N章」前缀 + 约定头 `章号` 值。
+ * 语义：章节顺序 = 列表显示序（shared/chapters 排序口径=文件名章号）；纯规划在 shared/chapterReorder。
+ * 正文体零变化（仅约定头），不动切片/时间线/涉及人物/正文内容；引用面（与 renameChapter 同构审计）：
+ *  - 大纲/ 同名写作副产物（章卡/导演板/分幕）→ 文件名随章改名 + 章卡 fm `章号` 值同步（syncChapterNoInDoc
+ *    只改原本就带章号的副产物，不给导演板/分幕新增字段）+ 索引重建；
+ *  - .zhijuan/history/正文/<章名>/ 版本历史入口 → 目录随改名迁移（保留历史入口）；fm 修补不写新快照
+ *    （正文体零变化，只有章号元数据，避免历史噪音）；
+ *  - .zhijuan/proposals chapter 指针 → migrateChapter（同 renameChapter）；
+ *  - 切片/人物/世界设定不参与（切片提取与审计均正文为源现扫，改约定头即按新序计算）。
+ * 执行序=先把两章旧文件都挪到临时位（清空旧槽位，防同题名目标碰撞），再落入新名，最后修补 fm。 */
+export function reorderChapter(id: string, rel: string, dir: number): { ok: boolean; aRel?: string; bRel?: string; error?: string } {
+  const bad = !rel || !rel.startsWith('正文/') || !rel.endsWith('.md') || rel.startsWith('/') || rel.split('/').some((s) => s === '..')
+  if (bad) return { ok: false, error: '路径不合法' }
+  const list = listChapters(id)
+  const plan = reorderPlan(
+    list.map((c) => ({ file: c.file, title: String(c.fm?.['题名'] ?? '') })),
+    rel.replace(/^正文\//, ''),
+    dir
+  )
+  if (!plan.ok) return { ok: false, error: plan.error }
+  const { a, b, aNew, bNew, aNum, bNum } = plan
+  const aPath = abs(id, '正文/' + a)
+  const bPath = abs(id, '正文/' + b)
+  if (!existsSync(aPath) || !existsSync(bPath)) return { ok: false, error: '章节文件不存在' }
+  const aNewPath = abs(id, '正文/' + aNew)
+  const bNewPath = abs(id, '正文/' + bNew)
+  try {
+    // 1) 两章旧文件先挪到临时位（listDocs 跳过 dot 文件，短暂中间态不产生章节列表噪音）
+    const ts = Date.now()
+    const tmpA = abs(id, `正文/.zj-reorder-${ts}-a.md`)
+    const tmpB = abs(id, `正文/.zj-reorder-${ts}-b.md`)
+    renameSync(aPath, tmpA)
+    renameSync(bPath, tmpB)
+    // 2) 落入新文件名（此时旧槽位已空，同题名也不会碰撞）
+    renameSync(tmpA, aNewPath)
+    renameSync(tmpB, bNewPath)
+    // 3) 修补约定头 章号（正文体零变化；不写版本快照）
+    writeFileAtomic(aNewPath, setFrontMatterField(readFileSync(aNewPath, 'utf-8'), '章号', String(aNum)))
+    writeFileAtomic(bNewPath, setFrontMatterField(readFileSync(bNewPath, 'utf-8'), '章号', String(bNum)))
+  } catch (e) {
+    return { ok: false, error: '重排失败：' + String((e as Error).message ?? e) }
+  }
+  // 4) 大纲副产物：文件名随章改名 + 章卡 fm 章号同步 + 索引重建（best-effort）
+  const outlineDir = join(projectDir(id), '大纲')
+  if (existsSync(outlineDir)) {
+    for (const [oldBase, newBase] of [
+      [a.replace(/\.md$/, ''), aNew.replace(/\.md$/, '')],
+      [b.replace(/\.md$/, ''), bNew.replace(/\.md$/, '')]
+    ] as const) {
+      for (const e of siblingMatches(readdirSync(outlineDir), oldBase)) {
+        try {
+          const nf = join(outlineDir, e.replace(oldBase, newBase))
+          if (!existsSync(nf)) renameSync(join(outlineDir, e), nf)
+          else continue
+          const cur = readFileSync(nf, 'utf-8')
+          // 章卡 = 与章同名文件（oldBase.md）；导演板/分幕 = oldBase_*.md（不带章号字段，syncChapterNoInDoc 幂等）
+          const no = oldBase === a.replace(/\.md$/, '') ? aNum : bNum
+          const nextDoc = syncChapterNoInDoc(cur, no)
+          if (nextDoc !== cur) writeFileAtomic(nf, nextDoc)
+        } catch { /* best-effort */ }
+      }
+    }
+  }
+  // 5) 版本历史目录迁移（保留历史入口）
+  try {
+    const hA = join(projectDir(id), snapDirFor('正文/' + a))
+    const hANew = join(projectDir(id), snapDirFor('正文/' + aNew))
+    if (existsSync(hA) && !existsSync(hANew)) renameSync(hA, hANew)
+    const hB = join(projectDir(id), snapDirFor('正文/' + b))
+    const hBNew = join(projectDir(id), snapDirFor('正文/' + bNew))
+    if (existsSync(hB) && !existsSync(hBNew)) renameSync(hB, hBNew)
+  } catch { /* best-effort */ }
+  // 6) proposals.chapter 指针迁移
+  try { migrateChapter(libraryRoot(), id, '正文/' + a, '正文/' + aNew) } catch { /* best-effort */ }
+  try { migrateChapter(libraryRoot(), id, '正文/' + b, '正文/' + bNew) } catch { /* best-effort */ }
+  // 7) 大纲索引重建（章卡为权威）
+  try { refreshOutlineIndex(id) } catch { /* best-effort */ }
+  return { ok: true, aRel: '正文/' + aNew, bRel: '正文/' + bNew }
 }
 
 /** 删除章节：先删 大纲/ 下同名写作副产物（走系统废纸篓，可恢复），再删正文本身。

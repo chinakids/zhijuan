@@ -3,7 +3,7 @@
 // 真机（main/agent/outline.ts 回建）、删除章后的索引重建（main/store.ts）与渲染层
 // devShim（无头冒烟）共用同一套口径——避免「无头 mock 与真机不一致」假绿（2026-09-12 创作层）。
 import type { OutlineCard } from './types'
-import { removeFrontMatterField, setFrontMatterField } from './fmatter'
+import { extractFrontMatter, removeFrontMatterField, setFrontMatterField } from './fmatter'
 import { DEFAULT_LINE } from './line'
 
 /**
@@ -123,6 +123,18 @@ export function syncChapterSliceInDoc(raw: string, newSlice: string): string {
 export function syncChapterLineInDoc(raw: string, newLine: string): string {
   const s = (newLine ?? '').trim()
   const next = s && s !== DEFAULT_LINE ? setFrontMatterField(raw, '时间线', s) : removeFrontMatterField(raw, '时间线')
+  return next === raw ? raw : next
+}
+
+/**
+ * 章节重排（上移/下移交换章号）后同步写作副产物（章卡/导演板/分幕）fm 里的 `章号` 字段：
+ * 仅当副产物约定头原本就带 `章号`（章卡）才改——导演板/分幕不带章号不应被新增字段；
+ * 无约定头/无变化幂等返回原文。重排的引用面收口见 store.reorderChapter。
+ */
+export function syncChapterNoInDoc(raw: string, newNo: number): string {
+  const { fm } = extractFrontMatter(raw)
+  if (fm?.['章号'] === undefined) return raw
+  const next = setFrontMatterField(raw, '章号', String(newNo))
   return next === raw ? raw : next
 }
 
