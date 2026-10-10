@@ -1370,7 +1370,19 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
           <ContextMenuTrigger asChild>
             <div ref={hostRef} className="min-h-0 flex-1 overflow-y-auto" onClick={onHostClickAnno} onContextMenuCapture={snapMenuSel} />
           </ContextMenuTrigger>
-          <ContextMenuContent className="min-w-[9.5rem]">
+          <ContextMenuContent
+            className="min-w-[9.5rem]"
+            onCloseAutoFocus={(e) => {
+              // HIG Focus & Selection「Don't lose focus」+ macOS 惯例：菜单关闭后焦点回到编辑器。
+              // 仅当没有新的用户焦点目标时兜底（Esc/关闭后焦点落到 body/menu 内）——
+              // 用户点击外部可聚焦元素时焦点已在别处，不抢（Radix 默认行为保持）。
+              const ae = document.activeElement
+              if (!ae || ae === document.body || ae.closest?.('[role="menu"]')) {
+                e.preventDefault()
+                focusEditor()
+              }
+            }}
+          >
             {menuSel && (
               <>
                 <ContextMenuItem onSelect={() => void doCut()}>

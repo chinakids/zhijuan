@@ -250,6 +250,10 @@ await page.cmd('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: '
 await sleep(300)
 const menuGone = await page.eval(`!document.querySelector('[role="menu"]')`)
 ok('Esc 关闭菜单', menuGone === true)
+// —— C2. Esc 关闭后焦点回编辑器（HIG Focus「Don't lose focus」；2026-10-10 体验层轮）——
+await sleep(500) // 焦点归还为 Radix 关闭后异步动作（实测 ~100ms），等稳定再断言
+const focusAfterEsc = await page.eval(`!!document.activeElement?.closest?.('.ProseMirror')`)
+ok('Esc 关闭菜单后焦点回编辑器', focusAfterEsc === true)
 
 // —— D. 右键「添加到对话」（菜单入口）——
 await page.eval(selExpr('潮声'))
@@ -276,6 +280,9 @@ await page.cmd('Input.dispatchMouseEvent', { type: 'mouseMoved', x: rx2, y: ry2 
 await page.cmd('Input.dispatchMouseEvent', { type: 'mousePressed', x: rx2, y: ry2, button: 'right', buttons: 2, clickCount: 1 })
 await page.cmd('Input.dispatchMouseEvent', { type: 'mouseReleased', x: rx2, y: ry2, button: 'right', buttons: 0, clickCount: 1 })
 await evalUntil(page, `!!document.querySelector('[role="menu"]')`, (v) => v === true, 8000, '菜单再现2')
+await sleep(400)
+const bubbleGone2 = await page.eval(`!document.querySelector('.zj-sel-bubble')`)
+ok('右键打开后划词浮层收起（不重叠）', bubbleGone2 === true)
 await page.eval(`[...document.querySelectorAll('[role="menuitem"]')].find((i) => i.textContent.trim() === '添加到对话').click()`)
 const quote2 = await evalUntil(
   page,

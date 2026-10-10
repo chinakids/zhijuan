@@ -207,7 +207,7 @@ await sleep(300)
 await rightClickAt(page, rect.x, rect.y)
 const items2 = await evalUntil(page, menuItemsExpr, (v) => Array.isArray(v) && v.length > 0, 8000, '无选区右键菜单')
 console.log('MENU(无选区):', JSON.stringify(items2))
-ok('无选区菜单 = 粘贴/全选（无剪切复制批注）', items2.length === 2 && items2.includes('粘贴') && items2.includes('全选'), JSON.stringify(items2))
+ok('无选区菜单 = 粘贴/粘贴为纯文本/全选（无剪切复制批注）', items2.length === 3 && items2.includes('粘贴') && items2.includes('粘贴为纯文本') && items2.includes('全选'), JSON.stringify(items2))
 await page.eval(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`)
 await sleep(300)
 
