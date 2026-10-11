@@ -5,6 +5,7 @@ import { useAppStore } from './store/app'
 import { useAgentStore } from './features/agent/store'
 import { router } from './router'
 import WindowChrome from './components/WindowChrome'
+import InputEditMenu from './components/InputEditMenu'
 import MenuBridge from './features/menu/menuBus'
 import { Toaster, toast } from './components/ui/toast'
 
@@ -49,6 +50,8 @@ export default function App() {
     <TooltipProvider>
       <Boot />
       <QuoteBridge />
+      {/* 输入面文本编辑右键菜单（HIG Context menus 全 app 一致性）：document 级，无 router 依赖 */}
+      <InputEditMenu />
       {/* 系统菜单桥（mac 菜单栏 → 单点分发 + 启用态上报 + 全局快捷键速查），无 router 依赖 */}
       <MenuBridge />
       {/* 窗口骨架：自定义标题栏（mac）在上，内容区占满剩余空间 */}
