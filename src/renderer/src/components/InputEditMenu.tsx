@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ClipboardPaste, Copy, Scissors, TextSelect } from 'lucide-react'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from './ui/context-menu'
 
 /**
@@ -135,15 +136,19 @@ export default function InputEditMenu() {
         }}
       >
         <ContextMenuItem disabled={!hasSel} onSelect={() => void run('cut')}>
+          <Scissors className="mr-0.5 h-3.5 w-3.5" />
           剪切
         </ContextMenuItem>
         <ContextMenuItem disabled={!hasSel} onSelect={() => void run('copy')}>
+          <Copy className="mr-0.5 h-3.5 w-3.5" />
           复制
         </ContextMenuItem>
         <ContextMenuItem disabled={pasteDisabled} onSelect={() => void run('paste')}>
+          <ClipboardPaste className="mr-0.5 h-3.5 w-3.5" />
           粘贴
         </ContextMenuItem>
         <ContextMenuItem disabled={valueLen === 0} onSelect={() => void run('selectall')}>
+          <TextSelect className="mr-0.5 h-3.5 w-3.5" />
           全选
         </ContextMenuItem>
       </ContextMenuContent>

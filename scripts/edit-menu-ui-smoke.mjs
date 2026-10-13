@@ -144,6 +144,7 @@ ok('菜单出现（无选区右键）', true)
 const menuBox = await page.eval(`(() => { const r = document.querySelector('${MENU}').getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) } })()`)
 ok('菜单位置贴近右键点', Math.abs(menuBox.x - pos.x) < 40 && menuBox.y <= pos.y + 10 && menuBox.y >= pos.y - 160 && menuBox.y + menuBox.h <= 802, JSON.stringify({ menu: menuBox, pos }))
 ok('菜单四项且无分组', (await page.eval(`document.querySelectorAll('${MENU} [role="menuitem"]').length`)) === 4)
+ok('菜单项带图标（与 Prose 编辑菜单一致）', (await page.eval(`(() => { const items = [...document.querySelectorAll('${MENU} [role="menuitem"]')]; return items.every(it => !!it.querySelector('svg')) })()`)) === true)
 ok('无选区 → 剪切置灰', (await page.eval(itemState('剪切'))) === 'disabled')
 ok('无选区 → 复制置灰', (await page.eval(itemState('复制'))) === 'disabled')
 // ④ 剪贴板空 → 粘贴置灰（异步读剪贴板）
