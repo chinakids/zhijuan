@@ -41,20 +41,26 @@ const check = (name, cond, extra = '') => {
 const CARD = `[...document.querySelectorAll('button')].find((b) => b.title === '点击查看任务卡详情（回填的结果在此）' && b.innerText.includes('雨夜码头'))`
 const dlgOf = (txt) => `[...document.querySelectorAll('[role="dialog"]')].find((d) => d.innerText.includes(${JSON.stringify(txt)}))`
 
-// [1] 停滞卡详情：出现「删除该任务」+「重发任务」按钮，且非终态删除按钮可见
+// [1] 停滞卡详情：出现「删除该任务」+「编辑并重发」按钮，且非终态删除按钮可见
 await evalJs(`${CARD}?.click(); 'ok'`)
 await sleep(800)
 const d1 = await evalJs(`(${dlgOf('删除该任务')}?.innerText ?? '')`)
-check('详情含重发/删除按钮', d1.includes('重发任务') && d1.includes('删除该任务'), d1.slice(0, 300))
+check('详情含编辑并重发/删除按钮', d1.includes('编辑并重发') && d1.includes('删除该任务'), d1.slice(0, 300))
 
-// [2] 点「重发任务」→ 详情关闭 → 列表雨夜码头卡仍在、停滞徽标消失（mtime 已刷新）
-await evalJs(`[...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent.trim() === '重发任务')?.click(); 'ok'`)
+// [2] 点「编辑并重发」→ 编辑对话框出现并预填现卡（需求含雨夜）→「保存并重发」不改字段 → 详情关、
+//     列表雨夜码头卡仍在、停滞徽标消失（写盘触碰刷新了 mtime）
+await evalJs(`[...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent.trim() === '编辑并重发')?.click(); 'ok'`)
+await sleep(700)
+const ed = await evalJs(`(${dlgOf('编辑并重发')}?.innerText ?? '')`)
+const edDemand = await evalJs(`document.querySelector('#edit-demand')?.value ?? ''`)
+check('编辑对话框出现且预填需求', ed.includes('编辑并重发') && edDemand.includes('雨夜'), 'title:' + ed.slice(0, 60) + ' | demand:' + edDemand.slice(0, 60))
+await evalJs(`[...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent.trim() === '保存并重发')?.click(); 'ok'`)
 await sleep(900)
 const bar2 = await evalJs(`(() => {
   const btns = [...document.querySelectorAll('button')].filter((b) => b.title === '点击查看任务卡详情（回填的结果在此）')
   return btns.map((b) => b.innerText)
 })()`)
-check('重发后卡仍在列表且无停滞徽标', bar2.some((t) => t.includes('雨夜码头') && !t.includes('停滞')), JSON.stringify(bar2))
+check('保存重发后卡仍在列表且无停滞徽标', bar2.some((t) => t.includes('雨夜码头') && !t.includes('停滞')), JSON.stringify(bar2))
 
 // [3] 删除：详情点删除 → 确认框出现（非终态文案：任务尚未完成/管道不再处理）
 await evalJs(`${CARD}?.click(); 'ok'`)
@@ -86,11 +92,11 @@ const bar5 = await evalJs(`(() => {
 })()`)
 check('确认删除后卡片消失、只剩图书馆卡', !bar5.some((t) => t.includes('雨夜码头')) && bar5.some((t) => t.includes('校园图书馆')), JSON.stringify(bar5))
 
-// [6] done 卡详情：无「重发任务」按钮；点删除 → 确认文案为终态提示
+// [6] done 卡详情：出现「编辑并重发」（可改需求重采）；点删除 → 确认文案为终态提示
 await evalJs(`[...document.querySelectorAll('button')].find((b) => b.title === '点击查看任务卡详情（回填的结果在此）' && b.innerText.includes('校园图书馆'))?.click(); 'ok'`)
 await sleep(700)
 const d6a = await evalJs(`(${dlgOf('删除该任务')}?.innerText ?? '')`)
-check('done 卡无重发按钮', !d6a.includes('重发任务'), d6a.slice(0, 200))
+check('done 卡可编辑并重发', d6a.includes('编辑并重发'), d6a.slice(0, 200))
 await evalJs(`[...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent.trim() === '删除该任务')?.click(); 'ok'`)
 await sleep(500)
 const d6b = await evalJs(`(${dlgOf('删除任务卡')}?.innerText ?? '')`)

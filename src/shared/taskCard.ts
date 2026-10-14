@@ -54,6 +54,29 @@ export function rebuildTaskCardForRetry(v: TaskCardView): string {
   return fm.join('\n') + '\n' + body + '\n'
 }
 
+/**
+ * 编辑并重发：在现卡解析字段基础上，用编辑后的 需求/关键词/类别/来源 重建一张 pending 卡。
+ * 保留 创建（首次创建时间戳）与正文 body；清掉 结果/完成（重发=重新采集，管道只认 status: pending）。
+ * 与 rebuildTaskCardForRetry 的区别：本函数以编辑字段为准重写四字段，且对 ANY 状态卡都重置为 pending
+ * （含 done/failed——作者看到结果不满意、想换个需求重新采集的高频场景），纯函数可单测。
+ */
+export function rebuildTaskCardForEdit(
+  v: TaskCardView,
+  opts: { demand: string; keywords: string[]; category: string; source: string }
+): string {
+  const demand = (opts.demand || '').replace(/\n/g, ' ')
+  const kws = (opts.keywords || []).map((s) => s.trim()).filter(Boolean)
+  const fm = ['---', 'status: pending']
+  if ((opts.category || '').trim()) fm.push('类别: ' + opts.category.trim())
+  if (kws.length > 0) fm.push('关键词: [' + kws.join(', ') + ']')
+  fm.push('需求: ' + demand)
+  if ((opts.source || '').trim()) fm.push('来源: ' + opts.source.trim())
+  if (v.createdAt) fm.push('创建: ' + v.createdAt)
+  fm.push('---', '')
+  const body = v.body || '# 采集任务：' + demand.slice(0, 20)
+  return fm.join('\n') + '\n' + body + '\n'
+}
+
 /** 任务卡文件名（与「任务_<14位时间戳>.md」约定一致；ts 毫秒时间戳） */
 export function taskCardFileName(ts: number): string {
   return '任务_' + new Date(ts).toISOString().replace(/[-:TZ]/g, '').slice(0, 14)

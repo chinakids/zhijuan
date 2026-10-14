@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isLibraryResultPath, isTaskStale, normDemand, parseTaskCard, rebuildTaskCardForRetry, taskCardDoc, taskCardFileName, STALE_TASK_MS } from '../../src/shared/taskCard'
+import { isLibraryResultPath, isTaskStale, normDemand, parseTaskCard, rebuildTaskCardForEdit, rebuildTaskCardForRetry, taskCardDoc, taskCardFileName, STALE_TASK_MS } from '../../src/shared/taskCard'
 
 // 样例：与真机管道回填后的任务卡格式一致（素材库验收项目实测）
 const DONE_CARD = [
@@ -86,6 +86,48 @@ describe('rebuildTaskCardForRetry（重发 = 重建全新 pending 卡）', () =>
     const d = parseTaskCard(['---', 'status: failed', '需求: 雨夜', '---'].join('\n'))
     const next = rebuildTaskCardForRetry(d)
     expect(next).toContain('采集任务：雨夜')
+  })
+})
+
+describe('rebuildTaskCardForEdit（编辑并重发 = 按编辑字段重建 pending 卡）', () => {
+  it('done 卡编辑：status=pending、旧结果/完成被清、编辑字段生效、创建/正文保留', () => {
+    const d = parseTaskCard(DONE_CARD)
+    const next = rebuildTaskCardForEdit(d, {
+      demand: '九十年代县城图书馆的旧细节——木质书架、借书卡、靠窗的旧阅览室，要更具体',
+      keywords: ['旧图书馆', '借书卡', '九十年代'],
+      category: '环境',
+      source: '知乎'
+    })
+    const r = parseTaskCard(next)
+    expect(r.status).toBe('pending')
+    expect(r.demand).toContain('九十年代县城图书馆')
+    expect(r.keywords).toEqual(['旧图书馆', '借书卡', '九十年代'])
+    expect(r.category).toBe('环境')
+    expect(r.source).toBe('知乎')
+    expect(r.createdAt).toBe(d.createdAt)
+    expect(r.result).toBe('')
+    expect(r.finishedAt).toBe('')
+    expect(r.body).toContain('# 采集任务：校园图书馆场景细节')
+  })
+
+  it('pending 卡编辑：保持 pending、清空类别/来源时不留空字段（避免空 front matter）', () => {
+    const d = parseTaskCard(['---', 'status: pending', '类别: 环境', '需求: 雨夜', '关键词: [雨]', '创建: 2026-09-05 10:00', '---', '', '# 采集任务：雨夜'].join('\n'))
+    const next = rebuildTaskCardForEdit(d, { demand: '暴雨夜的码头细节', keywords: ['暴雨', '码头'], category: '', source: '' })
+    expect(next).not.toContain('类别:')
+    expect(next).not.toContain('来源:')
+    const r = parseTaskCard(next)
+    expect(r.status).toBe('pending')
+    expect(r.demand).toBe('暴雨夜的码头细节')
+    expect(r.category).toBe('')
+    expect(r.source).toBe('')
+  })
+
+  it('编辑字段解析往返后创建时间保留（可再编辑）', () => {
+    const d = parseTaskCard(DONE_CARD)
+    const once = parseTaskCard(rebuildTaskCardForEdit(d, { demand: '新需求', keywords: ['a'], category: '环境', source: '' }))
+    const twice = parseTaskCard(rebuildTaskCardForEdit(once, { demand: '更新的需求', keywords: ['b'], category: '环境', source: '' }))
+    expect(twice.createdAt).toBe(d.createdAt)
+    expect(twice.demand).toBe('更新的需求')
   })
 })
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { CloudDownload, Eye, RefreshCw, X } from 'lucide-react'
+import { CloudDownload, Eye, Pencil, RefreshCw, X } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog'
 import { Input } from '../../components/ui/input'
@@ -12,7 +12,7 @@ import { cn } from '../../lib/utils'
 import { useFsChanged } from '../fs/useFsEvents'
 import { toast } from '../../store/toasts'
 import { isImeComposing } from '../../lib/ime'
-import { isLibraryResultPath, isTaskStale, parseTaskCard, rebuildTaskCardForRetry, taskCardDoc, taskCardFileName } from '../../../../shared/taskCard'
+import { isLibraryResultPath, isTaskStale, parseTaskCard, rebuildTaskCardForEdit, taskCardDoc, taskCardFileName } from '../../../../shared/taskCard'
 import { countWords } from '../../../../shared/count'
 
 /* ===== 织卷 S5 · 采集栏：任务卡列表 + 发起采集表单 ===== */
@@ -75,6 +75,13 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
   // 删除确认：confirmDelete 非空时打开确认框（详情先关闭，避免嵌套 Dialog 焦点问题）
   const [confirmDelete, setConfirmDelete] = useState<TaskInfo | null>(null)
   const [deleting, setDeleting] = useState(false)
+  // 编辑并重发：edit 持有原任务卡（供取消后回详情）；editXxx 为编辑表单四字段
+  const [edit, setEdit] = useState<TaskInfo | null>(null)
+  const [editDemand, setEditDemand] = useState('')
+  const [editKeywords, setEditKeywords] = useState('')
+  const [editCategory, setEditCategory] = useState('')
+  const [editSource, setEditSource] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
 
   // 刷新失败：toast 节流（5s 内不重复弹），失败时保留旧列表（不闪空）
   const refresh = useCallback(async () => {
@@ -191,19 +198,41 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
     }
   }
 
-  /** 重发：按现卡字段重建为全新 pending 卡（清结果/完成，mtime 随写盘更新）——管道会重新处理 */
-  async function doRetry(t: TaskInfo) {
+  /** 打开「编辑并重发」：读现卡字段预填表单；关闭详情（避免嵌套 Dialog 焦点问题，与删除确认同范式） */
+  async function openEdit(t: TaskInfo) {
     if (!t) return
     try {
       const text = (await window.zhijuan.readDoc(id, '素材库/采集池/' + t.file)) ?? ''
-      const next = rebuildTaskCardForRetry(parseTaskCard(text))
-      await window.zhijuan.writeDoc(id, '素材库/采集池/' + t.file, next)
-      setView(null)
+      const d = parseTaskCard(text)
+      setEditDemand(d.demand)
+      setEditKeywords(d.keywords.join('，'))
+      setEditCategory(d.category)
+      setEditSource(d.source)
       setPreview(null)
+      setEdit(t)
+      setView(null)
+    } catch (e) {
+      toast.add({ kind: 'error', title: '读取任务失败', description: String((e as Error).message ?? e).slice(0, 120) })
+    }
+  }
+
+  /** 保存编辑并重发：以编辑字段重建 pending 卡（保留创建/正文，清结果/完成），管道重新处理 */
+  async function doEditSave() {
+    if (!edit || !editDemand.trim() || editSaving) return
+    setEditSaving(true)
+    try {
+      const text = (await window.zhijuan.readDoc(id, '素材库/采集池/' + edit.file)) ?? ''
+      const d = parseTaskCard(text)
+      const kws = editKeywords.split(/[,，]/).map((s) => s.trim()).filter(Boolean)
+      const next = rebuildTaskCardForEdit(d, { demand: editDemand, keywords: kws, category: editCategory, source: editSource })
+      await window.zhijuan.writeDoc(id, '素材库/采集池/' + edit.file, next)
+      setEdit(null)
       await refresh()
     } catch (e) {
-      // 重发失败：详情保留（可就地重试）
-      toast.add({ kind: 'error', title: '重发任务失败', description: String((e as Error).message ?? e).slice(0, 120) })
+      // 保存失败：编辑对话框保留（可就地重试），按钮态复位
+      toast.add({ kind: 'error', title: '保存任务失败', description: String((e as Error).message ?? e).slice(0, 120) })
+    } finally {
+      setEditSaving(false)
     }
   }
 
@@ -393,13 +422,13 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
           <DialogFooter>
             <Button variant="ghost" onClick={() => setView(null)}>关闭</Button>
             <div className="flex-1" />
-            {view && (view.status === 'pending' || view.status === 'failed') && (
+            {view && view.status !== 'running' && (
               <Button
                 variant="outline"
-                onClick={() => view && void doRetry(view)}
-                title="把任务卡重置为待处理（清掉旧结果），本机管道会重新采集"
+                onClick={() => view && void openEdit(view)}
+                title="修改需求/关键词/类别/来源后按新需求重发，本机管道会重新采集（保留创建时间）"
               >
-                <RefreshCw className="mr-1" /> 重发任务
+                <Pencil className="mr-1" /> 编辑并重发
               </Button>
             )}
             {view && (
@@ -414,6 +443,53 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
                 删除该任务
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 编辑并重发：预填现卡字段，改后保存=按新需求重置为 pending 重新采集（保留创建/正文，清结果/完成） */}
+      <Dialog open={!!edit} onOpenChange={(v) => {
+        if (!v && !editSaving) { const orig = edit; setEdit(null); if (orig) void openView(orig) }
+      }}>
+        <DialogContent className="sm:max-w-md" outsideDismiss={false}>
+          <DialogHeader>
+            <DialogTitle>编辑并重发</DialogTitle>
+            <p className="text-xs text-ink-3">{edit?.file} · 保存后重置为待处理，按新需求重新采集</p>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <Label htmlFor="edit-demand">需求描述 *</Label>
+                {editDemand.trim() && <span className="shrink-0 text-[11px] text-ink-3">{countWords(editDemand)} 字</span>}
+              </div>
+              <Textarea
+                id="edit-demand"
+                rows={3}
+                autoFocus
+                value={editDemand}
+                onChange={(e) => setEditDemand(e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-keywords">关键词（逗号分隔）</Label>
+                <Input id="edit-keywords" value={editKeywords} onChange={(e) => setEditKeywords(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-category">目标类别</Label>
+                <Input id="edit-category" value={editCategory} onChange={(e) => setEditCategory(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-source">来源偏好（可选）</Label>
+              <Input id="edit-source" value={editSource} onChange={(e) => setEditSource(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={editSaving} onClick={() => { const orig = edit; setEdit(null); if (orig) void openView(orig) }}>取消</Button>
+            <Button onClick={() => void doEditSave()} disabled={!editDemand.trim() || editSaving}>
+              {editSaving ? '保存中…' : '保存并重发'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
