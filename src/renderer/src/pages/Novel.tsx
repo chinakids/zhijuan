@@ -315,7 +315,11 @@ export default function Novel() {
                   ? `✓ 无新动向${supNote}${keptNote}${describeSyncEvidence(r.evidence)}`
                   : `✓ 无设定变化${describeSyncEvidence(r.evidence)}`
             )
-            if (kept > 0) setKeptFocus(r.keptIds?.[0])
+            // 2026-10-14：新建提案（r.items>0）与 kept 同款直达路径对齐——「先文沉淀设定」的产出
+            // 直接在同步浮条「查看提案」复审，不必先到左导航（NN/g 建设性沟通：反馈应指下一步；
+            // 消除「已生成 N 条却无入口」的不对称；优先 kept 复用旧卡、其次新提案）
+            const focusId = r.keptIds?.[0] ?? r.createdIds?.[0]
+            if (focusId) setKeptFocus(focusId)
             syncTimer.current = window.setTimeout(() => {
               setSyncMsg('')
               syncTimer.current = null
