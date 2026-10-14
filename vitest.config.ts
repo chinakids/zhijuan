@@ -5,6 +5,7 @@ export default defineConfig({
     environment: 'node',
     include: ['tests/**/*.test.ts'],
     restoreMocks: true,
-    testTimeout: 15000
+    testTimeout: 15000,
+    setupFiles: ['tests/setup-electron.mock.ts']
   }
 })
