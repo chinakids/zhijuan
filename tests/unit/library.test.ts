@@ -114,6 +114,12 @@ describe('素材库类别（main/library.ts）', () => {
     writeDoc(pid, '素材库/人物/账房.md', '# 账房\n')
     writeDoc(pid, '素材库/人物/掌柜.md', '# 掌柜\n')
     writeDoc(pid, '素材库/采集池/任务_x.md', '---\nstatus: pending\n---\n# 任务\n')
+    // mtime 严格递增（新→旧：掌柜 > 账房 > 校园 > 索引），避免连续写入 mtime 相同走 locale 排序导致 flaky
+    const libRoot = join(projectDir(pid), '素材库')
+    utimesSync(join(libRoot, '索引.md'), new Date('2023-12-31'), new Date('2023-12-31'))
+    utimesSync(join(libRoot, '环境/校园.md'), new Date('2024-01-01'), new Date('2024-01-01'))
+    utimesSync(join(libRoot, '人物/账房.md'), new Date('2024-01-02'), new Date('2024-01-02'))
+    utimesSync(join(libRoot, '人物/掌柜.md'), new Date('2024-01-03'), new Date('2024-01-03'))
     const all = recentLibraryDocs(pid, 5)
     expect(all.map((d) => d.name)).toEqual(['掌柜', '账房', '校园', '索引']) // 采集池被排除；mtime 新→旧
     expect(all[0]).toMatchObject({ file: '素材库/人物/掌柜.md', name: '掌柜' })
