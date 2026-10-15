@@ -73,15 +73,22 @@ export function workspaceDir(): string {
 /** 库根：设置非空优先；否则老默认位（文档/织卷项目库）非空时保持原地（D-V2-8），再落 工作区/项目库。
  * 决策链在 shared/settingsLogic（真机与 devShim 共用，2026-09-12）；本函数只负责感知 fs 实况。 */
 export function libraryRoot(): string {
+  const configured = getSettings().libraryRoot
+  // D-V2-8 决策链只在 configured 为空时才用 legacyExists（见 resolveLibraryRoot）。
+  // 已显式配置库根时，老默认位探测结果不影响决策；而该同步 readdirSync 若遇到
+  // 不可达目录（云同步占位/目录卡死，2026-10 实测本机 ~/Documents/织卷项目库 readdirSync 内核级挂死）
+  // 会同步阻塞所有 store 操作——故 configured 非空时直接跳过探测，避免无辜阻塞。
   const legacy = join(app.getPath('documents'), '织卷项目库')
   let legacyExists = false
-  try {
-    legacyExists = existsSync(legacy) && readdirSync(legacy).length > 0
-  } catch {
-    /* 读不了就按空处理 */
+  if (!configured || !configured.trim()) {
+    try {
+      legacyExists = existsSync(legacy) && readdirSync(legacy).length > 0
+    } catch {
+      /* 读不了就按空处理 */
+    }
   }
   return resolveLibraryRoot({
-    configured: getSettings().libraryRoot,
+    configured,
     legacyPath: legacy,
     workspaceDefault: workspaceDir(),
     legacyExists
