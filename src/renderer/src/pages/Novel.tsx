@@ -1227,16 +1227,17 @@ export default function Novel() {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
-              <Label>题名 *</Label>
-              <Input autoFocus placeholder="如：夏夜的信" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={fieldEnter} />
+              <Label htmlFor="cc-title">题名 *</Label>
+              <Input id="cc-title" autoFocus placeholder="如：夏夜的信" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={fieldEnter} />
             </div>
             <div className="space-y-1.5">
-              <Label>时间切片名</Label>
-              <Input placeholder="如：第二幕_台风夜（留空则用章号）" value={slice} onChange={(e) => setSlice(e.target.value)} onKeyDown={fieldEnter} />
+              <Label htmlFor="cc-slice">时间切片名</Label>
+              <Input id="cc-slice" placeholder="如：第二幕_台风夜（留空则用章号）" value={slice} onChange={(e) => setSlice(e.target.value)} onKeyDown={fieldEnter} />
             </div>
             <div className="space-y-1.5">
-              <Label>时间线</Label>
+              <Label htmlFor="cc-line">时间线</Label>
               <Input
+                id="cc-line"
                 data-testid="line-input"
                 placeholder={`如：过去线（留空默认${DEFAULT_LINE}）`}
                 value={timeLine}
@@ -1266,24 +1267,24 @@ export default function Novel() {
               )}
             </div>
             <div className="space-y-1.5">
-              <Label>涉及人物（逗号分隔）</Label>
-              <Input placeholder="如：林晚，顾知远" value={cast} onChange={(e) => setCast(e.target.value)} onKeyDown={fieldEnter} />
+              <Label htmlFor="cc-cast">涉及人物（逗号分隔）</Label>
+              <Input id="cc-cast" placeholder="如：林晚，顾知远" value={cast} onChange={(e) => setCast(e.target.value)} onKeyDown={fieldEnter} />
             </div>
             <div className="space-y-1.5">
-              <Label>本章目标</Label>
-              <Textarea rows={1} placeholder="主角在这一章要达成什么（可空，写了会更稳）" value={goal} onChange={(e) => setGoal(e.target.value)} />
+              <Label htmlFor="cc-goal">本章目标</Label>
+              <Textarea id="cc-goal" rows={1} placeholder="主角在这一章要达成什么（可空，写了会更稳）" value={goal} onChange={(e) => setGoal(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>核心冲突</Label>
-              <Textarea rows={1} placeholder="本段主要矛盾，如：灯塔要正常值守，可守塔人想出海…" value={conflict} onChange={(e) => setConflict(e.target.value)} />
+              <Label htmlFor="cc-conflict">核心冲突</Label>
+              <Textarea id="cc-conflict" rows={1} placeholder="本段主要矛盾，如：灯塔要正常值守，可守塔人想出海…" value={conflict} onChange={(e) => setConflict(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>关键事件（可多条）</Label>
-              <Textarea rows={1} placeholder="每件一行：如&#10;· 有人来渡口打听旧船&#10;· 主角在行李里翻出一封信" value={plot} onChange={(e) => setPlot(e.target.value)} />
+              <Label htmlFor="cc-plot">关键事件（可多条）</Label>
+              <Textarea id="cc-plot" rows={1} placeholder="每件一行：如&#10;· 有人来渡口打听旧船&#10;· 主角在行李里翻出一封信" value={plot} onChange={(e) => setPlot(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>前情呼应（可空）</Label>
-              <Textarea rows={1} placeholder="要回应的伏笔 / 要用的设定：如：呼应幕一里的灯语约定" value={hook} onChange={(e) => setHook(e.target.value)} />
+              <Label htmlFor="cc-hook">前情呼应（可空）</Label>
+              <Textarea id="cc-hook" rows={1} placeholder="要回应的伏笔 / 要用的设定：如：呼应幕一里的灯语约定" value={hook} onChange={(e) => setHook(e.target.value)} />
             </div>
           </div>
           <DialogFooter>
