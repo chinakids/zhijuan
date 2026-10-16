@@ -16,6 +16,7 @@ import { cn } from '../lib/utils'
 import { isImeComposing } from '../lib/ime'
 import DocEditor from '../features/editor/DocEditor'
 import ChapterNav from '../features/editor/ChapterNav'
+import { chapterNeighbors } from '../../../shared/chapterNav'
 import HealthBar from '../features/audit/HealthBar'
 import { runSliceSync } from '../features/sync/sliceSync'
 import { useColFold } from '../features/common/useColFold'
@@ -709,6 +710,24 @@ export default function Novel() {
   const markDirty = useCallback((d: boolean) => {
     dirtyRef.current = d
   }, [])
+  // 章导航快捷键（2026-10-16 创作层）：⌥⌘←/→ 上一章/下一章——写作者双手在键盘，免回侧栏点按
+  // （延续 10-07 上一章/下一章按钮的「多章连写心流闭环」；快捷键=减一次心流中断）。
+  // 走 requestSwitch：与侧栏/按钮同一切章守卫（dirty 弹确认，绝不静默丢内容）。
+  // 与编辑器 ⌘←/→（行首尾，macTextKeys）不冲突：Alt 变体在 prosemirror-keymap 未绑定（需精确修饰键匹配）。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey
+      if (!mod || !e.altKey || e.shiftKey) return
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+      const { prev, next } = chapterNeighbors(chapters, sel)
+      const target = e.key === 'ArrowLeft' ? prev : next
+      if (!target) return
+      e.preventDefault()
+      requestSwitch(target.file)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [chapters, sel, requestSwitch])
   // 关窗守卫（2026-09-24 创作层）：beforeunload 在窗口关闭/Cmd+W/重载/app quit 前触发（Electron
   // 官方：close 事件在 beforeunload 之前，建议用 beforeunload 决定可否关闭；返回非 undefined 静默取消
   // 关闭）。有未保存改动时取消关闭并弹确认；closingRef=true（已确认）或非 dirty 零打扰放行。
