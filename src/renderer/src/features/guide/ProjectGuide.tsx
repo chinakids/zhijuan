@@ -142,16 +142,16 @@ export default function ProjectGuide({ projectId, projectName, open, onClose }: 
               先把世界立住，后面写人和写章都从这里取粮。可以先写要点，以后再细化。
             </DialogDescription>
             <div className="space-y-1.5">
-              <Label>时代背景</Label>
-              <Textarea ref={worldRef} rows={2} placeholder="如：近未来的柳城，科技与旧城交错，霓虹镇着一条古河。" value={world.background} onChange={(e) => setWorld((w) => ({ ...w, background: e.target.value }))} />
+              <Label htmlFor="guide-world-bg">时代背景</Label>
+              <Textarea ref={worldRef} id="guide-world-bg" rows={2} placeholder="如：近未来的柳城，科技与旧城交错，霓虹镇着一条古河。" value={world.background} onChange={(e) => setWorld((w) => ({ ...w, background: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
-              <Label>世界基调</Label>
-              <Textarea rows={2} placeholder="如：潮湿、克制，带着一点旧物件的温度。" value={world.tone} onChange={(e) => setWorld((w) => ({ ...w, tone: e.target.value }))} />
+              <Label htmlFor="guide-world-tone">世界基调</Label>
+              <Textarea id="guide-world-tone" rows={2} placeholder="如：潮湿、克制，带着一点旧物件的温度。" value={world.tone} onChange={(e) => setWorld((w) => ({ ...w, tone: e.target.value }))} />
             </div>
             <div className="space-y-1.5">
-              <Label>核心设定要点</Label>
-              <Textarea rows={3} placeholder={'每条一行：如\n· 灯塔每晚入夜亮起，第二天清晨熄灭\n· 出海的人用灯语报平安\n· 灯光是这个世界唯一还能相信的东西'} value={world.rules} onChange={(e) => setWorld((w) => ({ ...w, rules: e.target.value }))} />
+              <Label htmlFor="guide-world-rules">核心设定要点</Label>
+              <Textarea id="guide-world-rules" rows={3} placeholder={'每条一行：如\n· 灯塔每晚入夜亮起，第二天清晨熄灭\n· 出海的人用灯语报平安\n· 灯光是这个世界唯一还能相信的东西'} value={world.rules} onChange={(e) => setWorld((w) => ({ ...w, rules: e.target.value }))} />
             </div>
           </div>
         )}

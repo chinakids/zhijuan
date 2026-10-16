@@ -244,8 +244,9 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
             <DialogTitle>新建{addLabel}</DialogTitle>
           </DialogHeader>
           <div className="space-y-1.5 py-2">
-            <Label>名字 *</Label>
+            <Label htmlFor="doc-name">名字 *</Label>
             <Input
+              id="doc-name"
               autoFocus
               placeholder="如：夏晚晴"
               value={name}

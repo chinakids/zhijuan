@@ -1321,8 +1321,9 @@ export default function Novel() {
             <DialogDescription>只改这一章的题名与文件名；大纲章卡/导演板等副产物和版本历史会随同改名。</DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5 py-2">
-            <Label>新题名 *</Label>
+            <Label htmlFor="rename-title">新题名 *</Label>
             <Input
+              id="rename-title"
               autoFocus
               value={renameVal}
               placeholder="新题名"
@@ -1357,8 +1358,9 @@ export default function Novel() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5 py-2">
-            <Label>时间切片名 *</Label>
+            <Label htmlFor="slice-name">时间切片名 *</Label>
             <Input
+              id="slice-name"
               autoFocus
               value={sliceVal}
               placeholder="如：第二幕_台风夜"
@@ -1387,8 +1389,9 @@ export default function Novel() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5 py-2">
-            <Label>时间线</Label>
+            <Label htmlFor="edit-line">时间线</Label>
             <Input
+              id="edit-line"
               autoFocus
               data-testid="edit-line-input"
               value={lineVal}

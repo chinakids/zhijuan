@@ -464,8 +464,9 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
             <DialogTitle>新建类别</DialogTitle>
           </DialogHeader>
           <div className="space-y-1.5 py-2">
-            <Label>类别名 *</Label>
+            <Label htmlFor="newcat-name">类别名 *</Label>
             <Input
+              id="newcat-name"
               autoFocus
               placeholder="如：人物、场景、器物、设定出处…"
               value={newCatName}
@@ -497,8 +498,9 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
             <DialogTitle>新建素材卡{selCat ? `（类别：${selCat}）` : ''}</DialogTitle>
           </DialogHeader>
           <div className="space-y-1.5 py-2">
-            <Label>名字 *</Label>
+            <Label htmlFor="newmat-name">名字 *</Label>
             <Input
+              id="newmat-name"
               autoFocus
               placeholder="如：旧图书馆的借书卡"
               value={newMatName}

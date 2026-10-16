@@ -461,8 +461,9 @@ export default function Home() {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
-              <Label>项目名</Label>
+              <Label htmlFor="newproj-name">项目名</Label>
               <Input
+                id="newproj-name"
                 autoFocus
                 placeholder="如：山那边"
                 value={name}
@@ -475,8 +476,8 @@ export default function Home() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>一句话简介（可选）</Label>
-              <Input placeholder="讲讲这本书是什么…" value={desc} onChange={(e) => setDesc(e.target.value)} />
+              <Label htmlFor="newproj-desc">一句话简介（可选）</Label>
+              <Input id="newproj-desc" placeholder="讲讲这本书是什么…" value={desc} onChange={(e) => setDesc(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label>初始内容（可选）</Label>
@@ -516,9 +517,10 @@ export default function Home() {
             <DialogDescription>选择一个已有作品文件夹，织卷会把它复制进项目库并补全骨架（生成 project.md），不覆盖已有内容；原目录保留不动。</DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">
-            <Label>目录路径</Label>
+            <Label htmlFor="import-folder">目录路径</Label>
             <div className="flex items-center gap-2">
               <Input
+                id="import-folder"
                 placeholder="/Users/你/某个已有作品目录"
                 value={folder}
                 onChange={(e) => setFolder(e.target.value)}
