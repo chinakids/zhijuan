@@ -166,6 +166,20 @@ const ok = (name, cond, extra = '') => {
       return { cmdK: s.includes('命令面板'), find: s.includes('在正文中查找'), save: s.includes('保存当前文档') }
     })()`)
     ok('P10 速查内容含 ⌘K/⌘F/⌘S 条目', pl.cmdK && pl.find && pl.save, JSON.stringify(pl))
+    // —— P15（2026-10-17 体验层 HIG 走查）：编辑组补齐写作格式键（引用块/标题/列表缩进）——
+    const p15 = await page.eval(`(() => {
+      const s = document.body.innerText
+      return { quote: s.includes('引用块'), head: s.includes('还原正文段落'), indent: s.includes('列表缩进 / 反缩进'),
+        keys: [...document.querySelectorAll('kbd')].map((k) => k.textContent) }
+    })()`)
+    ok('P15 编辑组含写作格式键（引用块/标题/列表缩进）', p15.quote && p15.head && p15.indent && p15.keys.includes('⇧⌘B') && p15.keys.includes('⌥⌘1–6'), JSON.stringify({ quote: p15.quote, head: p15.head, indent: p15.indent }))
+    // —— P16（2026-10-17 体验层 HIG 走查）：「选中文字」鼠标手势不渲染为键帽（Kbd 不含手势文字）——
+    const p16 = await page.eval(`(() => {
+      const kbdTexts = [...document.querySelectorAll('kbd')].map((k) => (k.textContent || '').trim())
+      return { hasGestureCap: kbdTexts.includes('点击浮层按钮') || kbdTexts.includes('按右键'),
+        gestureIsPlain: [...document.querySelectorAll('span')].some((sp) => (sp.textContent || '').includes('点击浮层按钮') && getComputedStyle(sp).fontStyle === 'italic') }
+    })()`)
+    ok('P16 鼠标手势行非键帽呈现（斜体小字）', !p16.hasGestureCap && p16.gestureIsPlain, JSON.stringify(p16))
     await keyCombo(page, 'Escape', 'Escape', 0, 27)
     await sleep(300)
     const closed1 = await page.eval(`!document.body.innerText.includes('用选区设置查找词')`)

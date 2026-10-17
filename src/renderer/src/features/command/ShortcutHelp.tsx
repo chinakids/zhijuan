@@ -14,21 +14,27 @@ const Kbd = ({ children }: { children: ReactNode }) => (
   </kbd>
 )
 
-const Row = ({ label, keys }: { label: string; keys: string[] }) => (
+// gesture=true 的「keys」是指针/鼠标动作，非键盘键位——按 HIG Keyboards（本面板只针对键位），
+// 不渲染为键帽（Kbd），改以斜体小字呈现，避免把鼠标动作伪装成「按键」。
+const Row = ({ label, keys, gesture }: { label: string; keys: string[]; gesture?: boolean }) => (
   <div className="flex items-center justify-between gap-4 py-1.5">
     <span className="min-w-0 text-sm text-ink-2">{label}</span>
     <span className="flex shrink-0 items-center gap-1">
       {keys.map((k, i) => (
         <span key={i} className="flex items-center gap-1">
           {i > 0 && <span className="text-[11px] text-ink-3">/</span>}
-          <Kbd>{k}</Kbd>
+          {gesture ? (
+            <span className="text-[11px] italic text-ink-3">{k}</span>
+          ) : (
+            <Kbd>{k}</Kbd>
+          )}
         </span>
       ))}
     </span>
   </div>
 )
 
-const Group = ({ title, rows }: { title: string; rows: { label: string; keys: string[] }[] }) => (
+const Group = ({ title, rows }: { title: string; rows: { label: string; keys: string[]; gesture?: boolean }[] }) => (
   <div>
     <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-3">{title}</h4>
     <div className="divide-y divide-hair">
@@ -39,7 +45,7 @@ const Group = ({ title, rows }: { title: string; rows: { label: string; keys: st
   </div>
 )
 
-const GROUPS: { title: string; rows: { label: string; keys: string[] }[] }[] = [
+const GROUPS: { title: string; rows: { label: string; keys: string[]; gesture?: boolean }[] }[] = [
   {
     title: '全应用',
     rows: [
@@ -54,7 +60,10 @@ const GROUPS: { title: string; rows: { label: string; keys: string[] }[] }[] = [
       { label: '撤销 / 重做', keys: ['⌘Z', '⇧⌘Z', '⌘Y'] },
       { label: '剪切 / 复制 / 粘贴', keys: ['⌘X', '⌘C', '⌘V'] },
       { label: '全选', keys: ['⌘A'] },
-      { label: '加粗 / 斜体', keys: ['⌘B', '⌘I'] }
+      { label: '加粗 / 斜体', keys: ['⌘B', '⌘I'] },
+      { label: '引用块', keys: ['⇧⌘B'] },
+      { label: '标题 1–6 / 还原正文段落', keys: ['⌥⌘1–6', '⌥⌘0'] },
+      { label: '列表缩进 / 反缩进', keys: ['⌘]', '⌘['] }
     ]
   },
   {
@@ -70,8 +79,8 @@ const GROUPS: { title: string; rows: { label: string; keys: string[] }[] }[] = [
   {
     title: '选中文字',
     rows: [
-      { label: '选中后浮层：复制 / 引用进右侧对话', keys: ['点击浮层按钮'] },
-      { label: '右键菜单：剪切 / 复制 / 粘贴 / 全选 / 添加到对话', keys: ['按右键'] }
+      { label: '选中后浮层：复制 / 引用进右侧对话', keys: ['点击浮层按钮'], gesture: true },
+      { label: '右键菜单：剪切 / 复制 / 粘贴 / 全选 / 添加到对话', keys: ['按右键'], gesture: true }
     ]
   },
   {
