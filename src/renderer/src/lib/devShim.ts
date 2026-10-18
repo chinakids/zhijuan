@@ -1935,7 +1935,21 @@ const mock = {
       emit({ requestId: rid, type: 'done' })
       return { ok: true }
     }
-    // 流式压力演示：prompt 含「流式压力」时高频发射大量 think/delta 增量（3ms 间隔），
+    // 消息流长码/长行内码/长引用走查种子（2026-10-18 体验层）：prompt 含「长码演示」时回复含超长无空格的
+    // 单行代码（base64 串）、超长单 token 行内代码、长段落引用——用于无头走查与冒烟断言 pre 横向滚动、
+    // 行内 code 断行、blockquote 窄窗不越界（「排版演示」种子保持不动，零回归）
+    if (/长码演示/.test(input.prompt)) {
+      const longcode =
+        '### 长单行代码\n\n下面是超长单行代码（无空格）在窄面板里的滚动表现：\n\n```js\nconst token = "eJwzNjQ2sjQwNjc2MTA0tjS1MDY0MzUxNjQwMjE0NDA0MjI4NTEwNTE4NDM5ODc3ODUwMTA0NjQ2MTQ0MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMEvfG0DZdB6WnKb6d3W2NeCzBtrT0Cw\"\n```\n\n### 超长行内代码\n\n调用的资源路径是 `https://example.com/api/v3/workspaces/zhijuan/chapters/0123456789abcdef0123456789abcdef/annotations?view=full&cursor=eyJpZCI6ImNoYXB0ZXJfMDEyIiwib2Zmc2V0IjoxMjM0NTY3ODkwLCJsaW1pdCI6NTAwLCJzb3J0IjoiZGVzYyJ9`，请确认超长单 token 行内代码能断行而不裁切。\n\n> 这是一段用来检验长内容引用块在窄面板换行表现的话：雾气会记住每个在码头上说过谎的人，而码头本身从不开口，只把那些话沉进水里，等潮水退去时再一点一点还回来，日复一日，年复一年，直到没有人记得它们曾经被说过。\n'
+      for (let i = 0; i < longcode.length; i += 8) {
+        emit({ requestId: rid, type: 'delta', text: longcode.slice(i, i + 8) })
+        await demoDelay()
+      }
+      emit({ requestId: rid, type: 'final', text: longcode })
+      emit({ requestId: rid, type: 'done' })
+      return { ok: true }
+    }
+// 流式压力演示：prompt 含「流式压力」时高频发射大量 think/delta 增量（3ms 间隔），
     // 验证渲染层帧级节流（streamBuffer）合并后内容完整无丢失（真实 reasoning 高频流模拟）
     if (/流式压力/.test(input.prompt)) {
       for (let i = 0; i < 60; i++) {
