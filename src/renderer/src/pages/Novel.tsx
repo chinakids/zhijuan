@@ -18,6 +18,8 @@ import DocEditor from '../features/editor/DocEditor'
 import ChapterNav from '../features/editor/ChapterNav'
 import { chapterNeighbors } from '../../../shared/chapterNav'
 import HealthBar from '../features/audit/HealthBar'
+import { useTour } from '../features/guide/useTour'
+import TourTip from '../features/guide/TourTip'
 import { runSliceSync } from '../features/sync/sliceSync'
 import { useColFold } from '../features/common/useColFold'
 import { describeSyncEvidence } from '../../../shared/syncEvidence'
@@ -158,6 +160,34 @@ export default function Novel() {
   // 与 narrow 正交——窄窗=自动（渲染判据），宽窗=作者主动收起；折叠态持久化=AppSettings（macOS 先例跨重启记住侧栏）
   const [chapHidden, setChapHidden] = useColFold('novel')
   const agentWd = useUiStore((s) => s.agentPanelWidth) ?? AGENT_PANEL_DEFAULT_WIDTH
+  // 新手动线引导（F-20260923-02）：正文页三步（agent 协作/保存切片/规则体检）；完成或跳过即不再弹，设置可重看
+  const tourSteps = useMemo(
+    () => [
+      {
+        key: 'agent',
+        title: '与创作 Agent 协作',
+        placement: 'left' as const,
+        text: '在右侧和 agent 边聊边写：选中正文点浮层「添加到对话」作为引用，或输入 / 命令（续写 / 润色 / 巡查 / 导演）。生成的修改方案采纳后才写入正文。',
+        target: () => document.querySelector('textarea[placeholder*="让 agent"]')
+      },
+      {
+        key: 'save',
+        title: '保存与切片同步',
+        placement: 'top' as const,
+        text: '写完按 ⌘S 保存；保存会触发切片同步，把本章设定变化沉淀为提案，由你确认后写入人物/世界观。',
+        target: () => ([...document.querySelectorAll('button')] as HTMLElement[]).find((b) => /保存/.test(b.innerText || '')) ?? null
+      },
+      {
+        key: 'health',
+        title: '规则体检状态栏',
+        placement: 'top' as const,
+        text: '底部是规则体检——人物在场 / 称谓 / 切片时序等秒级自查，有问题会把图标标成琥珀角标，点击可看详情。',
+        target: () => document.querySelector('[data-testid="health-bar"]')
+      }
+    ],
+    []
+  )
+  const tour = useTour('novel-first', tourSteps)
   const narrow = shouldCollapseChapterList(winW, agentWd)
   const effectiveNarrow = narrow || chapHidden
   const chapRef = useRef<HTMLDivElement | null>(null)
@@ -977,6 +1007,9 @@ export default function Novel() {
 
   return (
     <div className="flex h-full min-h-0">
+      {tour.open && tour.step && (
+        <TourTip step={tour.step} index={tour.index} total={tour.total} onNext={tour.next} onSkip={tour.skip} onFinish={tour.finish} />
+      )}
       {!effectiveNarrow && (
         <aside data-testid="chapter-sidebar" className="flex w-60 shrink-0 flex-col border-r border-hair bg-surface-2">
           {chapterHeader}

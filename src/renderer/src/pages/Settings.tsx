@@ -56,6 +56,7 @@ export default function Settings() {
   const [writingInsights, setWritingInsights] = useState(false)
   const [focusMode, setFocusMode] = useState(false)
   const [typewriter, setTypewriter] = useState(false)
+  const [guide, setGuide] = useState(true)
   const [shortcutOpen, setShortcutOpen] = useState(false)
   const [tools, setTools] = useState({ todo: true, askUser: true })
   const [caps, setCaps] = useState<Record<string, boolean>>({})
@@ -119,6 +120,7 @@ export default function Settings() {
     setWritingInsights(settings.writingInsightsEnabled ?? false)
     setFocusMode(settings.focusModeEnabled ?? false)
     setTypewriter(settings.typewriterEnabled ?? false)
+    setGuide(settings.guideEnabled ?? true)
     setTools({ todo: settings.agentTools?.todo ?? true, askUser: settings.agentTools?.askUser ?? true })
     setCaps(settings.capabilities ?? {})
     setOveruseList(normalizeOveruseDict(settings.overuseDict))
@@ -590,6 +592,31 @@ export default function Settings() {
                       void updateSettings({ typewriterEnabled: v })
                     }}
                   />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>首次使用引导</Label>
+                    <p className="text-xs text-ink-3">开启后，首次进入核心页面会弹出功能引导（可跳过，引导过的动线不再重复）；关闭则不打扰。</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      data-testid="guide-replay"
+                      onClick={() => void window.zhijuan.getSettings().then((s) => window.zhijuan.setSettings({ guideSeen: [] })).catch(() => {})}
+                      className="whitespace-nowrap rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:border-accent hover:text-accent"
+                      title="清空已看过的引导记录，让核心页面的引导重新出现"
+                    >
+                      重新查看
+                    </button>
+                    <Switch
+                      aria-label="首次使用引导"
+                      checked={guide}
+                      onCheckedChange={(v) => {
+                        setGuide(v)
+                        void updateSettings({ guideEnabled: v })
+                      }}
+                    />
+                  </div>
                 </div>
               </Card>
               <Card className="mt-4 p-6">

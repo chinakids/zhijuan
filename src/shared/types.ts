@@ -131,6 +131,9 @@ export interface AppSettings {
    *  批注定时优化开关先例口径——新增自动化行为一律默认关，设置页「外观与数据」开关 UI=体验层/平台层接线（增量 4c））。
    *  分析执行=main/writingInsights.ts（增量 4b，智能层），纯函数/template=shared/writingInsights.ts（增量 4a）。 */
   writingInsightsEnabled: boolean
+  /** 首次使用功能引导（F-20260923-02）：默认开（guideEnabled）；guideSeen 记录的动线不再重复弹，设置可关闭与重看。 */
+  guideEnabled: boolean
+  guideSeen: string[]
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -146,7 +149,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   foldedCols: { novel: false, characters: false, worldview: false, outline: false, library: false },
   settingsPane: 'workspace',
   agentTools: { todo: true, askUser: true },
-  writingInsightsEnabled: false
+  writingInsightsEnabled: false,
+  guideEnabled: true,
+  guideSeen: []
 }
 
 /** todo 清单项（模型通过 todo_write 维护的全量列表） */

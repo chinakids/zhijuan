@@ -548,7 +548,9 @@ const settings: AppSettings = {
   foldedCols: { novel: false, characters: false, worldview: false, outline: false, library: false },
   settingsPane: 'workspace',
   agentTools: { todo: true, askUser: true },
-  writingInsightsEnabled: false
+  writingInsightsEnabled: false,
+  guideEnabled: true,
+  guideSeen: []
 }
 
 // 工作区落档文档（dev 示范；真机由主进程写盘）
