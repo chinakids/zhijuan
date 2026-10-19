@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbfaf6"/>
+      <stop offset="1" stop-color="#ece6da"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="56" y="56" width="912" height="912" rx="208" fill="url(#paper)"/>
+  <rect x="56" y="56" width="912" height="912" rx="208" fill="none" stroke="#d8d1c4" stroke-width="6"/>
+
+  <!-- 中央「织」字（黑体加粗，端正厚重，居中偏上） -->
+  <text x="512" y="452" text-anchor="middle" dominant-baseline="central"
+        font-family="'PingFang SC','Heiti SC','Songti SC',sans-serif"
+        font-weight="600" font-size="348" fill="#2d2a24">织</text>
+
+  <!-- 青黛编织带（纯色，横+纵经纬线，与字留白分离） -->
+  <g stroke="#0f766e" stroke-linecap="round">
+    <line x1="308" y1="716" x2="716" y2="716" stroke-width="24"/>
+    <line x1="308" y1="760" x2="716" y2="760" stroke-width="18" opacity="0.75"/>
+    <line x1="308" y1="800" x2="716" y2="800" stroke-width="12" opacity="0.5"/>
+  </g>
+  <g stroke="#0f766e" stroke-width="12" stroke-linecap="round" opacity="0.6">
+    <line x1="356" y1="688" x2="356" y2="828"/>
+    <line x1="468" y1="688" x2="468" y2="828"/>
+    <line x1="512" y1="688" x2="512" y2="828"/>
+    <line x1="556" y1="688" x2="556" y2="828"/>
+    <line x1="668" y1="688" x2="668" y2="828"/>
+  </g>
+</svg>
