@@ -68,6 +68,11 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
   // 口径=shared/count.countWords（剥约定头与 markdown 标记；中文按字、连续西文按一词），
   // 与 HistoryDrawer「当前正文约 N 字」同源同义（2026-09-23 创作层，编辑器实时字数）。
   const [wordCount, setWordCount] = useState(0)
+  // 当前选中的字数（2026-10-19 创作层）：选中正文时状态栏显示「已选 N 字」——写作时作者常在
+  // 编辑/重构前想知道选中段落的体量（与「约 N 字」同源 countWords 口径）；无选区/选区在编辑器外不显示。
+  const [selLen, setSelLen] = useState(0)
+  const selTextRef = useRef('') // 上次选区文本，仅变化时才重算（selectionchange 高频）
+  const edRef = useRef<HTMLDivElement | null>(null)
   // 批注被删空时自动收起抽屉（防空列表残留）
   const annoCount = annotations?.length ?? 0
   useEffect(() => {
@@ -84,6 +89,8 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
     setInitErr('')
     setEpoch((x) => x + 1)
     setConfirmEmpty(false) // 换文档/重试：清掉上文的「确要清空」待确认态
+    setSelLen(0)
+    selTextRef.current = ''
     ;(async () => {
       try {
         const raw = await window.zhijuan.readDoc(projectId, rel)
@@ -288,6 +295,28 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
     }
   }, [extVersion, projectId, rel, withFm])
 
+  // 选中字数（2026-10-19 创作层）：监听 document selectionchange，仅当选区在本页编辑器内且非空时
+  // 按 countWords 口径显示「已选 N 字」。anchor/focus 都须在编辑器容器内（划词浮层/批注气泡/侧栏
+  // 按钮上的选区不算）；文本无变化不重算（selectionchange 高频，避免多余 setState）。
+  useEffect(() => {
+    const onSel = () => {
+      const container = edRef.current
+      let txt = ''
+      const s = window.getSelection()
+      if (container && s && !s.isCollapsed && s.rangeCount > 0) {
+        const a = s.anchorNode
+        const f = s.focusNode
+        if ((a && container.contains(a)) && (f && container.contains(f))) txt = (s.toString() || '')
+      }
+      if (txt !== selTextRef.current) {
+        selTextRef.current = txt
+        setSelLen(txt ? countWords(txt) : 0)
+      }
+    }
+    document.addEventListener('selectionchange', onSel)
+    return () => document.removeEventListener('selectionchange', onSel)
+  }, [])
+
   const dirty = status === 'dirty'
   useEffect(() => onDirty?.(dirty), [dirty, onDirty])
 
@@ -345,7 +374,7 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
 
   return (
     <div className={cn('flex h-full min-h-0 flex-col', className)}>
-      <div className="flex min-h-0 flex-1 overflow-auto">
+      <div ref={edRef} className="flex min-h-0 flex-1 overflow-auto">
         <Prose
           key={epoch}
           apiRef={apiRef}
@@ -398,6 +427,14 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
             title="本章字数（中文按字、连续西文按一词；不含约定头与标记）"
           >
             约 {wordCount} 字
+          </span>
+        )}
+        {selLen > 0 && (
+          <span
+            className="shrink-0 whitespace-nowrap text-ink-3"
+            title="当前选中的字数（中文按字、连续西文按一词）；取消选区后消失"
+          >
+            已选 {selLen} 字
           </span>
         )}
         <span className="flex-1" />
