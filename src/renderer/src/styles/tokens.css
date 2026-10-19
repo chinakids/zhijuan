@@ -126,6 +126,17 @@
 .prose table { border-collapse: collapse; margin: 0.5em 0; font-size: 0.9em; display: block; width: max-content; max-width: 100%; overflow-x: auto }
 .prose th, .prose td { border: 1px solid var(--hair); padding: 0.3em 0.6em; white-space: nowrap }
 
+/* 横向可滚动渐隐提示（2026-10-19 体验层；HIG Scroll views「Make it apparent when content is scrollable——
+   displaying partial content at the edge indicates that there's more content in that direction」）：
+   代码块/宽表（pre/table）在 .prose 语境出横向滚动时，最右 28px 渐隐到透明，提示可横向滚动。
+   布尔量 data-xfade 由 lib/xfade.ts 按需写入——仅当「确可横滚 且 未滚到最右端」才写；无滚动/已滚到右端无此属性，
+   零影响。作用域仅 .prose（消息流经 .agent-prose 继承 / CollectionBar / ProposalDrawer）。 */
+.prose pre[data-xfade],
+.prose table[data-xfade] {
+  -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 28px), transparent 100%);
+}
+
 /* 消息流（Agent 回复区）专属字排走查（2026-10-04 体验层）：HIG Typography「legibility + hierarchy +
    loose leading for long passages」——标题层级与正文可辨、段落间距明显大于行距、代码块不双重缩小。
    作用域仅 .agent-prose（AgentPanel 消息流），共享 .prose 的 CollectionBar/其它面零影响。 */

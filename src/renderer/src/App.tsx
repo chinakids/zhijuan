@@ -8,6 +8,7 @@ import WindowChrome from './components/WindowChrome'
 import InputEditMenu from './components/InputEditMenu'
 import MenuBridge from './features/menu/menuBus'
 import { Toaster, toast } from './components/ui/toast'
+import { initXFade } from './lib/xfade'
 
 function Boot() {
   const loadSettings = useAppStore((s) => s.loadSettings)
@@ -46,6 +47,8 @@ function QuoteBridge() {
 }
 
 export default function App() {
+  /* 横向可滚动渐隐提示（2026-10-19）：document 级装饰，独立于 Router 之外，任何页的 pre/table 横滚都跟随。 */
+  useEffect(() => initXFade(), [])
   return (
     <TooltipProvider>
       <Boot />
