@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, Outlet, useSearchParams } from 'react-router-dom'
 import type { FsEvent, ProjectSummary } from '../../../shared/types'
 import SectionNav, { type NavCounts } from '../features/nav/SectionNav'
 import LoadingIndicator from '../components/LoadingIndicator'
+import { useTour } from '../features/guide/useTour'
+import TourTip from '../features/guide/TourTip'
 import { useProposalStore } from '../store/proposals'
 import ProposalDrawer from '../features/proposals/ProposalDrawer'
 import ProjectGuide from '../features/guide/ProjectGuide'
@@ -109,6 +111,20 @@ export default function Workspace() {
 
   const proposals = useProposalStore((s) => s.list)
   const tick = useProposalStore((s) => s.tick)
+  // 动线④：首次出现提案时，高亮左侧导航底部「待确认提案」（F-20260923-02 增量2）
+  const proposalSteps = useMemo(
+    () => [
+      {
+        key: 'proposals',
+        title: '设定修改走提案',
+        placement: 'left' as const,
+        text: 'agent 调整人物/世界观时不会直接动你的设定，而是沉淀成「提案」。点左侧底部「待确认提案」逐一查看：可选择改写意见或确认后写入设定档案。',
+        target: () => ([...document.querySelectorAll('button')] as HTMLElement[]).find((b) => (b.innerText || '').includes('待确认提案')) ?? null
+      }
+    ],
+    []
+  )
+  const proposalTour = useTour('proposal-guide', proposalSteps)
   const pending = proposals.filter((p) => p.status === 'pending').length
   const stale = proposals.filter((p) => p.status === 'stale').length
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -174,6 +190,9 @@ export default function Workspace() {
 
   return (
     <div className="flex h-full">
+      {proposalTour.open && proposalTour.step && (
+        <TourTip step={proposalTour.step} index={proposalTour.index} total={proposalTour.total} onNext={proposalTour.next} onSkip={proposalTour.skip} onFinish={proposalTour.finish} />
+      )}
       <SectionNav projectId={project.id} projectName={project.name} counts={counts} pending={pending} stale={stale} onOpenProposals={() => setDrawerOpen(true)} />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="min-h-0 flex-1">

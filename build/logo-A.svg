@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#12836f"/>
+      <stop offset="0.55" stop-color="#0f766e"/>
+      <stop offset="1" stop-color="#0a544c"/>
+    </linearGradient>
+    <pattern id="grid" width="52" height="52" patternUnits="userSpaceOnUse">
+      <path d="M52 0H0V52" fill="none" stroke="#f6f4ef" stroke-opacity="0.16" stroke-width="3"/>
+    </pattern>
+  </defs>
+  <rect x="56" y="56" width="912" height="912" rx="208" fill="url(#g)"/>
+  <rect x="56" y="56" width="912" height="912" rx="208" fill="none" stroke="#0c6157" stroke-width="6"/>
+  <!-- 打开的「书页」两页（暖纸），页面上有经纬织纹 -->
+  <g>
+    <path d="M512 300 C 420 268, 330 268, 262 296 L 262 700 C 330 672, 420 672, 512 704 Z" fill="#f6f4ef"/>
+    <path d="M512 300 C 604 268, 694 268, 762 296 L 762 700 C 694 672, 604 672, 512 704 Z" fill="#f6f4ef" opacity="0.96"/>
+    <path d="M512 300 C 420 268, 330 268, 262 296 L 262 700 C 330 672, 420 672, 512 704 Z" fill="url(#grid)"/>
+    <path d="M512 300 C 604 268, 694 268, 762 296 L 762 700 C 694 672, 604 672, 512 704 Z" fill="url(#grid)"/>
+    <!-- 中缝折痕 -->
+    <path d="M512 300 L 512 704" stroke="#0f766e" stroke-opacity="0.35" stroke-width="6" stroke-linecap="round"/>
+  </g>
+</svg>

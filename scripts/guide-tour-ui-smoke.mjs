@@ -23,6 +23,9 @@ const ok = (n, c, x = '') => { console.log((c ? 'PASS ' : 'FAIL ') + n + (x ? ' 
 const tab = await openTab(BASE + '/?cb=' + Date.now() + '#/project/demo-aseya/novel')
 const page = await attach(tab.webSocketDebuggerUrl)
 try {
+    await evalUntil(page, `typeof window.zhijuan?.setSettings === 'function'`, (v) => v === true, 20000, 'zhijuan 就绪')
+    // 预置 seen 排除 Agent 检查/提案/批注等旁支引导，只留 novel-first 主线
+    await page.eval(`window.zhijuan.setSettings({ guideSeen: ['agent-check', 'proposal-guide', 'quote-annotate'] })`)
   await evalUntil(page, `document.body.innerText.includes('正文创作')`, (v) => v === true, 20000, 'novel 就绪')
   // 选一章（保证 保存/体检 目标存在）
   await page.eval(`(() => { const b = [...document.querySelectorAll('aside button, [data-testid="chapter-sidebar"] button')].find((x) => (x.innerText || '').includes('第1章')); if (b) { b.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerType:'mouse'})); b.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerType:'mouse'})); b.click(); return true } return false })()`)

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="p" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbfaf6"/>
+      <stop offset="1" stop-color="#ece7db"/>
+    </linearGradient>
+  </defs>
+  <rect x="56" y="56" width="912" height="912" rx="208" fill="url(#p)"/>
+  <rect x="56" y="56" width="912" height="912" rx="208" fill="none" stroke="#d7d0c3" stroke-width="6"/>
+  <!-- 织纹回旋：经纬交叠的闭环结（暖纸底 / 深墨 + 青黛点缀） -->
+  <g fill="none" stroke-linecap="round">
+    <!-- 外圈四边回旋 -->
+    <path d="M320 320 H 704 V 704 H 320 Z" stroke="#2d2a24" stroke-width="26"/>
+    <!-- 内经短梭（纬线左右、经线上下交错，模仿编织） -->
+    <path d="M320 416 H 512" stroke="#2d2a24" stroke-width="26" opacity="0.85"/>
+    <path d="M512 416 H 704" stroke="#0f766e" stroke-width="26"/>
+    <path d="M416 320 V 512" stroke="#2d2a24" stroke-width="26" opacity="0.85"/>
+    <path d="M416 512 V 704" stroke="#0f766e" stroke-width="26"/>
+  </g>
+  <!-- 中心留白圆点 -->
+  <circle cx="512" cy="512" r="44" fill="#0f766e"/>
+</svg>

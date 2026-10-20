@@ -14,6 +14,8 @@ import '@milkdown/theme-nord/style.css'
 import '../../styles/milkdown.css'
 import { ClipboardPaste, Copy, FileText, MessageSquarePlus, MessageSquareText, Scissors, TextSelect, Trash2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { useTour } from '../guide/useTour'
+import TourTip from '../guide/TourTip'
 import { useAppStore } from '../../store/app'
 import { FOCUS_DIM_CLASS, FOCUS_ON_CLASS, focusBlockRange } from './focusMode'
 import { makeTypewriterPlugin } from './typewriter'
@@ -1341,8 +1343,26 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // 动线⑥：首次划词浮出入口时，高亮「批注」按钮（F-20260923-02 增量2）
+  const quoteSteps = useMemo(
+    () => [
+      {
+        key: 'annotate',
+        title: '划词留批注',
+        placement: 'bottom' as const,
+        text: '选中正文会浮出入口，「批注」可把想法/待改处随手记下，统一沉淀进《批注登记》，再按约定时间优化成稿。',
+        target: () => document.querySelector('button[aria-label="批注"]')
+      }
+    ],
+    []
+  )
+  const quoteTour = useTour('quote-annotate', quoteSteps)
+
   return (
     <>
+      {quoteTour.open && quoteTour.step && (
+        <TourTip step={quoteTour.step} index={quoteTour.index} total={quoteTour.total} onNext={quoteTour.next} onSkip={quoteTour.skip} onFinish={quoteTour.finish} />
+      )}
       <div className={cn('zj-md relative flex h-full min-h-0 flex-col overflow-hidden', className)}>
         <EditorToolbar edRef={edRef} histTick={histTick} active={active} />
         <FindBar

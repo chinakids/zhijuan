@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#15846f"/>
+      <stop offset="0.5" stop-color="#0f766e"/>
+      <stop offset="1" stop-color="#0a4f48"/>
+    </linearGradient>
+  </defs>
+  <rect x="56" y="56" width="912" height="912" rx="208" fill="url(#g)"/>
+  <rect x="56" y="56" width="912" height="912" rx="208" fill="none" stroke="#0b5c53" stroke-width="6"/>
+  <!-- 折纸书卷：两片暖纸折页，中缝折角，负空间纵深感 -->
+  <g>
+    <path d="M 512 300 L 700 220 L 700 640 L 512 720 Z" fill="#f6f4ef"/>
+    <path d="M 512 300 L 324 220 L 324 640 L 512 720 Z" fill="#f1ede2" opacity="0.9"/>
+    <path d="M 324 220 L 512 300 L 700 220" fill="none" stroke="#0f766e" stroke-width="10" stroke-linecap="round" opacity="0.35"/>
+  </g>
+  <!-- 页面织纹（细横线两道） -->
+  <g stroke="#0f766e" stroke-width="8" stroke-linecap="round" opacity="0.32">
+    <line x1="352" y1="330" x2="492" y2="392"/>
+    <line x1="352" y1="400" x2="492" y2="462"/>
+  </g>
+</svg>

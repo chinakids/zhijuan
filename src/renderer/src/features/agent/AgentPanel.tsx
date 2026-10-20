@@ -36,6 +36,8 @@ import AuditDrawer from '../audit/AuditDrawer'
 import AtMentionMenu from './AtMentionMenu'
 import CommandMenu from './CommandMenu'
 import { cn } from '../../lib/utils'
+import { useTour } from '../guide/useTour'
+import TourTip from '../guide/TourTip'
 import { Button } from '../../components/ui/button'
 import {
   DropdownMenu,
@@ -812,6 +814,20 @@ export default function AgentPanel(props: AgentPanelProps) {
   const messages = useAgentStore((s) => s.messages)
   const quote = useAgentStore((s) => s.quote)
   const streaming = useAgentStore((s) => s.streaming)
+  // 动线⑦：首次进入 Agent 区，指向「检查」阵容（存量全卷巡读；本地秒级规则在底部状态栏）
+  const checkSteps = useMemo(
+    () => [
+      {
+        key: 'check',
+        title: '全卷巡读检查',
+        placement: 'left' as const,
+        text: '上方「检查」可对整个项目做一致性巡查 / 冷读报告 / 多视角审视（模型级分钟）；本地秒级规则在底部「规则体检」状态栏。',
+        target: () => document.querySelector('button[aria-label="检查"]')
+      }
+    ],
+    []
+  )
+  const checkTour = useTour('agent-check', checkSteps)
   // 工具链分组（2026-09-15）：相邻 meta 卡聚合为链（≥2 张），单卡保持既有视觉零回归
   const chainInfo = useMemo(() => {
     const byId = new Map<string, { ids: string[]; isHead: boolean }>()
@@ -1584,6 +1600,9 @@ export default function AgentPanel(props: AgentPanelProps) {
 
   return (
     <>
+      {checkTour.open && checkTour.step && (
+        <TourTip step={checkTour.step} index={checkTour.index} total={checkTour.total} onNext={checkTour.next} onSkip={checkTour.skip} onFinish={checkTour.finish} />
+      )}
       <aside
         id="zj-agent-panel"
         className="relative flex h-full shrink-0 flex-col border-l border-hair bg-surface-2"

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { BookMarked, CheckCheck, CheckCircle2, CircleDashed, Clapperboard, FileText, Hammer, History, ListTree, MoreHorizontal, PenLine, RefreshCw, ScrollText, ShieldCheck, Waypoints, Wrench } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
+import { useTour } from '../features/guide/useTour'
+import TourTip from '../features/guide/TourTip'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '../components/ui/context-menu'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../components/ui/dropdown-menu'
 import type { ChapterEntry } from '../../../shared/types'
@@ -388,8 +390,26 @@ export default function Outline() {
     </>
   )
 
+  // 动线⑤：首次进入大纲且已有章卡，高亮顶栏「导演本章」（F-20260923-02 增量2）
+  const outlineSteps = useMemo(
+    () => [
+      {
+        key: 'direct',
+        title: '先导演再动笔',
+        placement: 'bottom' as const,
+        text: '选中左侧章卡后，点顶栏「导演本章」可为本章生成导演板：先立冲突与情绪弧，再起草正文。',
+        target: () => document.querySelector('button[aria-label="导演本章"]')
+      }
+    ],
+    []
+  )
+  const outlineTour = useTour('outline-direct', outlineSteps)
+
   return (
     <div className="flex h-full min-h-0">
+      {outlineTour.open && outlineTour.step && (
+        <TourTip step={outlineTour.step} index={outlineTour.index} total={outlineTour.total} onNext={outlineTour.next} onSkip={outlineTour.skip} onFinish={outlineTour.finish} />
+      )}
       {!colHidden && (
       <aside data-testid="outline-col" className="flex w-64 shrink-0 flex-col border-r border-hair bg-surface-2">
         <div className="flex items-center gap-2 border-b border-hair px-3 py-2.5">

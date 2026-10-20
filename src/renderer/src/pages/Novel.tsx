@@ -187,7 +187,7 @@ export default function Novel() {
     ],
     []
   )
-  const tour = useTour('novel-first', tourSteps)
+  const tour = useTour('novel-first', tourSteps, { priority: 10 })
   const narrow = shouldCollapseChapterList(winW, agentWd)
   const effectiveNarrow = narrow || chapHidden
   const chapRef = useRef<HTMLDivElement | null>(null)
