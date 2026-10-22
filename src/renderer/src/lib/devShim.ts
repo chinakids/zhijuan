@@ -1951,6 +1951,20 @@ const mock = {
       emit({ requestId: rid, type: 'done' })
       return { ok: true }
     }
+    // 消息流任务清单/嵌套·有序列表走查种子（2026-10-22 体验层）：prompt 含「清单演示」时回复含
+    // gfm 任务清单（- [ ] / - [x]）、嵌套任务清单、有序列表 + 嵌套有序列表、普通圆点列表、超长列表项——核对
+    // .agent-prose 对 task list checkbox、嵌套缩进、有序序号与断行的渲染（「排版演示」种子零回归）
+    if (/清单演示/.test(input.prompt)) {
+      const listdemo =
+        '### 本周写作计划\n\n- [x] 完成第01章 雾港的修改，确认灯语伏笔\n- [ ] 补写第02章 雨夜旅店的船票核对场景\n- [ ] 与档案核对沈藏的出场时间线\n- [ ] 整理素材库中码头改造公告的摘录\n\n### 章节推进清单（嵌套示例）\n\n- [ ] 主线：码头线\n  - [ ] 第01章 雾港栈桥（已完成草稿）\n  - [ ] 第02章 雨夜旅店\n- [ ] 支线：灯语\n  - [ ] 右侧点灯 = 等你回来\n  - [ ] 左侧连闪两下 = 有人来过\n\n### 后续顺序\n\n1. 先重读第03章，确认灯塔的设定是否与第01章一致\n2. 再核对阿七与沈藏的对话口径，避免称谓混用\n   1. 检查「沈爷」是否需改为「沈藏」\n   2. 记录偏差值留给第七章引爆\n3. 最后把船票压到窗台下，用火漆封好\n\n> 附录：这一行用来承载一条超长的任务说明，里面塞了足够多的文字以验证消息流里长列表项与长引用在窄面板能否正常断行而不越出气泡右缘，也不会被侧栏或面板边缘截断。\n\n### 圆点列表核对\n\n- 暖纸面配色在浅色主题下保持柔和不刺眼\n- 精密中性铬的按钮与控件在深色主题下对比清晰\n- 正文编辑器满宽不留白，与 Apple 文档类产品的沉浸式写作习惯一致'
+      for (let i = 0; i < listdemo.length; i += 8) {
+        emit({ requestId: rid, type: 'delta', text: listdemo.slice(i, i + 8) })
+        await demoDelay()
+      }
+      emit({ requestId: rid, type: 'final', text: listdemo })
+      emit({ requestId: rid, type: 'done' })
+      return { ok: true }
+    }
 // 流式压力演示：prompt 含「流式压力」时高频发射大量 think/delta 增量（3ms 间隔），
     // 验证渲染层帧级节流（streamBuffer）合并后内容完整无丢失（真实 reasoning 高频流模拟）
     if (/流式压力/.test(input.prompt)) {

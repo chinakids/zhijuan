@@ -111,6 +111,16 @@
 .prose p { margin: 0.4em 0 }
 .prose ul, .prose ol { margin: 0.4em 0; padding-left: 1.4em }
 .prose li { margin: 0.15em 0 }
+/* 列表标记恢复（2026-10-22 体验层）：Tailwind preflight 默认 ol,ul{list-style:none} 会把 .prose 语境
+   的无序/有序列表标记整体抹掉——消息流/素材预览/提案 diff 的「步骤/核对表/清单」会失去圆点与序号线索
+   （HIG Lists 的 steps/checklists 可读性；有序列表「后续顺序 1.2.3」实测序号不显示）。恢复 disc/decimal；
+   gfm 任务清单（remark-gfm 渲染 checkbox 代替圆点）保持 none 防双标记，并给 checkbox 留右边距+垂直居中
+   （原生 checkbox 无间距致文字紧贴，实测 marginRight=0）。作用域=共享 .prose，与 2026-10-06 宽表先例同层。 */
+.prose ul { list-style: disc }
+.prose ol { list-style: decimal }
+.prose ul.contains-task-list { list-style: none }
+.prose li.task-list-item { list-style: none }
+.prose input[type="checkbox"] { margin: 0 0.4em 0 0; vertical-align: middle }
 .prose a { color: var(--accent) }
 .prose code { background: var(--surface-2); border-radius: 4px; padding: 0.1em 0.35em; font-size: 0.9em; font-family: Menlo, monospace }
 .prose pre { background: var(--surface-2); border: 1px solid var(--hair); border-radius: 8px; padding: 0.6em 0.8em; overflow-x: auto; font-size: 0.85em; line-height: 1.5 }
