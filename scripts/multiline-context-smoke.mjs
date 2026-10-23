@@ -88,7 +88,7 @@ try {
   // ① 过去线第 4 章：线内前驱 = 过去线第 2 章
   const ctx4 = await buildWritingContext(p.id, '正文/第04章_过去二.md')
   const b4 = ctx4.blocks.join('\n')
-  assert('① 当前章节块携带本章时间线注明', b4.includes('【当前章节：正文/第04章_过去二.md】（本章时间线「过去线」）'))
+  assert('① 当前章节块携带本章时间线注明', b4.includes('【当前章节：正文/第04章_过去二.md】（本章时间线「过去线」'))
   assert('① 上一章尾部 = 第02章_过去一（线内前驱）', b4.includes('【上一章尾部：第02章_过去一】'))
   assert('① 不取全局上一章（主线第 3 章）', !b4.includes('【上一章尾部：第03章_主线二】'))
   assert('① 块头注明同线前章=第2章且非全局上一章', b4.includes('同线前章=第2章') && b4.includes('非全局上一章'))
@@ -118,7 +118,7 @@ try {
   const ctx2 = await buildWritingContext(p.id, '正文/第02章_过去一.md')
   const b2 = ctx2.blocks.join('\n')
   assert('③ 过去线第2章无线内前驱 → 无「上一章尾部」块', !b2.includes('【上一章尾部：'))
-  assert('③ 仍注明本章时间线', b2.includes('（本章时间线「过去线」）'))
+  assert('③ 仍注明本章时间线', b2.includes('（本章时间线「过去线」'))
   assert('③ 线内第一章也按线过滤人物档：含 B 不含 A/C', b2.includes('过去状态：B。') && !b2.includes('主线状态：A。') && !b2.includes('主线状态：C。'))
 
   // ⑤ 单线老项目（无「时间线」字段）零回归

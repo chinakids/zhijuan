@@ -100,6 +100,41 @@ describe('buildWritingContext（写作上下文装配）', () => {
     expect(mat).not.toContain('索引路标')
   })
 
+  it('多线项目：当前章块头注明本章时间线，并追加「正文明示时间线」引导（封版目标①）', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      const table: Record<string, string> = {
+        '正文/第1章_现在.md': '---\n章号: 1\n题名: 现在\n切片: 幕1\n时间线: 主线\n---\n现在线正文',
+        '正文/第2章_过去.md': '---\n章号: 2\n题名: 过去\n切片: 幕0\n时间线: 过去线\n---\n过去线正文'
+      }
+      return table[rel] ?? null
+    })
+    listChaptersMock.mockReturnValue([
+      chEntry('第1章_现在.md', { '章号': 1, '题名': '现在', '切片': '幕1', '时间线': '主线' }),
+      chEntry('第2章_过去.md', { '章号': 2, '题名': '过去', '切片': '幕0', '时间线': '过去线' })
+    ] as never)
+
+    const { blocks } = await buildWritingContext('p', '正文/第2章_过去.md')
+    const cur = blocks[0]
+    expect(cur).toContain('本章时间线「过去线」')
+    // 多线项目：引导模型在正文开头/切换处明示当前时间线，避免并行时序混淆
+    expect(cur).toContain('多线交错叙事')
+    expect(cur).toContain('明确标记')
+  })
+
+  it('单线项目（章节无「时间线」字段）：线头零打扰，无「多线交错叙事」引导', async () => {
+    readDocMock.mockImplementation((_id: string, rel: string) => {
+      if (rel === '正文/第1章_云.md') return FM_1 + '正文'
+      if (rel === '正文/第2章_雾.md') return FM_2 + '正文'
+      return null
+    })
+    listChaptersMock.mockReturnValue([chEntry('第1章_云.md', FM_OBJ_1), chEntry('第2章_雾.md', FM_OBJ_2)] as never)
+
+    const { blocks } = await buildWritingContext('p', '正文/第2章_雾.md')
+    const cur = blocks[0]
+    expect(cur).not.toContain('多线交错叙事')
+    expect(cur).not.toContain('本章时间线')
+  })
+
   it('预算硬控：正文 ≤WCTX_CAPS.chapter、人物 ≤4000、切片 ≤4000、素材索引 ≤1200', async () => {
     readDocMock.mockImplementation((_id: string, rel: string) => {
       if (rel === '正文/第1章_b.md') return FM_1 + '甲'.repeat(WCTX_CAPS.chapter + 1000)

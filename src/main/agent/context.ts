@@ -54,9 +54,14 @@ export async function buildWritingContext(projectId: string, chapterRel: string)
     }
   }
 
-  // 0b. 线信息（2026-09-16 多时间线叙事）：本章时间线 + 同线前驱（多线项目才注明，单线零打扰）
+  // 0b. 线信息（2026-09-16 多时间线叙事）：本章时间线 + 同线前驱（多线项目才注明，单线零打扰）。
+  //     2026-10-23 封版收敛（目标①）：多线项目追加「正文明示时间线」引导——多时间线叙事的关键技巧是
+  //     在正文里让读者随时定位当前线（时间/年代标记），否则并行时序易混淆（创作方法论：River dual-timeline
+  //     「readers get confused about which timeline they're in」/The Novelry 时序转换标记法）；单线零打扰。
   const prevInfo = previousChapterInfo(projectId, chapterRel)
-  const lineNote = prevInfo.multi ? `（本章时间线「${prevInfo.line}」）` : ''
+  const lineNote = prevInfo.multi
+    ? `（本章时间线「${prevInfo.line}」；本卷为多线交错叙事——请在正文开头及切换时间线处，用年代/时间或「那一年」「多年后」等明确标记令读者定位当前线，避免并行时序混淆）`
+    : ''
 
   // 1. 当前章节正文（去 front matter；章首「本章故事要素」块随正文一起带上）
   //    预算硬控边：超长时装配**结尾**（续写/巡查最需要的是刚写到的部分；开头可用 zj_read_doc 现读），
