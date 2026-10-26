@@ -10,6 +10,7 @@ files:
   - package.json
   - "!**/*.map"
 asar: true
+afterPack: scripts/afterPackMacos.js
 extraResources:
   - from: dsh-runtime
     to: dsh-runtime
@@ -22,7 +23,11 @@ mac:
     - target: dmg
   icon: build/icon.icns
   category: public.app-category.productivity
+  # 2026-10-26 按 daily_stock_analysis#2101 缓解：明确 unsigned（identity null + hardenedRuntime false），
+  # 由 afterPack hook 递归清除失效的 Electron 预置残缺签名→干净无签名，避免被 Gatekeeper 判「损坏移废纸篓」。
+  # 无 Apple 开发者证书，无法 notarize；unsigned 仍不受 Apple 信任，需「右键打开/仍要打开」。
   identity: null
+  hardenedRuntime: false
   artifactName: zhijuan-${version}-mac-${arch}.${ext}
 win:
   target:
