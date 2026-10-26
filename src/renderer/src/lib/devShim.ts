@@ -2281,6 +2281,8 @@ const mock = {
       if (v === '__empty__') return ''
       return v || '雾港夜'
     })()
+    // 无头冒烟：`?zj-line=<线名>` 注入证据「时间线」，验证多线项目证据小字「（线名）」（2026-10-26 创作层；缺省=主线不标注）
+    const lineName = new URLSearchParams(location.search).get('zj-line') || undefined
     // 严格性短路（与真机 runSync 同口径，2026-09-20 创作层）：正文为空=无设定可提取 →
     // 直接返回 bodyEmpty 证据（零提案、不产「动向」噪音）；devShim 门判据=docs 实际正文体。
     const bodyTxt = docs.get(id + '/' + rel) ?? ''
@@ -2322,7 +2324,7 @@ const mock = {
         ok: true,
         items: [],
         guard: { issues },
-        evidence: { slice: sliceName, castCount: 3, knownFiles: 5, unarchived: 1 }
+        evidence: { slice: sliceName, castCount: 3, knownFiles: 5, unarchived: 1, line: lineName }
       }
       devAppendSyncLog(id, rel, sliceName, { itemCount: 0, guardCount: issues.length })
       return r
@@ -2350,7 +2352,7 @@ const mock = {
     return {
       ok: true,
       items: [],
-      evidence: { slice: sliceName, castCount: 3, knownFiles: 5, unarchived: 1 }
+      evidence: { slice: sliceName, castCount: 3, knownFiles: 5, unarchived: 1, line: lineName }
     }
   },
   // 切片同步历史日志（devShim：内存态；真机读 .zhijuan/sync-log.jsonl，最新在前）
