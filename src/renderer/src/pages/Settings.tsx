@@ -14,7 +14,7 @@ import { PROVIDER_PRESETS, providerById } from '../../../shared/providers'
 import { normalizeOveruseDict } from '../../../shared/wordfreq'
 import { isImeComposing } from '../lib/ime'
 import SkillSettingsCard from '../features/skills/SkillSettingsCard'
-import type { LlmProviderId } from '../../../shared/types'
+import type { LlmProviderCfg, LlmProviderId } from '../../../shared/types'
 import type { SettingsPaneKey } from '../../../shared/types'
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -49,6 +49,8 @@ export default function Settings() {
   const [provApiKey, setProvApiKey] = useState('')
   const [provBaseUrl, setProvBaseUrl] = useState('')
   const [provModel, setProvModel] = useState('')
+  const [llmCheck, setLlmCheck] = useState<{ ok: boolean; step?: string; status: number; message: string; body?: string; baseUrl?: string; model?: string } | null>(null)
+  const [checking, setChecking] = useState(false)
   const [libraryRoot, setLibraryRoot] = useState('')
   const [theme, setTheme] = useState<'paper' | 'dark'>('paper')
   const [collection, setCollection] = useState(true)
@@ -186,11 +188,20 @@ export default function Settings() {
   }
 
   function selectProvider(id: LlmProviderId) {
+    const pc = (settings?.llm?.providers?.[id] ?? {}) as LlmProviderCfg
     setProvider(id)
-    const pc = settings?.llm?.providers?.[id] ?? {}
+    setProvModel(pc.model ?? '')
     setProvApiKey(pc.apiKey ?? '')
     setProvBaseUrl(pc.baseUrl ?? '')
-    setProvModel(pc.model ?? '')
+  }
+  /** 连接检测（2026-10-26）：用当前填的配置发最小请求，返回断点诊断供排查「连不上/看不了日志」。 */
+  function runLlmCheck() {
+    setChecking(true)
+    void window.zhijuan
+      .checkLlmConnection({ provider, model: provModel, baseUrl: provBaseUrl, apiKey: provApiKey })
+      .then((r) => setLlmCheck(r))
+      .catch((e) => setLlmCheck({ ok: false, step: 'error', status: 0, message: String((e as Error)?.message ?? e) }))
+      .finally(() => setChecking(false))
   }
 
   async function save() {
@@ -248,6 +259,15 @@ export default function Settings() {
   return (
     <div className="flex h-full">
       <aside className="flex w-52 shrink-0 flex-col gap-1 border-r border-hair bg-surface-2 p-3">
+        <button
+          type="button"
+          data-testid="settings-back"
+          onClick={() => (window.location.hash = '#/')}
+          className="mb-1 flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 text-xs text-ink-2 transition-colors hover:bg-surface-2 hover:text-accent"
+          title="返回项目列表"
+        >
+          <span aria-hidden className="text-sm leading-none">←</span> 返回
+        </button>
         <div className="mb-2 flex items-center gap-2 px-1 py-1">
           <span className="flex h-6 w-6 items-center justify-center rounded-md bg-accent text-xs font-bold text-accent-ink">织</span>
           <span className="text-sm font-semibold">设置</span>
@@ -415,6 +435,41 @@ export default function Settings() {
                       <Field label="接入地址（高级，留空用官方默认）" hint={`默认：${p.baseURL}。改了走自定义网关 / 代理。`}>
                         <Input value={provBaseUrl} onChange={(e) => setProvBaseUrl(e.target.value)} placeholder={p.baseURL} />
                       </Field>
+                      <div className="mt-2 rounded-lg border border-hair bg-surface-2 p-3">
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            data-testid="llm-check"
+                            disabled={checking}
+                            onClick={runLlmCheck}
+                          >
+                            {checking ? '检测中…' : '连接检测'}
+                          </Button>
+                          <span className="text-xs text-ink-3">用当前配置发最小请求，诊断「连不上」的原因（连接日志）</span>
+                        </div>
+                        {llmCheck && (
+                          <pre
+                            role={llmCheck.ok ? 'status' : 'alert'}
+                            data-testid="llm-check-result"
+                            className={`mt-2 max-h-40 overflow-auto break-all whitespace-pre-wrap rounded-md border p-2 text-[11px] leading-relaxed ${
+                              llmCheck.ok ? 'border-hair text-ink' : 'border-destructive/40 bg-destructive/5 text-destructive'
+                            }`}
+                          >
+                            {`● ${llmCheck.message}\n地址：${llmCheck.baseUrl || '-'}\n模型：${llmCheck.model || '-'}\n状态码：${llmCheck.status ?? '-'}\n${llmCheck.body ? '响应：' + llmCheck.body + '\n' : ''}${(llmCheck as { step?: string }).step ? '断点：' + (llmCheck as { step?: string }).step : ''}`}
+                          </pre>
+                        )}
+                        {llmCheck && (
+                          <button
+                            type="button"
+                            data-testid="llm-copy"
+                            onClick={() => { void navigator.clipboard?.writeText(JSON.stringify(llmCheck, null, 2)) }}
+                            className="mt-1 rounded px-1 py-0.5 text-[11px] text-ink-3 transition-colors hover:text-accent"
+                          >
+                            复制诊断
+                          </button>
+                        )}
+                      </div>
                     </>
                   )
                 })()}

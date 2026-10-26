@@ -63,8 +63,8 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     keyHint: 'platform.deepseek.com 创建 API key',
     compat: { supportsDeveloperRole: false, maxTokensField: 'max_tokens' },
     models: [
-      { id: 'deepseek-v4-flash', note: '轻量快，日常写作够用' },
-      { id: 'deepseek-v4-pro', note: '更强，更慢更贵' }
+      { id: 'deepseek-chat', note: 'V3 对话，日常写作够用' },
+      { id: 'deepseek-reasoner', note: 'R1 推理，更强更贵' }
     ]
   },
   {

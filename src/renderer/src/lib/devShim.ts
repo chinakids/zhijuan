@@ -2357,7 +2357,16 @@ const mock = {
   },
   // 切片同步历史日志（devShim：内存态；真机读 .zhijuan/sync-log.jsonl，最新在前）
   syncLogList: async () => [...syncLogMem],
-  agentStatus: async () => ({ online: true, provider: '本机 vLLM', model: 'deepseek-v4-flash-vision-exp-uncensored', message: '' }),
+  agentStatus: async () => {
+    if (typeof location !== 'undefined' && location.search.includes('zj-engineoff')) return { online: false, provider: '本机 vLLM', model: 'deepseek-v4-flash-vision-exp-uncensored', message: '引擎未启动（注入离线态，测首启引导）' }
+    return { online: true, provider: '本机 vLLM', model: 'deepseek-v4-flash-vision-exp-uncensored', message: '' }
+  },
+  checkLlmConnection: async (cfg: { provider: string; model?: string; baseUrl?: string; apiKey?: string }) => {
+    // devShim 演示：模拟 DeepSeek 缺 key / 模型名不存在的诊断（供无头验证连接检测 UI）
+    const model = cfg.model || 'deepseek-chat'
+    if (!cfg.apiKey) return { ok: false, step: 'apiKey', status: 0, message: '未填写 API Key：请在该服务商填 Key 后再测', body: '', baseUrl: cfg.baseUrl || '', model }
+    return { ok: true, step: 'request', status: 200, message: '连接成功', body: '{"id":"mock"}', baseUrl: cfg.baseUrl || '', model }
+  },
   agentListCapabilities: async () => [
     { id: 'audit', title: '全卷检查', description: '（演示）一致性巡查 / 冷读报告：跨全卷对照设定找问题' },
     { id: 'perspectives', title: '多视角审视', description: '（演示）以角色粉 / 设定党 / 节奏读者三种立场各通读一遍，交叉找问题' },

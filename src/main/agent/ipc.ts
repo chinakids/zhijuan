@@ -15,7 +15,7 @@ import { listSkills, createSkill, updateSkill, deleteSkill, setSkillDisabled, im
 import { runWritingInsights, readInsightsState, listDrafts, promoteDraft, deleteDraft } from '../writingInsights'
 import type { SkillDraft } from '../../shared/skills'
 import type { InsightRunResult, InsightsState, DraftEntry } from '../../shared/writingInsights'
-import { activeProvider } from '../../shared/providers'
+import { activeProvider, providerById } from '../../shared/providers'
 import { getSettings, setSettings, libraryRoot } from '../settings'
 import { mkdirSync, writeFileSync, readFileSync } from 'fs'
 import { dirname, join } from 'path'
@@ -100,6 +100,44 @@ export function registerAgentIpc() {
     const s = getSettings()
     const cfg = activeProvider(s)
     return { online: !err, provider: cfg.preset.name, model: cfg.model, message: err }
+  })
+  // 连接检测（2026-10-26 主人反馈「DeepSeek 连不上、连接报错无法查看日志」）：用当前服务商配置发最小
+  // chat/completions 请求，返回断点诊断（鉴权 401/404 模型名/429 限流/超时等），供设置页逐项排查。
+  ipcMain.handle('llm:check', async (_e, cfgIn: { provider: string; model?: string; baseUrl?: string; apiKey?: string }) => {
+    const s = getSettings()
+    const preset = providerById(cfgIn.provider) ?? providerById(s.llm?.active) ?? providerById('local')!
+    const cfg = s.llm?.providers?.[preset.id] ?? {}
+    const baseUrl = (cfgIn.baseUrl || cfg.baseUrl || '').trim() || preset.baseURL
+    const model = (cfgIn.model || cfg.model || '').trim() || preset.models[0]?.id || ''
+    const key = (cfgIn.apiKey ?? cfg.apiKey ?? '').trim()
+    if (preset.needsKey && !key) return { ok: false, step: 'apiKey', status: 0, message: '未填写 API Key：请在该服务商填 Key 后再测', body: '' }
+    const api = preset.api
+    const url = api === 'anthropic-messages' ? baseUrl + '/v1/messages' : baseUrl + '/chat/completions'
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (api === 'anthropic-messages') { headers['x-api-key'] = key; headers['anthropic-version'] = '2023-06-01' }
+    else if (key) headers['Authorization'] = 'Bearer ' + key
+    const body = JSON.stringify({ model, max_tokens: 1, messages: [{ role: 'user', content: 'ping' }] })
+    const ac = new AbortController()
+    const to = setTimeout(() => ac.abort(), 15000)
+    try {
+      const r = await fetch(url, { method: 'POST', headers, body, signal: ac.signal })
+      const text = await r.text()
+      clearTimeout(to)
+      const msg = r.ok
+        ? '连接成功'
+        : r.status === 401 || r.status === 403
+          ? '鉴权失败（HTTP ' + r.status + '）：检查 API Key / 余额'
+          : r.status === 404
+            ? '模型或地址不存在（HTTP 404）：检查模型名与接入地址（DeepSeek 官方模型=deepseek-chat / deepseek-reasoner）'
+            : r.status === 429
+              ? '限流或配额不足（HTTP 429）'
+              : 'HTTP ' + r.status
+      return { ok: r.ok, step: 'request', status: r.status, message: msg, body: text.slice(0, 400), baseUrl: url, model }
+    } catch (e) {
+      clearTimeout(to)
+      const msg = String((e as Error)?.message ?? e)
+      return { ok: false, step: 'network', status: 0, message: /abort/i.test(msg) ? '连接超时（15s）：检查接入地址可达性' : msg, body: '', baseUrl: url, model }
+    }
   })
   // 能力注册表（模块 J / E3）：枚举 + 设置页开关
   ipcMain.handle('agent:capabilities', () => listCapabilities())

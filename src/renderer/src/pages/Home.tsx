@@ -51,6 +51,14 @@ function coverOf(id: string): [string, string] {
 export default function Home() {
   const navigate = useNavigate()
   const [projects, setProjects] = useState<ProjectSummary[]>([])
+  const [engineOfflineBanner, setEngineOfflineBanner] = useState(false)
+  // 首启引擎配置引导（2026-10-26 主人反馈「首次打开没有引擎配置引导」）：引擎未就绪时首页横幅引导去配置并连接检测。
+  useEffect(() => {
+    void window.zhijuan
+      .agentStatus()
+      .then((s) => { if (!s.online) setEngineOfflineBanner(true) })
+      .catch(() => {})
+  }, [])
   const [recents, setRecents] = useState<RecentEntry[]>([])
   const [query, setQuery] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
@@ -228,6 +236,22 @@ export default function Home() {
 
   return (
     <div className="flex h-full flex-col">
+      {engineOfflineBanner && (
+        <div
+          data-testid="engine-guide-banner"
+          className="flex shrink-0 items-center gap-3 border-b border-hair bg-accent/10 px-6 py-2.5"
+        >
+          <span className="min-w-0 truncate text-sm text-ink">写作引擎未就绪，先配置模型才能开始创作。</span>
+          <Button
+            size="sm"
+            variant="default"
+            className="ml-auto shrink-0"
+            onClick={() => { void window.zhijuan.setSettings({ settingsPane: 'engine' }).then(() => navigate('/settings')) }}
+          >
+            去配置写作引擎
+          </Button>
+        </div>
+      )}
       {/* 项目网格 */}
       <main className="flex-1 overflow-auto p-6">
         {/* 工具条：搜索过滤 + 排序说明（窄窗口不换行，truncate） */}

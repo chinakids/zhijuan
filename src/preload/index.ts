@@ -271,6 +271,8 @@ const api = {
     >,
   agentStatus: () =>
     ipcRenderer.invoke('agent:status') as Promise<{ online: boolean; provider?: string; model?: string; message?: string }>,
+  checkLlmConnection: (cfg: { provider: string; model?: string; baseUrl?: string; apiKey?: string }) =>
+    ipcRenderer.invoke('llm:check', cfg) as Promise<{ ok: boolean; step?: string; status: number; message: string; body?: string; baseUrl?: string; model?: string }>,
   agentListCapabilities: () =>
     ipcRenderer.invoke('agent:capabilities') as Promise<{ id: string; title: string; description?: string }[]>,
   agentSetCapability: (id: string, enabled: boolean) =>
