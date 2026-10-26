@@ -310,6 +310,8 @@ export interface SyncEvidence {
   unarchived: number
   /** 正文为空被本地短路：未比对、未调模型、零提案（2026-09-20 创作层；证据小字改示「正文为空，未比对」） */
   bodyEmpty?: boolean
+  /** 本章「时间线」归一后线名（shared/line.ts chapterLine；多线项目作者据此确认本次比对的是哪条线的切片状态——D-V2-5 封版① 自洽核对） */
+  line?: string
 }
 
 /** 切片同步历史日志单条（2026-09-16 创作层：.zhijuan/sync-log.jsonl 着一行一条，作者可回溯） */

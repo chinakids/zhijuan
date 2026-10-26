@@ -32,4 +32,14 @@ describe('describeSyncEvidence（「无设定变化」比对基准小字）', ()
       ' · 已比对 切片「第一幕_烧杯「final」」、人档 3'
     )
   })
+  it('多线项目非主线章：切片名追加「（<线名>）」便于确认比对的是哪条线（D-V2-5 封版①）', () => {
+    expect(
+      describeSyncEvidence({ slice: '第二幕_旧院', castCount: 2, knownFiles: 4, unarchived: 0, line: '过去线' })
+    ).toBe(' · 已比对 切片「第二幕_旧院」（过去线）、人档 4')
+  })
+  it('主线/未写「时间线」字段（line=主线）不显式标注=单线与主线零打扰', () => {
+    expect(
+      describeSyncEvidence({ slice: '第二幕_旧院', castCount: 2, knownFiles: 4, unarchived: 0, line: '主线' })
+    ).toBe(' · 已比对 切片「第二幕_旧院」、人档 4')
+  })
 })

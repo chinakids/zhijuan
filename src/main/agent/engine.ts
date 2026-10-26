@@ -12,6 +12,7 @@ import { summarizeToolArgs, serializeToolArgs } from '../../shared/toolArgs'
 import { normalizeSyncItems, ensureWorldSliceFile, guardPersonTargets, classifySyncRaw } from './syncAnchor'
 import { appendSyncLog, clipLogError } from './syncLog'
 import { extractFrontMatter } from '../../shared/fmatter'
+import { chapterLine, DEFAULT_LINE } from '../../shared/line'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import type { ProposalItem } from '../../shared/types'
@@ -364,9 +365,11 @@ export async function runSync(
   let castAll: string[] = []
   let bodyLen = 0
   let bodyRead = false // 章节读取成功标记：短路门只在「确实读到正文为空」时生效，不掩盖读失败
+  let line = DEFAULT_LINE // 本章「时间线」归一后线名（多线项目证据小字标注哪条线的切片状态——D-V2-5 封版①）
   try {
     const ch = readFileSync(join(projectDir(projectId), chapterRel), 'utf-8')
     const fm = extractFrontMatter(ch).fm ?? {}
+    line = chapterLine(fm as { 时间线?: unknown })
     sliceName = String(fm['切片'] ?? '')
     castAll = Array.isArray(fm['涉及人物']) ? (fm['涉及人物'] as string[]) : []
     // P1 F-20260917-10 取证字段：同步时刻正文本体长度（剥约定头后；0=正文为空——「同步照跑但正文已被清空」的形态在 sync-log 一眼可辨）
@@ -410,7 +413,8 @@ export async function runSync(
         castCount: castAll.length,
         knownFiles: knownFiles.length,
         unarchived: noFile.length,
-        bodyEmpty: true
+        bodyEmpty: true,
+        line
       }
     }
   }
@@ -464,12 +468,13 @@ export async function runSync(
     } = {
       ok: true,
       items: g.items,
-      // 比对基准证据（零额外 IO）：本次切片名/涉及人物数/人档基数/未建档盲区
+      // 比对基准证据（零额外 IO）：本次切片名/涉及人物数/人档基数/未建档盲区；多线项目含线名（D-V2-5 封版①）
       evidence: {
         slice: sliceName,
         castCount: castAll.length,
         knownFiles: knownFiles.length,
-        unarchived: noFile.length
+        unarchived: noFile.length,
+        line
       }
     }
     if (g.issues.length) res.guard = { issues: g.issues }

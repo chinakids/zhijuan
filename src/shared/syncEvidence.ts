@@ -6,6 +6,7 @@
 // 纯函数、零 IO；main（engine.ts 组装）/renderer（sliceSync.ts 透传 + 各入口文案）共用；
 // 类型 SyncEvidence 在 shared/types.ts（与 SyncIssue 同类先例）。
 import type { SyncEvidence } from './types'
+import { DEFAULT_LINE } from './line'
 
 /**
  * 「无设定变化」时的证据小字（带前导「 · 」）；无证据/全零返回 ''（调用方保持原文案）。
@@ -21,7 +22,9 @@ export function describeSyncEvidence(e?: SyncEvidence | null): string {
   const hasAny = e.slice || e.knownFiles > 0 || e.castCount > 0 || e.unarchived > 0
   if (!hasAny) return ''
   const note: string[] = []
-  if (e.slice) note.push(`切片「${e.slice}」`)
+  // 多线项目（非主线章）：追加「（<线名>）」便于作者确认本次比对的是哪条线的切片状态（D-V2-5 封版① 自洽核对）；
+  // 主线/未写「时间线」字段（line===DEFAULT_LINE）不显式标注=单线与主线零打扰（与单线章卡/徽标口径一致）。
+  if (e.slice) note.push(`切片「${e.slice}」${e.line && e.line !== DEFAULT_LINE ? `（${e.line}）` : ''}`)
   else note.push('⚠约定头未设切片名')
   note.push(`人档 ${e.knownFiles}`)
   if (e.unarchived > 0) note.push(`${e.unarchived} 人未建档`)
