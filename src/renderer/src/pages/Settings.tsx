@@ -7,7 +7,7 @@ import { Separator } from '../components/ui/separator'
 import { Switch } from '../components/ui/switch'
 import { Card } from '../components/ui/card'
 import { cn } from '../lib/utils'
-import { Keyboard, Plus, Trash2, FileUp, FileDown } from 'lucide-react'
+import { ArrowLeft, Keyboard, Plus, Trash2, FileUp, FileDown, RefreshCw } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import ShortcutHelp from '../features/command/ShortcutHelp'
 import { PROVIDER_PRESETS, providerById } from '../../../shared/providers'
@@ -22,7 +22,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
     <div className="space-y-1.5 pb-4">
       <Label>{label}</Label>
       {children}
-      {hint && <p className="text-xs text-ink-3">{hint}</p>}
+      {hint && <p className="min-w-0 text-xs leading-5 text-ink-3">{hint}</p>}
     </div>
   )
 }
@@ -51,6 +51,7 @@ export default function Settings() {
   const [provModel, setProvModel] = useState('')
   const [llmCheck, setLlmCheck] = useState<{ ok: boolean; step?: string; status: number; message: string; body?: string; baseUrl?: string; model?: string } | null>(null)
   const [checking, setChecking] = useState(false)
+  const [engStatus, setEngStatus] = useState<{ online: boolean; provider?: string; model?: string; message?: string } | null>(null)
   const [libraryRoot, setLibraryRoot] = useState('')
   const [theme, setTheme] = useState<'paper' | 'dark'>('paper')
   const [collection, setCollection] = useState(true)
@@ -203,6 +204,14 @@ export default function Settings() {
       .catch((e) => setLlmCheck({ ok: false, step: 'error', status: 0, message: String((e as Error)?.message ?? e) }))
       .finally(() => setChecking(false))
   }
+  /** 引擎状态（2026-10-26 主人「连接成功但引擎离线」）：拉 agentStatus，离线时展示详细诊断并可复制。 */
+  function refreshEngine() {
+    void window.zhijuan
+      .agentStatus()
+      .then(setEngStatus)
+      .catch(() => setEngStatus({ online: false, message: '获取引擎状态失败' }))
+  }
+  useEffect(() => { refreshEngine() }, [])
 
   async function save() {
     const cur = settings?.llm ?? { active: 'local' as LlmProviderId, providers: {} }
@@ -263,10 +272,11 @@ export default function Settings() {
           type="button"
           data-testid="settings-back"
           onClick={() => (window.location.hash = '#/')}
-          className="mb-1 flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-1 text-xs text-ink-2 transition-colors hover:bg-surface-2 hover:text-accent"
+          className="mb-2 flex shrink-0 items-center gap-1.5 rounded-md border border-hair px-2 py-1.5 text-xs text-ink-2 transition-colors hover:border-accent hover:text-accent"
           title="返回项目列表"
         >
-          <span aria-hidden className="text-sm leading-none">←</span> 返回
+          <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+          <span>返回</span>
         </button>
         <div className="mb-2 flex items-center gap-2 px-1 py-1">
           <span className="flex h-6 w-6 items-center justify-center rounded-md bg-accent text-xs font-bold text-accent-ink">织</span>
@@ -476,6 +486,34 @@ export default function Settings() {
               </Card>
 
       <Card className="mt-4 p-6">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-ink-2">
+          引擎状态
+          <Button size="sm" variant="ghost" aria-label="刷新引擎状态" onClick={refreshEngine} data-testid="engine-refresh" title="重新检测引擎">
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+        </h3>
+        <Separator className="my-4" />
+        {engStatus === null ? (
+          <p className="min-w-0 text-xs text-ink-3">检测中…</p>
+        ) : engStatus.online ? (
+          <p className="min-w-0 text-xs text-ink" data-testid="engine-status">● 引擎在线 · {engStatus.provider} · {engStatus.model}</p>
+        ) : (
+          <div data-testid="engine-status" role="alert">
+            <p className="min-w-0 text-xs font-medium text-destructive">● 引擎离线</p>
+            <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-md border border-destructive/40 bg-destructive/5 p-2 text-[11px] leading-relaxed text-ink">{engStatus.message}</pre>
+            <button
+              type="button"
+              data-testid="engine-copy"
+              onClick={() => { void navigator.clipboard?.writeText(engStatus.message ?? '') }}
+              className="mt-1 rounded px-1 py-0.5 text-[11px] text-ink-3 transition-colors hover:text-accent"
+            >
+              复制诊断
+            </button>
+          </div>
+        )}
+      </Card>
+
+      <Card className="mt-4 p-6">
         <h3 className="text-sm font-semibold text-ink-2">写作引擎与常用工具</h3>
         <Separator className="my-4" />
         <p className="pb-4 text-xs text-ink-3">
@@ -485,7 +523,7 @@ export default function Settings() {
           <div className="flex items-center justify-between">
             <div>
               <Label>任务清单（todo_write）</Label>
-              <p className="text-xs text-ink-3">模型会把执行步骤画成清单卡片，随进度更新。</p>
+              <p className="min-w-0 text-xs leading-5 text-ink-3">模型会把执行步骤画成清单卡片，随进度更新。</p>
             </div>
             <Switch
               aria-label="任务清单（todo_write）"
@@ -500,7 +538,7 @@ export default function Settings() {
           <div className="flex items-center justify-between">
             <div>
               <Label>需要你确认（ask_user）</Label>
-              <p className="text-xs text-ink-3">需要选择时模型会停下，用提问卡等你回答。</p>
+              <p className="min-w-0 text-xs leading-5 text-ink-3">需要选择时模型会停下，用提问卡等你回答。</p>
             </div>
             <Switch
               aria-label="需要你确认（ask_user）"
@@ -522,13 +560,13 @@ export default function Settings() {
               <div key={c.id} className="flex items-center justify-between">
                 <div>
                   <Label>{c.title}</Label>
-                  <p className="text-xs text-ink-3">{c.description ?? '…'}</p>
+                  <p className="min-w-0 text-xs leading-5 text-ink-3">{c.description ?? '…'}</p>
                 </div>
                 <Switch aria-label={c.title} checked={caps[c.id] !== false} onCheckedChange={(v) => toggleCap(c.id, v)} />
               </div>
             ))
           ) : (
-            <p className="text-xs text-ink-3">引擎未注册检查能力。</p>
+            <p className="min-w-0 text-xs leading-5 text-ink-3">引擎未注册检查能力。</p>
           )}
         </div>
       </Card>
@@ -544,7 +582,7 @@ export default function Settings() {
                 <div className="flex items-center justify-between pb-4">
                   <div>
                     <Label>主题</Label>
-                    <p className="text-xs text-ink-3">暖纸（默认）适合长时间写作，深色适合夜间。</p>
+                    <p className="min-w-0 text-xs leading-5 text-ink-3">暖纸（默认）适合长时间写作，深色适合夜间。</p>
                   </div>
                   <div className="flex gap-1 rounded-lg border border-hair p-0.5" role="group" aria-label="主题">
                     <Button
@@ -579,7 +617,7 @@ export default function Settings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>联网采集管道</Label>
-                    <p className="text-xs text-ink-3">开启后，采集池的任务会由本机管道后台处理（S5）。</p>
+                    <p className="min-w-0 text-xs leading-5 text-ink-3">开启后，采集池的任务会由本机管道后台处理（S5）。</p>
                   </div>
                   <Switch
                     aria-label="联网采集管道"
@@ -593,7 +631,7 @@ export default function Settings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>批注定时优化</Label>
-                    <p className="text-xs text-ink-3">开启后，打开项目 10 秒后及每 30 分钟自动扫描批注并生成提案；关闭后仅在提案抽屉手动「扫描批注」。</p>
+                    <p className="min-w-0 text-xs leading-5 text-ink-3">开启后，打开项目 10 秒后及每 30 分钟自动扫描批注并生成提案；关闭后仅在提案抽屉手动「扫描批注」。</p>
                   </div>
                   <Switch
                     aria-label="批注定时优化"
@@ -607,7 +645,7 @@ export default function Settings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>写作习惯学习</Label>
-                    <p className="text-xs text-ink-3">
+                    <p className="min-w-0 text-xs leading-5 text-ink-3">
                       开启后，打开项目时自动分析写作行为（版本改动/批注意图/用词习惯），每周生成技能草稿到草稿区；草稿需在「写作引擎」技能包管理中手动转正才生效。默认关闭。
                     </p>
                   </div>
@@ -623,7 +661,7 @@ export default function Settings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>焦点模式</Label>
-                    <p className="text-xs text-ink-3">开启后，正文只强调当前段，其余段落淡化（iA Writer / Typora 同类范式）；默认关闭。</p>
+                    <p className="min-w-0 text-xs leading-5 text-ink-3">开启后，正文只强调当前段，其余段落淡化（iA Writer / Typora 同类范式）；默认关闭。</p>
                   </div>
                   <Switch
                     aria-label="焦点模式"
@@ -637,7 +675,7 @@ export default function Settings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>打字机滚动</Label>
-                    <p className="text-xs text-ink-3">开启后，输入时正文自动滚动，让光标保持在屏幕中线附近（Typora 同类范式）；点击定位不强制居中；默认关闭。</p>
+                    <p className="min-w-0 text-xs leading-5 text-ink-3">开启后，输入时正文自动滚动，让光标保持在屏幕中线附近（Typora 同类范式）；点击定位不强制居中；默认关闭。</p>
                   </div>
                   <Switch
                     aria-label="打字机滚动"
@@ -651,7 +689,7 @@ export default function Settings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>首次使用引导</Label>
-                    <p className="text-xs text-ink-3">开启后，首次进入核心页面会弹出功能引导（可跳过，引导过的动线不再重复）；关闭则不打扰。</p>
+                    <p className="min-w-0 text-xs leading-5 text-ink-3">开启后，首次进入核心页面会弹出功能引导（可跳过，引导过的动线不再重复）；关闭则不打扰。</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <button

@@ -202,7 +202,16 @@ export async function ensureHarness(): Promise<string | undefined> {
     try { await harness?.close() } catch {}
     harness = null
     failCount += 1
-    return `写作引擎启动失败（${msg.slice(0, 200)}）`
+    const usingElectron = launch.command === process.execPath
+    const sdkOk = existsSync(sdkBin())
+    return [
+      `写作引擎启动失败：${msg.slice(0, 200)}`,
+      `node：${launch.command}${usingElectron ? '（Electron 兜底 ELECTRON_RUN_AS_NODE）' : ''}`,
+      `SDK 入口：${sdkOk ? '存在' : '缺失 → ' + sdkBin()}`,
+      `运行时目录：${runtimeDir()}`,
+      `DSH_HOME：${dshHome()}`,
+      `服务商：${cfg.preset.name} · ${cfg.model}`
+    ].join('\n')
   }
 }
 
