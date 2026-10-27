@@ -373,7 +373,7 @@ function chapterNoOf(fm: FrontMatter | null): number | null {
  * 实现：listChapters 一次取全（ingest 已解析 fm），shared/line.linePredecessor 纯函数选同线前驱——
  * 单线老项目退化为全局按章号前驱（与旧 previousChapter 同行为，零回归）。
  */
-function previousChapterInfo(
+export function previousChapterInfo(
   projectId: string,
   chapterRel: string
 ): {

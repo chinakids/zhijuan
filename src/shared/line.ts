@@ -101,6 +101,27 @@ export function filterCharDocByLine(text: string, keepSlices: ReadonlySet<string
 }
 
 /**
+ * 检查材料「时间线纪律」提示（2026-10-27 智能层，封版目标①）。
+ * 多线交错时，全卷正文按章号顺序、本章材料里的人物档会被捏在同一材料包里；模型若不被告知线归属，
+ * 会把别线的事实当成本线的矛盾（人物状态/切片按线分叉、两线时间差本就不同）——业界口径一致要求逐线核对：
+ * K.M. Weiland《6 Ways to Pull Off Dual Timelines》第 4 条「每条时间线各自需要自己的情节点，check and double-check」；
+ * River《How to Structure a Dual Timeline Novel》「Readers get confused about which timeline they're in」。
+ * 单线项目（或全项目同一线）返回空串＝零打扰。
+ */
+export function lineDisciplineNote(lines: readonly string[], curLine?: string): string {
+  const uniq = [...new Set(lines.map((l) => (typeof l === 'string' ? l.trim() : '')).filter(Boolean))]
+  if (uniq.length <= 1) return ''
+  const lineList = uniq.join('、')
+  const cur = typeof curLine === 'string' && curLine.trim() ? `本章属「${curLine.trim()}」。` : ''
+  return (
+    `【时间线纪律】本卷为多线交错叙事，共 ${uniq.length} 条时间线：${lineList}。${cur}\n` +
+    '- 判断时序（先后、时长、日期）只在**同一时间线内**比较；不同线之间的时间差不算矛盾。\n' +
+    '- 判断人物 / 世界状态只与本线的切片状态比对（状态按线分叉）：别线切片所述的差异不算冲突。\n' +
+    '- 确有问题时，在 where 里写明线名，便于作者定位。'
+  )
+}
+
+/**
  * 建章预填基准决策（2026-09-17；多线项目建章预填按选中章线评估，02-创作层候选 2）。
  * 现状口径（0181b8d）：建章对话框预填「上一章」= 约定头章号最大章（切片/时间线/涉及人物三字段同源）。
  * 多线项目作者续写非最新线（如正编辑过去线第 2 章）时，最新章属于另一线 → 预填给出错误线的默认值，

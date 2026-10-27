@@ -10,6 +10,8 @@ import { actGapsCheck } from '../../shared/actGaps'
 import { extractFrontMatter } from '../../shared/fmatter'
 import { chapterOrderCheck } from '../../shared/chapterorder'
 import { sliceSectionOrderCheck } from '../../shared/sliceorder'
+import { chapterLine, DEFAULT_LINE, filterCharDocByLine, lineDisciplineNote } from '../../shared/line'
+import { previousChapterInfo } from './context'
 import { registerCapability, runSubtask, extractJson, type SubtaskDef } from './subtask'
 import { getSettings } from '../settings'
 import { auditDocMarkdown } from '../../shared/auditDoc'
@@ -299,12 +301,18 @@ function clip(text: string, head = 2400, tail = 1400): string {
  */
 export function volumeBrief(projectId: string): string {
   const parts: string[] = []
+  const chapters = listChapters(projectId)
+  // 多线项目：材料顶部先给时间线清单与「线内比较」纪律，每章标题带线名（2026-10-27 智能层，封版目标①）。
+  // 否则两线交错的正文按章号排在一起，模型会把别线的时间差/人物状态当作矛盾（假冲突）。
+  const discipline = lineDisciplineNote(chapters.map((c) => chapterLine(c.fm)))
+  const multi = discipline !== ''
   parts.push('【全部章节正文（按章节顺序，每章与创作上下文同口径：预算内全量，超长保尾并在省略处注明）】')
-  for (const c of listChapters(projectId)) {
+  if (discipline) parts.push(discipline)
+  for (const c of chapters) {
     const raw = readDoc(projectId, '正文/' + c.file) ?? ''
     const body = stripFm(raw)
     if (!body.trim()) continue
-    parts.push(`\n### ${chapterHead(c)}\n${chapterBodyBlock(body, '正文/' + c.file)}`)
+    parts.push(`\n### ${chapterHead(c, multi)}\n${chapterBodyBlock(body, '正文/' + c.file)}`)
   }
   parts.push('\n【当前设定档案】')
   for (const dir of ['人物', '世界观']) {
@@ -317,10 +325,12 @@ export function volumeBrief(projectId: string): string {
   return parts.join('\n')
 }
 
-function chapterHead(c: ChapterEntry): string {
+function chapterHead(c: ChapterEntry, withLine = false): string {
   const no = c.fm?.['章号']
   const t = c.fm?.['题名']
-  return no !== undefined ? `第${no}章${t ? ' · ' + t : ''}（正文/${c.file}）` : `（正文/${c.file}）`
+  // 多线项目标线名（主线也标，作者/模型都能一眼对齐「这章在哪条线」）
+  const lineTag = withLine ? `（时间线：${chapterLine(c.fm)}）` : ''
+  return no !== undefined ? `第${no}章${t ? ' · ' + t : ''}${lineTag}（正文/${c.file}）` : `（正文/${c.file}）`
 }
 
 function auditSystem(kind: AuditKind): string {
@@ -576,16 +586,40 @@ export function chapterBodyBlock(body: string, rel: string): string {
   )
 }
 
-/** 本章材料包：本章正文（预算内全量，超长保尾+注明）+ 人物 · 世界观档案（小截段）+ 素材库目录名（给修订时参考） */
-function chapterBrief(projectId: string, chapterRel: string, body: string): string {
+/**
+ * 本章材料包：本章正文（预算内全量，超长保尾+注明）+ 人物 · 世界观档案（小截段）+ 素材库目录名（给修订时参考）
+ * 2026-10-27 智能层（封版目标①）：多线项目按线标注——本章线名 + 同线前驱 + 时间线纪律；人物档按本线切片过滤
+ * （与 buildWritingContext 同口径 filterCharDocByLine），避免别线的人物状态被误判成本章冲突。单线零打扰。
+ * 顺带修正：`chapterRel` 入参已含「正文/」前缀，旧写法 `（正文/${chapterRel}）` 会打印成 正文/正文/…。
+ */
+export function chapterBrief(projectId: string, chapterRel: string, body: string): string {
   const parts: string[] = []
-  parts.push(`【当前章节】（正文/${chapterRel}）\n${chapterBodyBlock(body, chapterRel)}`)
+  const info = previousChapterInfo(projectId, chapterRel)
+  const discipline = info.multi
+    ? lineDisciplineNote(listChapters(projectId).map((c) => chapterLine(c.fm)), info.line)
+    : ''
+  if (info.multi) {
+    const predNote =
+      info.predNo !== null ? `同线上一章：第${info.predNo}章` : '本章为本线开篇（同线暂无前章）'
+    parts.push(`【本章时间线】「${info.line}」（${predNote}）`)
+    if (discipline) parts.push(discipline)
+  }
+  parts.push(`【当前章节】（${chapterRel}）\n${chapterBodyBlock(body, chapterRel)}`)
   parts.push('\n【当前设定档案（节选）】')
   for (const dir of ['人物', '世界观']) {
     for (const d of listDocs(projectId, dir)) {
-      const t = readDoc(projectId, dir + '/' + d.file) ?? ''
+      let t = readDoc(projectId, dir + '/' + d.file) ?? ''
       if (!t.trim()) continue
-      parts.push(`\n### ${dir}/${d.file}\n${clip(t, 1200, 500)}`)
+      let lineNote = ''
+      // 人物档「## 切片：<名>」小节按本章所属线过滤（世界切片是整文件，不适用小节过滤）
+      if (info.multi && dir === '人物' && info.lineSlices.size) {
+        const f = filterCharDocByLine(t, info.lineSlices)
+        t = f.text
+        if (!t.trim()) continue
+        if (f.omitted.length)
+          lineNote = `\n（已按本章时间线「${info.line}」过滤：略去其他线切片小节 ${f.omitted.length} 个（${f.omitted.join('、')}）；要看完整档案可用 zj_read_doc 读 ${dir}/${d.file}）`
+      }
+      parts.push(`\n### ${dir}/${d.file}\n${clip(t, 1200, 500)}${lineNote}`)
     }
   }
   parts.push('\n【素材库现有类别】')

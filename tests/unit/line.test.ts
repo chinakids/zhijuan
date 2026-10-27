@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chapterLine, linePredecessor, listLinesFromEntries, lineSliceNames, filterCharDocByLine, prefillSource, DEFAULT_LINE, type LineEntryNode } from '../../src/shared/line'
+import { chapterLine, linePredecessor, listLinesFromEntries, lineSliceNames, filterCharDocByLine, prefillSource, lineDisciplineNote, DEFAULT_LINE, type LineEntryNode } from '../../src/shared/line'
 
 describe('chapterLine（约定头「时间线」字段提取）', () => {
   it('缺省=主线（无字段/无 fm）', () => {
@@ -223,3 +223,29 @@ describe('prefillSource（建章预填基准：多线项目续写非最新线时
   })
 })
 
+
+describe('lineDisciplineNote（检查材料时间线纪律，2026-10-27 封版①）', () => {
+  it('单线/空清单 → 空串（单线零打扰，材料不增噪）', () => {
+    expect(lineDisciplineNote([])).toBe('')
+    expect(lineDisciplineNote(['主线', '主线'])).toBe('')
+    expect(lineDisciplineNote(['主线  ', '主线'])).toBe('')
+  })
+
+  it('多线 → 清单去重保序 + 三条纪律（时序线内比较/状态按线分叉/where 写线名）', () => {
+    const note = lineDisciplineNote(['主线', '过去线', '主线'])
+    expect(note).toContain('共 2 条时间线：主线、过去线')
+    expect(note).toContain('同一时间线内')
+    expect(note).toContain('状态按线分叉')
+    expect(note).toContain('where 里写明线名')
+  })
+
+  it('给 curLine 时点明本章所属线；不给则不带该句', () => {
+    expect(lineDisciplineNote(['主线', '过去线'], '过去线')).toContain('本章属「过去线」。')
+    expect(lineDisciplineNote(['主线', '过去线'])).not.toContain('本章属')
+  })
+
+  it('空白线名过滤（防御脏数据，不产出「共 N 条」虚数）', () => {
+    const note = lineDisciplineNote(['主线', '  ', '过去线'])
+    expect(note).toContain('共 2 条时间线')
+  })
+})
