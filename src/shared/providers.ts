@@ -45,11 +45,16 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
       chatTemplateKwargs: { thinking: false }
     },
     // 模型 id 以 127.0.0.1:8888 实际服务的为准（vLLM 于 2026-09 重启换为 vision-exp-uncensored；旧的 0731 id 已 404/空返）。
+    // **2026-10-27 补记（智能层）**：本机服务已迁 192.168.0.200（sglang），只提供 `deepseek-v4.1-flash`，
+    // vision-exp 旧 id 在该服务上不存在（AppSettings 里 baseUrl/模型名双双过期＝引擎空轮/提取失败）。
+    // 故补一条当前在服模型；保留旧条目（老服务仍可用），默认仍取第一条＝既有行为不变。
     // reasoningEfforts 声明各档位 wire 值（2026-09-19 21:00 智能层同场景直调实测：该模型 low 档=10.7× 提速/质量等价，
     // 默认档（不选=不传参，vLLM 默认高思考）单轮 1.5 万字 reasoning 才落笔）。off 缺省=支持且不传参（现有默认行为不变）；
     // 引擎请求走 agent/request 选低档（仅 revision/长检查类，见 audit.ts），聊天/短巡查不选=默认档零行为变化。
+    // 2026-10-27 直调实测 deepseek-v4.1-flash 接受 reasoning_effort=low（返回 200），档位表可照用。
     models: [
-      { id: 'deepseek-v4-flash-vision-exp-uncensored', reasoningEfforts: { low: 'low', high: 'high', max: 'max' } }
+      { id: 'deepseek-v4-flash-vision-exp-uncensored', reasoningEfforts: { low: 'low', high: 'high', max: 'max' } },
+      { id: 'deepseek-v4.1-flash', reasoningEfforts: { low: 'low', high: 'high', max: 'max' } }
     ]
   },
   {
