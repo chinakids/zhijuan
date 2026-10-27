@@ -4,8 +4,9 @@ import { Plus, BookOpen, PanelLeftOpen, PanelLeftClose, X, MoreHorizontal } from
 import LoadingIndicator from '../components/LoadingIndicator'
 import type { ChapterEntry, ChapterCheckKind, UnlistedHit, MissingHit } from '../../../shared/types'
 import { serializeFrontMatter, addFrontMatterListItem, removeFrontMatterListItem } from '../../../shared/fmatter'
-import { chapterLine, DEFAULT_LINE, prefillSource } from '../../../shared/line'
+import { chapterLine, DEFAULT_LINE, prefillSource, listLinesFromEntries } from '../../../shared/line'
 import type { LineInfo } from '../../../shared/line'
+import LineFilterChips, { ALL_LINES } from '../features/common/LineFilterChips'
 import { shouldCollapseChapterList, AGENT_PANEL_DEFAULT_WIDTH } from '../../../shared/uiPrefs'
 import { Button } from '../components/ui/button'
 import { EmptyState } from '../components/EmptyState'
@@ -49,12 +50,23 @@ export default function Novel() {
   const setSel = useCallback((v: string | null) => {
     useUiStore.getState().setCurrentChapter(v ? { projectId: id, file: v } : null)
   }, [id])
-  // 多线项目章项线徽标（多时间线叙事 2026-09-16）：线数 >1 才显示（单线零打扰）；章节线名权威口径 shared/line.chapterLine
-  const multiLine = useMemo(() => {
-    const s = new Set<string>()
-    for (const c of chapters) if (c.fm) s.add(chapterLine(c.fm))
-    return s.size > 1
-  }, [chapters])
+  // 多线项目章项线徽标 + 章列线筛选（多时间线叙事 2026-09-16 / 2026-10-27 体验层）：
+  // 线清单与计数=shared/line.listLinesFromEntries（与时间线页同一权威函数，勿自算）；
+  // 单线项目（≤1 条线）不渲染筛选与徽标（零打扰）。章序始终保持阅读序（章号），筛选只做「镜头」不重排——
+  // 多线交错中篇的阅读序是作者定位「第几章」的主线索（Braidr 同构：POV 视图看线、Braided 视图看阅读序）。
+  const lineTally = useMemo(
+    () => listLinesFromEntries(chapters.filter((c) => c.fm).map((c) => ({ line: chapterLine(c.fm) }))),
+    [chapters]
+  )
+  const multiLine = lineTally.length > 1
+  /** 章节列线筛选：ALL_LINES=全部（默认）；仅多线项目可见 */
+  const [lineFilter, setLineFilter] = useState<string>(ALL_LINES)
+  // 切项目/切回正文页都回到「全部」（筛选是临时镜头，不跨项目记忆）
+  useEffect(() => setLineFilter(ALL_LINES), [id])
+  // 筛选中的线被改名/删空后回退「全部」，避免空列表无解释
+  useEffect(() => {
+    if (lineFilter !== ALL_LINES && !lineTally.some((l) => l.name === lineFilter)) setLineFilter(ALL_LINES)
+  }, [lineTally, lineFilter])
   // 划词批注弹层（主人 2026-09-12：编辑器划词 → 填写批注意图 → 写入 *_批注.csv）
   const [annoTarget, setAnnoTarget] = useState<{ loc: string; before: string } | null>(null)
   const [annoNote, setAnnoNote] = useState('')
@@ -882,6 +894,8 @@ export default function Novel() {
   const quoteSrcLabel = cur?.fm ? `第${cur.fm['章号'] ?? '?'}章 · ${cur.fm['题名'] ?? ''}` : undefined
   // 章卡的 file 是相对 正文/ 的裸名；凡要当项目根相对路径传给主进程处，统一在此拼前缀（见本技能 listDocs 坑）
   const chapterRel = sel ? '正文/' + sel : ''
+  // 章列可见集：筛选=镜头（保留章号顺序），不改变章节数据、不改变上一章/下一章与建章预填口径
+  const shownChapters = lineFilter === ALL_LINES ? chapters : chapters.filter((c) => chapterLine(c.fm) === lineFilter)
 
   // 章节列内容（侧栏与窄窗浮层共源复用；浮层额外补关闭按钮）
   const chapterHeader = (
@@ -906,6 +920,17 @@ export default function Novel() {
   )
   const chapterList = (
     <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+      {/* 线筛选（多线项目才出现）：sticky 常驻在列顶，长章列表滚动时仍可切镜头 */}
+      {!loading && !loadErr && multiLine && (
+        <LineFilterChips
+          lines={lineTally}
+          value={lineFilter}
+          onChange={setLineFilter}
+          ariaLabel="按时间线筛选章节"
+          testId="chapter-line-filter"
+          className="sticky top-0 z-[1] -mx-2 bg-surface-2 px-2 pb-1.5 pt-0.5"
+        />
+      )}
       {loading && (
         <div className="flex items-center justify-center gap-2 px-2 py-6 text-xs text-ink-3">
           <LoadingIndicator size={16} />
@@ -945,7 +970,7 @@ export default function Novel() {
           dataTestId="empty-chapters"
         />
       )}
-      {chapters.map((c) => (
+      {shownChapters.map((c) => (
         <ContextMenu key={c.file}>
           <ContextMenuTrigger asChild>
             <div className="group relative mb-0.5">
