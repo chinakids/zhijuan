@@ -7,11 +7,15 @@
 // 幂等：已存在守卫则跳过；dsh-runtime 被重装/覆盖后重打包会自动重新注入。
 // 位置：放 electron-builder 打包前调用（npm build 前置）；dsh-runtime 本身 gitignore。
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const target = join(root, 'dsh-runtime', 'node_modules', '@deepseek-ai', 'dsh-app-boot', 'lib', 'index.js')
+// 目标树可换（2026-10-27）：ZHJUAN_DSH_RUNTIME=<dir> 时给那棵树打补丁（验证全新安装用）。
+const rtBase = process.env.ZHJUAN_DSH_RUNTIME
+  ? resolve(process.env.ZHJUAN_DSH_RUNTIME)
+  : join(root, 'dsh-runtime')
+const target = join(rtBase, 'node_modules', '@deepseek-ai', 'dsh-app-boot', 'lib', 'index.js')
 
 if (!existsSync(target)) {
   console.log('[patch-dsh-hmr] 未找到 dsh-app-boot 文件，跳过（dsh-runtime 未安装？）')

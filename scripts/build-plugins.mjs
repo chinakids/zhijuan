@@ -8,7 +8,11 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const srcDir = join(root, 'src', 'plugins')
-const outBase = join(root, 'dsh-runtime', 'node_modules')
+// 目标树可换（2026-10-27）：带 ZHJUAN_DSH_RUNTIME=<dir> 时把插件挂到那棵树，
+// 用来验证「全新装出来的 dsh-runtime 能不能起」（配合 scripts/dsh-boot-check.mjs）。
+const outBase = process.env.ZHJUAN_DSH_RUNTIME
+  ? join(resolve(process.env.ZHJUAN_DSH_RUNTIME), 'node_modules')
+  : join(root, 'dsh-runtime', 'node_modules')
 
 const entries = readdirSync(srcDir)
   .filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts'))

@@ -15,7 +15,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify": "npm run typecheck",
-    "smoke:ui": "node scripts/smoke-ui.mjs"
+    "smoke:ui": "node scripts/smoke-ui.mjs",
+    "dsh:boot": "node scripts/dsh-boot-check.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

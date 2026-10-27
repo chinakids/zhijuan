@@ -13,22 +13,51 @@ env -i HOME="$HOME" PATH="/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin" npm i 
 # 3) native 脚本默认不跑，先 approve
 npm approve-scripts koffi node-pty protobufjs 2>/dev/null || true
 
-# 4) 补装漏掉的同 scope 依赖，重复到收敛（并剔除 darwin 装不上的 linux 包）
+# 4) 补装漏掉的依赖，重复到收敛（并剔除 darwin 装不上的 linux 包）
+#    2026-10-27：判据从「只扫 @deepseek-ai 子包」扩为「扫全部包的 dependencies/peerDependencies」——
+#    legacy-peer-deps 会让 npm 完全忽略 peerDependencies（npm 官方 config 文档原文），
+#    非 @deepseek-ai scope 的缺失依赖原来扫不到；optional 依赖不算缺失（本就按平台可选）。
 for round in 1 2 3; do
   PKGS=$(python3 - <<'PY'
-import json, os
-root='node_modules/@deepseek-ai'
-togo={}
-for sub in os.listdir(root):
-    p=os.path.join(root,sub,'package.json')
-    if not os.path.isfile(p): continue
-    try: pkg=json.load(open(p))
-    except: continue
-    for f in ['dependencies','peerDependencies','optionalDependencies']:
-        for k,v in (pkg.get(f) or {}).items():
-            key=k.split('/')[1] if k.startswith('@deepseek-ai/') else None
-            if key and not os.path.isdir(os.path.join(root,key)): togo[k]=v
-print(' '.join(f'{k}@{v}' for k,v in togo.items() if 'node-addon-landlock-run-linux' not in k))
+import json, os, sys
+root = 'node_modules'
+platform = sys.platform  # darwin / linux / win32
+# 平台专属包：本平台不是目标时视为「不缺」（例：darwin 上缺 *-linux 包属正常）
+skip_marks = { 'darwin': ('linux',), 'linux': ('darwin', 'win32'), 'win32': ('linux', 'darwin') }.get(platform, ())
+have = lambda name: os.path.isdir(os.path.join(root, *name.split('/')))
+def pkgs():
+    for entry in os.listdir(root):
+        if entry.startswith('.'):
+            continue
+        base = os.path.join(root, entry)
+        if entry.startswith('@'):
+            for sub in getattr(os, 'listdir')(base) if os.path.isdir(base) else []:
+                yield os.path.join(base, sub, 'package.json')
+        else:
+            yield os.path.join(base, 'package.json')
+togo = {}
+# sidecar 不走客户端 UI / MCP 可选 peer（实测引擎启动无需它们）；仍按需可手工装。
+IGNORE_PEERS = {
+    'react', 'react-dom', '@types/react', 'zustand', '@tanstack/react-virtual',
+    'use-sync-external-store', '@cfworker/json-schema', 'bufferutil', 'utf-8-validate',
+}
+for p in pkgs():
+    if not os.path.isfile(p):
+        continue
+    try:
+        pkg = json.load(open(p))
+    except Exception:
+        continue
+    for field in ('dependencies', 'peerDependencies'):
+        for name, ver in (pkg.get(field) or {}).items():
+            if have(name):
+                continue
+            if field == 'peerDependencies' and name in IGNORE_PEERS:
+                continue
+            if any(m in name for m in skip_marks):
+                continue
+            togo.setdefault(name, ver)
+print(' '.join(f'{k}@{v}' for k, v in togo.items() if 'node-addon-landlock-run-linux' not in k))
 PY
   )
   if [ -z "$PKGS" ]; then echo "依赖收敛（第 $round 轮）"; break; fi
@@ -51,5 +80,10 @@ cd dsh-runtime && node scripts/patch-server-maxtokens.mjs && cd ..
 # 8) 织卷自维护补丁：session/prompt 加 per-session reasoningEffort 透传（子任务思考档位按 kind 分层，
 #    revision→low；幂等；重装依赖后自动恢复，勿删）
 cd dsh-runtime && node scripts/patch-server-reasoning.mjs && cd ..
+
+# 9) 启动自检：装完必须能真的起得来（2026-10-27 起）——10-21 的教训是依赖树装坏照样能打包出 dmg，
+#    产物里的引擎却崩在注册 LLM 适配器之前。这里跑一条无模型的自检（超时即视为适配器 OK），
+#    失败就让 install 整体失败，别把坏引擎打进发布物。cwd 此时＝仓库根（步骤 5~8 已回到根）。
+node scripts/dsh-boot-check.mjs --timeout 30
 
 echo 'dsh-runtime 就绪'
