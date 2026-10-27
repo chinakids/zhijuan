@@ -18,9 +18,29 @@ SDK 边车：`@deepseek-ai/dsh` 以 `--profile sdk` 作为独立子进程由 Ele
 cd dsh-runtime && bash install.sh
 ```
 
+`install.sh` 是一条完整流水线（幂等，任一步失败即整体失败）：
+
+1. `npm i --legacy-peer-deps` → 循环补装漏装依赖直到收敛；
+2. `node scripts/build-plugins.mjs` 重打织卷写作域插件（zj-core / zj-questions）；
+3. `node scripts/patch-dsh-hmr.mjs` 给 dsh-app-boot 注入 `hmr.registerConfig` 守卫 ——
+   **必须在 `npm i` 之后**：重装依赖会覆盖 `dsh-app-boot/lib/index.js`，漏这步引擎会在注册
+   LLM 适配器前崩，界面只显示「引擎离线」（NO_ADAPTER）；漏跑时自检会报
+   `TypeError: hmr.registerConfig is not a function`；
+4. `scripts/patch-server-{cancel,maxtokens,reasoning}.mjs` 三个 sidecar 协议补丁；
+5. `node scripts/dsh-boot-check.mjs --timeout 30` 启动自检（真拉起边车 + 发一条最小 prompt）。
+
+从仓库根也可单独跑：`npm run dsh:boot`；`npm run build` 前置同样包含第 2~5 步
+（引擎已安装却找不到 HMR 注入点时 `patch-dsh-hmr` 直接 exit 1，不会静默打包坏引擎）。
+
 坑（已趟平，详见 commit 历史的 SPIKE-RESULT）：必须 `--legacy-peer-deps`；装完要循环补装同 scope
 漏装依赖；darwin 要剔除 `node-addon-landlock-run-linux-*`；koffi/node-pty/protobufjs 的 native
 install 脚本要先 `npm approve-scripts`。超时挂起时用 `env -i` 干净环境从 npmmirror 装。
+
+打包注意：`electron-builder.yml` 的 extraResources 会排掉 `dshhome/sessions/**`（本机会话历史，
+43MB）、`dshhome/profiles/node_modules/**`（165 个指向构建机的绝对路径 symlink）、悬空 symlink
+`dshhome/profiles/node_modules_zj` 与 `run/**`。实测：只带 `dshhome/profiles/{sdk,headless}` +
+`settings.yaml` 时，边车启动会自行重建 sessions 与 profiles/node_modules（boot-check 对打包树验证通过），
+`run/` 由主进程按当前设置重写；排除这些之后整包 codesign verify 才通得过。
 
 ## 织卷写作工具（zj-core）
 

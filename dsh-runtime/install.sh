@@ -69,21 +69,26 @@ done
 # 5) 重建织卷写作域插件（esbuild 打成 mjs 按包名放进 node_modules）
 cd .. && node scripts/build-plugins.mjs
 
-# 6) 织卷自维护补丁：dsh SDK 公开协议无中断口（HarnessClient 注释明言无 wire-level cancel），
+# 6) 引擎启动补丁：给 dsh-app-boot 注入 hmr.registerConfig 守卫（NO_ADAPTER 根因，幂等）。
+#    必须紧跟 build-plugins、在 boot-check 之前：npm i 会覆盖 dsh-app-boot 的 lib/index.js，
+#    少跑这步 boot-check 必红（实测 TypeError: hmr.registerConfig is not a function）。
+node scripts/patch-dsh-hmr.mjs
+
+# 7) 织卷自维护补丁：dsh SDK 公开协议无中断口（HarnessClient 注释明言无 wire-level cancel），
 #    给 vendored jsonrpc-server 加 session/cancel 转发（幂等；重装依赖后自动恢复，勿删）
 cd dsh-runtime && node scripts/patch-server-cancel.mjs && cd ..
 
-# 7) 织卷自维护补丁：session/prompt 加 per-session maxTokens 透传（子任务输出预算按 kind 分层，
+# 8) 织卷自维护补丁：session/prompt 加 per-session maxTokens 透传（子任务输出预算按 kind 分层，
 #    幂等；重装依赖后自动恢复，勿删）
 cd dsh-runtime && node scripts/patch-server-maxtokens.mjs && cd ..
 
-# 8) 织卷自维护补丁：session/prompt 加 per-session reasoningEffort 透传（子任务思考档位按 kind 分层，
+# 9) 织卷自维护补丁：session/prompt 加 per-session reasoningEffort 透传（子任务思考档位按 kind 分层，
 #    revision→low；幂等；重装依赖后自动恢复，勿删）
 cd dsh-runtime && node scripts/patch-server-reasoning.mjs && cd ..
 
-# 9) 启动自检：装完必须能真的起得来（2026-10-27 起）——10-21 的教训是依赖树装坏照样能打包出 dmg，
+# 10) 启动自检：装完必须能真的起得来（2026-10-27 起）——10-21 的教训是依赖树装坏照样能打包出 dmg，
 #    产物里的引擎却崩在注册 LLM 适配器之前。这里跑一条无模型的自检（超时即视为适配器 OK），
-#    失败就让 install 整体失败，别把坏引擎打进发布物。cwd 此时＝仓库根（步骤 5~8 已回到根）。
+#    失败就让 install 整体失败，别把坏引擎打进发布物。cwd 此时＝仓库根（步骤 5~9 已回到根）。
 node scripts/dsh-boot-check.mjs --timeout 30
 
 echo 'dsh-runtime 就绪'

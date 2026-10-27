@@ -13,6 +13,7 @@
 //   ZHJUAN_DSH_RUNTIME=/path/to/dsh-runtime node scripts/dsh-boot-check.mjs
 //   node scripts/dsh-boot-check.mjs --timeout 60   # 等模型的秒数（默认 45）
 //   node scripts/dsh-boot-check.mjs --model        # 要求模型真回一句（本地联调用）
+//   node scripts/dsh-boot-check.mjs --require      # 未安装引擎也判死（发布打包用；默认跳过）
 // 退出码：0=通过 1=失败（诊断打印在 stdout）。
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
@@ -37,6 +38,16 @@ const fail = (lines) => {
 }
 const ok = (lines) => {
   console.log('✓ 引擎自检通过')
+  for (const l of lines) console.log('  ' + l)
+  process.exit(0)
+}
+
+// --- 未安装（CI 只编译、本地只跑前端）：默认跳过放行；--require 时判死（发布打包用）---
+const requireEngine = args.includes('--require')
+if (!existsSync(join(rt, 'node_modules', '@deepseek-ai'))) {
+  const lines = [`dsh-runtime 依赖树未安装：${join(rt, 'node_modules')}`, `运行时目录 ${rt}`]
+  if (requireEngine) fail([...lines, '--require：要求引擎必须已安装（发布打包前）'])
+  console.log('· 引擎自检跳过（未安装 dsh-runtime 依赖树，跑 bash dsh-runtime/install.sh 后生效）')
   for (const l of lines) console.log('  ' + l)
   process.exit(0)
 }

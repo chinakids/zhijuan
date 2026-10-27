@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { BookMarked, CheckCheck, CheckCircle2, CircleDashed, Clapperboard, FileText, Hammer, History, ListTree, MoreHorizontal, PenLine, RefreshCw, ScrollText, ShieldCheck, Waypoints, Wrench } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import { useTour } from '../features/guide/useTour'
@@ -25,6 +25,7 @@ import { describeSyncEvidence } from '../../../shared/syncEvidence'
 import { GuardIssuesNote } from '../features/sync/GuardIssues'
 import type { SyncIssue } from '../../../shared/types'
 import { toast } from '../components/ui/toast'
+import { Button } from '../components/ui/button'
 
 /** 大纲区：agent 把已有正文回建成章卡，画布随进度活起来。 */
 export default function Outline() {
@@ -94,6 +95,24 @@ export default function Outline() {
   }, [refresh])
 
   useFsChanged(id, '大纲/', () => void refresh())
+
+  // ⌘K 全库搜索命中大纲文件 → ?doc=<项目相对路径> 直达该文件（消费后清参，刷新不残留）
+  const [sp, setSp] = useSearchParams()
+  const docParam = sp.get('doc')
+  useEffect(() => {
+    if (!docParam || !docParam.startsWith('大纲/')) return
+    setSel(docParam)
+    setSp({}, { replace: true })
+  }, [docParam, setSp])
+
+  // 引擎在线态：空态 CTA 分叉（离线时「回建」必然失败，直接引导去设置连模型）
+  const [engineOnline, setEngineOnline] = useState<boolean | null>(null)
+  useEffect(() => {
+    void window.zhijuan
+      .agentStatus()
+      .then((s) => setEngineOnline(!!s.online))
+      .catch(() => setEngineOnline(null))
+  }, [])
 
   // 切换所选文档时，把「再点一次确认」的两击状态复位
   useEffect(() => {
@@ -795,9 +814,37 @@ export default function Outline() {
             <EmptyState
               art="outline"
               title="还没有章卡"
-              hint="点右上角「回建缺失」把已有正文回建成章卡。"
+              hint={
+                engineOnline === false
+                  ? '写作引擎当前离线：先到「设置 → 写作引擎」连接模型，再回来把已有正文回建成章卡。'
+                  : missing.length > 0
+                    ? `已有 ${missing.length} 章正文还没有章卡：点下面的按钮让写作引擎逐章回建（每章约一两分钟）。`
+                    : '去「正文创作」写第一章，保存后即可回建成章卡。'
+              }
               className="h-full"
               dataTestId="empty-outline"
+              action={
+                engineOnline === false ? (
+                  <Button asChild variant="outline" size="sm" data-testid="empty-outline-engine">
+                    <Link to={`/project/${id}/settings?pane=engine`}>去设置配置引擎</Link>
+                  </Button>
+                ) : missing.length > 0 ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    data-testid="empty-outline-build"
+                    onClick={() => void build(missing.map((c) => c.file))}
+                    disabled={building}
+                  >
+                    <Hammer className="h-3.5 w-3.5" />
+                    {building ? '回建中…' : `回建缺失的 ${missing.length} 张章卡`}
+                  </Button>
+                ) : (
+                  <Button asChild variant="outline" size="sm">
+                    <Link to="../novel">去正文创作写第一章</Link>
+                  </Button>
+                )
+              }
             />
           )}
         </div>

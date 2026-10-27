@@ -1,6 +1,6 @@
 // ===== 织卷 V2 · IPC 路由（renderer 唯一入口） =====
 import { ipcMain, shell, BrowserWindow, dialog, app } from 'electron'
-import { readFileSync } from 'fs'
+import { readFileSync, existsSync, renameSync, statSync } from 'fs'
 import { writeFileAtomic } from './fsutil'
 import { join, basename } from 'path'
 import type { AppSettings, FsEvent, ProposalItem, EditItem, Proposal, SaveTraceEntry } from '../shared/types'
@@ -48,6 +48,7 @@ import { exportEpub } from './compileEpub'
 import { listLibraryCategories, createLibraryCategory, searchDocs, recentLibraryDocs } from './library'
 import { listTemplates } from './templates'
 import { workspaceDir } from './settings'
+import { sanitizeFile } from '../shared/paths'
 
 export function broadcastToAll(evt: FsEvent) {
   for (const w of BrowserWindow.getAllWindows()) {
@@ -160,6 +161,9 @@ export function registerIpc() {
     documents: libraryRoot(),
     defaultLibrary: shell ? String(process.env.HOME) : ''
   }))
+  // 版本单一来源：关于页与系统「关于」面板同读 app.getVersion()（package.json version + 打包注入），
+  // 渲染层不再硬编码，避免双源漂移。
+  ipcMain.handle('app:version', () => app.getVersion())
 
   // 工作区（设置里的工作区 = 织卷根目录；相关文档落档在 工作区/文档/）
   ipcMain.handle('workspace:status', () => workspaceStatus())
@@ -307,6 +311,39 @@ export function registerIpc() {
   // 素材库域（模块设计 §九：类别树 / 新建类别 / 文件名+全文搜索）
   ipcMain.handle('library:categories', (_e, id: string) => listLibraryCategories(id))
   ipcMain.handle('library:createCategory', (_e, id: string, name: string) => createLibraryCategory(id, name))
+  // 类别改名（可选 P2）：类别＝素材库/ 下的一级目录，改名=目录改名（素材卡与版本历史目录随路径走）；
+  // 口径与 createLibraryCategory 一致（trim + sanitizeFile + 「采集池」工具目录保护）。
+  ipcMain.handle('library:renameCategory', (_e, id: string, from: string, to: string) => {
+    const src = join(projectDir(id), '素材库', from ?? '')
+    if (!from) return { ok: false, error: '类别名为空' }
+    if (from === '采集池') return { ok: false, error: '「采集池」是工具目录，不能改名' }
+    const safe = sanitizeFile((to ?? '').trim())
+    if (!safe) return { ok: false, error: '名称不能为空' }
+    if (!existsSync(src)) return { ok: false, error: `类别「${from}」不存在` }
+    if (safe === from) return { ok: true, name: safe }
+    const dst = join(projectDir(id), '素材库', safe)
+    if (existsSync(dst)) return { ok: false, error: `类别「${safe}」已存在` }
+    try {
+      renameSync(src, dst)
+      return { ok: true, name: safe }
+    } catch (e) {
+      return { ok: false, error: String((e as Error).message ?? e) }
+    }
+  })
+  // 类别删除（可选 P2）：整个类别目录移入系统废纸篓（可恢复，与素材卡/项目删除同先例）
+  ipcMain.handle('library:deleteCategory', async (_e, id: string, name: string) => {
+    if (!name) return { ok: false, error: '类别名为空' }
+    if (name === '采集池') return { ok: false, error: '「采集池」是工具目录，不能删除' }
+    const dir = join(projectDir(id), '素材库', name)
+    if (!existsSync(dir) || !statSync(dir).isDirectory()) return { ok: false, error: `类别「${name}」不存在` }
+    if (!shell) return { ok: false, error: '当前环境不支持系统废纸篓' }
+    try {
+      await shell.trashItem(dir)
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: String((e as Error).message ?? e) }
+    }
+  })
   ipcMain.handle('library:recentDocs', (_e, id: string, n?: number) => recentLibraryDocs(id, n))
   ipcMain.handle(
     'docs:search',

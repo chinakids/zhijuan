@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState, type ComponentType } from 'react'
 import { useMatch, useNavigate } from 'react-router-dom'
 import {
   CommandDialog,
@@ -26,6 +26,30 @@ const PAGE_ITEMS = [
   { key: 'settings', label: '设置', icon: SettingsIcon }
 ]
 
+/** 全库搜索范围：正文/人物/世界观/大纲/素材五个目录各取前几条，分组呈现（顺序=作者常用度） */
+interface SearchScope {
+  dir: string
+  label: string
+  /** 命中后落到的页面段（novel 用 ?ch=，其余用 ?doc= 直选文档） */
+  page: string
+  icon: ComponentType<{ className?: string }>
+  limit: number
+  excludePrefix?: string[]
+}
+const SEARCH_SCOPE: SearchScope[] = [
+  { dir: '正文', label: '正文', page: 'novel', icon: BookOpen, limit: 5 },
+  { dir: '人物', label: '人物', page: 'characters', icon: Users, limit: 5 },
+  { dir: '世界观', label: '世界观', page: 'worldview', icon: Globe2, limit: 5 },
+  { dir: '大纲', label: '大纲', page: 'outline', icon: ListTree, limit: 5 },
+  { dir: '素材库', label: '素材', page: 'library', icon: FileText, limit: 8, excludePrefix: ['素材库/采集池/'] }
+]
+
+/** 命中 → 路由：正文带 ?ch=（裸文件名，Novel 侧消费）；其余带 ?doc=（项目相对路径） */
+function hitRoute(projectId: string, sc: SearchScope, h: SearchHit): string {
+  if (sc.page === 'novel') return `/project/${projectId}/novel?ch=${encodeURIComponent(h.file.replace(/^正文\//, ''))}`
+  return `/project/${projectId}/${sc.page}?doc=${encodeURIComponent(h.file)}`
+}
+
 /** 全局命令面板（⌘K / Ctrl+K）：页面导航 + 打开章节 + 打开项目（模块设计 §13.2 键盘优先） */
 export default function CommandPalette() {
   const navigate = useNavigate()
@@ -38,9 +62,10 @@ export default function CommandPalette() {
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [q, setQ] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
-  const [matHits, setMatHits] = useState<SearchHit[] | null>(null)
-  const [matLoading, setMatLoading] = useState(false)
-  const matSeq = useRef(0)
+  /** 全库搜索结果：按目录分组（正文/人物/世界观/大纲/素材），一次输入并发多目录检索 */
+  const [hits, setHits] = useState<Record<string, SearchHit[]> | null>(null)
+  const [hitsLoading, setHitsLoading] = useState(false)
+  const hitSeq = useRef(0)
   const [recentMats, setRecentMats] = useState<RecentLibraryDoc[] | null>(null)
 
   // 全局快捷键：Mac Cmd+K / Win Ctrl+K（编辑器未绑 Mod-k，无冲突）
@@ -61,8 +86,8 @@ export default function CommandPalette() {
     setProjects([])
     setChapters([])
     setQ('')
-    setMatHits(null)
-    setMatLoading(false)
+    setHits(null)
+    setHitsLoading(false)
     setRecentMats(null)
     void window.zhijuan.listProjects().then(setProjects).catch(() => setProjects([]))
     if (projectId) {
@@ -80,29 +105,38 @@ export default function CommandPalette() {
     }
   }, [open, projectId])
 
-  // 素材库全文搜索：输入即搜（HIG Search fields「start search immediately」），防抖 300ms；
-  // 与素材库页同一口径——文件名+正文、空格分词 AND、排除采集池；面板只取前 8 条防噪。
+  // 全库搜索：输入即搜（HIG Search fields「start search immediately」），防抖 300ms。
+  // 口径与素材库页一致（文件名+正文、空格分词 AND），一次输入并发检索正文/人物/世界观/大纲/素材五个目录；
+  // 每类只取前几条防噪，分组呈现（⌘K 是「找得到」的入口，不是第二套检索页）。
   useEffect(() => {
     if (!open || !projectId) return
     const query = q.trim()
     if (!query) {
-      setMatHits(null)
-      setMatLoading(false)
+      setHits(null)
+      setHitsLoading(false)
       return
     }
-    setMatLoading(true)
-    const seq = ++matSeq.current
+    setHitsLoading(true)
+    const seq = ++hitSeq.current
     const t = setTimeout(() => {
-      window.zhijuan
-        .searchDocs(projectId, '素材库', query, { excludePrefix: ['素材库/采集池/'], limit: 8 })
-        .then((r) => {
-          if (seq === matSeq.current) setMatHits(r)
+      void Promise.all(
+        SEARCH_SCOPE.map(async (sc) => {
+          try {
+            const r = await window.zhijuan.searchDocs(projectId, sc.dir, query, {
+              limit: sc.limit,
+              excludePrefix: sc.excludePrefix
+            })
+            return [sc.dir, r] as const
+          } catch {
+            return [sc.dir, [] as SearchHit[]] as const
+          }
         })
-        .catch(() => {
-          if (seq === matSeq.current) setMatHits([])
+      )
+        .then((pairs) => {
+          if (seq === hitSeq.current) setHits(Object.fromEntries(pairs))
         })
         .finally(() => {
-          if (seq === matSeq.current) setMatLoading(false)
+          if (seq === hitSeq.current) setHitsLoading(false)
         })
     }, 300)
     return () => clearTimeout(t)
@@ -122,7 +156,7 @@ export default function CommandPalette() {
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandInput
           ref={searchRef}
-          placeholder="输入页面、章节、项目或素材关键词…"
+          placeholder="搜索正文、人物、世界观、大纲、素材，或页面/项目…"
           autoFocus
           onValueChange={setQ}
           clearable={q.trim() !== ''}
@@ -225,35 +259,46 @@ export default function CommandPalette() {
           </>
         )}
 
-        {projectId && q.trim() !== '' && (matLoading || (matHits && matHits.length > 0)) && (
+        {projectId && q.trim() !== '' && (
           <>
-            <CommandSeparator />
-            <CommandGroup heading={`素材 · 全文搜索${matHits ? `（${matHits.length} 条）` : ''}`}>
-              {matLoading && (!matHits || matHits.length === 0) && (
-                <CommandItem disabled value="正在搜索素材…">
-                  <LoadingIndicator size={16} />
-                  <span>正在搜索素材…</span>
-                </CommandItem>
-              )}
-              {(matHits ?? []).map((h) => (
-                <CommandItem
-                  key={h.file}
-                  value={`素材 ${h.name} ${h.snippet}`}
-                  keywords={[h.name, h.snippet, libraryCategoryOf(h.file)]}
-                  onSelect={() => go(`/project/${projectId}/library?doc=${encodeURIComponent(h.file)}`)}
-                >
-                  <FileText className="h-4 w-4 shrink-0 text-ink-3" />
-                  <span className="min-w-0 truncate" title={`${libraryCategoryOf(h.file) ? libraryCategoryOf(h.file) + '/' : ''}${h.name}`}>
-                    {libraryCategoryOf(h.file) ? <span className="text-ink-3">{libraryCategoryOf(h.file)}/</span> : null}
-                    {h.name}
-                  </span>
-                  <span className="ml-1 shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-2">
-                    {h.field === 'name' ? '文件名' : '正文'}
-                  </span>
-                  <span className="ml-auto max-w-44 shrink-0 truncate text-[11px] text-ink-3">{h.snippet}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {hitsLoading && !hits && (
+              <>
+                <CommandSeparator />
+                <CommandGroup heading="全文搜索">
+                  <CommandItem disabled value="正在全库搜索…">
+                    <LoadingIndicator size={16} />
+                    <span>正在搜索正文、人物、世界观、大纲与素材…</span>
+                  </CommandItem>
+                </CommandGroup>
+              </>
+            )}
+            {SEARCH_SCOPE.map((sc) => {
+              const list = hits?.[sc.dir] ?? []
+              if (!list.length) return null
+              const Icon = sc.icon
+              return (
+                <Fragment key={sc.dir}>
+                  <CommandSeparator />
+                  <CommandGroup heading={`${sc.label} · 全文搜索（${list.length} 条）`}>
+                    {list.map((h) => (
+                      <CommandItem
+                        key={h.file}
+                        value={`${sc.label} ${h.name} ${h.file} ${h.snippet}`}
+                        keywords={[h.name, h.snippet, h.file]}
+                        onSelect={() => go(hitRoute(projectId, sc, h))}
+                      >
+                        <Icon className="h-4 w-4 shrink-0 text-ink-3" />
+                        <span className="min-w-0 truncate" title={h.file}>{h.name}</span>
+                        <span className="ml-1 shrink-0 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-2">
+                          {h.field === 'name' ? '文件名' : '正文'}
+                        </span>
+                        <span className="ml-auto max-w-44 shrink-0 truncate text-[11px] text-ink-3">{h.snippet}</span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </Fragment>
+              )
+            })}
           </>
         )}
 

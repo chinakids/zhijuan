@@ -64,6 +64,12 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
   const [deleting, setDeleting] = useState<{ file: string; name: string } | null>(null)
   const [renaming, setRenaming] = useState<{ file: string; name: string } | null>(null)
   const [renameVal, setRenameVal] = useState('')
+  // 类别行操作（⋯ 菜单）：改名=目录改名（整类素材随路径走）/ 删除=整类移入系统废纸篓（可恢复）
+  const [catRenaming, setCatRenaming] = useState<string | null>(null)
+  const [catRenameVal, setCatRenameVal] = useState('')
+  const [catRenameErr, setCatRenameErr] = useState('')
+  const [catDeleting, setCatDeleting] = useState<{ name: string; count: number } | null>(null)
+  const [catBusy, setCatBusy] = useState(false)
   // 宽窗手动折叠（HIG Sidebars show/hide；与 Novel 5376f30 同机制；折叠态持久化=AppSettings 跨重启记住侧栏）
   const [colHidden, setColHidden] = useColFold('library')
   const events = useFsEvents(id)
@@ -246,6 +252,59 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
     setRenaming({ file, name })
   }
 
+  /** 类别改名：只改类别目录名（素材卡文件与版本历史目录随路径走），不覆盖同名类别 */
+  function startCatRename(name: string) {
+    setCatRenameErr('')
+    setCatRenameVal(name)
+    setCatRenaming(name)
+  }
+
+  async function doRenameCat() {
+    if (!id || !catRenaming || !catRenameVal.trim()) return
+    setCatBusy(true)
+    try {
+      const r = await window.zhijuan.renameLibraryCategory(id, catRenaming, catRenameVal.trim())
+      if (!r.ok) {
+        setCatRenameErr(r.error ?? '重命名失败')
+        return
+      }
+      const from = catRenaming
+      const next = r.name ?? catRenameVal.trim()
+      toast.add({ kind: 'success', title: `类别已改名为「${next}」`, description: `原「${from}」下的素材已随类别一起移动` })
+      if (selCat === from) setSelCat(next)
+      setCatRenaming(null)
+      setCatRenameVal('')
+      await refresh()
+    } catch (e) {
+      setCatRenameErr(String((e as Error).message ?? e))
+    } finally {
+      setCatBusy(false)
+    }
+  }
+
+  /** 类别删除：整个类别目录移入系统废纸篓（可恢复）——确认框写明素材数量 */
+  async function doDeleteCat() {
+    if (!id || !catDeleting) return
+    setCatBusy(true)
+    try {
+      const r = await window.zhijuan.deleteLibraryCategory(id, catDeleting.name)
+      if (!r.ok) {
+        toast.add({ kind: 'error', title: '删除类别失败', description: r.error })
+        setCatDeleting(null)
+        return
+      }
+      toast.add({ kind: 'success', title: `类别「${catDeleting.name}」已移入废纸篓`, description: '可在系统废纸篓中恢复' })
+      if (selCat === catDeleting.name) setSelCat(null)
+      setCatDeleting(null)
+      await refresh()
+    } catch (e) {
+      toast.add({ kind: 'error', title: '删除类别失败', description: String((e as Error).message ?? e) })
+      setCatDeleting(null)
+    } finally {
+      setCatBusy(false)
+    }
+  }
+
   /** 素材卡重命名：走 doc:rename（只改文件名；H1/版本历史目录由主进程随动） */
   async function doRename() {
     if (!id || !renaming || !renameVal.trim()) return
@@ -349,20 +408,47 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
             <span className="truncate text-sm text-ink">索引</span>
           </button>
           {tree.map((node) => (
-            <button
-              key={node.name}
-              onClick={() => void selectCat(node.name)}
-              className={cn(
-                'mb-0.5 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors',
-                selCat === node.name && !editorRel ? 'bg-accent-soft' : 'hover:bg-surface'
-              )}
-            >
-              <Folder className="h-3.5 w-3.5 shrink-0 text-ink-3" />
-              <span className={cn('min-w-0 flex-1 truncate text-sm', selCat === node.name && !editorRel ? 'font-medium text-accent' : 'text-ink')} title={node.name}>
-                {node.name}
-              </span>
-              <span className="shrink-0 text-[10px] text-ink-3">{node.count}</span>
-            </button>
+            <div key={node.name} className="group relative mb-0.5">
+              <button
+                onClick={() => void selectCat(node.name)}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-lg py-2 pl-3 pr-8 text-left transition-colors',
+                  selCat === node.name && !editorRel ? 'bg-accent-soft' : 'hover:bg-surface'
+                )}
+              >
+                <Folder className="h-3.5 w-3.5 shrink-0 text-ink-3" />
+                <span className={cn('min-w-0 flex-1 truncate text-sm', selCat === node.name && !editorRel ? 'font-medium text-accent' : 'text-ink')} title={node.name}>
+                  {node.name}
+                </span>
+                <span className="shrink-0 text-[10px] text-ink-3">{node.count}</span>
+              </button>
+              {/* 类别行 ⋯：改名 / 删除（破坏性项置末 + danger；与素材卡行菜单同形制）。
+                  触发按钮独立于行按钮（button 不能嵌套 button），悬停/聚焦时显现，触控与键盘仍可点。 */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`类别操作：${node.name}`}
+                    title="类别操作"
+                    data-testid="lib-cat-menu"
+                    className="absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-ink-3 opacity-0 transition-opacity hover:bg-well hover:text-ink focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+                  >
+                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => startCatRename(node.name)}>
+                    <Pencil className="h-4 w-4" /> 重命名类别
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-danger focus:text-danger"
+                    onClick={() => setCatDeleting({ name: node.name, count: node.count })}
+                  >
+                    <Trash2 className="h-4 w-4" /> 删除类别
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           ))}
           {loading && !loadErr && (
             <div className="flex items-center justify-center gap-2 px-3 py-4 text-xs text-ink-3">
@@ -736,6 +822,69 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>取消</Button>
             <Button className="text-danger" onClick={() => void doDelete()}>移入废纸篓</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 类别重命名：只改目录名（整类素材与版本历史随路径走），同名类别不覆盖 */}
+      <Dialog open={!!catRenaming} onOpenChange={(o) => !o && !catBusy && setCatRenaming(null)}>
+        <DialogContent className="sm:max-w-sm" outsideDismiss={false}>
+          <DialogHeader>
+            <DialogTitle>重命名类别</DialogTitle>
+            <DialogDescription>只改类别目录名，里面的素材卡原样保留并跟着移动；同名类别已存在时会提示，不会覆盖。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label htmlFor="cat-rename">新类别名 *</Label>
+            <Input
+              id="cat-rename"
+              autoFocus
+              value={catRenameVal}
+              aria-invalid={!!catRenameErr}
+              className={catRenameErr ? fieldInvalidClass : undefined}
+              onChange={(e) => {
+                setCatRenameVal(e.target.value)
+                if (catRenameErr) setCatRenameErr('')
+              }}
+              onKeyDown={(e) => {
+                // IME 组合期 Enter 只确认候选，不改名（F-IME-03）
+                if (isImeComposing(e)) return
+                if (e.key === 'Enter' && catRenameVal.trim()) void doRenameCat()
+              }}
+            />
+            {catRenameErr && <FieldError>{catRenameErr}</FieldError>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCatRenaming(null)} disabled={catBusy}>取消</Button>
+            <Button
+              data-testid="lib-cat-rename-save"
+              onClick={() => void doRenameCat()}
+              disabled={!catRenameVal.trim() || catRenameVal.trim() === catRenaming || catBusy}
+            >
+              {catBusy ? '改名中…' : '保存'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 类别删除确认：整类移入系统废纸篓（可恢复），写明里面有多少素材 */}
+      <Dialog open={!!catDeleting} onOpenChange={(o) => !o && !catBusy && setCatDeleting(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>删除类别</DialogTitle>
+            <DialogDescription>
+              类别「{catDeleting?.name ?? ''}」及其 {catDeleting?.count ?? 0} 张素材卡将整体移入系统废纸篓（可恢复）。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCatDeleting(null)} disabled={catBusy}>取消</Button>
+            <Button
+              className="text-danger"
+              data-testid="lib-cat-delete-confirm"
+              onClick={() => void doDeleteCat()}
+              disabled={catBusy}
+            >
+              {catBusy ? '删除中…' : '移到废纸篓'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

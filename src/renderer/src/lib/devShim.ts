@@ -78,6 +78,8 @@ const taskTouched = new Set<string>()
 const extraCats = new Set<string>()
 // 老默认位（文档/织卷项目库）模拟：true＝存在且非空（本机实况，真机 libraryRoot 默认走它；2026-09-12）
 const DEV_LEGACY_EXISTS = true
+// dev 预览版本号（真机走 ipc app:version → app.getVersion()，唯一来源）；此处仅浏览器预览的占位
+const DEV_APP_VERSION = '0.1.0'
 // 版本历史 mock：与主进程行为对齐（仅版本化 rel：正文/ 与 大纲/审读_*（与真机 isVersionedRel 同口径），内容变化才快照旧内容，新→旧，上限 50）
 const histories = new Map<string, { name: string; content: string; mtimeMs: number }[]>()
 const HISTORY_LIMIT_DEV = 50
@@ -1246,6 +1248,36 @@ const mock = {
     extraCats.add(key)
     return { ok: true }
   },
+  // 类别改名/删除（可选 P2）：与真机 ipc library:renameCategory / deleteCategory 同口径（采集池保护 + sanitizeFile）
+  renameLibraryCategory: async (id: string, from: string, to: string) => {
+    if (!from) return { ok: false, error: '类别名为空' }
+    if (from === '采集池') return { ok: false, error: '「采集池」是工具目录，不能改名' }
+    const next = sanitizeFile((to ?? '').trim())
+    if (!next) return { ok: false, error: '名称不能为空' }
+    const has = [...docs.keys()].some((k) => k.startsWith(id + '/素材库/' + from + '/')) || extraCats.has(id + '/' + from)
+    if (!has) return { ok: false, error: `类别「${from}」不存在` }
+    if (next === from) return { ok: true, name: next }
+    const clash = [...docs.keys()].some((k) => k.startsWith(id + '/素材库/' + next + '/')) || extraCats.has(id + '/' + next)
+    if (clash) return { ok: false, error: `类别「${next}」已存在` }
+    const oldPrefix = id + '/素材库/' + from + '/'
+    for (const [k, v] of [...docs.entries()]) {
+      if (!k.startsWith(oldPrefix)) continue
+      docs.delete(k)
+      docs.set(id + '/素材库/' + next + '/' + k.slice(oldPrefix.length), v)
+    }
+    if (extraCats.delete(id + '/' + from)) extraCats.add(id + '/' + next)
+    return { ok: true, name: next }
+  },
+  deleteLibraryCategory: async (id: string, name: string) => {
+    if (!name) return { ok: false, error: '类别名为空' }
+    if (name === '采集池') return { ok: false, error: '「采集池」是工具目录，不能删除' }
+    const prefix = id + '/素材库/' + name + '/'
+    const keys = [...docs.keys()].filter((k) => k.startsWith(prefix))
+    if (!keys.length && !extraCats.has(id + '/' + name)) return { ok: false, error: `类别「${name}」不存在` }
+    for (const k of keys) docs.delete(k)
+    extraCats.delete(id + '/' + name)
+    return { ok: true }
+  },
   searchDocs: async (id: string, relDir: string, query: string, opts?: { excludePrefix?: string[]; limit?: number }): Promise<SearchHit[]> => {
     const q = (query ?? '').trim()
     if (!q) return []
@@ -1448,6 +1480,8 @@ const mock = {
     }),
     defaultLibrary: '' // 真机=process.env.HOME（ipc.ts）；已核实渲染层零消费（仅此定义处），renderer 无 node 环境取不到 HOME，保持 ''
   }),
+  // 真机=app.getVersion()（ipc app:version）；dev 走 vite define 注入的包版本，与 package.json 同源
+  appVersion: async (): Promise<string> => DEV_APP_VERSION,
   // 真机=系统目录选择器（settings:pickLibrary）；dev 模拟「选了新库」——写入 settings.libraryRoot 并返回，getPaths 决策链随动
   pickLibrary: async (): Promise<string | null> => {
     settings.libraryRoot = '/tmp/织卷-dev-项目库'

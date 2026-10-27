@@ -54,6 +54,8 @@ const api = {
 
   // 平台路径（主进程解析后的生效库根等；设置页「当前」展示用）
   getPaths: () => ipcRenderer.invoke('app:getPaths') as Promise<{ documents: string; defaultLibrary: string }>,
+  /** 应用版本（唯一来源 app.getVersion()；关于页展示用，勿在渲染层硬编码） */
+  appVersion: () => ipcRenderer.invoke('app:version') as Promise<string>,
   // 首页「更改库根路径」：系统目录选择器 → 写入设置 → 返回新生效库根（模块设计 §四 A「库根路径（可改）」）
   pickLibrary: () => ipcRenderer.invoke('settings:pickLibrary') as Promise<string | null>,
   // 设置页「自定义用词词表」：导入 / 导出 .txt（每行一条短语；系统文件对话框）
@@ -141,6 +143,12 @@ const api = {
   listLibraryCategories: (id: string) => ipcRenderer.invoke('library:categories', id) as Promise<LibraryCategory[]>,
   createLibraryCategory: (id: string, name: string) =>
     ipcRenderer.invoke('library:createCategory', id, name) as Promise<{ ok: boolean; error?: string }>,
+  /** 类别改名（目录改名；成功返回生效名，可能与输入不同=已 sanitize） */
+  renameLibraryCategory: (id: string, from: string, to: string) =>
+    ipcRenderer.invoke('library:renameCategory', id, from, to) as Promise<{ ok: boolean; name?: string; error?: string }>,
+  /** 类别删除（整个类别目录移入系统废纸篓，可恢复） */
+  deleteLibraryCategory: (id: string, name: string) =>
+    ipcRenderer.invoke('library:deleteCategory', id, name) as Promise<{ ok: boolean; error?: string }>,
   searchDocs: (id: string, relDir: string, query: string, opts?: { excludePrefix?: string[]; limit?: number }) =>
     ipcRenderer.invoke('docs:search', id, relDir, query, opts) as Promise<SearchHit[]>,
   recentLibraryDocs: (id: string, n?: number) => ipcRenderer.invoke('library:recentDocs', id, n) as Promise<RecentLibraryDoc[]>,

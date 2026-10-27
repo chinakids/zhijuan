@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Clock, Users, History } from 'lucide-react'
+import { Clock, Users, History, Search } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import type { SliceEntry } from '../../../shared/types'
 import { listLinesFromEntries } from '../../../shared/line'
 import LineFilterChips, { ALL_LINES } from '../features/common/LineFilterChips'
 import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
 import { cn } from '../lib/utils'
 import { EmptyState } from '../components/EmptyState'
 import SyncLogDrawer from '../features/sync/SyncLogDrawer'
+import { useFsChanged } from '../features/fs/useFsEvents'
 
 function chapterNo(chapter: string): number | null {
   const m = chapter.match(/第\s*(\d+)/)
@@ -24,6 +26,10 @@ export default function Timeline() {
   const [syncOpen, setSyncOpen] = useState(false)
   /** 线筛选：ALL_LINES 或线名；仅多线项目显示切换器 */
   const [filter, setFilter] = useState<string>(ALL_LINES)
+  /** 切片搜索：章名/题名/时间/人物/线名，输入即筛（纯本地过滤，不走主进程） */
+  const [q, setQ] = useState('')
+  /** fs 事件触发的静默重读：不把 slices 置空，避免列表闪回 loading */
+  const silentRef = useRef(false)
 
   // 线枚举（正文为源：slices 已带 line；单线=老项目零回归）
   const lines = useMemo(() => listLinesFromEntries(slices ?? []), [slices])
@@ -37,11 +43,31 @@ export default function Timeline() {
   }, [slices, lines, multi])
   const visibleGroups = useMemo(() => (filter === ALL_LINES ? groups : groups.filter((g) => g.line === filter)), [groups, filter])
 
+  const qNorm = q.trim().toLowerCase()
+  // 搜索过滤（空格分词 AND，与 ⌘K/素材库同口径）：命中章文件名、题名、切片时间、涉及人物、线名
+  const shownGroups = useMemo(() => {
+    if (!qNorm) return visibleGroups
+    const terms = qNorm.split(/\s+/).filter(Boolean)
+    return visibleGroups
+      .map((g) => ({
+        line: g.line,
+        entries: g.entries.filter((s) => {
+          const hay = [s.name, s.chapter, s.time ?? '', (s.chars ?? []).join(' '), s.line ?? ''].join(' ').toLowerCase()
+          return terms.every((t) => hay.includes(t))
+        })
+      }))
+      .filter((g) => g.entries.length > 0)
+  }, [visibleGroups, qNorm])
+
+  const shownCount = useMemo(() => shownGroups.reduce((n, g) => n + g.entries.length, 0), [shownGroups])
+
   useEffect(() => {
     if (!id) return
     let alive = true
     setLoadErr('')
-    setSlices(null) // 切项目/重试时先回 loading，防旧项目切片闪现（2026-09-21 体验层）
+    // 切项目/重试时先回 loading，防旧项目切片闪现（2026-09-21 体验层）；fs 静默刷新保留列表
+    if (!silentRef.current) setSlices(null)
+    silentRef.current = false
     void window.zhijuan
       .listSlices(id)
       .then((s) => alive && setSlices(s))
@@ -50,6 +76,13 @@ export default function Timeline() {
       alive = false
     }
   }, [id, retryTick])
+
+  // 正文是切片的唯一来源：正文目录变化（保存/删章/改章头）即静默重读，无需手动刷新
+  const reloadSilent = useCallback(() => {
+    silentRef.current = true
+    setRetryTick((t) => t + 1)
+  }, [])
+  useFsChanged(id ?? '', '正文/', reloadSilent)
 
   // 页头（loading/错误/空态共用，2026-09-21 体验层：加载与失败时标题+「同步记录」常驻不闪失）
   const simpleHead = (
@@ -108,6 +141,11 @@ export default function Timeline() {
           hint="每个带约定头的正文章节就是一个切片（front matter 里的「切片」字段）；写好正文保存后，它会出现在这里。章头可用「时间线: 线名」分线（缺省=主线）。"
           className="mt-4"
           dataTestId="empty-timeline"
+          action={
+            <Button asChild variant="outline" size="sm">
+              <Link to="../novel">去正文创作写第一章</Link>
+            </Button>
+          }
         />
         <SyncLogDrawer projectId={id ?? ''} open={syncOpen} onClose={() => setSyncOpen(false)} />
       </div>
@@ -136,6 +174,28 @@ export default function Timeline() {
           同步记录
         </Button>
       </div>
+      {/* 搜索：章名/题名/时间/人物/线名（切片数量有限，本地过滤即够；空查询还原全部） */}
+      <div className="relative mb-4">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3" aria-hidden />
+        <Input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="搜索切片：章节名、时间、人物…"
+          aria-label="搜索时间切片"
+          data-testid="timeline-search"
+          className="h-8 pl-8 pr-8 text-xs"
+        />
+        {q.trim() !== '' && (
+          <button
+            type="button"
+            onClick={() => setQ('')}
+            aria-label="清除搜索"
+            className="absolute right-2 top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-well hover:text-ink"
+          >
+            ×
+          </button>
+        )}
+      </div>
       {multi && (
         <LineFilterChips
           lines={lines}
@@ -145,7 +205,24 @@ export default function Timeline() {
           className="mb-5"
         />
       )}
-      {visibleGroups.map((g) => (
+      {qNorm !== '' && (
+        <p className="mb-3 text-[11px] text-ink-3" data-testid="timeline-hit-count">
+          {shownCount > 0 ? `匹配 ${shownCount} 个切片` : '没有匹配的切片'}
+        </p>
+      )}
+      {qNorm !== '' && shownCount === 0 && (
+        <EmptyState
+          compact
+          hint="换个关键词试试：章节题名、年份地点、人物名或线名。"
+          className="mb-4 rounded-lg border border-dashed border-hair"
+          action={
+            <Button variant="ghost" size="sm" className="h-7" onClick={() => setQ('')}>
+              清除搜索
+            </Button>
+          }
+        />
+      )}
+      {shownGroups.map((g) => (
         <section key={g.line} className={cn(multi && 'mb-8 last:mb-0')} aria-label={`时间线：${g.line}`}>
           {multi && (
             <div className="mb-3 flex items-center gap-2">

@@ -100,7 +100,7 @@ export default function SectionNav({ projectId, projectName, counts, pending = 0
 
       {/* 底部 */}
       <div className="space-y-0.5 border-t border-hair p-3">
-        {(pending + stale) > 0 && (
+        {(pending + stale) > 0 ? (
           <button
             onClick={onOpenProposals}
             className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm text-warn transition-colors hover:bg-warn-soft/50"
@@ -112,6 +112,20 @@ export default function SectionNav({ projectId, projectName, counts, pending = 0
             </span>
             <span className="rounded-full bg-warn-soft px-1.5 py-0.5 text-[10px] leading-none text-warn">
               {Math.max(pending, stale)}
+            </span>
+          </button>
+        ) : (
+          /* 常驻入口（0 条也进得去）：处理完最后一条后入口不再消失，可回看历史与空态说明——
+             徽标仅在有待处理项时出现，避免「0」制造待办幻觉（HIG Badges 只在有意义时显示）。 */
+          <button
+            data-testid="nav-proposals"
+            onClick={onOpenProposals}
+            className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm text-ink-2 transition-colors hover:bg-well hover:text-ink"
+            title="查看/处理待确认或已过期提案（当前没有待处理项，可查看历史）"
+          >
+            <span className="flex items-center gap-2.5">
+              <ListChecks className="h-4 w-4" />
+              提案
             </span>
           </button>
         )}

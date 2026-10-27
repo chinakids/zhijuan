@@ -44,11 +44,19 @@ try {
   const res = await page.eval(`document.querySelector('[data-testid="llm-check-result"]')?.innerText || ''`)
   ok('DeepSeek 无 Key 诊断「未填写 API Key」', res.includes('API Key'), res.slice(0, 40))
 
-  // ⑤ 返回按钮回首页
+  // ⑤ 返回按钮：项目内设置（/project/:id/settings）回原项目正文页（2026-10-27 P2：不再硬编码丢上下文）
+  await page.eval(`document.querySelector('[data-testid="settings-back"]').click()`)
+  await sleep(900)
+  const backProj = await page.eval(`location.hash`)
+  ok('项目内设置返回回原项目', /#\/project\/demo-aseya\/novel$/.test(backProj), backProj)
+
+  // ⑤b 全局设置（#/settings）返回仍是项目列表
+  await page.eval(`(location.hash = '#/settings', 1)`)
+  await sleep(1200)
   await page.eval(`document.querySelector('[data-testid="settings-back"]').click()`)
   await sleep(900)
   const backHome = await page.eval(`location.hash`)
-  ok('返回按钮跳转首页', /#\/$|#\/?$/.test(backHome) || backHome === '#/', backHome)
+  ok('全局设置返回首页', /#\/$/.test(backHome), backHome)
 
   // ⑥ 复制诊断按钮存在
   await page.eval(`window.zhijuan.setSettings({ settingsPane: 'engine' }).then(() => (location.hash = '#/project/demo-aseya/settings', 1))`)

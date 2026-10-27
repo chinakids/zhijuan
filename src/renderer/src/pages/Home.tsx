@@ -79,6 +79,9 @@ export default function Home() {
   const [editDesc, setEditDesc] = useState('')
   const [editErr, setEditErr] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
+  // 删除项目确认（移到系统废纸篓可恢复）：破坏性动作先确认再执行，成功后 toast 反馈
+  const [deleting, setDeleting] = useState<ProjectSummary | null>(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
 
   useEffect(() => {
     void window.zhijuan.listTemplates().then(setTemplates)
@@ -156,12 +159,24 @@ export default function Home() {
     void navigate(`/project/${id}`)
   }
 
-  async function remove(id: string) {
+  /** 删除项目（移到系统废纸篓）：先确认再删，成功后 toast 反馈（与文档删除同先例） */
+  async function remove() {
+    if (!deleting) return
+    setDeleteBusy(true)
     try {
-      await window.zhijuan.removeProject(id)
+      const r = await window.zhijuan.removeProject(deleting.id)
+      if (r && r.ok === false) throw new Error(r.error ?? '未知错误')
+      toast.add({
+        kind: 'success',
+        title: `已移入废纸篓：${deleting.name}`,
+        description: '可在系统废纸篓中恢复；最近打开记录已一并清除'
+      })
+      setDeleting(null)
       void refresh()
     } catch (e) {
       toast.add({ kind: 'error', title: '删除失败', description: String((e as Error).message ?? e) })
+    } finally {
+      setDeleteBusy(false)
     }
   }
 
@@ -488,7 +503,7 @@ export default function Home() {
                         className="text-danger focus:text-danger"
                         onClick={(e) => {
                           e.stopPropagation()
-                          void remove(p.id)
+                          setDeleting(p)
                         }}
                       >
                         <Trash2 className="h-4 w-4" /> 移到废纸篓
@@ -663,6 +678,32 @@ export default function Home() {
               disabled={!editName.trim() || savingEdit}
             >
               {savingEdit ? '保存中…' : '保存'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 删除项目确认：移入系统废纸篓（可恢复）——破坏性动作先确认，成功/失败都有 toast */}
+      <Dialog open={!!deleting} onOpenChange={(o) => !o && !deleteBusy && setDeleting(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>删除项目</DialogTitle>
+            <DialogDescription>
+              「{deleting?.name ?? ''}」整个项目文件夹将移入系统废纸篓（可恢复），最近打开记录一并清除。
+              {deleting ? `当前共 ${deleting.stats.chapters} 章正文、人物 ${deleting.stats.characters} 条、素材 ${deleting.stats.materials} 条。` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleting(null)} disabled={deleteBusy}>
+              取消
+            </Button>
+            <Button
+              className="text-danger"
+              data-testid="home-delete-confirm"
+              onClick={() => void remove()}
+              disabled={deleteBusy}
+            >
+              {deleteBusy ? '删除中…' : '移到废纸篓'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useMatch, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAppStore, applyTheme } from '../store/app'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -71,6 +72,15 @@ export default function Settings() {
   const [saved, setSaved] = useState(false)
   const [saveErr, setSaveErr] = useState('')
   const [section, setSection] = useState<SectionKey>('workspace')
+  // 返回目标：项目内设置（/project/:id/settings）回原项目正文页，全局设置（/settings）回项目列表。
+  const projMatch = useMatch('/project/:id/*')
+  const projectId = projMatch?.params.id ?? null
+  const navigate = useNavigate()
+  // ?pane=<分区>：外部深链直达分区（大纲空态「去设置配置引擎」等），消费后清参
+  const [sp, setSp] = useSearchParams()
+  const paneParam = sp.get('pane')
+  // 版本单一来源：主进程 app.getVersion()（与系统「关于」面板同源）；读取失败不阻塞页面
+  const [appVer, setAppVer] = useState('')
   // HIG Settings「Restore the most recently viewed pane」：打开回到上次分区（即时写盘 settingsPane）。
   // touched ref 防「设置异步加载完成时覆盖用户已点选的新 pane」——仅首次加载未触碰时恢复持久化值。
   const paneTouched = useRef(false)
@@ -103,6 +113,24 @@ export default function Settings() {
   useEffect(() => {
     void loadSettings()
   }, [loadSettings])
+
+  // 版本：唯一来源主进程 app.getVersion()（失败留空，不显示假版本号）
+  useEffect(() => {
+    void window.zhijuan
+      .appVersion()
+      .then((v) => setAppVer(String(v ?? '')))
+      .catch(() => setAppVer(''))
+  }, [])
+
+  // ?pane=<分区> 深链：消费后清参（与 novel?ch= / library?doc= 同策略，刷新不残留）
+  useEffect(() => {
+    if (!paneParam) return
+    if ((SECTION_KEYS as string[]).includes(paneParam)) {
+      paneTouched.current = true
+      setSection(paneParam as SectionKey)
+    }
+    setSp({}, { replace: true })
+  }, [paneParam, setSp])
 
   useEffect(() => {
     if (!settings) return
@@ -284,12 +312,12 @@ export default function Settings() {
         <button
           type="button"
           data-testid="settings-back"
-          onClick={() => (window.location.hash = '#/')}
+          onClick={() => navigate(projectId ? `/project/${projectId}/novel` : '/')}
           className="mb-2 flex shrink-0 items-center gap-1.5 rounded-md border border-hair px-2 py-1.5 text-xs text-ink-2 transition-colors hover:border-accent hover:text-accent"
-          title="返回项目列表"
+          title={projectId ? '返回项目（正文创作）' : '返回项目列表'}
         >
           <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-          <span>返回</span>
+          <span>{projectId ? '返回项目' : '返回'}</span>
         </button>
         <div className="mb-2 flex items-center gap-2 px-1 py-1">
           <span className="flex h-6 w-6 items-center justify-center rounded-md bg-accent text-xs font-bold text-accent-ink">织</span>
@@ -832,7 +860,9 @@ export default function Settings() {
             <Card className="mt-6 p-6">
               <h3 className="text-sm font-semibold text-ink-2">关于</h3>
               <Separator className="my-4" />
-              <p className="text-sm text-ink-2">织卷 v0.1.0 — AI 辅助小说创作工作台。</p>
+              <p className="text-sm text-ink-2">
+                织卷{appVer ? ` v${appVer}` : ''} — AI 辅助小说创作工作台。
+              </p>
               <p className="mt-1 text-xs text-ink-3">
                 所有数据都是本机明文文件：项目在项目库（默认 工作区/项目库），说明文档在工作区 文档/；
                 每个章节是一个时间切片，约定头写在正文文件顶部；正文为源，设定跟着走。

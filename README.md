@@ -95,19 +95,48 @@ dsh 作为独立子进程由 Electron 主进程拉起，织卷自身只做宿主
 ### 技术栈
 Electron · electron-vite · React 18 · TypeScript · Tailwind v4 · shadcn/ui · Milkdown (ProseMirror) · zustand · vitest · DeepSeek Harness（vendored）
 
-## 快速开始
+## 安装（macOS）
+
+从 [Releases](https://github.com/chinakids/zhijuan/releases) 下载对应架构的产物：
+`zhijuan-<version>-mac-arm64.dmg`（Apple Silicon）或 `zhijuan-<version>-mac-x64.dmg`（Intel）。
+
+1. **拖进应用程序**：双击 dmg，把「织卷」拖到「应用程序」（Applications）。
+2. **首次打开走右键**：在「应用程序」里 **右键「织卷」→ 打开 → 再点「打开」**。
+   直接双击会被 Gatekeeper 拦一次（应用是 ad-hoc 签名，非 Developer ID、未公证，属预期）。
+3. **仍提示「已损坏，应移到废纸篓」时，清隔离属性**（终端执行，然后正常双击）：
+
+   ```bash
+   xattr -dr com.apple.quarantine "/Applications/织卷.app"
+   open "/Applications/织卷.app"
+   ```
+
+### 更新
+
+当前为手动更新（无自动更新通道）：
+
+1. 退出织卷；
+2. 下载新版 dmg，双击后把「织卷」拖进「应用程序」，系统询问时选 **替换**；
+3. 首次打开仍按上面「右键 → 打开」；若提示损坏，再跑一次 `xattr -dr com.apple.quarantine`。
+
+覆盖安装不动你的数据：
+
+- **作品**：你选的库目录（默认 `~/Documents/织卷工作区/`，库在其中的 `项目库/`）；
+- **设置与本地版本历史**：`~/Library/Application Support/zhijuan/`（`zhijuan-settings.json` 等）。
+
+## 从源码运行
 
 ```bash
 # 依赖（npm 镜像见 .npmrc，可按需覆盖）
 npm install
 
 # vendored 写作引擎（约 300MB，包含运行时与本地模型支持）
+# 步骤：npm i → 补装收敛 → 重打 zj-core 插件 → 注入 HMR 守卫 → 三个 server 补丁 → 启动自检
 bash dsh-runtime/install.sh
 
 # 开发（Electron + Vite HMR）
 npm run dev
 
-# 生产构建 / 预览
+# 生产构建 / 预览（构建前自动跑插件重建 + HMR 守卫 + 引擎启动自检，引擎装坏会直接红）
 npm run build
 npm run start
 
@@ -116,8 +145,13 @@ npm run typecheck
 npm test                 # vitest 单元测试（1159 用例）
 node scripts/serve-renderer.mjs &   # 无头渲染服务
 node scripts/xxx-ui-smoke.mjs       # 无头 UI 冒烟（需本机 Chrome CDP 9224）
+
+# 引擎单独自检（发布前 / 装完引擎后）
+npm run dsh:boot                    # = node scripts/dsh-boot-check.mjs（未装引擎时跳过，--require 强制）
 ```
 
+- **引擎门禁**：`npm run build` 会先跑 `scripts/patch-dsh-hmr.mjs`（装好引擎却找不到注入点 → exit 1）
+  与 `scripts/dsh-boot-check.mjs`（真的拉起边车、注册适配器；不止编译过）。
 - **macOS 打包**：`electron-builder` 已配置（`electron-builder.yml`），`release/` 产出 app/dmg（含引擎运行时）。
 - **Windows**：兼容清单已走查，打包按需启用。
 
