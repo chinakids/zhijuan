@@ -1,9 +1,9 @@
 // ===== 织卷 V2 · IPC 路由（renderer 唯一入口） =====
 import { ipcMain, shell, BrowserWindow, dialog, app } from 'electron'
-import { readFileSync, existsSync, renameSync, statSync } from 'fs'
+import { readFileSync, existsSync, renameSync, statSync, mkdirSync } from 'fs'
 import { writeFileAtomic } from './fsutil'
-import { join, basename } from 'path'
-import type { AppSettings, FsEvent, ProposalItem, EditItem, Proposal, SaveTraceEntry } from '../shared/types'
+import { join, resolve, dirname, sep, basename } from 'path'
+import type { AppSettings, AppDiagnostics, ForensicsEntry, FsEvent, ProposalItem, EditItem, Proposal, SaveTraceEntry } from '../shared/types'
 import { adoptActsChapter } from '../shared/actsAdopt'
 import { countWords } from '../shared/count'
 import { extractFrontMatter } from '../shared/fmatter'
@@ -13,7 +13,13 @@ import { listSnapshots, readSnapshot } from './history'
 import { registerAgentIpc } from './agent/ipc'
 import { runChapterUnlisted, runChapterMissing } from './agent/audit'
 import { scanAnnotations, resolveAnnotationRows, addAnnotation, listAnnotations, removeAnnotation } from './agent/annotations'
-import { isRuntimeCreated, closeHarness } from './agent/runtime'
+import { isRuntimeCreated, closeHarness, ensureHarness, runtimeDir } from './agent/runtime'
+import { syncLogPath } from './agent/syncLog'
+import { writeLogPath } from './writeLog'
+import { saveTracePath } from './saveTrace'
+import { log, logError, logDir, logPath, readLogTail, readTailLines } from './log'
+import type { LogLevel } from './log'
+import { activeProvider } from '../shared/providers'
 import { getSettings, setSettings, libraryRoot } from './settings'
 import { getRecentEntries, recordOpen, removeRecent } from './recent'
 import {
@@ -54,6 +60,33 @@ export function broadcastToAll(evt: FsEvent) {
   for (const w of BrowserWindow.getAllWindows()) {
     if (!w.isDestroyed()) w.webContents.send('fs:event', evt)
   }
+}
+
+/** 取证文件清单（2026-10-27 可见性 E）：主进程日志 + 项目 `.zhijuan` 三件套。
+ * 此前 write-log/save-trace/sync-log 只写不读，排障只能自己猜路径——这里统一给出路径/大小/尾部。 */
+function collectForensics(projectId: string | null): ForensicsEntry[] {
+  const out: ForensicsEntry[] = []
+  const push = (kind: string, label: string, p: string, maxLines: number) => {
+    let bytes = 0
+    let mtime = 0
+    let exists = false
+    try {
+      const st = statSync(p)
+      exists = st.isFile()
+      bytes = st.size
+      mtime = st.mtimeMs
+    } catch {
+      exists = false
+    }
+    out.push({ kind, label, path: p, exists, bytes, mtime, tail: exists ? readTailLines(p, maxLines) : [] })
+  }
+  push('main-log', '主进程日志（main.log）', logPath(), 20)
+  if (projectId) {
+    push('write-log', '正文写盘审计（write-log.jsonl）', writeLogPath(projectId), 20)
+    push('save-trace', '渲染层保存取证（save-trace.jsonl）', saveTracePath(projectId), 20)
+    push('sync-log', '切片同步历史（sync-log.jsonl）', syncLogPath(projectId), 20)
+  }
+  return out
 }
 
 export function registerIpc() {
@@ -164,6 +197,94 @@ export function registerIpc() {
   // 版本单一来源：关于页与系统「关于」面板同读 app.getVersion()（package.json version + 打包注入），
   // 渲染层不再硬编码，避免双源漂移。
   ipcMain.handle('app:version', () => app.getVersion())
+
+  // ===== 诊断与取证（2026-10-27 可见性 P1）=====
+  // 一次性带走排障现场：版本/平台/引擎状态/关键路径/主进程日志尾——设置页「导出诊断」直接序列化落盘。
+  // 引擎未建过 runtime 时**不**触发启动（ensureHarness 会拉子进程，第一启最长 45s），只报「未启动」+原因。
+  ipcMain.handle('app:diagnostics', async (): Promise<AppDiagnostics> => {
+    const cfg = activeProvider(getSettings())
+    const engine: AppDiagnostics['engine'] = {
+      online: false,
+      provider: cfg.preset.name,
+      model: cfg.model,
+      message: '引擎未启动（本会话还没有发起写作请求；「写作引擎」页可重启）'
+    }
+    if (isRuntimeCreated()) {
+      try {
+        const err = await ensureHarness()
+        engine.online = !err
+        engine.message = err ?? ''
+      } catch (e) {
+        engine.message = String((e as Error)?.message ?? e)
+      }
+    }
+    return {
+      version: app.getVersion(),
+      platform: process.platform,
+      arch: process.arch,
+      engine,
+      paths: {
+        libraryRoot: libraryRoot(),
+        userData: app.getPath('userData'),
+        runtimeDir: runtimeDir()
+      },
+      logTail: readLogTail(200)
+    }
+  })
+  // 导出诊断快照 JSON（系统保存对话框；与 chapter:export 同范式）
+  ipcMain.handle('app:diagnosticsExport', async (e, payload: unknown) => {
+    const text = typeof payload === 'string' ? payload : JSON.stringify(payload ?? {}, null, 2)
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    const opts = {
+      title: '导出诊断快照（JSON）',
+      defaultPath: join(app.getPath('documents'), `织卷诊断-${stamp}.json`),
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    } as Electron.SaveDialogOptions
+    const win = BrowserWindow.fromWebContents(e.sender)
+    const r = win ? await dialog.showSaveDialog(win, opts) : await dialog.showSaveDialog(opts)
+    if (r.canceled || !r.filePath) return { ok: false, cancelled: true }
+    try {
+      writeFileAtomic(r.filePath, text)
+      log('info', `诊断快照已导出 → ${r.filePath}`, 'diagnostics')
+      return { ok: true, path: r.filePath }
+    } catch (err) {
+      logError('diagnosticsExport', err)
+      return { ok: false, error: String((err as Error).message ?? err) }
+    }
+  })
+  // 打开日志目录（诊断日志的家；shell.openPath 返回空串=成功）
+  ipcMain.handle('app:openLogDir', async () => {
+    try {
+      mkdirSync(logDir(), { recursive: true })
+      const err = await shell.openPath(logDir())
+      return err ? { ok: false, error: err, path: logDir() } : { ok: true, path: logDir() }
+    } catch (e) {
+      return { ok: false, error: String((e as Error).message ?? e), path: logDir() }
+    }
+  })
+  // 取证清单（E：write-log / save-trace / sync-log / main.log 有写无读的入口）
+  ipcMain.handle('app:forensics', (_e, projectId?: string | null) => collectForensics(projectId ?? null))
+  // 在文件管理器里定位（限日志目录 / 项目库内，避免渲染层任意路径穿越）
+  ipcMain.handle('app:revealPath', (_e, p: string) => {
+    try {
+      if (!p) return { ok: false, error: '路径为空' }
+      const abs = resolve(p)
+      const roots = [logDir(), libraryRoot()].map((r) => resolve(r))
+      if (!roots.some((r) => abs === r || abs.startsWith(r + sep))) {
+        return { ok: false, error: '只允许定位日志目录或项目库内的文件' }
+      }
+      if (existsSync(abs)) shell.showItemInFolder(abs)
+      else void shell.openPath(dirname(abs))
+      return { ok: true, path: abs }
+    } catch (e) {
+      return { ok: false, error: String((e as Error).message ?? e) }
+    }
+  })
+  // 渲染层异常上报（ErrorBoundary）：fire-and-forget 落主进程日志，白屏现场不再只在 DevTools
+  ipcMain.on('app:log', (_e, level: string, message: string) => {
+    const lv: LogLevel = level === 'debug' || level === 'info' || level === 'warn' ? level : 'error'
+    log(lv, String(message ?? ''), 'renderer')
+  })
 
   // 工作区（设置里的工作区 = 织卷根目录；相关文档落档在 工作区/文档/）
   ipcMain.handle('workspace:status', () => workspaceStatus())

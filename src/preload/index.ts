@@ -1,8 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AppSettings,
+  AppDiagnostics,
   AgentEvent,
   ChapterEntry,
+  ForensicsEntry,
   FsEvent,
   ImportResult,
   ExportResult,
@@ -56,6 +58,22 @@ const api = {
   getPaths: () => ipcRenderer.invoke('app:getPaths') as Promise<{ documents: string; defaultLibrary: string }>,
   /** 应用版本（唯一来源 app.getVersion()；关于页展示用，勿在渲染层硬编码） */
   appVersion: () => ipcRenderer.invoke('app:version') as Promise<string>,
+  // 诊断与取证（2026-10-27 可见性）：一次性快照 / 导出 JSON / 打开日志目录 / 取证清单 / 定位文件
+  diagnostics: () => ipcRenderer.invoke('app:diagnostics') as Promise<AppDiagnostics>,
+  /** 导出诊断快照（系统保存对话框；payload 由渲染层组装，通常=diagnostics()+导出时刻） */
+  diagnosticsExport: (payload: unknown) =>
+    ipcRenderer.invoke('app:diagnosticsExport', payload) as Promise<{ ok: boolean; path?: string; cancelled?: boolean; error?: string }>,
+  openLogDir: () =>
+    ipcRenderer.invoke('app:openLogDir') as Promise<{ ok: boolean; path?: string; error?: string }>,
+  /** 取证文件清单（main.log + 项目 .zhijuan 三件套；projectId 为空只列主进程日志） */
+  forensics: (projectId?: string | null) =>
+    ipcRenderer.invoke('app:forensics', projectId ?? null) as Promise<ForensicsEntry[]>,
+  /** 在文件管理器定位（限日志目录 / 项目库内） */
+  revealPath: (p: string) => ipcRenderer.invoke('app:revealPath', p) as Promise<{ ok: boolean; path?: string; error?: string }>,
+  /** 渲染层异常上报（ErrorBoundary 用；fire-and-forget，落主进程 main.log） */
+  logRenderer: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => {
+    ipcRenderer.send('app:log', level, message)
+  },
   // 首页「更改库根路径」：系统目录选择器 → 写入设置 → 返回新生效库根（模块设计 §四 A「库根路径（可改）」）
   pickLibrary: () => ipcRenderer.invoke('settings:pickLibrary') as Promise<string | null>,
   // 设置页「自定义用词词表」：导入 / 导出 .txt（每行一条短语；系统文件对话框）

@@ -51,6 +51,9 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
   const searchRef = useRef<HTMLInputElement>(null)
   const [hits, setHits] = useState<SearchHit[] | null>(null)
   const [searching, setSearching] = useState(false)
+  // 搜索失败态（2026-10-27 可见性 P1）：此前 catch → setHits([])，与「真的零命中」同形，
+  // 作者只看到「没有找到…」——IO 失败被当成「素材不存在」。现在另立 searchErr + 重试路径。
+  const [searchErr, setSearchErr] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
   const [newCatOpen, setNewCatOpen] = useState(false)
@@ -176,16 +179,22 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
   const runSearch = useCallback(
     (q: string) => {
       setSearching(true)
+      setSearchErr('')
       window.zhijuan
         .searchDocs(id, '素材库', q, { excludePrefix: ['素材库/采集池/'] })
         .then((r) => setHits(r))
-        .catch(() => setHits([]))
+        // 失败 → hits=null + searchErr：绝不 setHits([])（那与零命中同形，见 2026-10-27 可见性 P1）
+        .catch((e: unknown) => {
+          setHits(null)
+          setSearchErr(`搜索失败：${String((e as Error)?.message ?? e) || '未知错误'}`)
+        })
         .finally(() => setSearching(false))
     },
     [id]
   )
   const onSearchChange = (v: string) => {
     setSearchQ(v)
+    setSearchErr('')
     if (qTimer.current) clearTimeout(qTimer.current)
     const q = v.trim()
     if (!q) {
@@ -546,6 +555,19 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
                       setLoadErr('')
                       void refresh()
                     }}
+                  >
+                    重试
+                  </button>
+                </div>
+              ) : searchErr && searchQ.trim() ? (
+                // 搜索失败（2026-10-27 可见性 P1）：与「零命中」显式分开，给重试
+                <div data-testid="lib-search-error" role="alert" className="py-10 text-center">
+                  <p className="text-sm font-medium text-danger">搜索失败</p>
+                  <p className="mt-1 break-all text-xs text-ink-3">{searchErr}</p>
+                  <p className="mt-1 text-[11px] text-ink-3">素材没有丢，是这次读盘/解析失败。</p>
+                  <button
+                    className="mt-3 text-xs text-accent underline-offset-2 hover:underline"
+                    onClick={() => runSearch(searchQ.trim())}
                   >
                     重试
                   </button>

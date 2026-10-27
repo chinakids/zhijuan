@@ -3,7 +3,7 @@
 import { app } from 'electron'
 import { createRequire } from 'module'
 import { execFileSync } from 'child_process'
-import { mkdirSync, readFileSync, existsSync, readdirSync } from 'fs'
+import { mkdirSync, readFileSync, existsSync, readdirSync, cpSync, renameSync, rmSync } from 'fs'
 import { writeFileAtomic } from '../fsutil'
 import { resolve, dirname, join, win32 } from 'path'
 import { homedir } from 'os'
@@ -40,14 +40,118 @@ export interface DriveEvent {
   params: Record<string, any>
 }
 
-/** 运行时根目录：dev=<appPath>/dsh-runtime；打包后=dsh-runtime 在 extraResources（resourcesPath），asar 内不可 spawn */
+/** 运行时根目录（**只读**引擎树）：dev=<appPath>/dsh-runtime；打包后=dsh-runtime 在 extraResources（resourcesPath），asar 内不可 spawn。
+ * 注意：这里只放不可变运行时（node_modules / sdk bin / dshhome 模板），**不要往这里写任何东西**——见 writableRoot。 */
 function runtimeDir(): string {
   if (process.env.ZHJUAN_DSH_RUNTIME) return process.env.ZHJUAN_DSH_RUNTIME
   if (app.isPackaged) return resolve(process.resourcesPath, 'dsh-runtime')
   return resolve(app.getAppPath(), 'dsh-runtime')
 }
 
-const dshHome = () => join(runtimeDir(), 'dshhome')
+/** 可写根（2026-10-27 迁移）：打包后＝userData，把引擎的可变状态搬出 .app。
+ * 旧实现把 DSH_HOME（引擎会话/设置）与 run/（LLM、工具 override patch）都写在 resources/dsh-runtime 内：
+ *  ① 首启写入破坏 .app 的签名封条（打出的包 CodeResources 有 3 万条来自 dsh-runtime）；
+ *  ② /Applications 非属主时写入直接 EACCES。
+ * dev 保持引擎树内（探针脚本、dsh-boot-check、既有 run/ 路径全部沿用，行为零变化；
+ * ZHJUAN_DSH_RUNTIME 也在 dev 下生效，因为 runtimeDir 已尊重它）。 */
+function writableRoot(): string {
+  if (!app.isPackaged) return runtimeDir()
+  return app.getPath('userData')
+}
+
+/** DSH_HOME 基础层复制清单（模板＝<runtimeDir>/dshhome，随包只带不可变部分）：
+ * settings.yaml + profiles/{sdk,headless}（dsh --profile sdk 读 DSH_HOME/profiles/sdk）。
+ * sessions/ 与 profiles/node_modules* 不属基础层：前者机器相关（旧安装升级时另作可选层搬一次），
+ * 后者是构建机的绝对 symlink（打包已排，引擎会自行重建）。 */
+const DSH_BASE_ENTRIES = ['settings.yaml', 'profiles/sdk', 'profiles/headless']
+/** 可选层（有就带上、失败不影响基础层）：profiles/node_modules（模板里通常是 symlink）
+ * 与 sessions（把旧安装写在 .app 内的引擎会话历史搬到 userData，避免升级后上下文断档）。 */
+const DSH_OPTIONAL_ENTRIES = ['profiles/node_modules', 'sessions']
+
+export interface HomeBootstrap {
+  /** 生效的 DSH_HOME（引擎进程实际使用的目录） */
+  home: string
+  /** 可写根（run/ 与 dshhome 的父目录） */
+  root: string
+  /** 是否刚从只读模板复制过基础层（首启） */
+  copied: boolean
+  /** 回退/降级说明（诊断用；正常/已就位时为空） */
+  note?: string
+}
+
+let homeBootstrap: HomeBootstrap | null = null
+let bootWarned = false
+
+/** 确保 DSH_HOME 在可写根就位（首启从只读模板复制基础层），返回生效路径。
+ * 幂等、缓存；**失败一律回退旧路径**（引擎可用性优先于签名洁净），回退原因写进 note，
+ * 由 startFailureDiag 一并展示。复制经 staging 目录 + rename：避免半成品 dshhome 让下次启动误判「已就位」。 */
+export function ensureWritableHome(): HomeBootstrap {
+  if (homeBootstrap) return homeBootstrap
+  const root = writableRoot()
+  const template = join(runtimeDir(), 'dshhome')
+  const home = join(root, 'dshhome')
+  // dev（或 ZHJUAN_DSH_RUNTIME 指向的树）：可写根就是引擎树，DSH_HOME 天然可写＝老路径
+  if (root === runtimeDir()) {
+    try {
+      mkdirSync(home, { recursive: true })
+      homeBootstrap = { home, root, copied: false }
+    } catch (e: any) {
+      homeBootstrap = { home, root, copied: false, note: `DSH_HOME 目录不可写（${String(e?.message || e).slice(0, 100)}）` }
+    }
+    return homeBootstrap
+  }
+  // 已就位（含上次首启复制成功 / 老用户升级前就存在）
+  if (existsSync(home)) {
+    homeBootstrap = { home, root, copied: false }
+    return homeBootstrap
+  }
+  try {
+    if (!existsSync(template)) throw new Error(`运行时模板缺失：${template}`)
+    const staging = `${home}.boot-${process.pid}`
+    rmSync(staging, { recursive: true, force: true })
+    mkdirSync(staging, { recursive: true })
+    let n = 0
+    for (const rel of DSH_BASE_ENTRIES) {
+      const src = join(template, rel)
+      if (!existsSync(src)) continue
+      cpSync(src, join(staging, rel), { recursive: true, force: true, preserveTimestamps: true })
+      n++
+    }
+    if (!n) throw new Error('模板里没有 settings.yaml / profiles，基础层为空')
+    for (const rel of DSH_OPTIONAL_ENTRIES) {
+      const src = join(template, rel)
+      if (!existsSync(src)) continue
+      try {
+        cpSync(src, join(staging, rel), { recursive: true, force: true, preserveTimestamps: true })
+      } catch {
+        /* 可选层：node_modules 的坏 symlink / 会话历史过大都只降级，不影响引擎启动 */
+      }
+    }
+    try {
+      renameSync(staging, home)
+    } catch (e) {
+      // 并发（另一实例/上次残留）已就位：以现存目录为准，别把自己的 staging 留在用户目录里
+      rmSync(staging, { recursive: true, force: true })
+      if (!existsSync(home)) throw e
+    }
+    homeBootstrap = { home, root, copied: true }
+    return homeBootstrap
+  } catch (e: any) {
+    const why = String(e?.message || e).slice(0, 140)
+    homeBootstrap = {
+      home: template,
+      root: runtimeDir(),
+      copied: false,
+      note: `首启复制 DSH_HOME 失败（${why}）→ 回退引擎树内 DSH_HOME（只读安装时可能 EACCES）`
+    }
+    return homeBootstrap
+  }
+}
+
+/** 生效的 DSH_HOME（打包版＝userData/dshhome；dev＝引擎树/dshhome） */
+const dshHome = () => ensureWritableHome().home
+/** 引擎启动 patch 的落盘目录（用户数据，不在 .app 内） */
+const runDir = () => join(ensureWritableHome().root, 'run')
 const sdkBin = () => join(runtimeDir(), 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js')
 
 /** 用户回答的回灌目录（写作引擎插件轮询这里读答案 JSON） */
@@ -161,10 +265,18 @@ async function startWithTimeout(h: any, ms = START_TIMEOUT_MS): Promise<void> {
 function startFailureDiag(msg: string, launchCmd = ''): string {
   let dir = ''
   let home = ''
+  let homeNote = ''
   let sdkPath = ''
   try {
     dir = runtimeDir()
-    home = dshHome()
+    // 首启迁移：DSH_HOME 应在可写根（userData）；失败回退时 note 会说明原因
+    const boot = ensureWritableHome()
+    home = boot.home
+    homeNote = boot.note
+      ? `（降级：${boot.note}）`
+      : boot.home === join(runtimeDir(), 'dshhome')
+        ? '（引擎树内 · dev）'
+        : '（用户数据目录 · .app 外，可写）'
     sdkPath = sdkBin()
   } catch {}
   let sdkOk = false
@@ -181,8 +293,8 @@ function startFailureDiag(msg: string, launchCmd = ''): string {
     `写作引擎启动失败：${String(msg).slice(0, 200)}`,
     `node：${launchCmd || '（未解析到宿主 node）'}${usingElectron ? '（Electron 兜底 ELECTRON_RUN_AS_NODE）' : ''}`,
     `SDK 入口：${sdkOk ? '存在' : '缺失 → ' + (sdkPath || sdkBin())}`,
-    `运行时目录：${dir}`,
-    `DSH_HOME：${home}`,
+    `运行时目录（只读）：${dir}`,
+    `DSH_HOME：${home}${homeNote}`,
     providerLine
   ].join('\n')
 }
@@ -190,7 +302,7 @@ function startFailureDiag(msg: string, launchCmd = ''): string {
 /** 按当前活跃的模型厂商生成动态 patch（默认本地也会写，幂等，一次路径）；返回需追加的 --patch 参数 */
 function llmOverrideArgs(): string[] {
   const cfg = activeProvider(getSettings())
-  const run = join(runtimeDir(), 'run')
+  const run = runDir() // 用户数据（打包版＝userData/run）；旧实现写在 .app 内，破坏签名
   mkdirSync(run, { recursive: true })
   const patch = join(run, 'llm.override.patch.yml')
   const body = buildLlmOverrideYml(cfg)
@@ -207,7 +319,7 @@ function toolsOverrideArgs(): string[] {
   if (t.todo === false) rows.push('- id: tool-todo\n  disabled: true\n')
   if (t.askUser === false) rows.push('- id: tool-ask-user\n  disabled: true\n')
   if (!rows.length) return []
-  const run = join(runtimeDir(), 'run')
+  const run = runDir()
   mkdirSync(run, { recursive: true })
   const patch = join(run, 'tools.override.patch.yml')
   const body = rows.join('')
@@ -290,6 +402,13 @@ export async function ensureHarness(): Promise<string | undefined> {
   }
   let launchCmd = ''
   try {
+    // 首启迁移（2026-10-27）：DSH_HOME 基础层从只读运行时模板复制到可写根（打包版＝userData）。
+    // 失败不 throw：ensureWritableHome 内部已回退引擎树内旧路径，原因写进诊断串。
+    const boot = ensureWritableHome()
+    if (boot.note && !bootWarned) {
+      bootWarned = true
+      console.warn('[runtime] ' + boot.note)
+    }
     const Sdk = await loadSdk()
     const cfg = activeProvider(getSettings())
     // key 优先级：设置里填的 → 宿主环境已有 → 本地给占位 'local'
@@ -469,7 +588,7 @@ export async function closeHarness() {
   try { await h.close() } catch {}
 }
 
-export { sessionHandle, runtimeDir, dshHome }
+export { sessionHandle, runtimeDir, dshHome, runDir, writableRoot }
 
 /** E2：以 EnginePort 形式暴露当前 dsh 实现（调用方走接口；以后换引擎 = 换这个单例的实现） */
 export const engine: EnginePort = {

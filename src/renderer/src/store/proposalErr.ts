@@ -23,3 +23,20 @@ export function pruneErrMap(
   if (!hasStale) return map
   return Object.fromEntries(Object.entries(map).filter(([k]) => ids.has(k)))
 }
+
+/** 提案列表拉取失败 → 展示文案（2026-10-27 可见性 P1：失败不再静默成「没有提案」）。
+ * 纯函数（tsconfig.node 白名单）：store 与单测共用，避免在组件里各写一套取 message 的兜底。 */
+export function refreshErrMsg(e: unknown): string {
+  let msg = ''
+  if (e instanceof Error) msg = e.message
+  else if (typeof e === 'string') msg = e
+  else if (e === null || e === undefined) msg = ''
+  else {
+    try {
+      msg = JSON.stringify(e)
+    } catch {
+      msg = String(e)
+    }
+  }
+  return `读取提案失败：${msg || '未知错误'}`
+}

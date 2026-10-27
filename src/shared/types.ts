@@ -593,3 +593,30 @@ export interface MenuStateReport {
   /** 文档编辑器（DocEditor）是否挂载——保存/查找组使能依据（正文与分幕草稿同构，挂载即可用） */
   editor: boolean
 }
+
+/** 应用诊断快照（2026-10-27 可见性：app:diagnostics）。设置页「导出诊断」一次性带走排障现场：
+ * 版本/平台/引擎状态/关键路径/主进程日志尾——不用再让作者翻目录猜路径。 */
+export interface AppDiagnostics {
+  version: string
+  platform: string
+  arch: string
+  engine: { online: boolean; provider?: string; model?: string; message: string }
+  paths: { libraryRoot: string; userData: string; runtimeDir: string }
+  /** 主进程日志尾部（最多 200 行，跨轮转补齐） */
+  logTail: string[]
+}
+
+/** 取证文件条目（2026-10-27 可见性：app:forensics）。此前 write-log/save-trace/sync-log 有写无读，
+ * 设置页「诊断与取证」直接列出 + 打开 + 看尾部，排障不必再开终端。 */
+export interface ForensicsEntry {
+  /** 稳定标识（main-log / write-log / save-trace / sync-log） */
+  kind: string
+  label: string
+  path: string
+  exists: boolean
+  bytes: number
+  /** mtime（ms；0=文件不存在） */
+  mtime: number
+  /** 尾部若干行（原始行；不存在为空） */
+  tail: string[]
+}

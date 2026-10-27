@@ -4,6 +4,11 @@ import { registerIpc } from './ipc'
 import { shutdownAgent } from './agent/ipc'
 import { getSettings } from './settings'
 import { registerMenuActions } from './menu'
+import { installCrashHandlers, log, logError } from './log'
+
+// 可见性 P1（2026-10-27）：入口最早安装全局捕获——此后任何未捕获异常/崩溃都落 userData/logs/main.log。
+// 位置在 app.whenReady 之前：启动期（读设置/建窗）的失败同样是现场。
+installCrashHandlers()
 
 const isDev = !!process.env['ELECTRON_RENDERER_URL']
 
@@ -30,6 +35,14 @@ function createWindow() {
     return { action: 'deny' }
   })
 
+  // 白屏根因之二：页面没加载出来（dev server 没起/资源缺失）时此前只有控制台一行
+  win.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    log('error', `code=${code} desc=${desc} url=${url}`, 'did-fail-load')
+  })
+  win.webContents.on('unresponsive', () => {
+    log('warn', '渲染层无响应（unresponsive）', 'renderer')
+  })
+
   if (isDev) {
     win.loadURL(process.env['ELECTRON_RENDERER_URL']!)
   } else {
@@ -50,6 +63,7 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  log('info', `ready version=${app.getVersion()} electron=${process.versions['electron'] ?? '?'} packaged=${app.isPackaged} platform=${process.platform}/${process.arch}`, 'app')
   // 打包验收（ZHJUAN_SMOKE=1）：不进 GUI，直测主进程核心链路（引擎怠启动+设置）后退出
   // 用于无头环境验证发布包（2026-09-12 发布冲刺）
   if (process.env['ZHJUAN_SMOKE']) {
@@ -59,6 +73,7 @@ app.whenReady().then(async () => {
       const s = getSettings()
       console.log('ZHJUAN_SMOKE ' + JSON.stringify({ engineOnline: !err, engineErr: err ?? null, workspace: s.workspace, libraryRoot: s.libraryRoot, packaged: app.isPackaged }))
     } catch (e) {
+      logError('smoke', e)
       console.log('ZHJUAN_SMOKE ' + JSON.stringify({ error: String((e as Error).message ?? e) }))
     }
     app.exit(0)
@@ -79,5 +94,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('will-quit', () => {
+  // 正常退出标记：下次排查时「最后一行不是 will-quit」即说明是被强杀/崩溃
+  log('info', 'will-quit', 'app')
   shutdownAgent()
 })

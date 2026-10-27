@@ -274,6 +274,12 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
   // 成功/拒绝/过期/提案从列表消失时清除（refresh 收敛）。
   const errMap = useProposalStore((s) => s.errMap)
   const reportErr = useProposalStore((s) => s.setErr)
+  // 列表级失败（2026-10-27 可见性 P1）：读提案失败时不再显示「还没有提案」，改为红字 + 重试；
+  // 旧列表照旧渲染（refresh 失败保留上次结果），作者能分清「真没有」与「没读到」。
+  const listErr = useProposalStore((s) => s.err)
+  const retryRefresh = () => {
+    void useProposalStore.getState().refresh(projectId)
+  }
   const pending = useMemo(() => list.filter((p) => p.status === 'pending'), [list])
   const done = useMemo(() => list.filter((p) => p.status === 'accepted' || p.status === 'rejected'), [list])
   const stale = useMemo(() => list.filter((p) => p.status === 'stale'), [list])
@@ -393,6 +399,19 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
           <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={onClose}>收起</Button>
         </div>
         <ScrollArea className="min-h-0 flex-1 px-3 py-3">
+          {listErr && (
+            <div data-testid="proposal-list-err" role="alert" className="mb-2 flex items-start gap-2 rounded-md border border-danger/40 bg-danger-soft px-2 py-1.5">
+              <p className="min-w-0 flex-1 break-all text-[11px] leading-5 text-danger">{listErr}</p>
+              <button
+                type="button"
+                data-testid="proposal-list-retry"
+                onClick={retryRefresh}
+                className="shrink-0 rounded px-1 py-0.5 text-[11px] text-ink-2 underline-offset-2 hover:text-accent hover:underline"
+              >
+                重试
+              </button>
+            </div>
+          )}
           {pending.length > 0 && (
             <div className="mb-2 flex items-center gap-2">
               <span className="text-xs font-medium text-warn">待确认 {pending.length}</span>
@@ -401,7 +420,7 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
               <Button size="sm" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px]" onClick={() => void allApply()} disabled={allBusy || allRejectBusy}>全部接受</Button>
             </div>
           )}
-          {pending.length === 0 && done.length === 0 && stale.length === 0 && (
+          {pending.length === 0 && done.length === 0 && stale.length === 0 && !listErr && (
             <div className="flex flex-col items-center gap-2 py-16 text-ink-3">
               <Inbox className="h-6 w-6" />
               <p className="text-xs">还没有提案。保存正文后，切片同步会在这里提出设定更新。</p>

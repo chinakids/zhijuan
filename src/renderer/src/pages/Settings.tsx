@@ -8,14 +8,15 @@ import { Separator } from '../components/ui/separator'
 import { Switch } from '../components/ui/switch'
 import { Card } from '../components/ui/card'
 import { cn } from '../lib/utils'
-import { ArrowLeft, Keyboard, Plus, Trash2, FileUp, FileDown, RefreshCw, RotateCw } from 'lucide-react'
+import { ArrowLeft, Keyboard, Plus, Trash2, FileUp, FileDown, RefreshCw, RotateCw, Download, FolderOpen } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import ShortcutHelp from '../features/command/ShortcutHelp'
+import { toast } from '../components/ui/toast'
 import { PROVIDER_PRESETS, providerById } from '../../../shared/providers'
 import { normalizeOveruseDict } from '../../../shared/wordfreq'
 import { isImeComposing } from '../lib/ime'
 import SkillSettingsCard from '../features/skills/SkillSettingsCard'
-import type { LlmProviderCfg, LlmProviderId } from '../../../shared/types'
+import type { AppDiagnostics, AppSettings, ForensicsEntry, LlmProviderCfg, LlmProviderId } from '../../../shared/types'
 import type { SettingsPaneKey } from '../../../shared/types'
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -26,6 +27,22 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
       {hint && <p className="min-w-0 text-xs leading-5 text-ink-3">{hint}</p>}
     </div>
   )
+}
+
+/** 取证文件大小（B/KB/MB） */
+function fmtBytes(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return '0 B'
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / 1024 / 1024).toFixed(1)} MB`
+}
+
+/** 修改时间 → 「MM-DD HH:mm」 */
+function fmtMtime(ms: number): string {
+  if (!ms) return ''
+  const d = new Date(ms)
+  const p = (x: number) => String(x).padStart(2, '0')
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 /** 设置页一级分区（将来加配置先挂到这里，保证布局稳定） */
@@ -71,6 +88,15 @@ export default function Settings() {
   const [overuseMsg, setOveruseMsg] = useState('')
   const [saved, setSaved] = useState(false)
   const [saveErr, setSaveErr] = useState('')
+  // 即时写盘类开关的失败态（2026-10-27 可见性 P1）：写盘失败 → 回滚开关 + 内联红字 + toast。
+  // 与 saveErr（保存按钮）分开：开关是「点即生效」，失败必须就地说明，不能混在保存状态里。
+  const [settingErr, setSettingErr] = useState('')
+  // 诊断与取证（2026-10-27 可见性 C/E）
+  const [diagBusy, setDiagBusy] = useState(false)
+  const [diagMsg, setDiagMsg] = useState('')
+  const [forensics, setForensics] = useState<ForensicsEntry[] | null>(null)
+  const [forensicsErr, setForensicsErr] = useState('')
+  const [tailOpen, setTailOpen] = useState<Record<string, boolean>>({})
   const [section, setSection] = useState<SectionKey>('workspace')
   // 返回目标：项目内设置（/project/:id/settings）回原项目正文页，全局设置（/settings）回项目列表。
   const projMatch = useMatch('/project/:id/*')
@@ -162,11 +188,12 @@ export default function Settings() {
   }, [settings, refreshWorkspace, refreshLibrary])
 
   /** 切换服务商：同时把可编辑字段换成该家已存的值 */
-  /** 即时切换 agent 能力开关（写设置；下次运行该能力时生效） */
+  /** 即时切换 agent 能力开关（写设置；下次运行该能力时生效）；写盘失败回滚，不假装已改 */
   function toggleCap(id: string, on: boolean) {
+    const prev = caps
     const next = { ...caps, [id]: on }
     setCaps(next)
-    void updateSettings({ capabilities: next })
+    void applySetting({ capabilities: next }, () => setCaps(prev), '检查能力开关')
   }
 
   // ===== 自定义用词词表（智能层数据链 2026-09-21 移交：清洗闸=normalizeOveruseDict，勿另写） =====
@@ -253,6 +280,105 @@ export default function Settings() {
       .finally(() => setRestarting(false))
   }
   useEffect(() => { refreshEngine() }, [])
+
+  // ===== 即时写盘（2026-10-27 可见性 P1）=====
+  /** 开关/主题这类「点了就写」的设置：失败必须回滚并说出来。
+   * 旧形态 `void updateSettings(...)` 无 catch——写盘失败（权限/磁盘满/settings.json 损坏）时
+   * 开关已翻、界面显示已改，设置其实没落盘，下次启动又变回去，作者无从判断哪个是真的。 */
+  async function applySetting(patch: Partial<AppSettings>, rollback: () => void, label: string): Promise<boolean> {
+    setSettingErr('')
+    try {
+      await updateSettings(patch)
+      return true
+    } catch (e) {
+      rollback()
+      const msg = `「${label}」保存失败：${String((e as Error)?.message ?? e)}（已恢复原状）`
+      setSettingErr(msg)
+      toast.add({ kind: 'error', title: '设置未能保存', description: msg })
+      return false
+    }
+  }
+
+  // ===== 诊断与取证（2026-10-27 可见性 C/E）=====
+  /** 一次性诊断快照（版本/平台/引擎/路径/日志尾）+ 导出时的上下文 */
+  async function collectDiagnostics(): Promise<Record<string, unknown> | null> {
+    try {
+      const d: AppDiagnostics = await window.zhijuan.diagnostics()
+      return {
+        ...d,
+        exportedAt: new Date().toISOString(),
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+        settings: { theme: settings?.theme, workspace: settings?.workspace, libraryRoot: settings?.libraryRoot, provider: settings?.llm?.active }
+      }
+    } catch (e) {
+      setDiagMsg(`读取诊断失败：${String((e as Error)?.message ?? e)}`)
+      return null
+    }
+  }
+
+  async function exportDiagnostics() {
+    setDiagBusy(true)
+    setDiagMsg('')
+    try {
+      const payload = await collectDiagnostics()
+      if (!payload) return
+      const r = await window.zhijuan.diagnosticsExport(payload)
+      setDiagMsg(r.cancelled ? '已取消导出' : r.ok ? `已导出 → ${r.path}` : `导出失败：${r.error ?? '未知错误'}`)
+    } catch (e) {
+      setDiagMsg(`导出失败：${String((e as Error)?.message ?? e)}`)
+    } finally {
+      setDiagBusy(false)
+    }
+  }
+
+  async function copyDiagnostics() {
+    setDiagMsg('')
+    const payload = await collectDiagnostics()
+    if (!payload) return
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2))
+      setDiagMsg('诊断快照已复制到剪贴板')
+    } catch (e) {
+      setDiagMsg(`复制失败：${String((e as Error)?.message ?? e)}`)
+    }
+  }
+
+  async function openLogDir() {
+    setDiagMsg('')
+    try {
+      const r = await window.zhijuan.openLogDir()
+      setDiagMsg(r.ok ? `已打开日志目录：${r.path ?? ''}` : `打开失败：${r.error ?? '未知错误'}`)
+    } catch (e) {
+      setDiagMsg(`打开失败：${String((e as Error)?.message ?? e)}`)
+    }
+  }
+
+  async function revealForensics(p: string) {
+    setDiagMsg('')
+    try {
+      const r = await window.zhijuan.revealPath(p)
+      if (!r.ok) setDiagMsg(`定位失败：${r.error ?? '未知错误'}`)
+    } catch (e) {
+      setDiagMsg(`定位失败：${String((e as Error)?.message ?? e)}`)
+    }
+  }
+
+  function loadForensics() {
+    setForensicsErr('')
+    window.zhijuan
+      .forensics(projectId)
+      .then(setForensics)
+      .catch((e: unknown) => {
+        setForensics(null)
+        setForensicsErr(`读取取证清单失败：${String((e as Error)?.message ?? e)}`)
+      })
+  }
+
+  // 关于页才拉取证清单（含项目 .zhijuan 三件套）：进项目内设置时带 projectId，全局设置只看主进程日志
+  useEffect(() => {
+    if (section === 'about') loadForensics()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section, projectId])
 
   async function save() {
     const cur = settings?.llm ?? { active: 'local' as LlmProviderId, providers: {} }
@@ -390,6 +516,25 @@ export default function Settings() {
               <Button onClick={() => void save()}>保存设置</Button>
             </div>
           </div>
+
+          {/* 即时写盘失败（2026-10-27）：开关已回滚，这里留可读原因（role=alert 让读屏也听到） */}
+          {settingErr && (
+            <div
+              role="alert"
+              data-testid="setting-err"
+              className="mt-4 flex items-start gap-2 rounded-lg border border-danger/40 bg-danger-soft px-3 py-2"
+            >
+              <p className="min-w-0 flex-1 break-all text-xs leading-5 text-danger">{settingErr}</p>
+              <button
+                type="button"
+                aria-label="关闭提示"
+                className="shrink-0 rounded px-1 text-xs text-ink-3 transition-colors hover:text-ink"
+                onClick={() => setSettingErr('')}
+              >
+                ×
+              </button>
+            </div>
+          )}
 
           {section === 'workspace' && (
             <>
@@ -543,8 +688,25 @@ export default function Settings() {
           >
             <RotateCw className={cn('h-3.5 w-3.5', restarting && 'animate-spin')} />
           </Button>
+          {/* 引擎出问题的那一刻最想带走现场：这里直接给导出（详情/取证列表在「关于」页诊断卡） */}
+          <button
+            type="button"
+            data-testid="export-diagnostics"
+            disabled={diagBusy}
+            onClick={() => void exportDiagnostics()}
+            title="导出诊断快照（版本/引擎/路径/主进程日志尾）为 JSON"
+            className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-normal text-ink-3 transition-colors hover:text-accent disabled:opacity-50"
+          >
+            <Download className="h-3.5 w-3.5" />
+            {diagBusy ? '导出中…' : '导出诊断'}
+          </button>
         </h3>
         <Separator className="my-4" />
+        {diagMsg && (
+          <p className="mb-2 break-all text-[11px] text-ink-2" role="status" data-testid="diagnostics-msg-engine">
+            {diagMsg}
+          </p>
+        )}
         {restarting ? (
           <p className="min-w-0 text-xs text-ink-3" data-testid="engine-status">重启引擎中…（首次启动最长 45s）</p>
         ) : engStatus === null ? (
@@ -583,9 +745,10 @@ export default function Settings() {
               aria-label="任务清单（todo_write）"
               checked={tools.todo}
               onCheckedChange={(v) => {
+                const prev = tools
                 const next = { ...tools, todo: v }
                 setTools(next)
-                void updateSettings({ agentTools: next })
+                void applySetting({ agentTools: next }, () => setTools(prev), '任务清单')
               }}
             />
           </div>
@@ -598,9 +761,10 @@ export default function Settings() {
               aria-label="需要你确认（ask_user）"
               checked={tools.askUser}
               onCheckedChange={(v) => {
+                const prev = tools
                 const next = { ...tools, askUser: v }
                 setTools(next)
-                void updateSettings({ agentTools: next })
+                void applySetting({ agentTools: next }, () => setTools(prev), '需要你确认')
               }}
             />
           </div>
@@ -645,10 +809,14 @@ export default function Settings() {
                       className="h-7"
                       aria-pressed={theme === 'paper'}
                       onClick={() => {
+                        const prev = theme
                         setTheme('paper')
                         applyTheme('paper')
-                        // 即时写盘：与开关族同口径（HIG Settings 即时生效；避免「切了主题没点保存离开=丢」）
-                        void updateSettings({ theme: 'paper' }).catch(() => {})
+                        // 即时写盘（HIG Settings 即时生效）：失败回滚并提示，不再「切了主题其实没存」
+                        void applySetting({ theme: 'paper' }, () => {
+                          setTheme(prev)
+                          applyTheme(prev)
+                        }, '主题')
                       }}
                     >
                       暖纸
@@ -659,9 +827,13 @@ export default function Settings() {
                       className="h-7"
                       aria-pressed={theme === 'dark'}
                       onClick={() => {
+                        const prev = theme
                         setTheme('dark')
                         applyTheme('dark')
-                        void updateSettings({ theme: 'dark' }).catch(() => {})
+                        void applySetting({ theme: 'dark' }, () => {
+                          setTheme(prev)
+                          applyTheme(prev)
+                        }, '主题')
                       }}
                     >
                       深色
@@ -677,8 +849,9 @@ export default function Settings() {
                     aria-label="联网采集管道"
                     checked={collection}
                     onCheckedChange={(v) => {
+                      const prev = collection
                       setCollection(v)
-                      void updateSettings({ collectionEnabled: v })
+                      void applySetting({ collectionEnabled: v }, () => setCollection(prev), '联网采集管道')
                     }}
                   />
                 </div>
@@ -691,8 +864,9 @@ export default function Settings() {
                     aria-label="批注定时优化"
                     checked={annotations}
                     onCheckedChange={(v) => {
+                      const prev = annotations
                       setAnnotations(v)
-                      void updateSettings({ annotationsEnabled: v })
+                      void applySetting({ annotationsEnabled: v }, () => setAnnotations(prev), '批注定时优化')
                     }}
                   />
                 </div>
@@ -707,8 +881,9 @@ export default function Settings() {
                     aria-label="写作习惯学习"
                     checked={writingInsights}
                     onCheckedChange={(v) => {
+                      const prev = writingInsights
                       setWritingInsights(v)
-                      void updateSettings({ writingInsightsEnabled: v })
+                      void applySetting({ writingInsightsEnabled: v }, () => setWritingInsights(prev), '写作习惯学习')
                     }}
                   />
                 </div>
@@ -721,8 +896,9 @@ export default function Settings() {
                     aria-label="焦点模式"
                     checked={focusMode}
                     onCheckedChange={(v) => {
+                      const prev = focusMode
                       setFocusMode(v)
-                      void updateSettings({ focusModeEnabled: v })
+                      void applySetting({ focusModeEnabled: v }, () => setFocusMode(prev), '焦点模式')
                     }}
                   />
                 </div>
@@ -735,8 +911,9 @@ export default function Settings() {
                     aria-label="打字机滚动"
                     checked={typewriter}
                     onCheckedChange={(v) => {
+                      const prev = typewriter
                       setTypewriter(v)
-                      void updateSettings({ typewriterEnabled: v })
+                      void applySetting({ typewriterEnabled: v }, () => setTypewriter(prev), '打字机滚动')
                     }}
                   />
                 </div>
@@ -759,8 +936,9 @@ export default function Settings() {
                       aria-label="首次使用引导"
                       checked={guide}
                       onCheckedChange={(v) => {
+                        const prev = guide
                         setGuide(v)
-                        void updateSettings({ guideEnabled: v })
+                        void applySetting({ guideEnabled: v }, () => setGuide(prev), '首次使用引导')
                       }}
                     />
                   </div>
@@ -857,6 +1035,7 @@ export default function Settings() {
           )}
 
           {section === 'about' && (
+            <>
             <Card className="mt-6 p-6">
               <h3 className="text-sm font-semibold text-ink-2">关于</h3>
               <Separator className="my-4" />
@@ -875,6 +1054,96 @@ export default function Settings() {
                 键盘快捷键速查（⌘K 里也能打开）
               </button>
             </Card>
+
+            {/* 诊断与取证（2026-10-27 可见性 C/E）：一次带走现场 + 取证文件有写无读的入口 */}
+            <Card className="mt-4 p-6" data-testid="diagnostics-card">
+              <h3 className="text-sm font-semibold text-ink-2">诊断与取证</h3>
+              <Separator className="my-4" />
+              <p className="text-xs leading-5 text-ink-3">
+                「导出诊断」生成一份 JSON 快照：版本 / 平台 / 引擎状态 / 关键路径 / 主进程日志尾部 200 行。
+                出问题时把它连同下面的取证文件一起带走，不必再自己找路径。
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  data-testid="export-diagnostics"
+                  disabled={diagBusy}
+                  onClick={() => void exportDiagnostics()}
+                  className="[&_svg]:size-3.5"
+                >
+                  <Download />
+                  <span className="ml-1">{diagBusy ? '导出中…' : '导出诊断'}</span>
+                </Button>
+                <Button size="sm" variant="outline" data-testid="copy-diagnostics" onClick={() => void copyDiagnostics()}>
+                  复制诊断
+                </Button>
+                <Button size="sm" variant="outline" data-testid="open-log-dir" onClick={() => void openLogDir()} className="[&_svg]:size-3.5">
+                  <FolderOpen />
+                  <span className="ml-1">打开日志目录</span>
+                </Button>
+              </div>
+              {diagMsg && (
+                <p className="mt-2 break-all text-xs text-ink-2" role="status" data-testid="diagnostics-msg">
+                  {diagMsg}
+                </p>
+              )}
+              {forensicsErr && (
+                <div className="mt-3 flex items-start gap-2 rounded-md border border-danger/40 bg-danger-soft px-2 py-1.5" role="alert">
+                  <p className="min-w-0 flex-1 break-all text-[11px] text-danger">{forensicsErr}</p>
+                  <button type="button" className="shrink-0 text-[11px] text-ink-2 hover:text-accent" onClick={loadForensics}>
+                    重试
+                  </button>
+                </div>
+              )}
+              {forensics && (
+                <div className="mt-4 space-y-2" data-testid="forensics-list">
+                  {forensics.map((f) => (
+                    <div key={f.kind} className="rounded-lg border border-hair bg-surface-2 px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="min-w-0 flex-1 truncate text-xs text-ink-2" title={f.path}>
+                          {f.label}
+                        </span>
+                        <span className="shrink-0 text-[10px] text-ink-3">
+                          {f.exists ? `${fmtBytes(f.bytes)} · ${fmtMtime(f.mtime)}` : '尚未生成'}
+                        </span>
+                        <button
+                          type="button"
+                          data-testid={`reveal-${f.kind}`}
+                          onClick={() => void revealForensics(f.path)}
+                          className="shrink-0 rounded px-1 py-0.5 text-[11px] text-accent transition-colors hover:underline"
+                        >
+                          打开
+                        </button>
+                        {f.exists && f.tail.length > 0 && (
+                          <button
+                            type="button"
+                            data-testid={`tail-${f.kind}`}
+                            onClick={() => setTailOpen((m) => ({ ...m, [f.kind]: !m[f.kind] }))}
+                            className="shrink-0 rounded px-1 py-0.5 text-[11px] text-ink-3 transition-colors hover:text-accent"
+                          >
+                            {tailOpen[f.kind] ? '收起' : '看尾部'}
+                          </button>
+                        )}
+                      </div>
+                      <p className="mt-1 break-all text-[10px] leading-4 text-ink-3" title={f.path}>
+                        {f.path}
+                      </p>
+                      {tailOpen[f.kind] && f.tail.length > 0 && (
+                        <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-all rounded border border-hair bg-surface p-2 text-[10px] leading-relaxed text-ink-2">
+                          {f.tail.join('\n')}
+                        </pre>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!projectId && (
+                <p className="mt-3 text-[11px] leading-4 text-ink-3">
+                  在项目内打开设置，这里还会列出该项目的 write-log / save-trace / sync-log。
+                </p>
+              )}
+            </Card>
+            </>
           )}
         </div>
         )}

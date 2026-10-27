@@ -1,5 +1,5 @@
 // ===== 浏览器开发垫片：无 Electron 时（纯浏览器调试/无头截图）用内存 mock 顶替 window.zhijuan =====
-import type { AgentEvent, AppSettings, ChapterEntry, OutlineCard, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult, MenuActionEvent, MenuActionId, MenuStateReport, SyncIssue, SyncEvidence, SyncLogEntry, SaveTraceEntry } from '../../../shared/types'
+import type { AgentEvent, AppDiagnostics, AppSettings, ChapterEntry, ForensicsEntry, OutlineCard, Proposal, ProposalItem, ProjectSummary, ProjectTemplate, SliceEntry, LibraryCategory, SearchHit, RecentLibraryDoc, FsEvent, ImportResult, MenuActionEvent, MenuActionId, MenuStateReport, SyncIssue, SyncEvidence, SyncLogEntry, SaveTraceEntry } from '../../../shared/types'
 import type { EditItem } from '../../../shared/types'
 import { isOutlineCardRel, outlineCardDoc, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterLineInDoc, syncChapterNoInDoc, syncChapterSliceInDoc } from '../../../shared/outline'
 import { reorderPlan } from '../../../shared/chapterReorder'
@@ -1482,6 +1482,73 @@ const mock = {
   }),
   // 真机=app.getVersion()（ipc app:version）；dev 走 vite define 注入的包版本，与 package.json 同源
   appVersion: async (): Promise<string> => DEV_APP_VERSION,
+  // 诊断与取证（2026-10-27 可见性 C/E）：dev 无主进程/磁盘，给固定演示数据——
+  // 让设置页「导出诊断 / 打开日志目录 / 取证清单」在浏览器与无头冒烟里同样可点、可断言。
+  diagnostics: async (): Promise<AppDiagnostics> => ({
+    version: DEV_APP_VERSION,
+    platform: 'browser',
+    arch: 'devShim',
+    engine: { online: true, provider: '本机 vLLM', model: 'deepseek-v4-flash-vision-exp-uncensored', message: '' },
+    paths: {
+      libraryRoot: resolveLibraryRoot({
+        configured: settings.libraryRoot,
+        legacyPath: '~/Documents/织卷项目库',
+        workspaceDefault: '~/Documents/织卷工作区',
+        legacyExists: DEV_LEGACY_EXISTS
+      }),
+      userData: '(devShim) 无 userData 目录',
+      runtimeDir: '(devShim) 无 dsh-runtime'
+    },
+    logTail: ['（devShim）真机此处是 userData/logs/main.log 尾部 200 行', '2026-01-01T00:00:00.000Z [info] [app] devShim 演示日志']
+  }),
+  /** 导出诊断：浏览器垫片没有系统保存对话框 → 走 Blob 下载（真机 dialog.showSaveDialog） */
+  diagnosticsExport: async (payload: unknown): Promise<{ ok: boolean; path?: string; cancelled?: boolean; error?: string }> => {
+    try {
+      const text = typeof payload === 'string' ? payload : JSON.stringify(payload ?? {}, null, 2)
+      const name = `织卷诊断-${Date.now()}.json`
+      const blob = new Blob([text], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = name
+      a.click()
+      URL.revokeObjectURL(url)
+      return { ok: true, path: name }
+    } catch (e) {
+      return { ok: false, error: String((e as Error)?.message ?? e) }
+    }
+  },
+  openLogDir: async () => ({ ok: true, path: '(devShim) 无日志目录' }),
+  forensics: async (projectId?: string | null): Promise<ForensicsEntry[]> => {
+    const list: ForensicsEntry[] = [
+      {
+        kind: 'main-log',
+        label: '主进程日志（main.log）',
+        path: '(devShim) userData/logs/main.log',
+        exists: true,
+        bytes: 2048,
+        mtime: Date.now(),
+        tail: ['2026-01-01T00:00:00.000Z [info] [app] devShim 演示日志', '2026-01-01T00:00:01.000Z [error] [renderer] 演示：渲染层异常']
+      }
+    ]
+    if (projectId) {
+      list.push(
+        { kind: 'write-log', label: '正文写盘审计（write-log.jsonl）', path: '(devShim) 项目/.zhijuan/write-log.jsonl', exists: true, bytes: 512, mtime: Date.now(), tail: ['{"time":0,"rel":"正文/第一章.md","prevLen":1200,"newLen":1250,"head":"# 第一章"}'] },
+        { kind: 'save-trace', label: '渲染层保存取证（save-trace.jsonl）', path: '(devShim) 项目/.zhijuan/save-trace.jsonl', exists: true, bytes: 512, mtime: Date.now(), tail: ['{"time":0,"mdLen":1250,"status":"saved","epoch":1,"confirmEmpty":false,"diskBodyLen":1250,"action":"manual","rel":"正文/第一章.md"}'] },
+        { kind: 'sync-log', label: '切片同步历史（sync-log.jsonl）', path: '(devShim) 项目/.zhijuan/sync-log.jsonl', exists: true, bytes: 512, mtime: Date.now(), tail: ['{"time":0,"chapter":"正文/第一章.md","slice":"雾港夜","items":3}'] }
+      )
+    }
+    return list
+  },
+  revealPath: async () => ({ ok: true }),
+  logRenderer: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => {
+    // dev 无主进程日志：落控制台（无头冒烟可据此断言渲染层异常已被上报）
+    try {
+      console.error(`[renderer:${level}] ${message}`)
+    } catch {
+      // 控制台不可用：忽略
+    }
+  },
   // 真机=系统目录选择器（settings:pickLibrary）；dev 模拟「选了新库」——写入 settings.libraryRoot 并返回，getPaths 决策链随动
   pickLibrary: async (): Promise<string | null> => {
     settings.libraryRoot = '/tmp/织卷-dev-项目库'
