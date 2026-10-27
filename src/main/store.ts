@@ -30,6 +30,7 @@ import { migrateChapter, invalidateChapter, staleSliceSyncByChapter } from './pr
 import { libraryRoot } from './settings'
 import { applyTemplate } from './templates'
 import { nextProjectId } from '../shared/projects'
+import { nextFreeName } from '../shared/docName'
 import type { ChapterEntry, FsEvent, OutlineCard, ProjectMeta, ProjectStats, ProjectSummary, ImportResult, ExportResult } from '../shared/types'
 
 // ---------- 设置与工作区路径已拆到 settings.ts（参见 docs/架构评审与调整-2026-09-04.md §二） ----------
@@ -162,6 +163,31 @@ export function listProjects(): ProjectSummary[] {
     .sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
+export interface UpdateProjectResult {
+  ok: boolean
+  project?: ProjectSummary
+  error?: string
+}
+
+/**
+ * 项目信息更新（名称 / 简介）：只改 project.md 约定头，**不改项目目录名**（id 与目录名保持稳定，
+ * 最近打开记录/外部路径引用都不失效；正文模板正文段落原样保留——writeProjectMeta 只重写 fm）。
+ */
+export function updateProject(id: string, patch: { name?: string; description?: string }): UpdateProjectResult {
+  const meta = readProjectMeta(id)
+  if (!meta) return { ok: false, error: '项目不存在或缺少 project.md' }
+  const name = (patch?.name ?? meta.name).trim()
+  if (!name) return { ok: false, error: '项目名不能为空' }
+  const description = (patch?.description ?? meta.description).trim()
+  try {
+    writeProjectMeta({ ...meta, name, description, updatedAt: Date.now() })
+  } catch (e) {
+    return { ok: false, error: String((e as Error).message ?? e) }
+  }
+  const project = summarize(id)
+  return project ? { ok: true, project } : { ok: false, error: '已写入，但读取项目信息失败' }
+}
+
 export function removeProject(id: string): { ok: boolean; error?: string } {
   try {
     shell.trashItem(projectDir(id))
@@ -266,6 +292,16 @@ export function writeDoc(id: string, rel: string, content: string) {
 }
 
 /**
+ * 新建档案查重（人物/世界观/素材卡共用）：给定目录与用户输入的名字，返回该目录下**未被占用**的
+ * 文件名（不含 .md，已 sanitizeFile）。同名命中 → 自动「名字 2」「名字 3」…，写盘前调用即不会覆盖旧档案。
+ */
+export function uniqueDocName(id: string, relDir: string, name: string): string {
+  const base = sanitizeFile((name ?? '').trim())
+  const dir = join(projectDir(id), relDir)
+  return nextFreeName(base, (cand) => existsSync(join(dir, cand + '.md')))
+}
+
+/**
  * 删除项目内文档（markdown，相对项目根）。
  * 走系统废纸篓（可恢复——与 removeProject 同先例），废纸篓失败兜底硬删。
  * 防御：只收 `.md`、拒绝空/绝对/带 `..` 段的路径（readDoc 只做 join 不防穿越，删除同样不能放开口子）。
@@ -286,6 +322,58 @@ export async function deleteDoc(id: string, rel: string): Promise<{ ok: boolean;
       return { ok: false, error: String(e2) }
     }
   }
+}
+
+export interface RenameDocResult {
+  ok: boolean
+  newRel?: string
+  error?: string
+}
+
+/**
+ * 文档重命名（人物/世界观/素材卡等通用；章节走 renameChapter——另有大纲副产物与提案指针引用面）。
+ * - 只改**文件名**（目录不变）；正文首个非空行恰为 `# <旧名>` 时同步改成新名（素材卡模板/H1 惯例），其余原文不动；
+ * - `.zhijuan/history/<旧 rel>/` 版本历史目录随同迁移（存在才动，best-effort），历史入口不断；
+ * - 目标同名已存在 → 报错不覆盖（与 renameChapter 同口径）。
+ */
+export function renameDoc(id: string, rel: string, newName: string): RenameDocResult {
+  const bad = !rel || !rel.endsWith('.md') || rel.startsWith('/') || rel.split('/').some((s) => s === '..')
+  if (bad) return { ok: false, error: '路径不合法' }
+  const t = (newName ?? '').trim()
+  if (!t) return { ok: false, error: '名字不能为空' }
+  const oldAbs = abs(id, rel)
+  if (!existsSync(oldAbs)) return { ok: false, error: '文档不存在' }
+  const slash = rel.lastIndexOf('/')
+  const dirRel = slash >= 0 ? rel.slice(0, slash + 1) : ''
+  const oldBase = basename(rel).replace(/\.md$/, '')
+  const newBase = sanitizeFile(t)
+  if (newBase === oldBase) return { ok: true, newRel: rel }
+  const newRel = dirRel + newBase + '.md'
+  if (existsSync(abs(id, newRel))) return { ok: false, error: `同名文档已存在：${newBase}.md` }
+  // 1) 先搬文件（rename 同卷原子；失败则旧文件仍在）
+  try {
+    renameSync(oldAbs, abs(id, newRel))
+  } catch (e) {
+    return { ok: false, error: String((e as Error).message ?? e) }
+  }
+  // 2) H1 同步（best-effort：读新文件 → 首个非空行是 `# 旧名` 才替换，避免误改正文）
+  try {
+    const raw = readFileSync(abs(id, newRel), 'utf-8')
+    const lines = raw.split('\n')
+    // 首个一级标题（可跳过 front matter / 空行）：恰为 `# 旧名` 才同步，避免误改正文小标题
+    const i = lines.findIndex((l) => /^#\s+/.test(l.trim()))
+    if (i >= 0 && lines[i].trim() === `# ${oldBase}`) {
+      lines[i] = `# ${newBase}`
+      writeFileAtomic(abs(id, newRel), lines.join('\n'))
+    }
+  } catch { /* best-effort：标题不同步不影响改名本身 */ }
+  // 3) 版本历史目录迁移（保留历史入口；目标已存在则不动）
+  try {
+    const hOld = join(projectDir(id), snapDirFor(rel))
+    const hNew = join(projectDir(id), snapDirFor(newRel))
+    if (existsSync(hOld) && !existsSync(hNew)) renameSync(hOld, hNew)
+  } catch { /* best-effort */ }
+  return { ok: true, newRel }
 }
 
 export function listDocs(id: string, relDir: string): { file: string; name: string; mtime: number }[] {

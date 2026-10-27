@@ -19,6 +19,7 @@ import { getRecentEntries, recordOpen, removeRecent } from './recent'
 import {
   listProjects,
   createProject,
+  updateProject,
   removeProject,
   importProject,
   exportProject,
@@ -26,6 +27,8 @@ import {
   readDoc,
   writeDoc,
   deleteDoc,
+  renameDoc,
+  uniqueDocName,
   listDocs,
   listChapters,
   renameChapter,
@@ -112,6 +115,8 @@ export function registerIpc() {
   // 项目
   ipcMain.handle('project:list', () => listProjects())
   ipcMain.handle('project:create', (_e, name: string, description: string, template?: string) => createProject(name, description, template))
+  // 项目信息更新（名称/简介）：只改 project.md 约定头，目录名/id 不变
+  ipcMain.handle('project:update', (_e, id: string, patch: { name?: string; description?: string }) => updateProject(id, patch))
   ipcMain.handle('project:templates', () => listTemplates())
   ipcMain.handle('project:remove', (_e, id: string) => {
     const r = removeProject(id)
@@ -169,6 +174,10 @@ export function registerIpc() {
   })
   // 删除文档：进系统废纸篓（可恢复）；renderer 侧需先弹确认
   ipcMain.handle('doc:delete', (_e, id: string, rel: string) => deleteDoc(id, rel))
+  // 文档重命名（人物/世界观/素材卡通用）：改名 + H1/版本历史目录随动；章节重命名另走 chapter:rename
+  ipcMain.handle('doc:rename', (_e, id: string, rel: string, newName: string) => renameDoc(id, rel, newName))
+  // 新建档案查重：返回目录内未被占用的名字（同名 → 「名字 2」…），写盘前调用防覆盖
+  ipcMain.handle('doc:uniqueName', (_e, id: string, relDir: string, name: string) => uniqueDocName(id, relDir, name))
   // 采纳 agent 的正文修改：按 find 在原文档里唯一替换（读取当前磁盘内容为准），落地后走正常 fs 事件让编辑器静默重载
   ipcMain.handle('doc:applyEdit', (_e, id: string, rel: string, edits: EditItem[]) => {
     const cur = readDoc(id, rel)

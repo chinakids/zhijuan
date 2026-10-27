@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { FileText, MoreHorizontal, Plus } from 'lucide-react'
+import { FileText, MoreHorizontal, Pencil, Plus } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import { Button } from '../../components/ui/button'
 import { EmptyState } from '../../components/EmptyState'
@@ -46,6 +46,9 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
   const [name, setName] = useState('')
   // 删除确认对象（文档列行操作；deleteDoc 走系统废纸篓可恢复，与章节删除同先例）
   const [deleting, setDeleting] = useState<{ file: string; name: string } | null>(null)
+  // 重命名对象（文档列行操作；file 相对 relDir，newRel 由主进程返回）
+  const [renaming, setRenaming] = useState<{ file: string; name: string } | null>(null)
+  const [renameVal, setRenameVal] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadErr, setLoadErr] = useState('')
   // 宽窗手动折叠（HIG Sidebars show/hide；与 Novel 5376f30 同机制；折叠态持久化=AppSettings 跨重启记住侧栏；按导航页分键）
@@ -83,16 +86,45 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
 
   async function createDoc() {
     if (!id || !name.trim()) return
-    const safe = name.trim()
+    const typed = name.trim()
+    // 查重（写盘前）：目录内已有同名 → 不覆盖，自动改名「名字 2 / 名字 3」并提示
+    let safe = typed
+    try {
+      safe = await window.zhijuan.uniqueDocName(id, relDir, typed)
+    } catch {
+      // 查重失败不阻断新建（按原名写；主进程名字已 sanitize）
+    }
     const rel = `${relDir}/${safe}.md`
     try {
       await window.zhijuan.writeDoc(id, rel, templateFor ? templateFor(safe) : `# ${safe}\n\n`)
+      if (safe !== typed) {
+        toast.add({ kind: 'info', title: `已存为「${safe}」`, description: `目录里已有同名${addLabel}（或名字含特殊字符），原档案未被覆盖` })
+      }
       setCreating(false)
       setName('')
       await refresh()
       setSel(rel)
     } catch (e) {
       toast.add({ kind: 'error', title: `新建${addLabel}失败`, description: String((e as Error).message ?? e) })
+    }
+  }
+
+  async function doRename() {
+    if (!id || !renaming || !renameVal.trim()) return
+    const rel = `${relDir}/${renaming.file}`
+    try {
+      const r = await window.zhijuan.docRename(id, rel, renameVal.trim())
+      if (!r.ok) {
+        toast.add({ kind: 'error', title: '重命名失败', description: r.error })
+        return
+      }
+      toast.add({ kind: 'success', title: '已重命名', description: fileTitle ? fileTitle(renameVal.trim()) : renameVal.trim() })
+      setRenaming(null)
+      setRenameVal('')
+      await refresh()
+      if (sel === rel && r.newRel) setSel(r.newRel)
+    } catch (e) {
+      toast.add({ kind: 'error', title: '重命名失败', description: String((e as Error).message ?? e) })
     }
   }
 
@@ -119,9 +151,22 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
   // 文档列行操作菜单（「⋯」下拉 与 右键 共源渲染）：HIG Context menus——两个菜单形态一致、动作一致；
   // 破坏性项置末 + danger 红字（HIG「list them at the end and identify them as destructive」）；先例=Novel.renderRowMenu
   const renderDocMenu = (Item: React.ElementType, f: { file: string; name: string }) => (
-    <Item className="text-danger focus:bg-danger/10 focus:text-danger" onSelect={() => setDeleting(f)}>
-      删除
-    </Item>
+    <>
+      {/* 重命名只对「独立档案」开放：总览（页面固定引用 overviewFile；file 相对 relDir，故比对文件名）与 切片_*（文件名即切片名，改名会产生孤儿）不给入口 */}
+      {f.file !== overviewFile?.split('/').pop() && !f.file.startsWith('切片_') && (
+        <Item
+          onSelect={() => {
+            setRenaming(f)
+            setRenameVal(fileTitle ? fileTitle(f.name) : f.name)
+          }}
+        >
+          <Pencil className="h-4 w-4" /> 重命名…
+        </Item>
+      )}
+      <Item className="text-danger focus:bg-danger/10 focus:text-danger" onSelect={() => setDeleting(f)}>
+        删除
+      </Item>
+    </>
   )
 
   return (
@@ -277,6 +322,33 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>取消</Button>
             <Button className="text-danger" onClick={() => void doDelete()}>移入废纸篓</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* 文档重命名：只改文件名（首个「# 旧名」标题与版本历史目录由主进程随动） */}
+      <Dialog open={!!renaming} onOpenChange={(o) => !o && setRenaming(null)}>
+        <DialogContent className="sm:max-w-sm" outsideDismiss={false}>
+          <DialogHeader>
+            <DialogTitle>重命名{addLabel}</DialogTitle>
+            <DialogDescription>只改文件名，内容保持不动；同名已存在时会提示，不会覆盖。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label htmlFor="doc-rename">新名字 *</Label>
+            <Input
+              id="doc-rename"
+              autoFocus
+              value={renameVal}
+              onChange={(e) => setRenameVal(e.target.value)}
+              onKeyDown={(e) => {
+                // IME 组合期 Enter 只确认候选，不改名（F-IME-03）
+                if (isImeComposing(e)) return
+                if (e.key === 'Enter' && renameVal.trim()) void doRename()
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenaming(null)}>取消</Button>
+            <Button onClick={() => void doRename()} disabled={!renameVal.trim() || renameVal.trim() === (renaming ? (fileTitle ? fileTitle(renaming.name) : renaming.name) : '')}>保存</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

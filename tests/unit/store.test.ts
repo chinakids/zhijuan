@@ -85,6 +85,63 @@ describe('项目全流程（临时目录真实落盘）', () => {
     expect(existsSync(join(holder.projects(), b.id, 'project.md'))).toBe(true)
   })
 
+  it('uniqueDocName：新建同名档案自动改名「名字 2 / 名字 3」，旧档案不被覆盖', () => {
+    const p = store.createProject('p', '')!
+    store.writeDoc(p.id, '素材库/人物/借书卡.md', '# 借书卡\n\n旧内容\n')
+    expect(store.uniqueDocName(p.id, '素材库/人物', '借书卡')).toBe('借书卡 2')
+    store.writeDoc(p.id, '素材库/人物/借书卡 2.md', '# 借书卡 2\n')
+    expect(store.uniqueDocName(p.id, '素材库/人物', '借书卡')).toBe('借书卡 3')
+    expect(store.uniqueDocName(p.id, '素材库/人物', '  借书卡  ')).toBe('借书卡 3') // 输入两空白按同名处理
+    expect(store.readDoc(p.id, '素材库/人物/借书卡.md')).toContain('旧内容')
+  })
+
+  it('renameDoc：改文件名 + H1 同步 + 版本历史目录随迁；同名目标报错不覆盖', () => {
+    const p = store.createProject('p', '')!
+    // 素材卡：文件名与 H1 一起改，正文不动
+    store.writeDoc(p.id, '素材库/桥段/旧名.md', '# 旧名\n\n正文\n')
+    const r = store.renameDoc(p.id, '素材库/桥段/旧名.md', '新名')
+    expect(r).toEqual({ ok: true, newRel: '素材库/桥段/新名.md' })
+    expect(existsSync(join(holder.projects(), p.id, '素材库/桥段/旧名.md'))).toBe(false)
+    expect(store.readDoc(p.id, '素材库/桥段/新名.md')).toBe('# 新名\n\n正文\n')
+    store.writeDoc(p.id, '素材库/桥段/另一个.md', '# 另一个\n')
+    expect(store.renameDoc(p.id, '素材库/桥段/新名.md', '另一个')).toEqual({
+      ok: false,
+      error: '同名文档已存在：另一个.md'
+    })
+    expect(store.readDoc(p.id, '素材库/桥段/新名.md')).toBe('# 新名\n\n正文\n')
+    // 人物档（front matter 开头）同样只同步首个一级标题
+    store.writeDoc(p.id, '人物/甲.md', '---\n别名: []\n---\n# 甲\n\n> 定位：x\n')
+    expect(store.renameDoc(p.id, '人物/甲.md', '乙').newRel).toBe('人物/乙.md')
+    expect(store.readDoc(p.id, '人物/乙.md')).toBe('---\n别名: []\n---\n# 乙\n\n> 定位：x\n')
+    // 非法路径防御：不越出项目根、只收 .md
+    expect(store.renameDoc(p.id, '素材库/../外.md', '外').ok).toBe(false)
+    expect(store.renameDoc(p.id, '素材库/桥段/新名.md', '   ').ok).toBe(false)
+    // 版本历史目录随迁：正文（版本化 rel）两次写盘留一版旧史，改名后历史入口仍可用
+    store.writeDoc(p.id, '正文/第1章_甲.md', '甲第一版')
+    store.writeDoc(p.id, '正文/第1章_甲.md', '甲第二版')
+    expect(listSnapshots(join(holder.projects(), p.id), '正文/第1章_甲.md').length).toBe(1)
+    const rc = store.renameDoc(p.id, '正文/第1章_甲.md', '第1章_乙名')
+    expect(rc.ok).toBe(true)
+    expect(listSnapshots(join(holder.projects(), p.id), '正文/第1章_乙名.md').length).toBe(1)
+  })
+
+  it('updateProject：名称/简介写回 project.md（正文段保留），目录名与 id 不变', () => {
+    const p = store.createProject('旧名', '旧简介')!
+    const r = store.updateProject(p.id, { name: '新名', description: '新简介' })
+    expect(r.ok).toBe(true)
+    expect(r.project?.name).toBe('新名')
+    expect(r.project?.description).toBe('新简介')
+    expect(r.project?.id).toBe(p.id)
+    const raw = readFileSync(join(holder.projects(), p.id, 'project.md'), 'utf-8')
+    expect(raw).toContain('name: 新名')
+    expect(raw).toContain('description: 新简介')
+    expect(raw).toContain('时间线总纲') // 正文段不被重写丢掉
+    expect(store.listProjects().find((x) => x.id === p.id)?.name).toBe('新名')
+    // 空名/不存在项目 → 报错不写
+    expect(store.updateProject(p.id, { name: '   ' }).ok).toBe(false)
+    expect(store.updateProject('不存在的项目', { name: 'x' }).ok).toBe(false)
+  })
+
   it('listDocs 返回相对 relDir 的路径（子目录同样相对）；新的在前', () => {
     const p = store.createProject('p', '')!
     store.writeDoc(p.id, '外页.md', '外')

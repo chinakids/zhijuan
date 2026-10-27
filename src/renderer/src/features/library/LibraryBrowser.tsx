@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
-import { ChevronLeft, FileText, Folder, FolderPlus, Library as LibraryIcon, Plus, Search, X } from 'lucide-react'
+import { ChevronLeft, FileText, Folder, FolderPlus, Library as LibraryIcon, MoreHorizontal, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import { Button } from '../../components/ui/button'
 import { EmptyState } from '../../components/EmptyState'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../components/ui/dropdown-menu'
 import { FieldError, fieldInvalidClass } from '../../components/ui/field-error'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
@@ -18,6 +19,7 @@ import { ColHideButton, ColShowBar } from '../common/colFold'
 import { useColFold } from '../common/useColFold'
 import DocEditor from '../editor/DocEditor'
 import { useFsChanged, useFsEvents } from '../fs/useFsEvents'
+import { toast } from '../../store/toasts'
 
 interface CardMeta {
   preview: string
@@ -56,6 +58,10 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
   const [newMatName, setNewMatName] = useState('')
   const [newMatErr, setNewMatErr] = useState('')
   const [creating, setCreating] = useState(false)
+  // 素材卡行操作（⋯ 菜单 / 编辑器顶栏共用）：file 相对「素材库」（如 人物/借书卡.md）
+  const [deleting, setDeleting] = useState<{ file: string; name: string } | null>(null)
+  const [renaming, setRenaming] = useState<{ file: string; name: string } | null>(null)
+  const [renameVal, setRenameVal] = useState('')
   // 宽窗手动折叠（HIG Sidebars show/hide；与 Novel 5376f30 同机制；折叠态持久化=AppSettings 跨重启记住侧栏）
   const [colHidden, setColHidden] = useColFold('library')
   const events = useFsEvents(id)
@@ -190,19 +196,77 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
 
   async function createMat() {
     if (!id || !selCat || !newMatName.trim()) return
-    const name = newMatName.trim()
-    const rel = `素材库/${selCat}/${name}.md`
+    const typed = newMatName.trim()
     setNewMatErr('')
+    // 查重（写盘前）：类别内已有同名 → 不覆盖，自动改名「名字 2 / 名字 3」并提示
+    let name = typed
+    try {
+      name = await window.zhijuan.uniqueDocName(id, `素材库/${selCat}`, typed)
+    } catch {
+      // 查重失败不阻断新建（按原名写；主进程名字已 sanitize）
+    }
+    const rel = `素材库/${selCat}/${name}.md`
     try {
       await window.zhijuan.writeDoc(id, rel, materialTemplate(name))
     } catch (e) {
       setNewMatErr('新建素材失败：' + String((e as Error).message ?? e))
       return
     }
+    if (name !== typed) {
+      toast.add({ kind: 'info', title: `已存为「${name}」`, description: `「${selCat}」里已有同名素材（或名字含特殊字符），原素材卡未被覆盖` })
+    }
     setNewMatOpen(false)
     setNewMatName('')
     await refresh()
     setEditorRel(rel)
+  }
+
+  function startRename(file: string) {
+    const name = file.split('/').pop()!.replace(/\.md$/, '')
+    setRenameVal(name)
+    setRenaming({ file, name })
+  }
+
+  /** 素材卡重命名：走 doc:rename（只改文件名；H1/版本历史目录由主进程随动） */
+  async function doRename() {
+    if (!id || !renaming || !renameVal.trim()) return
+    const rel = '素材库/' + renaming.file
+    try {
+      const r = await window.zhijuan.docRename(id, rel, renameVal.trim())
+      if (!r.ok) {
+        toast.add({ kind: 'error', title: '重命名失败', description: r.error })
+        return
+      }
+      const newName = renameVal.trim()
+      toast.add({ kind: 'success', title: '已重命名', description: newName })
+      setRenaming(null)
+      setRenameVal('')
+      await refresh()
+      if (editorRel === rel && r.newRel) setEditorRel(r.newRel)
+    } catch (e) {
+      toast.add({ kind: 'error', title: '重命名失败', description: String((e as Error).message ?? e) })
+    }
+  }
+
+  /** 素材卡删除：走 doc:delete（系统废纸篓可恢复）；确认弹窗在下方 Dialog */
+  async function doDelete() {
+    if (!id || !deleting) return
+    const rel = '素材库/' + deleting.file
+    try {
+      const r = await window.zhijuan.deleteDoc(id, rel)
+      if (!r.ok) {
+        toast.add({ kind: 'error', title: '删除失败', description: r.error })
+        setDeleting(null)
+        return
+      }
+      toast.add({ kind: 'success', title: '已移入废纸篓（可恢复）', description: deleting.name })
+      if (editorRel === rel) setEditorRel(null)
+      setDeleting(null)
+      await refresh()
+    } catch (e) {
+      toast.add({ kind: 'error', title: '删除失败', description: String((e as Error).message ?? e) })
+      setDeleting(null)
+    }
   }
 
   const matInCat = useMemo(
@@ -404,31 +468,58 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
                   const meta = cards.get(f.file)
                   const sub = f.file.split('/').slice(1, -1).join('/')
                   return (
-                    <button
-                      key={f.file}
-                      onClick={() => setEditorRel('素材库/' + f.file)}
-                      className="mb-2 block w-full rounded-lg border border-hair bg-surface px-3 py-2.5 text-left transition-colors hover:border-accent/60"
-                      title={sub ? `位于子目录 ${sub}/` : undefined}
-                    >
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-3.5 w-3.5 shrink-0 text-ink-3" />
-                        <span className="truncate text-sm font-medium text-ink" title={f.name.replace(/\.md$/, '')}>{f.name.replace(/\.md$/, '')}</span>
-                        {sub && <span className="shrink-0 text-[10px] text-ink-3">{sub}/</span>}
-                        <span className="ml-auto shrink-0 text-[11px] text-ink-3">
-                          {new Date(f.mtime).toLocaleDateString('zh-CN')}
-                        </span>
-                      </div>
-                      {meta && meta.tags.length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {meta.tags.map((t) => (
-                            <span key={t} className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-2">
-                              {t}
-                            </span>
-                          ))}
+                    <div key={f.file} className="group relative mb-2">
+                      <button
+                        onClick={() => setEditorRel('素材库/' + f.file)}
+                        className="block w-full rounded-lg border border-hair bg-surface px-3 py-2.5 pr-10 text-left transition-colors hover:border-accent/60"
+                        title={sub ? `位于子目录 ${sub}/` : undefined}
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-3.5 w-3.5 shrink-0 text-ink-3" />
+                          <span className="truncate text-sm font-medium text-ink" title={f.name.replace(/\.md$/, '')}>{f.name.replace(/\.md$/, '')}</span>
+                          {sub && <span className="shrink-0 text-[10px] text-ink-3">{sub}/</span>}
+                          <span className="ml-auto shrink-0 text-[11px] text-ink-3">
+                            {new Date(f.mtime).toLocaleDateString('zh-CN')}
+                          </span>
                         </div>
-                      )}
-                      {meta && meta.preview && <p className="mt-1 line-clamp-2 whitespace-pre-wrap break-all text-[11px] text-ink-3" title={meta.preview}>{meta.preview}</p>}
-                    </button>
+                        {meta && meta.tags.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {meta.tags.map((t) => (
+                              <span key={t} className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-2">
+                                {t}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {meta && meta.preview && <p className="mt-1 line-clamp-2 whitespace-pre-wrap break-all text-[11px] text-ink-3" title={meta.preview}>{meta.preview}</p>}
+                      </button>
+                      {/* 素材卡行操作（重命名/删除）：破坏性项置末 + danger 红字（HIG Context menus，先例=DocSection） */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="素材操作"
+                            aria-label="素材操作"
+                            data-testid="material-menu"
+                            className="absolute right-1.5 top-2 h-6 w-6 text-ink-3 opacity-0 transition-opacity hover:text-ink group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:bg-well data-[state=open]:text-ink data-[state=open]:opacity-100"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onSelect={() => startRename(f.file)}>
+                            <Pencil className="h-4 w-4" /> 重命名…
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-danger focus:bg-danger/10 focus:text-danger"
+                            onSelect={() => setDeleting({ file: f.file, name: f.name.replace(/\.md$/, '') })}
+                          >
+                            <Trash2 className="h-4 w-4" /> 删除
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   )
                 })
               )}
@@ -448,7 +539,34 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
                 {editorRel.replace(/^素材库\//, '').replace(/\.md$/, '')}
               </span>
               <span className="flex-1" />
-              <span className="shrink-0 text-[11px] text-ink-3">素材为整理后草稿，可编辑可删 · ⌘S 保存</span>
+              {isMaterialCard(editorRel.replace(/^素材库\//, '')) && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 [&_svg]:size-3.5"
+                    title="重命名这张素材卡"
+                    data-testid="material-rename"
+                    onClick={() => startRename(editorRel.replace(/^素材库\//, ''))}
+                  >
+                    <Pencil /> 重命名
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 text-danger [&_svg]:size-3.5"
+                    title="这张素材卡移入系统废纸篓（可恢复）"
+                    data-testid="material-delete"
+                    onClick={() => {
+                      const file = editorRel.replace(/^素材库\//, '')
+                      setDeleting({ file, name: file.split('/').pop()!.replace(/\.md$/, '') })
+                    }}
+                  >
+                    <Trash2 /> 删除
+                  </Button>
+                </>
+              )}
+              <span className="shrink-0 text-[11px] text-ink-3">素材为整理后草稿 · ⌘S 保存</span>
             </div>
             <div className="min-h-0 flex-1">
               <DocEditor projectId={id} rel={editorRel} extVersion={extVersion} onSave={() => void refresh()} anno={false} />
@@ -521,6 +639,48 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewMatOpen(false)}>取消</Button>
             <Button onClick={() => void createMat()} disabled={!newMatName.trim()}>创建</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 素材卡重命名：只改文件名（首个「# 旧名」标题与版本历史目录由主进程随动） */}
+      <Dialog open={!!renaming} onOpenChange={(o) => !o && setRenaming(null)}>
+        <DialogContent className="sm:max-w-sm" outsideDismiss={false}>
+          <DialogHeader>
+            <DialogTitle>重命名素材卡</DialogTitle>
+            <DialogDescription>只改文件名，内容保持不动；同名已存在时会提示，不会覆盖。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label htmlFor="mat-rename">新名字 *</Label>
+            <Input
+              id="mat-rename"
+              autoFocus
+              value={renameVal}
+              onChange={(e) => setRenameVal(e.target.value)}
+              onKeyDown={(e) => {
+                // IME 组合期 Enter 只确认候选，不改名（F-IME-03）
+                if (isImeComposing(e)) return
+                if (e.key === 'Enter' && renameVal.trim()) void doRename()
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenaming(null)}>取消</Button>
+            <Button onClick={() => void doRename()} disabled={!renameVal.trim() || renameVal.trim() === renaming?.name}>保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 素材卡删除确认：移入系统废纸篓（可恢复）——与文档删除同先例 */}
+      <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>删除素材卡</DialogTitle>
+            <DialogDescription>{deleting?.name ?? ''}将移入系统废纸篓（可恢复）。</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleting(null)}>取消</Button>
+            <Button className="text-danger" onClick={() => void doDelete()}>移入废纸篓</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

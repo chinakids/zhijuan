@@ -66,6 +66,9 @@ const api = {
   listProjects: () => ipcRenderer.invoke('project:list') as Promise<ProjectSummary[]>,
   createProject: (name: string, description: string, template?: string) =>
     ipcRenderer.invoke('project:create', name, description, template) as Promise<ProjectSummary | null>,
+  // 项目信息更新（名称/简介）：只改 project.md 约定头，目录名/id 不变
+  updateProject: (id: string, patch: { name?: string; description?: string }) =>
+    ipcRenderer.invoke('project:update', id, patch) as Promise<{ ok: boolean; project?: ProjectSummary; error?: string }>,
   listTemplates: () => ipcRenderer.invoke('project:templates') as Promise<ProjectTemplate[]>,
   removeProject: (id: string) => ipcRenderer.invoke('project:remove', id) as Promise<{ ok: boolean; error?: string }>,
   importProject: (dir: string) => ipcRenderer.invoke('project:import', dir) as Promise<ImportResult>,
@@ -97,6 +100,12 @@ const api = {
   saveTrace: (id: string, rel: string, entry: SaveTraceEntry) => ipcRenderer.invoke('doc:saveTrace', id, rel, entry) as Promise<boolean>,
   deleteDoc: (id: string, rel: string) =>
     ipcRenderer.invoke('doc:delete', id, rel) as Promise<{ ok: boolean; error?: string }>,
+  // 文档重命名（人物/世界观/素材卡通用；章节走 renameChapter）：改名 + H1/版本历史目录随动
+  docRename: (id: string, rel: string, newName: string) =>
+    ipcRenderer.invoke('doc:rename', id, rel, newName) as Promise<{ ok: boolean; newRel?: string; error?: string }>,
+  // 新建档案查重：返回目录内未被占用的名字（同名 → 「名字 2」…），写盘前调用防覆盖
+  uniqueDocName: (id: string, relDir: string, name: string) =>
+    ipcRenderer.invoke('doc:uniqueName', id, relDir, name) as Promise<string>,
   // 章节管理（§6.2）：重命名 / 删除（联动大纲副产物）/ 导出单章 md
   renameChapter: (id: string, rel: string, newTitle: string) =>
     ipcRenderer.invoke('chapter:rename', id, rel, newTitle) as Promise<{ ok: boolean; newRel?: string; error?: string }>,

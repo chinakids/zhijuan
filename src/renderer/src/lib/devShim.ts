@@ -15,6 +15,7 @@ import { AGENT_PANEL_DEFAULT_WIDTH } from '../../../shared/uiPrefs'
 import { sanitizeFile, DEFAULT_FILES, SKELETON_TEMPLATES } from '../../../shared/paths'
 import { clipLogError } from '../../../shared/syncLogShared'
 import { nextProjectId } from '../../../shared/projects'
+import { nextFreeName } from '../../../shared/docName'
 import { extractFrontMatter, removeFrontMatterField, setFrontMatterField } from '../../../shared/fmatter'
 import { adoptActsChapter } from '../../../shared/actsAdopt'
 import { countWords } from '../../../shared/count'
@@ -853,6 +854,17 @@ const mock = {
     if (!docs.has(id + '/' + DEFAULT_FILES.libIndex)) docs.set(id + '/' + DEFAULT_FILES.libIndex, SKELETON_TEMPLATES.libIndex)
     return p
   },
+  // 项目信息更新（与真机 store.updateProject 同语义：只改名称/简介，id 与演示文档 key 不动）
+  updateProject: async (id: string, patch: { name?: string; description?: string }) => {
+    const p = projects.find((x) => x.id === id)
+    if (!p) return { ok: false, error: '项目不存在或缺少 project.md' }
+    const name = (patch?.name ?? p.name).trim()
+    if (!name) return { ok: false, error: '项目名不能为空' }
+    p.name = name
+    p.description = (patch?.description ?? p.description).trim()
+    p.updatedAt = now
+    return { ok: true, project: { ...p, stats: devStatsOf(p.id), lastChapter: devLastChapterOf(p.id) } }
+  },
   listTemplates: async (): Promise<ProjectTemplate[]> => [
     { id: '示例', name: '示例', builtin: true },
     // 非内建模板演示项：真机＝扫描 工作区/模板/项目模板/ 用户目录（templates.ts listTemplates：builtin 排前 + zh 排序）。
@@ -904,6 +916,12 @@ const mock = {
   getRecentEntries: async (): Promise<RecentEntry[]> => recents.slice().sort((a, b) => b.openedAt - a.openedAt),
   readDoc: async (_id: string, rel: string) => docs.get(_id + '/' + rel) ?? null,
   writeDoc: async (_id: string, rel: string, content: string) => devWriteDoc(_id, rel, content),
+  // 新建档案查重（与真机 store.uniqueDocName 同口径：目录内已有同名 → 「名字 2」…；无磁盘=docs key 命中）
+  uniqueDocName: async (_id: string, relDir: string, name: string) => {
+    const base = sanitizeFile((name ?? '').trim())
+    const prefix = _id + '/' + relDir.replace(/\/$/, '') + '/'
+    return nextFreeName(base, (cand) => docs.has(prefix + cand + '.md'))
+  },
   // 保存动作取证（2026-09-19 创作层，P1 F-20260917-10）：真机落 .zhijuan/save-trace.jsonl（main/saveTrace.ts）；
   // devShim 无磁盘，记录到 window.__ZJ_SAVETRACE（无头冒烟断言「取证点真的跑了」；与 writeDoc 的 _id 前缀无关，仅测试面）
   saveTrace: async (_id: string, rel: string, entry: SaveTraceEntry) => {
@@ -919,6 +937,39 @@ const mock = {
     if (!docs.delete(k)) return { ok: false, error: '文档不存在' }
     fsEmit(_id, rel)
     return { ok: true }
+  },
+  // 文档重命名（与真机 store.renameDoc 同语义：只改文件名 + 首个 `# 旧名` H1 同步 + 历史目录迁移；无磁盘=key 迁移即模拟）
+  docRename: async (_id: string, rel: string, newName: string) => {
+    const bad = !rel || !rel.endsWith('.md') || rel.startsWith('/') || rel.split('/').some((s) => s === '..')
+    if (bad) return { ok: false, error: '路径不合法' }
+    const t = (newName ?? '').trim()
+    if (!t) return { ok: false, error: '名字不能为空' }
+    const k = _id + '/' + rel
+    const cur = docs.get(k)
+    if (cur === undefined) return { ok: false, error: '文档不存在' }
+    const slash = rel.lastIndexOf('/')
+    const dirRel = slash >= 0 ? rel.slice(0, slash + 1) : ''
+    const oldBase = rel.slice(slash + 1).replace(/\.md$/, '')
+    const newBase = sanitizeFile(t)
+    if (newBase === oldBase) return { ok: true, newRel: rel }
+    const newRel = dirRel + newBase + '.md'
+    const nk = _id + '/' + newRel
+    if (docs.has(nk)) return { ok: false, error: `同名文档已存在：${newBase}.md` }
+    const lines = cur.split('\n')
+    // 首个一级标题（可跳过 front matter / 空行）：恰为 `# 旧名` 才同步（与真机 store.renameDoc 同口径）
+    const i = lines.findIndex((l) => /^#\s+/.test(l.trim()))
+    let next = cur
+    if (i >= 0 && lines[i].trim() === `# ${oldBase}`) {
+      lines[i] = `# ${newBase}`
+      next = lines.join('\n')
+    }
+    docs.set(nk, next)
+    docs.delete(k)
+    const hk = histories.get(k)
+    if (hk) { histories.set(nk, hk); histories.delete(k) }
+    fsEmit(_id, rel)
+    fsEmit(_id, newRel)
+    return { ok: true, newRel }
   },
   // 章节管理（§6.2）：与真机 store.renameChapter 同语义（改约定头题名 + 文件名 slug + 大纲副产物/历史同步；无头无磁盘/废纸篓，key 迁移即模拟）
   renameChapter: async (_id: string, rel: string, newTitle: string) => {

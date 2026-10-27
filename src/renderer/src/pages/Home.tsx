@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FolderOpen, FolderOutput, Plus, Trash2, MoreHorizontal, Search, X, FileDown, FileText, BookOpen } from 'lucide-react'
+import { FolderOpen, FolderOutput, Plus, Trash2, MoreHorizontal, Search, X, FileDown, FileText, BookOpen, Pencil } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import type { ProjectSummary, ProjectTemplate } from '../../../shared/types'
 import type { RecentEntry } from '../../../shared/projects'
@@ -18,6 +18,7 @@ import {
   DialogClose
 } from '../components/ui/dialog'
 import { Input } from '../components/ui/input'
+import { FieldError, fieldInvalidClass } from '../components/ui/field-error'
 import { isImeComposing } from '../lib/ime'
 import { Label } from '../components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
@@ -72,6 +73,12 @@ export default function Home() {
   const [templates, setTemplates] = useState<ProjectTemplate[]>([])
   const [template, setTemplate] = useState('')
   const [libPath, setLibPath] = useState<string | null>(null)
+  // 项目信息编辑（重命名 / 改简介）：只改 project.md 约定头，目录名与 id 不变
+  const [editing, setEditing] = useState<ProjectSummary | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editDesc, setEditDesc] = useState('')
+  const [editErr, setEditErr] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
 
   useEffect(() => {
     void window.zhijuan.listTemplates().then(setTemplates)
@@ -155,6 +162,36 @@ export default function Home() {
       void refresh()
     } catch (e) {
       toast.add({ kind: 'error', title: '删除失败', description: String((e as Error).message ?? e) })
+    }
+  }
+
+  /** 项目信息更新（重命名 / 改简介）：主进程只改 project.md 约定头，目录名与 id 不变 */
+  function startEdit(p: ProjectSummary) {
+    setEditName(p.name)
+    setEditDesc(p.description ?? '')
+    setEditErr('')
+    setEditing(p)
+  }
+
+  async function saveEdit() {
+    if (!editing || !editName.trim()) return
+    setSavingEdit(true)
+    try {
+      const r = await window.zhijuan.updateProject(editing.id, {
+        name: editName.trim(),
+        description: editDesc.trim()
+      })
+      if (!r.ok) {
+        setEditErr(r.error ?? '保存失败')
+        return
+      }
+      toast.add({ kind: 'success', title: '已更新项目信息', description: `「${r.project?.name ?? editName.trim()}」` })
+      setEditing(null)
+      void refresh()
+    } catch (e) {
+      setEditErr(String((e as Error).message ?? e))
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -406,6 +443,12 @@ export default function Home() {
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={(e) => {
                         e.stopPropagation()
+                        startEdit(p)
+                      }}>
+                        <Pencil className="h-4 w-4" /> 重命名 / 改简介…
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => {
+                        e.stopPropagation()
                         void window.zhijuan.revealProject(p.id)
                       }}>
                         <FolderOpen className="h-4 w-4" /> 打开所在文件夹
@@ -566,6 +609,60 @@ export default function Home() {
             </DialogClose>
             <Button onClick={importDir} disabled={!folder.trim()}>
               导入
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 项目信息（重命名 / 改简介）：只改 project.md 约定头，目录名与 id 不变 */}
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="max-w-md" outsideDismiss={false}>
+          <DialogHeader>
+            <DialogTitle>项目信息</DialogTitle>
+            <DialogDescription>名称与简介保存在 project.md；项目文件夹名不变，已有路径与最近打开记录都不受影响。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="editproj-name">项目名 *</Label>
+              <Input
+                id="editproj-name"
+                autoFocus
+                value={editName}
+                onChange={(e) => {
+                  setEditName(e.target.value)
+                  setEditErr('')
+                }}
+                onKeyDown={(e) => {
+                  // IME 组合期 Enter 只确认候选，不保存（F-IME-03）
+                  if (isImeComposing(e)) return
+                  if (e.key === 'Enter' && editName.trim()) void saveEdit()
+                }}
+                className={editErr ? fieldInvalidClass : undefined}
+              />
+              {editErr && <FieldError>{editErr}</FieldError>}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="editproj-desc">一句话简介（可选）</Label>
+              <Input
+                id="editproj-desc"
+                placeholder="讲讲这本书是什么…"
+                value={editDesc}
+                onChange={(e) => setEditDesc(e.target.value)}
+                onKeyDown={(e) => {
+                  if (isImeComposing(e)) return
+                  if (e.key === 'Enter' && editName.trim()) void saveEdit()
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditing(null)}>取消</Button>
+            <Button
+              data-testid="home-edit-save"
+              onClick={() => void saveEdit()}
+              disabled={!editName.trim() || savingEdit}
+            >
+              {savingEdit ? '保存中…' : '保存'}
             </Button>
           </DialogFooter>
         </DialogContent>
