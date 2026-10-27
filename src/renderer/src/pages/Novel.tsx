@@ -17,7 +17,7 @@ import { cn } from '../lib/utils'
 import { isImeComposing } from '../lib/ime'
 import DocEditor from '../features/editor/DocEditor'
 import ChapterNav from '../features/editor/ChapterNav'
-import { chapterNeighbors } from '../../../shared/chapterNav'
+import { chapterNeighborsIn, chapterNavLabel } from '../../../shared/chapterNav'
 import HealthBar from '../features/audit/HealthBar'
 import { useTour } from '../features/guide/useTour'
 import TourTip from '../features/guide/TourTip'
@@ -67,6 +67,23 @@ export default function Novel() {
   useEffect(() => {
     if (lineFilter !== ALL_LINES && !lineTally.some((l) => l.name === lineFilter)) setLineFilter(ALL_LINES)
   }, [lineTally, lineFilter])
+  // 章列可见集：筛选=镜头（保留章号顺序），不改变章节数据、不改变建章预填口径；
+  // 「上一章/下一章」（底部按钮与 ⌥⌘←/→）的**导航域**跟随本可见集（2026-10-27 体验层：
+  // 筛了「过去线」时下一章=该线下一章，不跳到列表里看不见的章——HIG Lists and tables 导航型列表
+  // 要持续高亮当前行；HIG Focus and selection 焦点项不可见时就近安置到剩余项）。
+  const shownChapters = useMemo(
+    () => (lineFilter === ALL_LINES ? chapters : chapters.filter((c) => chapterLine(c.fm) === lineFilter)),
+    [chapters, lineFilter]
+  )
+  // 当前章不在镜头内（例：正开着主线第1章，却把镜头切到「过去线」）→ 章列无高亮行，需一行小字说明去向
+  const selOutOfLens =
+    lineFilter !== ALL_LINES && !!sel && chapters.some((c) => c.file === sel) && !shownChapters.some((c) => c.file === sel)
+  const selOutOfLensLabel = useMemo(() => {
+    if (!selOutOfLens) return ''
+    const c = chapters.find((x) => x.file === sel)
+    if (!c) return ''
+    return c.fm ? `当前章《${chapterNavLabel(c)}》不在「${lineFilter}」内` : `当前章《${c.name}》不在「${lineFilter}」内`
+  }, [selOutOfLens, chapters, sel, lineFilter])
   // 划词批注弹层（主人 2026-09-12：编辑器划词 → 填写批注意图 → 写入 *_批注.csv）
   const [annoTarget, setAnnoTarget] = useState<{ loc: string; before: string } | null>(null)
   const [annoNote, setAnnoNote] = useState('')
@@ -761,7 +778,7 @@ export default function Novel() {
       const mod = e.metaKey || e.ctrlKey
       if (!mod || !e.altKey || e.shiftKey) return
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
-      const { prev, next } = chapterNeighbors(chapters, sel)
+      const { prev, next } = chapterNeighborsIn(chapters, shownChapters, sel)
       const target = e.key === 'ArrowLeft' ? prev : next
       if (!target) return
       e.preventDefault()
@@ -769,7 +786,7 @@ export default function Novel() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [chapters, sel, requestSwitch])
+  }, [chapters, shownChapters, sel, requestSwitch])
   // 关窗守卫（2026-09-24 创作层）：beforeunload 在窗口关闭/Cmd+W/重载/app quit 前触发（Electron
   // 官方：close 事件在 beforeunload 之前，建议用 beforeunload 决定可否关闭；返回非 undefined 静默取消
   // 关闭）。有未保存改动时取消关闭并弹确认；closingRef=true（已确认）或非 dirty 零打扰放行。
@@ -894,8 +911,6 @@ export default function Novel() {
   const quoteSrcLabel = cur?.fm ? `第${cur.fm['章号'] ?? '?'}章 · ${cur.fm['题名'] ?? ''}` : undefined
   // 章卡的 file 是相对 正文/ 的裸名；凡要当项目根相对路径传给主进程处，统一在此拼前缀（见本技能 listDocs 坑）
   const chapterRel = sel ? '正文/' + sel : ''
-  // 章列可见集：筛选=镜头（保留章号顺序），不改变章节数据、不改变上一章/下一章与建章预填口径
-  const shownChapters = lineFilter === ALL_LINES ? chapters : chapters.filter((c) => chapterLine(c.fm) === lineFilter)
 
   // 章节列内容（侧栏与窄窗浮层共源复用；浮层额外补关闭按钮）
   const chapterHeader = (
@@ -920,16 +935,27 @@ export default function Novel() {
   )
   const chapterList = (
     <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
-      {/* 线筛选（多线项目才出现）：sticky 常驻在列顶，长章列表滚动时仍可切镜头 */}
+      {/* 线筛选（多线项目才出现）：sticky 常驻在列顶，长章列表滚动时仍可切镜头；
+          当前章被镜头挡在可见集外时，紧随一行小字说明（否则作者只看到「无高亮行」不知章节去哪了） */}
       {!loading && !loadErr && multiLine && (
-        <LineFilterChips
-          lines={lineTally}
-          value={lineFilter}
-          onChange={setLineFilter}
-          ariaLabel="按时间线筛选章节"
-          testId="chapter-line-filter"
-          className="sticky top-0 z-[1] -mx-2 bg-surface-2 px-2 pb-1.5 pt-0.5"
-        />
+        <div className="sticky top-0 z-[1] -mx-2 space-y-1 bg-surface-2 px-2 pb-1.5 pt-0.5" data-testid="chapter-line-lens">
+          <LineFilterChips
+            lines={lineTally}
+            value={lineFilter}
+            onChange={setLineFilter}
+            ariaLabel="按时间线筛选章节"
+            testId="chapter-line-filter"
+          />
+          {selOutOfLens && (
+            <p
+              className="min-w-0 truncate text-[11px] text-ink-3"
+              title={selOutOfLensLabel}
+              data-testid="chapter-lens-outside-note"
+            >
+              {selOutOfLensLabel}
+            </p>
+          )}
+        </div>
       )}
       {loading && (
         <div className="flex items-center justify-center gap-2 px-2 py-6 text-xs text-ink-3">
@@ -1088,7 +1114,7 @@ export default function Novel() {
               <DocEditor projectId={id} rel={chapterRel} withFm extVersion={extVersion} editorApiRef={apiRef} annotations={annotations} onDirty={markDirty} saveHandleRef={saveHandleRef} onSave={() => { void refresh(); void handleChapterSaved(chapterRel) }} quoteSrcLabel={quoteSrcLabel}
                 statusExtra={
                   <>
-                    <ChapterNav list={chapters} sel={sel} onGo={requestSwitch} hidden={effectiveNarrow} />
+                    <ChapterNav list={chapters} visible={shownChapters} sel={sel} onGo={requestSwitch} hidden={effectiveNarrow} />
                     <HealthBar projectId={id} refreshSignal={extVersion} />
                   </>
                 }

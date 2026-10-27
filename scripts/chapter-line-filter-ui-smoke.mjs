@@ -77,7 +77,9 @@ const snap = (root = '[data-testid="chapter-sidebar"]') => `(() => {
     .filter((t) => /第\\d+章 ·/.test(t))
     .map((t) => t.match(/第\\d+章 · [^\\s·]+/)[0])
   const tl = r.querySelector('[data-testid="chapter-line-filter"]')
-  const cs = tl ? getComputedStyle(tl) : null
+  // sticky 容器（2026-10-27 起 chips 与「当前章不在镜头内」说明同处一个 sticky wrapper；取容器计算样式）
+  const lensWrap = r.querySelector('[data-testid="chapter-line-lens"]') ?? tl
+  const cs = lensWrap ? getComputedStyle(lensWrap) : null
   return {
     root: true, tabs, chs,
     tablist: !!tl,
@@ -117,7 +119,7 @@ try {
   ok('多线项目出现线筛选 chips', s.tablist === true && s.tabs.map((t) => t.t).join('|') === '全部|主线 · 3|过去线 · 3', JSON.stringify(s.tabs.map((t) => t.t)))
   ok('默认选中「全部」且 roving tabindex 唯一', s.tabs[0]?.sel === true && s.tabs.filter((t) => t.ti === '0').length === 1, JSON.stringify(s.tabs.map((t) => [t.line, t.sel, t.ti])))
   ok('chips 行零横向溢出（窄列内换行不越界）', s.overflow === false, String(s.overflow))
-  ok('chips 为 sticky（长章列表滚动常驻）', s.sticky === 'sticky', String(s.sticky))
+  ok('chips 容器为 sticky（长章列表滚动常驻）', s.sticky === 'sticky', String(s.sticky))
 
   // ---------- ② 选「过去线」----------
   ok('点击「过去线」chip', (await p.eval(clickTab('过去线'))) === true)
