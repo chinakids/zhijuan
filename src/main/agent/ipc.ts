@@ -9,7 +9,7 @@ import { runDirector, cancelDirector } from './director'
 import { runDirectorCheck } from './director-check'
 import { runStructureCheck } from './structure-check'
 import { runActs, type ActsRunOpts } from './acts'
-import { ensureHarness, closeHarness, answerDir } from './runtime'
+import { ensureHarness, closeHarness, restartHarness, answerDir } from './runtime'
 import { listCapabilities } from './subtask'
 import { listSkills, createSkill, updateSkill, deleteSkill, setSkillDisabled, importSkill, exportSkill } from '../skills'
 import { runWritingInsights, readInsightsState, listDrafts, promoteDraft, deleteDraft } from '../writingInsights'
@@ -99,6 +99,13 @@ export function registerAgentIpc() {
     const err = await ensureHarness()
     const s = getSettings()
     const cfg = activeProvider(s)
+    return { online: !err, provider: cfg.preset.name, model: cfg.model, message: err }
+  })
+  // 引擎重启（2026-10-27 鲁棒性）：关闭旧子进程后重新拉起。engine 崩溃后 UI 不再只能等轮询自愈；
+  // 失败沿用 agent:status 同形返回（message=6 行诊断串，设置页原样展示）。
+  ipcMain.handle('engine:restart', async () => {
+    const err = await restartHarness()
+    const cfg = activeProvider(getSettings())
     return { online: !err, provider: cfg.preset.name, model: cfg.model, message: err }
   })
   // 连接检测（2026-10-26 主人反馈「DeepSeek 连不上、连接报错无法查看日志」）：用当前服务商配置发最小

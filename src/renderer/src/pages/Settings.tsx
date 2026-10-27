@@ -7,7 +7,7 @@ import { Separator } from '../components/ui/separator'
 import { Switch } from '../components/ui/switch'
 import { Card } from '../components/ui/card'
 import { cn } from '../lib/utils'
-import { ArrowLeft, Keyboard, Plus, Trash2, FileUp, FileDown, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Keyboard, Plus, Trash2, FileUp, FileDown, RefreshCw, RotateCw } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import ShortcutHelp from '../features/command/ShortcutHelp'
 import { PROVIDER_PRESETS, providerById } from '../../../shared/providers'
@@ -52,6 +52,7 @@ export default function Settings() {
   const [llmCheck, setLlmCheck] = useState<{ ok: boolean; step?: string; status: number; message: string; body?: string; baseUrl?: string; model?: string } | null>(null)
   const [checking, setChecking] = useState(false)
   const [engStatus, setEngStatus] = useState<{ online: boolean; provider?: string; model?: string; message?: string } | null>(null)
+  const [restarting, setRestarting] = useState(false)
   const [libraryRoot, setLibraryRoot] = useState('')
   const [theme, setTheme] = useState<'paper' | 'dark'>('paper')
   const [collection, setCollection] = useState(true)
@@ -210,6 +211,18 @@ export default function Settings() {
       .agentStatus()
       .then(setEngStatus)
       .catch(() => setEngStatus({ online: false, message: '获取引擎状态失败' }))
+  }
+  /** 重启引擎（2026-10-27 鲁棒性）：关掉旧子进程重新拉起——引擎崩溃后不必重启整个应用；
+   * 失败沿用诊断串展示（engine:restart 与 agent:status 同形返回）。devShim 无此方法时退回刷新。 */
+  function restartEngine() {
+    setRestarting(true)
+    setEngStatus(null)
+    const api = window.zhijuan
+    const call = api.engineRestart ? api.engineRestart() : api.agentStatus()
+    void call
+      .then(setEngStatus)
+      .catch((e) => setEngStatus({ online: false, message: '重启引擎失败：' + String((e as Error)?.message ?? e) }))
+      .finally(() => setRestarting(false))
   }
   useEffect(() => { refreshEngine() }, [])
 
@@ -491,9 +504,22 @@ export default function Settings() {
           <Button size="sm" variant="ghost" aria-label="刷新引擎状态" onClick={refreshEngine} data-testid="engine-refresh" title="重新检测引擎">
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label="重启引擎"
+            onClick={restartEngine}
+            disabled={restarting}
+            data-testid="engine-restart"
+            title="关闭当前引擎进程后重新拉起（引擎崩溃/卡死时的复活入口）"
+          >
+            <RotateCw className={cn('h-3.5 w-3.5', restarting && 'animate-spin')} />
+          </Button>
         </h3>
         <Separator className="my-4" />
-        {engStatus === null ? (
+        {restarting ? (
+          <p className="min-w-0 text-xs text-ink-3" data-testid="engine-status">重启引擎中…（首次启动最长 45s）</p>
+        ) : engStatus === null ? (
           <p className="min-w-0 text-xs text-ink-3">检测中…</p>
         ) : engStatus.online ? (
           <p className="min-w-0 text-xs text-ink" data-testid="engine-status">● 引擎在线 · {engStatus.provider} · {engStatus.model}</p>

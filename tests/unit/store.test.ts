@@ -377,7 +377,7 @@ describe('writeDoc 版本快照挂接（2026-09-14：正文 ∪ 大纲/审读_ �
     expect(snaps).toHaveLength(1)
   })
 
-  it('章卡/导演板/分幕草稿：两次不同内容 → 旧版入史；索引/人物/世界观仍不入史', () => {
+  it('章卡/导演板/分幕草稿 + 人物/世界观/素材库：两次不同内容 → 旧版入史；索引/采集池仍不入史', () => {
     const p = store.createProject('副产物入史', '')!
     store.writeDoc(p.id, '大纲/第01章_雾港.md', '# 章卡\n\n目标…')
     store.writeDoc(p.id, '大纲/第01章_雾港.md', '# 章卡2\n\n目标…')
@@ -387,12 +387,22 @@ describe('writeDoc 版本快照挂接（2026-09-14：正文 ∪ 大纲/审读_ �
     store.writeDoc(p.id, '大纲/第01章_雾港_分幕.md', '# 分幕草稿 v2')
     store.writeDoc(p.id, '人物/林晚.md', '# 林晚\n\n档案 v1')
     store.writeDoc(p.id, '人物/林晚.md', '# 林晚\n\n档案 v2')
+    // 用非种子文件（总纲.md 在 createProject 时已有模板内容，首写也会留一版，故不取它）
+    store.writeDoc(p.id, '世界观/切片_灯塔.md', '# 灯塔 v1')
+    store.writeDoc(p.id, '世界观/切片_灯塔.md', '# 灯塔 v2')
+    store.writeDoc(p.id, '素材库/环境/校园.md', '# 校园 v1')
+    store.writeDoc(p.id, '素材库/环境/校园.md', '# 校园 v2')
     store.writeDoc(p.id, '大纲/索引.md', '# 索引 v1')
     store.writeDoc(p.id, '大纲/索引.md', '# 索引 v2')
+    store.writeDoc(p.id, '素材库/采集池/网页_1.md', '# 采集 v1')
+    store.writeDoc(p.id, '素材库/采集池/网页_1.md', '# 采集 v2')
     expect(listSnapshots(join(holder.projects(), p.id), '大纲/第01章_雾港.md')).toHaveLength(1)
     expect(listSnapshots(join(holder.projects(), p.id), '大纲/第01章_雾港_导演.md')).toHaveLength(1)
     expect(listSnapshots(join(holder.projects(), p.id), '大纲/第01章_雾港_分幕.md')).toHaveLength(1)
-    expect(listSnapshots(join(holder.projects(), p.id), '人物/林晚.md')).toHaveLength(0)
+    expect(listSnapshots(join(holder.projects(), p.id), '人物/林晚.md')).toHaveLength(1)
+    expect(listSnapshots(join(holder.projects(), p.id), '世界观/切片_灯塔.md')).toHaveLength(1)
+    expect(listSnapshots(join(holder.projects(), p.id), '素材库/环境/校园.md')).toHaveLength(1)
     expect(listSnapshots(join(holder.projects(), p.id), '大纲/索引.md')).toHaveLength(0)
+    expect(listSnapshots(join(holder.projects(), p.id), '素材库/采集池/网页_1.md')).toHaveLength(0)
   })
 })

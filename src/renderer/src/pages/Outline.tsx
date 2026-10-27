@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { BookMarked, CheckCheck, CheckCircle2, CircleDashed, Clapperboard, FileText, Hammer, History, ListTree, MoreHorizontal, PenLine, RefreshCw, ScrollText, ShieldCheck, Waypoints, Wrench } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
@@ -10,6 +10,7 @@ import type { ChapterEntry } from '../../../shared/types'
 import { cn } from '../lib/utils'
 import { EmptyState } from '../components/EmptyState'
 import DocEditor from '../features/editor/DocEditor'
+import { useUnsavedGuard } from '../features/editor/useUnsavedGuard'
 import HistoryDrawer from '../features/editor/HistoryDrawer'
 import DirectorCheckDrawer from '../features/check/DirectorCheckDrawer'
 import StructureCheckDrawer from '../features/check/StructureCheckDrawer'
@@ -53,6 +54,14 @@ export default function Outline() {
   // 当前选中章节的分幕草稿里「未写成」的段号（>0 时显示「补写缺段」按钮）
   const [draftMissing, setDraftMissing] = useState<number[]>([])
   const events = useFsEvents(id)
+  // 未保存守卫（2026-10-27 体验层 P1）：此前章卡/导演板/分幕草稿的编辑只在 ⌘S 落盘，
+  // 点左侧切章即 setSel 静默丢稿；离开大纲页（路由）与关窗则完全无守卫。
+  // 与 Novel 切章守卫同语义：三选确认，取消或保存被拦都留在原章卡。
+  const saveRef = useRef<(() => Promise<boolean>) | null>(null)
+  const guard = useUnsavedGuard({
+    subject: '这张章卡',
+    doSave: () => (saveRef.current ? saveRef.current() : false)
+  })
 
   const refresh = useCallback(async () => {
     if (!id) return
@@ -131,6 +140,15 @@ export default function Outline() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, selChapter, outlineFiles])
+
+  /** 切所选文档（守卫版）：章卡/导演板/分幕草稿之间切换前，有未保存改动先三选确认 */
+  async function selectDoc(rel: string) {
+    if (rel === sel) return
+    if (!(await guard.confirmLeave('switch'))) return
+    // 明确放行：先清 dirty，避免新文档装载瞬间旧 dirty 再弹一次
+    guard.setDirty(false)
+    setSel(rel)
+  }
 
   const build = async (only?: string[]) => {
     if (!id || building) return
@@ -421,7 +439,7 @@ export default function Outline() {
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
           <button
-            onClick={() => setSel('大纲/索引.md')}
+            onClick={() => void selectDoc('大纲/索引.md')}
             className={cn(
               'mb-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors',
               sel === '大纲/索引.md' ? 'bg-accent-soft text-accent' : 'text-ink hover:bg-surface'
@@ -465,7 +483,7 @@ export default function Outline() {
                   <ContextMenuTrigger asChild>
                     <div className="group relative flex items-center">
                       <button
-                        onClick={() => setSel(cardRel(c))}
+                        onClick={() => void selectDoc(cardRel(c))}
                         className={cn(
                           'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors',
                           sel === cardRel(c) ? 'bg-accent-soft' : 'hover:bg-surface'
@@ -519,7 +537,7 @@ export default function Outline() {
                     <ContextMenuTrigger asChild>
                       <div className="group relative ml-5 flex items-center">
                         <button
-                          onClick={() => setSel(boardRel(c))}
+                          onClick={() => void selectDoc(boardRel(c))}
                           className={cn(
                             'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors',
                             sel === boardRel(c) ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface'
@@ -561,7 +579,7 @@ export default function Outline() {
                     <ContextMenuTrigger asChild>
                       <div className="group relative ml-5 flex items-center">
                         <button
-                          onClick={() => setSel(actsRel(c))}
+                          onClick={() => void selectDoc(actsRel(c))}
                           className={cn(
                             'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors',
                             sel === actsRel(c) ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface'
@@ -604,7 +622,7 @@ export default function Outline() {
               {auditReports.map((f) => (
                 <div key={f} className="flex items-center">
                   <button
-                    onClick={() => setSel(f)}
+                    onClick={() => void selectDoc(f)}
                     className={cn(
                       'flex min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-1.5 text-left text-xs transition-colors',
                       sel === f ? 'bg-accent-soft text-accent' : 'text-ink-3 hover:bg-surface'
@@ -764,7 +782,15 @@ export default function Outline() {
         )}
         <div className="min-h-0 flex-1">
           {sel ? (
-            <DocEditor projectId={id} rel={sel} extVersion={extVersion} onSave={() => void refresh()} anno={false} />
+            <DocEditor
+              projectId={id}
+              rel={sel}
+              extVersion={extVersion}
+              saveHandleRef={saveRef}
+              onDirtyChange={guard.reportDirty}
+              onSave={() => void refresh()}
+              anno={false}
+            />
           ) : loadErr ? null : (
             <EmptyState
               art="outline"
@@ -787,6 +813,8 @@ export default function Outline() {
       />
       <StructureCheckDrawer projectId={id} open={structureOpen} onClose={() => setStructureOpen(false)} />
       <HistoryDrawer projectId={id} rel={historyRel ?? ''} open={historyRel !== null} onClose={() => setHistoryRel(null)} />
+      {/* 未保存三选确认（切章卡 / 离开大纲页 / 关窗共用同一弹窗，形态与 Novel 守卫一致） */}
+      {guard.dialog}
     </div>
   )
 }

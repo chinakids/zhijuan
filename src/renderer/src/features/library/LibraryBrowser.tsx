@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
-import { ChevronLeft, FileText, Folder, FolderPlus, Library as LibraryIcon, MoreHorizontal, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { ChevronLeft, FileText, Folder, FolderPlus, History, Library as LibraryIcon, MoreHorizontal, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import { Button } from '../../components/ui/button'
 import { EmptyState } from '../../components/EmptyState'
@@ -18,6 +18,8 @@ import type { LibraryCategory, SearchHit } from '../../../../shared/types'
 import { ColHideButton, ColShowBar } from '../common/colFold'
 import { useColFold } from '../common/useColFold'
 import DocEditor from '../editor/DocEditor'
+import HistoryDrawer from '../editor/HistoryDrawer'
+import { useUnsavedGuard } from '../editor/useUnsavedGuard'
 import { useFsChanged, useFsEvents } from '../fs/useFsEvents'
 import { toast } from '../../store/toasts'
 
@@ -66,6 +68,17 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
   const [colHidden, setColHidden] = useColFold('library')
   const events = useFsEvents(id)
   const qTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // 版本历史抽屉（2026-10-27 未保存守卫轮）：素材库已纳入 versionedRel 快照白名单，
+  // 整理/覆盖失误可回退（复用正文 HistoryDrawer；恢复时会再留一档，天然可反悔）
+  const [historyRel, setHistoryRel] = useState<string | null>(null)
+  // 未保存守卫（2026-10-27 体验层 P1）：此前「返回」/切类别/切素材都是直接 setEditorRel——
+  // 素材卡写着写着点返回即静默丢稿。与 Novel 切章守卫同语义（三选确认 / 保存被拦则留在原处），
+  // 路由离开与关窗由 hook 一并覆盖（素材库页卸载=未保存内容丢失）。
+  const saveRef = useRef<(() => Promise<boolean>) | null>(null)
+  const guard = useUnsavedGuard({
+    subject: '这张素材卡',
+    doSave: () => (saveRef.current ? saveRef.current() : false)
+  })
 
   const refresh = useCallback(async () => {
     if (!id) return
@@ -102,12 +115,17 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
   }, [refresh])
 
   // 外部跳转直达（⌘K 面板素材搜索）：打开编辑器并退出搜索态（面板路径消费后外层已清参，openDoc 变 null 不重复触发）
+  // 2026-10-27 未保存守卫：外部直跳也是「切素材」，编辑器有未保存改动时同样先确认（取消则留在原素材）。
   useEffect(() => {
-    if (openDoc) {
+    if (!openDoc) return
+    void (async () => {
+      if (openDoc !== editorRel && !(await guard.confirmLeave('switch'))) return
+      guard.setDirty(false)
       setEditorRel(openDoc)
       setSearchQ('')
       setHits(null)
-    }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openDoc])
 
   // 素材卡元信息（预览/标签）——当前选中类别变化时（重）读；全部文件量小，逐条读前 2KB 不阻塞
@@ -218,7 +236,8 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
     setNewMatOpen(false)
     setNewMatName('')
     await refresh()
-    setEditorRel(rel)
+    // 新建后跳到新素材：当前素材若有未保存改动，同样先确认（与切素材同一守卫）
+    await openMaterial(rel)
   }
 
   function startRename(file: string) {
@@ -278,6 +297,33 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
   )
   const listView = !editorRel
 
+  /**
+   * 打开/关闭素材（守卫版，2026-10-27）：编辑器里有未保存改动时先三选确认；
+   * 取消或「保存」被空写防线/IO 拦下都留在原素材（不静默丢整理成果）。
+   * rel=null 表示回列表（「返回」语义）。
+   */
+  async function openMaterial(rel: string | null, o: { clearSearch?: boolean } = {}) {
+    if (rel === editorRel) return
+    if (!(await guard.confirmLeave(rel === null ? 'leave' : 'switch'))) return
+    guard.setDirty(false)
+    if (o.clearSearch) {
+      setSearchQ('')
+      setHits(null)
+    }
+    setEditorRel(rel)
+  }
+
+  /** 切类别（回列表态并选中该类别）：同一守卫，类别里写着素材时切类别也不丢稿 */
+  async function selectCat(name: string) {
+    if (name === selCat && !editorRel) return
+    if (!(await guard.confirmLeave('switch'))) return
+    guard.setDirty(false)
+    setSearchQ('')
+    setHits(null)
+    setEditorRel(null)
+    setSelCat(name)
+  }
+
   return (
     <div className="flex h-full min-h-0">
       {/* 左列：类别树 */}
@@ -292,11 +338,7 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
           {/* 固定项：索引说明（模块设计 §2.2 素材库/索引.md） */}
           <button
-            onClick={() => {
-              setSearchQ('')
-              setHits(null)
-              setEditorRel('素材库/索引.md')
-            }}
+            onClick={() => void openMaterial('素材库/索引.md', { clearSearch: true })}
             className={cn(
               'mb-0.5 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors',
               editorRel === '素材库/索引.md' ? 'bg-accent-soft' : 'hover:bg-surface'
@@ -309,12 +351,7 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
           {tree.map((node) => (
             <button
               key={node.name}
-              onClick={() => {
-                setSearchQ('')
-                setHits(null)
-                setEditorRel(null)
-                setSelCat(node.name)
-              }}
+              onClick={() => void selectCat(node.name)}
               className={cn(
                 'mb-0.5 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors',
                 selCat === node.name && !editorRel ? 'bg-accent-soft' : 'hover:bg-surface'
@@ -439,7 +476,7 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
                     {hits.map((h) => (
                       <button
                         key={h.file}
-                        onClick={() => setEditorRel(h.file)}
+                        onClick={() => void openMaterial(h.file)}
                         className="mb-2 block w-full rounded-lg border border-hair bg-surface px-3 py-2.5 text-left transition-colors hover:border-accent/60"
                       >
                         <div className="flex items-center gap-2">
@@ -470,7 +507,7 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
                   return (
                     <div key={f.file} className="group relative mb-2">
                       <button
-                        onClick={() => setEditorRel('素材库/' + f.file)}
+                        onClick={() => void openMaterial('素材库/' + f.file)}
                         className="block w-full rounded-lg border border-hair bg-surface px-3 py-2.5 pr-10 text-left transition-colors hover:border-accent/60"
                         title={sub ? `位于子目录 ${sub}/` : undefined}
                       >
@@ -531,7 +568,7 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
             <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hair px-4">
               <button
                 className="flex shrink-0 items-center gap-0.5 whitespace-nowrap text-[11px] text-ink-3 transition-colors hover:text-ink"
-                onClick={() => setEditorRel(null)}
+                onClick={() => void openMaterial(null)}
               >
                 <ChevronLeft className="h-3.5 w-3.5" /> 返回
               </button>
@@ -539,6 +576,16 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
                 {editorRel.replace(/^素材库\//, '').replace(/\.md$/, '')}
               </span>
               <span className="flex-1" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="shrink-0 [&_svg]:size-3.5"
+                title="版本历史（整理失误可回退；恢复前会自动留档）"
+                data-testid="material-history"
+                onClick={() => setHistoryRel(editorRel)}
+              >
+                <History /> 历史
+              </Button>
               {isMaterialCard(editorRel.replace(/^素材库\//, '')) && (
                 <>
                   <Button
@@ -569,7 +616,15 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
               <span className="shrink-0 text-[11px] text-ink-3">素材为整理后草稿 · ⌘S 保存</span>
             </div>
             <div className="min-h-0 flex-1">
-              <DocEditor projectId={id} rel={editorRel} extVersion={extVersion} onSave={() => void refresh()} anno={false} />
+              <DocEditor
+                projectId={id}
+                rel={editorRel}
+                extVersion={extVersion}
+                saveHandleRef={saveRef}
+                onDirtyChange={guard.reportDirty}
+                onSave={() => void refresh()}
+                anno={false}
+              />
             </div>
           </>
         )}
@@ -684,6 +739,10 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* 版本历史抽屉（素材库已入版本化白名单：整理/覆盖失误可回退） */}
+      <HistoryDrawer projectId={id} rel={historyRel ?? ''} open={historyRel !== null} onClose={() => setHistoryRel(null)} />
+      {/* 未保存三选确认（切素材 / 切类别 / 返回 / 路由离开 / 关窗共用同一弹窗） */}
+      {guard.dialog}
     </div>
   )
 }

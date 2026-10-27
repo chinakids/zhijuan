@@ -28,6 +28,18 @@ interface DocEditorProps {
   /** 外部文件版本号（父级监听的 fs 事件命中本文档时 +1）；未修改时触发静默重载 */
   extVersion?: number
   onDirty?: (dirty: boolean) => void
+  /**
+   * dirty 变化上报（2026-10-27 未保存守卫轮）：与 onDirty 同义同源，两者都会收到回调。
+   * 命名对齐 useUnsavedGuard（guard.reportDirty），供正文页之外的宿主接入同一套守卫；
+   * 正文页继续用 onDirty，行为不变。
+   */
+  onDirtyChange?: (dirty: boolean) => void
+  /**
+   * 可选：闲置自动保存（毫秒）。缺省/0 = 关闭（正文页维持「⌘S 手动保存」既有口径）。
+   * 只在有未保存改动且距最后一次编辑满 autosaveMs 时触发一次保存（走与 ⌘S 同一个 doSave，
+   * 空写防线/写盘失败照常生效）；保存后 status 离开 dirty，计时自动复位。
+   */
+  autosaveMs?: number
   onSave?: () => void
   className?: string
   /** 本章批注（仅章节正文页传入）：正文中被批注片段高亮 + 底部「批注 N」徽标跳转 */
@@ -41,7 +53,7 @@ interface DocEditorProps {
   quoteSrcLabel?: string
 }
 
-export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty, onSave, className, editorApiRef, saveHandleRef, annotations, anno, statusExtra, quoteSrcLabel }: DocEditorProps) {
+export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty, onDirtyChange, autosaveMs, onSave, className, editorApiRef, saveHandleRef, annotations, anno, statusExtra, quoteSrcLabel }: DocEditorProps) {
   const innerApi = useRef<ProseApi | null>(null)
   const apiRef = editorApiRef ?? innerApi
   const rawRef = useRef('') // 磁盘上的原文（含约定头）
@@ -318,7 +330,23 @@ export default function DocEditor({ projectId, rel, withFm, extVersion, onDirty,
   }, [])
 
   const dirty = status === 'dirty'
-  useEffect(() => onDirty?.(dirty), [dirty, onDirty])
+  useEffect(() => {
+    // onDirty = 正文页旧口径（不动）；onDirtyChange = useUnsavedGuard 宿主口径（同源同义）
+    onDirty?.(dirty)
+    onDirtyChange?.(dirty)
+  }, [dirty, onDirty, onDirtyChange])
+
+  // 可选闲置自动保存（2026-10-27 未保存守卫轮）：只有宿主显式传 autosaveMs 才生效——
+  // 正文页不传，保持「⌘S 手动保存」既有行为；设定/素材等笔记型文档可自行开启，减少三选确认频次。
+  // 走同一个 doSave（空写防线、写盘失败、saveTrace 留痕全部照旧）；status 离开 dirty 即自动复位计时。
+  useEffect(() => {
+    if (!autosaveMs || autosaveMs <= 0 || !dirty) return
+    const t = window.setTimeout(() => {
+      void doSaveRef.current()
+    }, autosaveMs)
+    return () => window.clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autosaveMs, dirty, status])
 
   if (loading) {
     return (

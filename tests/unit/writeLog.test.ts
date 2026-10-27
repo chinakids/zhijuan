@@ -85,9 +85,10 @@ describe('writeDoc 写盘审计（write-log.jsonl）', () => {
     expect(entries).toHaveLength(0)
   })
 
-  it('非版本化 rel（人物/）写盘 → 不记录', () => {
-    store.writeDoc(PID, '人物/陈默.md', '---\n姓名: 陈默\n---\n\n# 基础档案\n\n- 本职：市政维修处\n')
-    store.writeDoc(PID, '人物/陈默.md', '---\n姓名: 陈默\n---\n\n# 基础档案\n\n- 本职：市政维修处\n- 习惯：眼睛总往天上瞟\n')
+  it('非版本化 rel（素材库/采集池）写盘 → 不记录', () => {
+    // 2026-10-27：人物/ 已入版本化白名单（档案可回退），采集池是管道原样缓冲区仍不入史
+    store.writeDoc(PID, '素材库/采集池/网页_1.md', '# 采集\n\n- 一段摘录\n')
+    store.writeDoc(PID, '素材库/采集池/网页_1.md', '# 采集\n\n- 一段摘录\n- 补一条\n')
     expect(listWriteLog(PID)).toHaveLength(0)
   })
 

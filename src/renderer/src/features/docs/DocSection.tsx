@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { FileText, MoreHorizontal, Pencil, Plus } from 'lucide-react'
+import { FileText, History, MoreHorizontal, Pencil, Plus } from 'lucide-react'
 import LoadingIndicator from '../../components/LoadingIndicator'
 import { Button } from '../../components/ui/button'
 import { EmptyState } from '../../components/EmptyState'
@@ -14,6 +14,8 @@ import { isImeComposing } from '../../lib/ime'
 import { ColHideButton, ColShowBar } from '../common/colFold'
 import { useColFold, type ColFoldKey } from '../common/useColFold'
 import DocEditor from '../editor/DocEditor'
+import HistoryDrawer from '../editor/HistoryDrawer'
+import { useUnsavedGuard } from '../editor/useUnsavedGuard'
 import { useFsChanged, useFsEvents } from '../fs/useFsEvents'
 import { resolveDocSel } from './docSel'
 import { toast } from '../../store/toasts'
@@ -54,6 +56,16 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
   // 宽窗手动折叠（HIG Sidebars show/hide；与 Novel 5376f30 同机制；折叠态持久化=AppSettings 跨重启记住侧栏；按导航页分键）
   const [colHidden, setColHidden] = useColFold(foldKey)
   const events = useFsEvents(id)
+  // 版本历史抽屉（2026-10-27 未保存守卫轮）：人物/世界观已纳入 versionedRel 快照白名单，
+  // 切片同步覆盖或误改可回退（复用正文 HistoryDrawer，rel 通用；恢复时自动再留一档可反悔）
+  const [historyRel, setHistoryRel] = useState<string | null>(null)
+  // 未保存守卫（2026-10-27 体验层 P1）：此前本页切文档行直接 setSel——有未保存改动即静默丢稿。
+  // 与 Novel 切章守卫同语义（三选确认 / 保存被拦则留在原文档）；路由离开与关窗由 hook 一并覆盖。
+  const saveRef = useRef<(() => Promise<boolean>) | null>(null)
+  const guard = useUnsavedGuard({
+    subject: `这份${addLabel}`,
+    doSave: () => (saveRef.current ? saveRef.current() : false)
+  })
 
   const refresh = useCallback(async () => {
     if (!id) return
@@ -84,6 +96,15 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
 
   const extVersion = useMemo(() => (sel ? events.filter((e) => e.path === sel).length : 0), [events, sel])
 
+  /** 切文档（守卫版）：无未保存改动直接切；有则三选确认，取消或保存被拦都留在原文档 */
+  async function selectDoc(rel: string) {
+    if (rel === sel) return
+    if (!(await guard.confirmLeave('switch'))) return
+    // 明确放行（已保存/放弃）：先清 dirty，避免新文档装载瞬间旧 dirty 再触发一次确认
+    guard.setDirty(false)
+    setSel(rel)
+  }
+
   async function createDoc() {
     if (!id || !name.trim()) return
     const typed = name.trim()
@@ -103,7 +124,8 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
       setCreating(false)
       setName('')
       await refresh()
-      setSel(rel)
+      // 新建后跳到新档：当前档若有未保存改动，同样先确认（与切文档同一守卫）
+      await selectDoc(rel)
     } catch (e) {
       toast.add({ kind: 'error', title: `新建${addLabel}失败`, description: String((e as Error).message ?? e) })
     }
@@ -163,6 +185,9 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
           <Pencil className="h-4 w-4" /> 重命名…
         </Item>
       )}
+      <Item onSelect={() => setHistoryRel(relDir + '/' + f.file)}>
+        <History className="h-4 w-4" /> 版本历史
+      </Item>
       <Item className="text-danger focus:bg-danger/10 focus:text-danger" onSelect={() => setDeleting(f)}>
         删除
       </Item>
@@ -211,7 +236,7 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
               <ContextMenuTrigger asChild>
                 <div className="group relative mb-0.5">
                   <button
-                    onClick={() => setSel(relDir + '/' + f.file)}
+                    onClick={() => void selectDoc(relDir + '/' + f.file)}
                     className={cn(
                       'flex w-full items-center gap-2 rounded-lg py-2 pl-3 pr-8 text-left transition-colors',
                       sel === relDir + '/' + f.file ? 'bg-accent-soft' : 'hover:bg-surface'
@@ -273,7 +298,16 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
               <span className="text-[11px] text-ink-3">设定由正文保存时的切片同步维护</span>
             </div>
             <div className="min-h-0 flex-1">
-              <DocEditor projectId={id} rel={sel} withFm={withFm} extVersion={extVersion} onSave={() => void refresh()} anno={false} />
+              <DocEditor
+                projectId={id}
+                rel={sel}
+                withFm={withFm}
+                extVersion={extVersion}
+                saveHandleRef={saveRef}
+                onDirtyChange={guard.reportDirty}
+                onSave={() => void refresh()}
+                anno={false}
+              />
             </div>
           </>
         ) : (
@@ -325,6 +359,10 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* 版本历史抽屉（人物/世界观已入版本化白名单：覆盖/误改可回退） */}
+      <HistoryDrawer projectId={id} rel={historyRel ?? ''} open={historyRel !== null} onClose={() => setHistoryRel(null)} />
+      {/* 未保存三选确认（切文档 / 路由离开 / 关窗共用同一弹窗，形态与 Novel 守卫一致） */}
+      {guard.dialog}
       {/* 文档重命名：只改文件名（首个「# 旧名」标题与版本历史目录由主进程随动） */}
       <Dialog open={!!renaming} onOpenChange={(o) => !o && setRenaming(null)}>
         <DialogContent className="sm:max-w-sm" outsideDismiss={false}>

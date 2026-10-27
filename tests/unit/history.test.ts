@@ -28,7 +28,7 @@ describe('history（正文版本历史）', () => {
     expect(isNovelRel('大纲/索引.md')).toBe(false)
   })
 
-  it('isVersionedRel：正文 ∪ 大纲/审读_ ∪ 大纲/章卡与导演板/分幕草稿；索引.md 例外（2026-09-14 智能层）', () => {
+  it('isVersionedRel：正文 ∪ 大纲（索引.md 例外）∪ 人物/世界观/素材库（采集池例外，2026-10-27 未保存守卫轮）', () => {
     // 正例
     expect(isVersionedRel('正文/第01章_雾港.md')).toBe(true)
     expect(isVersionedRel('大纲/审读_一致性巡查.md')).toBe(true)
@@ -39,11 +39,18 @@ describe('history（正文版本历史）', () => {
     expect(isVersionedRel('大纲/第01章_雾港_导演.md')).toBe(true) // 导演板
     expect(isVersionedRel('大纲/第01章_雾港_分幕.md')).toBe(true) // 分幕草稿
     expect(isVersionedRel('大纲/第03章_夜航_导演.md')).toBe(true) // 任意章副产物
-    // 反例：索引（路标可重建）、人物/世界观、素材库
+    // 档案/设定块入史（2026-10-27）：切片同步、promote 或手误覆盖后可回退
+    expect(isVersionedRel('人物/林晚.md')).toBe(true)
+    expect(isVersionedRel('人物/总览.md')).toBe(true)
+    expect(isVersionedRel('世界观/切片_第一幕.md')).toBe(true)
+    expect(isVersionedRel('世界观/总纲.md')).toBe(true)
+    expect(isVersionedRel('素材库/环境/校园.md')).toBe(true)
+    // 反例：索引（路标可重建）、采集池（管道原样缓冲区，非人工撰写）
     expect(isVersionedRel('大纲/索引.md')).toBe(false)
-    expect(isVersionedRel('人物/林晚.md')).toBe(false)
-    expect(isVersionedRel('世界观/切片_第一幕.md')).toBe(false)
-    expect(isVersionedRel('素材库/环境/校园.md')).toBe(false)
+    expect(isVersionedRel('素材库/采集池/20261001_知乎.md')).toBe(false)
+    // 前缀不误命中（无同名裸目录/相似前缀）
+    expect(isVersionedRel('人物志/林晚.md')).toBe(false)
+    expect(isVersionedRel('素材库子目录/x.md')).toBe(false)
   })
 
   it('snapName 形如 yyyyMMdd-HHmmss-SSS 且可排序', () => {
@@ -74,14 +81,24 @@ describe('history（正文版本历史）', () => {
     rmSync(root, { recursive: true, force: true })
   })
 
-  it('非版本化 rel：writeSnapshot 返回 null 且不落盘', () => {
+  it('非版本化 rel（素材库/采集池、大纲/索引.md）：writeSnapshot 返回 null 且不落盘', () => {
     const root = tmpRoot()
-    const rel = '人物/林晚.md'
+    const rel = '素材库/采集池/20261001_知乎.md'
     expect(writeSnapshot(root, rel, 'x')).toBe(null)
     expect(existsSync(join(root, snapDirFor(rel)))).toBe(false)
     // 索引.md 是路标可重建，同样不入历史
     expect(writeSnapshot(root, '大纲/索引.md', 'x')).toBe(null)
     expect(existsSync(join(root, snapDirFor('大纲/索引.md')))).toBe(false)
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  it('人物/世界观/素材库 rel：writeSnapshot 落盘（档案入史，2026-10-27）', () => {
+    const root = tmpRoot()
+    for (const rel of ['人物/林晚.md', '世界观/总纲.md', '素材库/环境/校园.md']) {
+      expect(writeSnapshot(root, rel, '旧版档案')).toBeTruthy()
+      expect(listSnapshots(root, rel)).toHaveLength(1)
+      expect(readSnapshot(root, rel, listSnapshots(root, rel)[0].name)).toBe('旧版档案')
+    }
     rmSync(root, { recursive: true, force: true })
   })
 

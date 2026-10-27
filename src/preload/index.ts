@@ -280,6 +280,9 @@ const api = {
     >,
   agentStatus: () =>
     ipcRenderer.invoke('agent:status') as Promise<{ online: boolean; provider?: string; model?: string; message?: string }>,
+  /** 重启写作引擎（关闭旧子进程后重新拉起；离线/崩溃后手动复活） */
+  engineRestart: () =>
+    ipcRenderer.invoke('engine:restart') as Promise<{ online: boolean; provider?: string; model?: string; message?: string }>,
   checkLlmConnection: (cfg: { provider: string; model?: string; baseUrl?: string; apiKey?: string }) =>
     ipcRenderer.invoke('llm:check', cfg) as Promise<{ ok: boolean; step?: string; status: number; message: string; body?: string; baseUrl?: string; model?: string }>,
   agentListCapabilities: () =>

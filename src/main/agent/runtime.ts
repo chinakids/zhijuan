@@ -16,6 +16,8 @@ import { activeProvider, buildLlmOverrideYml } from '../../shared/providers'
 export interface EnginePort {
   /** 确保引擎在跑；失败返回原因串，成功 undefined */
   ensureHarness(): Promise<string | undefined>
+  /** 重启引擎（关闭旧子进程后重新拉起；失败返回诊断串） */
+  restartHarness(): Promise<string | undefined>
   /** 低阶驱动一轮（发提示并泵取事件直到回合结束；isAborted＝外部取消信号，为 true 立即收尾；
    * maxTokens＝本轮输出预算（仅首次创建该会话的 agent 时生效，dsh 会话懒创建；undefined＝SDK 全局档 12288） */
   driveSession(sid: string, text: string, opts?: { onEvent?: (n: DriveEvent) => void; maxMs?: number; isAborted?: () => boolean; maxTokens?: number }): Promise<string>
@@ -67,9 +69,9 @@ async function loadSdk() {
   return harnessCtor
 }
 
-/** 写作引擎是否已创建（用于设置变更时重启） */
+/** 写作引擎是否已创建（用于设置变更时重启）；崩溃的子进程算「没跑」（2026-10-27） */
 export function isRuntimeCreated() {
-  return !!harness
+  return !!harness && harnessAlive(harness)
 }
 
 export interface RuntimeInfo {
@@ -81,6 +83,109 @@ export interface RuntimeInfo {
 let harness: any = null // DeepSeekHarness 实例
 let bootArgs = { provider: '', model: '' }
 let failCount = 0
+let lastFailAt = 0 // 上次启动失败的时刻（退避用）
+let lastFailMsg = '' // 上次启动失败原因（退避期诊断里回显）
+/** 引擎子进程最近一次非主动退出（崩溃）记录：设置页/状态点据此说明「不是没起过，是挂了」 */
+let lastExit: { code: number | null; signal: string | null; at: number } | null = null
+
+/** 引擎启动超时（2026-10-27 鲁棒性）：SDK 的 start() 没有超时参数，握手挂住时 ensureHarness 永久悬挂
+ * （打包机用 Electron 当 node 时实测干等过）。超时即回收子进程并返回诊断，不再让调用方无限等。 */
+const START_TIMEOUT_MS = 45_000
+/** 连续失败后的最短重试间隔（按 failCount 取档，越界取末档）：0 → 5s → 15s → 30s。
+ * 起因：EngineBadge/agent:status 每 20s 轮询，引擎起不来时旧实现每次都全量 spawn（起进程风暴）。 */
+const RETRY_BACKOFF_MS = [0, 5_000, 15_000, 30_000]
+
+/** 连续失败 fails 次后要求的最短重试间隔 */
+function retryBackoffMs(fails: number): number {
+  if (fails <= 0) return 0
+  return RETRY_BACKOFF_MS[Math.min(fails, RETRY_BACKOFF_MS.length - 1)]
+}
+
+/** 取引擎子进程句柄（node ChildProcess）。
+ * 依据：dsh-sdk-client 的 `DeepSeekHarness.client` 是公开 getter → `HarnessClient`；其 `child` 字段
+ * 在类型声明里是 `private child`（lib/types/client.d.ts），但运行时只是普通实例属性
+ * （lib/index.js `HarnessClient.start()`：`const child = spawn(...); this.child = child;`），
+ * 因此可读；SDK 没有公开的 exit 事件/存活查询口（`exitCode` 同样是 private），故走 `any` 取。 */
+function engineChild(h: any): any {
+  try {
+    return h?.client?.child ?? null
+  } catch {
+    return null
+  }
+}
+
+/** 句柄是否真的活着：子进程已退出（exitCode/signalCode 落定）即死。
+ * 拿不到子进程句柄时按「活」处理，交给 RPC 自己报 TransportClosedError。 */
+function harnessAlive(h: any): boolean {
+  if (!h) return false
+  const child = engineChild(h)
+  if (!child) return true
+  if (child.exitCode !== null && child.exitCode !== undefined) return false
+  if (child.signalCode) return false
+  return true
+}
+
+/** 子进程退出 → 立即置 harness=null，让 agent:status 立刻报离线（旧实现只判句柄非空，崩溃后永远绿灯）。
+ * 限制：SDK 未公开 exit 事件，这里直接挂 node ChildProcess 的 'exit'；若日后 SDK 不再暴露 child，
+ * 由 ensureHarness 开头的 harnessAlive 探活兜底（每次调用都会检查，功能等价、只是响应延迟一次调用）。 */
+function watchEngineExit(h: any) {
+  const child = engineChild(h)
+  if (!child || typeof child.once !== 'function') return
+  child.once('exit', (code: number | null, signal: string | null) => {
+    if (harness !== h) return // 已被 closeHarness/restart 主动替换：不要覆盖新实例
+    harness = null
+    lastExit = { code: code ?? null, signal: signal ?? null, at: Date.now() }
+  })
+}
+
+/** 带超时的启动：race 只是放弃等待，start() 自身仍会落定——挂 .catch 防 unhandledRejection；
+ * 超时后 ensureHarness 的 catch 会 close 句柄，走 SDK 的 EOF→SIGTERM→SIGKILL 阶梯真收掉子进程。 */
+async function startWithTimeout(h: any, ms = START_TIMEOUT_MS): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const started: Promise<void> = Promise.resolve().then(() => h.start())
+  started.catch(() => {})
+  try {
+    await Promise.race([
+      started,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`引擎启动超时（${Math.round(ms / 1000)}s）`)), ms)
+      })
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+/** 结构化启动诊断（恒 6 行；设置页原样展示可复制）。启动链路任一步（加载 SDK / 可写性 / patch 生成）
+ * 失败都走这里，不再 throw 到 IPC 边界。 */
+function startFailureDiag(msg: string, launchCmd = ''): string {
+  let dir = ''
+  let home = ''
+  let sdkPath = ''
+  try {
+    dir = runtimeDir()
+    home = dshHome()
+    sdkPath = sdkBin()
+  } catch {}
+  let sdkOk = false
+  try {
+    sdkOk = !!sdkPath && existsSync(sdkPath)
+  } catch {}
+  let providerLine = '服务商：（设置读取失败）'
+  try {
+    const cfg = activeProvider(getSettings())
+    providerLine = `服务商：${cfg.preset.name} · ${cfg.model}`
+  } catch {}
+  const usingElectron = !!launchCmd && launchCmd === process.execPath
+  return [
+    `写作引擎启动失败：${String(msg).slice(0, 200)}`,
+    `node：${launchCmd || '（未解析到宿主 node）'}${usingElectron ? '（Electron 兜底 ELECTRON_RUN_AS_NODE）' : ''}`,
+    `SDK 入口：${sdkOk ? '存在' : '缺失 → ' + (sdkPath || sdkBin())}`,
+    `运行时目录：${dir}`,
+    `DSH_HOME：${home}`,
+    providerLine
+  ].join('\n')
+}
 
 /** 按当前活跃的模型厂商生成动态 patch（默认本地也会写，幂等，一次路径）；返回需追加的 --patch 参数 */
 function llmOverrideArgs(): string[] {
@@ -164,55 +269,85 @@ function nodeBin(): string {
   return process.execPath
 }
 
-/** 确保写作引擎在跑；失败返回原因字符串，成功返回 undefined */
+/** 确保写作引擎在跑；失败返回结构化诊断串（6 行），成功返回 undefined。
+ * 2026-10-27 鲁棒性：①整链包 try（加载 SDK / patch 生成 / spawn / 握手 任一步失败都返诊断，不 throw）；
+ * ②启动 45s 超时；③句柄非空 ≠ 活着（探活 + exit 监听）；④连续失败退避（限流轮询触发的重复 spawn）。 */
 export async function ensureHarness(): Promise<string | undefined> {
+  // 崩溃（子进程退出）后 harness 已由 watchEngineExit 置空；这里再兜一层，防 SDK 不暴露 child 的降级路径
+  if (harness && !harnessAlive(harness)) {
+    harness = null
+    lastExit = lastExit ?? { code: null, signal: null, at: Date.now() }
+  }
   if (harness) return undefined
-  const Sdk = await loadSdk()
-  const cfg = activeProvider(getSettings())
-  // key 优先级：设置里填的 → 宿主环境已有 → 本地给占位 'local'
-  const apiKey = cfg.apiKey || process.env[cfg.apiKeyEnv] || (cfg.preset.kind === 'local' ? 'local' : '')
-  const launch: any = {
-    command: nodeBin(),
-    args: [sdkBin(), '--profile', 'sdk', ...llmOverrideArgs(), ...toolsOverrideArgs()],
-    cwd: runtimeDir(),
-    requestTimeoutMs: 1_200_000
+  // 退避：短时间内的重复探测（EngineBadge 每 20s、agent:status）不再全量 spawn
+  const sinceFail = Date.now() - lastFailAt
+  const wait = retryBackoffMs(failCount)
+  if (failCount > 0 && sinceFail < wait) {
+    const again = Math.max(1, Math.ceil((wait - sinceFail) / 1000))
+    return startFailureDiag(
+      `连续启动失败 ${failCount} 次，${again}s 后可重试（退避中，未再次启动）` + (lastFailMsg ? `；上次原因：${lastFailMsg}` : '')
+    )
   }
-  // 子进程环境：父环境 + DSH_HOME + 当前厂商 key（按 apiKeyEnv 注入）+ 用户问答回灌目录（env 传对象会整体替换父环境）
-  launch.env = {
-    ...process.env,
-    DSH_HOME: dshHome(),
-    [cfg.apiKeyEnv]: String(apiKey),
-    ZJ_USER_ANSWER_DIR: answerDir(),
-    // 打包机无系统 node：兜底 Electron 自身当 node（官方 ELECTRON_RUN_AS_NODE 纯 Node 模式，
-    // 与旧「Electron 当 node 吞输出」问题不同，2026-09-12 发布冲刺实测项）
-    ...(launch.command === process.execPath ? { ELECTRON_RUN_AS_NODE: '1' } : {})
-  }
+  let launchCmd = ''
   try {
+    const Sdk = await loadSdk()
+    const cfg = activeProvider(getSettings())
+    // key 优先级：设置里填的 → 宿主环境已有 → 本地给占位 'local'
+    const apiKey = cfg.apiKey || process.env[cfg.apiKeyEnv] || (cfg.preset.kind === 'local' ? 'local' : '')
+    const launch: any = {
+      command: nodeBin(),
+      args: [sdkBin(), '--profile', 'sdk', ...llmOverrideArgs(), ...toolsOverrideArgs()],
+      cwd: runtimeDir(),
+      requestTimeoutMs: 1_200_000
+    }
+    launchCmd = launch.command
+    // 子进程环境：父环境 + DSH_HOME + 当前厂商 key（按 apiKeyEnv 注入）+ 用户问答回灌目录（env 传对象会整体替换父环境）
+    launch.env = {
+      ...process.env,
+      DSH_HOME: dshHome(),
+      [cfg.apiKeyEnv]: String(apiKey),
+      ZJ_USER_ANSWER_DIR: answerDir(),
+      // 打包机无系统 node：兜底 Electron 自身当 node（官方 ELECTRON_RUN_AS_NODE 纯 Node 模式，
+      // 与旧「Electron 当 node 吞输出」问题不同，2026-09-12 发布冲刺实测项）
+      ...(launch.command === process.execPath ? { ELECTRON_RUN_AS_NODE: '1' } : {})
+    }
     // maxTokens 输出预算（2026-09-19 智能层）：8192→12288——deep-pass 全卷巡查（audit/perspectives，
     // 15min 档、8.5 万字符材料包）实证：模型逐章对照推理耗光 8192（含 reasoning），最终 turn 无 text
     // 输出=报告恒空（items=[]），真模型三次复现；12288 留出 JSON 正文空间；runChat 8min 档不受影响
     // （输出上限变大仅当模型真的生成超过 8192 时才体现，成本增益可控）。
-    harness = new Sdk({ launch, provider: cfg.route, model: cfg.model, maxTokens: 12288 })
-    await harness.start()
+    const h: any = new Sdk({ launch, provider: cfg.route, model: cfg.model, maxTokens: 12288 })
+    harness = h
+    await startWithTimeout(h)
+    watchEngineExit(h) // 起成功后挂 exit：崩溃即置空，agent:status 立刻转 offline
     bootArgs = { provider: cfg.route, model: cfg.model }
     failCount = 0
+    lastFailAt = 0
+    lastFailMsg = ''
     return undefined
   } catch (e: any) {
-    const msg = String(e?.message || e)
-    try { await harness?.close() } catch {}
+    lastFailMsg = String(e?.message || e)
+    try { await harness?.close() } catch {} // 超时/握手失败：走 SDK 阶梯真收掉子进程
     harness = null
     failCount += 1
-    const usingElectron = launch.command === process.execPath
-    const sdkOk = existsSync(sdkBin())
-    return [
-      `写作引擎启动失败：${msg.slice(0, 200)}`,
-      `node：${launch.command}${usingElectron ? '（Electron 兜底 ELECTRON_RUN_AS_NODE）' : ''}`,
-      `SDK 入口：${sdkOk ? '存在' : '缺失 → ' + sdkBin()}`,
-      `运行时目录：${runtimeDir()}`,
-      `DSH_HOME：${dshHome()}`,
-      `服务商：${cfg.preset.name} · ${cfg.model}`
-    ].join('\n')
+    lastFailAt = Date.now()
+    return startFailureDiag(lastFailMsg, launchCmd)
   }
+}
+
+/** 重启写作引擎（2026-10-27）：关闭旧句柄 → 清失败计数/退避 → 重新拉起。设置页「重启引擎」用；
+ * 返回 undefined=成功，否则与 ensureHarness 同格式的诊断串。 */
+export async function restartHarness(): Promise<string | undefined> {
+  await closeHarness()
+  failCount = 0
+  lastFailAt = 0
+  lastFailMsg = ''
+  lastExit = null
+  return ensureHarness()
+}
+
+/** 引擎运行时状态（设置页/状态点判断用）：running=真的活着；lastExit=最近一次崩溃 */
+export function runtimeState(): { running: boolean; lastExit: { code: number | null; signal: string | null; at: number } | null } {
+  return { running: !!harness && harnessAlive(harness), lastExit }
 }
 
 // 拿到（或创建）一个会话句柄
@@ -339,6 +474,7 @@ export { sessionHandle, runtimeDir, dshHome }
 /** E2：以 EnginePort 形式暴露当前 dsh 实现（调用方走接口；以后换引擎 = 换这个单例的实现） */
 export const engine: EnginePort = {
   ensureHarness,
+  restartHarness,
   driveSession,
   cancelTurn,
   closeHarness,
