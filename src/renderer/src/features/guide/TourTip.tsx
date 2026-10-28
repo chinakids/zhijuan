@@ -39,10 +39,26 @@ export default function TourTip({ step, index, total, onNext, onSkip, onFinish }
   const pad = 6
   // 气泡尽量放目标下方；不足时放上方；水平 clamp 在视口内
   const bubW = 288
-  const bubbleBottom = rect.bottom + 14
-  const bubbleTop = rect.top - 12 - 120
-  const placeBelow = window.innerHeight - bubbleBottom > 130
-  const left = Math.max(12, Math.min(rect.left, window.innerWidth - bubW - 12))
+  // 2026-10-28（F-20261028-11）：气泡高度按实测 168 计，优先放在空间更大的一侧，
+  // 并把 top 钳在视口内——此前固定在目标下方 14px，Agent 步骤正好盖住输入框。
+  const bubH = 168
+  const gap = 14
+  const spaceBelow = window.innerHeight - rect.bottom - gap - 12
+  const spaceAbove = rect.top - gap - 12
+  const placeBelow = spaceBelow >= bubH || spaceBelow >= spaceAbove
+  // 目标很高（如 Agent 面板）时，气泡放到目标左侧、与顶部对齐：
+  // 放在下方会正好盖住输入框；放在上方会盖住面板提示。
+  const placeLeft = rect.height > 220 && rect.left - bubW - gap > 12
+  const left = placeLeft
+    ? rect.left - bubW - gap
+    : Math.max(12, Math.min(rect.left, window.innerWidth - bubW - 12))
+  const top = Math.max(
+    12,
+    Math.min(
+      placeLeft ? rect.top : placeBelow ? rect.bottom + gap : rect.top - bubH - gap,
+      window.innerHeight - bubH - 12
+    )
+  )
 
   return createPortal(
     <div className="fixed inset-0 z-[90] pointer-events-none">
@@ -56,7 +72,7 @@ export default function TourTip({ step, index, total, onNext, onSkip, onFinish }
         className="pointer-events-auto absolute w-72 rounded-xl border border-hair bg-surface p-3 shadow-[var(--shadow)]"
         style={{
           left,
-          top: placeBelow ? bubbleBottom : bubbleTop,
+          top,
         }}
         data-testid="tour-tip"
       >

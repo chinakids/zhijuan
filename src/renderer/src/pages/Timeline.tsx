@@ -9,6 +9,7 @@ import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { cn } from '../lib/utils'
 import { EmptyState } from '../components/EmptyState'
+import { PageHeader } from '../components/PageHeader'
 import SyncLogDrawer from '../features/sync/SyncLogDrawer'
 import { useFsChanged } from '../features/fs/useFsEvents'
 
@@ -85,21 +86,19 @@ export default function Timeline() {
   useFsChanged(id ?? '', '正文/', reloadSilent)
 
   // 页头（loading/错误/空态共用，2026-09-21 体验层：加载与失败时标题+「同步记录」常驻不闪失）
-  const simpleHead = (
-    <div className="mb-4 flex items-center justify-between gap-3">
-      <h2 className="text-lg font-semibold">项目时间线</h2>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 shrink-0 gap-1 px-2 text-xs"
-        data-testid="sync-log-open"
-        onClick={() => setSyncOpen(true)}
-      >
-        <History className="h-3.5 w-3.5" />
-        同步记录
-      </Button>
-    </div>
+  const syncBtn = (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-7 shrink-0 gap-1 px-2 text-xs"
+      data-testid="sync-log-open"
+      onClick={() => setSyncOpen(true)}
+    >
+      <History className="h-3.5 w-3.5" />
+      同步记录
+    </Button>
   )
+  const simpleHead = <PageHeader title="项目时间线" actions={syncBtn} />
 
   if (slices === null && !loadErr) {
     return (
@@ -154,26 +153,15 @@ export default function Timeline() {
 
   return (
     <div className="mx-auto max-w-3xl p-6">
-      <div className="mb-6 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-lg font-semibold">项目时间线</h2>
-          <p className="mt-0.5 text-sm text-ink-3">
-            {multi
-              ? '按线分组的故事时间切片一览；每线独立时间序，可切换查看。'
-              : '按章号排序的「故事时间切片」一览；切片是各章节对应时刻的世界状态。'}
-          </p>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 shrink-0 gap-1 px-2 text-xs"
-          data-testid="sync-log-open"
-          onClick={() => setSyncOpen(true)}
-        >
-          <History className="h-3.5 w-3.5" />
-          同步记录
-        </Button>
-      </div>
+      <PageHeader
+        title="项目时间线"
+        subtitle={
+          multi
+            ? '按线分组的故事时间切片一览；每线独立时间序，可切换查看。'
+            : '按章号排序的「故事时间切片」一览；切片是各章节对应时刻的世界状态。'
+        }
+        actions={syncBtn}
+      />
       {/* 搜索：章名/题名/时间/人物/线名（切片数量有限，本地过滤即够；空查询还原全部） */}
       <div className="relative mb-4">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-3" aria-hidden />
@@ -206,7 +194,7 @@ export default function Timeline() {
         />
       )}
       {qNorm !== '' && (
-        <p className="mb-3 text-[11px] text-ink-3" data-testid="timeline-hit-count">
+        <p className="mb-3 text-xs text-ink-3" data-testid="timeline-hit-count">
           {shownCount > 0 ? `匹配 ${shownCount} 个切片` : '没有匹配的切片'}
         </p>
       )}
@@ -226,10 +214,10 @@ export default function Timeline() {
         <section key={g.line} className={cn(multi && 'mb-8 last:mb-0')} aria-label={`时间线：${g.line}`}>
           {multi && (
             <div className="mb-3 flex items-center gap-2">
-              <span data-testid="timeline-line-head" className="shrink-0 rounded-md bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent">
+              <span data-testid="timeline-line-head" className="shrink-0 rounded-md bg-accent-soft px-1.5 py-0.5 text-xs font-medium text-accent">
                 {g.line}
               </span>
-              <span className="text-[11px] text-ink-3">{g.entries.length} 章</span>
+              <span className="text-xs text-ink-3">{g.entries.length} 章</span>
               <span className="h-px flex-1 bg-hair" />
             </div>
           )}
@@ -256,13 +244,13 @@ export default function Timeline() {
                       </div>
                       <Link
                         to={`../novel?ch=${encodeURIComponent(s.chapter + '.md')}`}
-                        className="shrink-0 rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:bg-well"
+                        className="shrink-0 rounded-md border border-hair px-2 py-1 text-xs text-ink-2 transition-colors hover:bg-well"
                       >
                         打开正文
                       </Link>
                     </div>
                     {(s.time || s.chars?.length) && (
-                      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-ink-3">
+                      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-3">
                         {s.time && (
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />

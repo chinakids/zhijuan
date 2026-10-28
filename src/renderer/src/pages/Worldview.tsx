@@ -29,6 +29,7 @@ export default function Worldview() {
 
   return (
     <DocSection
+      art="world"
       relDir="世界观"
       overviewFile="世界观/总纲.md"
       addLabel="设定文档"

@@ -83,7 +83,7 @@ const ok = (name, cond, extra = '') => {
 const snapExpr = `(() => {
   const pm = document.querySelector('.ProseMirror')
   const empty = document.querySelector('.zj-empty')
-  const hint = [...document.querySelectorAll('div')].find((d) => (d.textContent || '').trim() === '选择左侧一个文档开始')
+  const hint = [...document.querySelectorAll('p,div')].find((d) => d.children.length === 0 && (d.textContent || '').trim() === '选择左侧一个文档开始')
   return { pm: !!pm, pmText: pm ? pm.textContent : '', empty: !!empty, hint: !!hint }
 })()`
 

@@ -144,9 +144,9 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
         <div className="flex h-12 shrink-0 items-center border-b border-hair px-4">
           <History className="mr-2 h-4 w-4 text-accent" />
           <span className="text-sm font-medium">版本历史</span>
-          <span className="ml-2 truncate text-[11px] text-ink-3" title={rel}>{rel}</span>
+          <span className="ml-2 truncate text-xs text-ink-3" title={rel}>{rel}</span>
           <span className="flex-1" />
-          <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-[11px]" onClick={onClose}>收起</Button>
+          <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs" onClick={onClose}>收起</Button>
         </div>
 
         {loading ? (
@@ -156,7 +156,7 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
         ) : err ? (
           <div role="alert" className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
             <p className="max-w-full truncate text-xs text-danger" title={err}>读取历史失败</p>
-            <Button size="sm" variant="outline" className="h-7 shrink-0 px-2 text-[11px]" onClick={() => void load()}>
+            <Button size="sm" variant="outline" className="h-7 shrink-0 px-2 text-xs" onClick={() => void load()}>
               重试
             </Button>
           </div>
@@ -182,7 +182,7 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
                       aria-pressed={selected}
                       data-version={i === 0 ? 'latest' : `v${snaps.length - i}`}
                       className={cn(
-                        'flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[11px] transition-colors',
+                        'flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs transition-colors',
                         selected ? 'bg-accent-soft text-accent' : 'text-ink-2 hover:bg-surface'
                       )}
                       title={`${fmtTime(s.name)} · ${s.size} 字节${i === 0 ? ' · 最新' : ''}`}
@@ -200,7 +200,7 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
 
             <ScrollArea className="min-h-0 flex-1 px-3 py-2">
               {msg && (
-                <div className="mb-2 flex items-center gap-2 rounded-md bg-accent-soft/60 px-2 py-1 text-[11px] text-accent">
+                <div className="mb-2 flex items-center gap-2 rounded-md bg-accent-soft/60 px-2 py-1 text-xs text-accent">
                   <span className="min-w-0 flex-1">{msg}</span>
                   {syncIssues.length > 0 && <GuardIssuesNote issues={syncIssues} projectId={projectId} />}
                   {syncRetry && (
@@ -215,13 +215,13 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
               )}
               {sel && oldText !== null && (
                 <>
-                  <div className="mb-1.5 flex items-center gap-2 text-[11px] text-ink-3">
+                  <div className="mb-1.5 flex items-center gap-2 text-xs text-ink-3">
                     <span className="shrink-0">对比：{fmtTime(sel)} → 当前</span>
                     <span className="shrink-0">−{view?.del ?? 0} / +{view?.ins ?? 0} 行</span>
                     <span className="ml-auto shrink-0">当前正文约 {countWords(curText)} 字；本版约 {countWords(oldText)} 字</span>
                   </div>
                   {view && view.rows.length > 0 ? (
-                    <div className="rounded-lg border border-hair bg-surface font-mono text-[11px] leading-5">
+                    <div className="rounded-lg border border-hair bg-surface font-mono text-xs leading-5">
                       {view.rows.map((r, i) => (
                         <div key={i}>
                           {r.skipped !== undefined && r.skipped > 0 && (
@@ -248,7 +248,7 @@ export default function HistoryDrawer({ projectId, rel, open, onClose }: Props) 
                   <div className="mt-2 flex items-center gap-2 pb-2">
                     <Button
                       size="sm"
-                      className={cn('h-7 shrink-0 px-2 text-[11px] [&_svg]:size-3', confirming && 'bg-danger text-white')}
+                      className={cn('h-7 shrink-0 px-2 text-xs [&_svg]:size-3', confirming && 'bg-danger text-white')}
                       disabled={busy || oldText === null}
                       onClick={() => {
                         if (!confirming) { setConfirming(true); return }

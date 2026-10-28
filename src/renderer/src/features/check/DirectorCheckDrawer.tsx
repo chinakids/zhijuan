@@ -130,7 +130,7 @@ export default function DirectorCheckDrawer({ projectId, chapter, open, onClose,
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-2 border-b border-hair px-4 py-2 text-[11px] text-ink-3">
+            <div className="flex items-center gap-2 border-b border-hair px-4 py-2 text-xs text-ink-3">
               <ShieldCheck className="h-3.5 w-3.5" />
               {running ? (
                 <span className="flex items-center gap-1 text-accent"><LoadingIndicator size={12} /> 写作引擎对照导演板核本章…（一两分钟）</span>
@@ -166,7 +166,7 @@ export default function DirectorCheckDrawer({ projectId, chapter, open, onClose,
                 if (!rows.length) return null
                 return (
                   <div key={sec.key} className="mb-3">
-                    <p className="mb-1.5 flex items-center gap-1.5 px-0.5 text-[11px] font-medium text-ink-2">
+                    <p className="mb-1.5 flex items-center gap-1.5 px-0.5 text-xs font-medium text-ink-2">
                       {sec.title}
                       <span className="text-ink-3">{rows.length} 条</span>
                     </p>
@@ -179,7 +179,7 @@ export default function DirectorCheckDrawer({ projectId, chapter, open, onClose,
                               {it.status === 'broken' || it.status === 'missed' ? <span className="mr-1 text-danger">▲</span> : it.status === 'paid' || it.status === 'done' || it.status === 'kept' || it.status === 'aligned' ? <span className="mr-1 text-success"><Check className="inline h-3 w-3" /></span> : null}
                               {it.ref}
                             </p>
-                            <p className="mt-1 text-[11px] text-ink-2">{it.note}</p>
+                            <p className="mt-1 text-xs text-ink-2">{it.note}</p>
                             {sec.key === 'arcs' && (it.status === 'missed' || it.status === 'partial') && (
                               <button
                                 onClick={(e) => {
@@ -216,7 +216,7 @@ export default function DirectorCheckDrawer({ projectId, chapter, open, onClose,
                       setErr('')
                       void run()
                     }}
-                    className="mt-3 inline-flex items-center gap-1 rounded-md border border-hair px-2.5 py-1 text-[11px] text-ink-2 hover:border-accent hover:text-accent"
+                    className="mt-3 inline-flex items-center gap-1 rounded-md border border-hair px-2.5 py-1 text-xs text-ink-2 hover:border-accent hover:text-accent"
                   >
                     <RefreshCw className="h-3 w-3" /> 重试
                   </button>

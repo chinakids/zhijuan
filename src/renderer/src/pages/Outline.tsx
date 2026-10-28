@@ -451,7 +451,7 @@ export default function Outline() {
       <aside data-testid="outline-col" className="flex w-64 shrink-0 flex-col border-r border-hair bg-surface-2">
         <div className="flex items-center gap-2 border-b border-hair px-3 py-2.5">
           <BookMarked className="h-4 w-4 text-accent" />
-          <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">章卡</span>
+          <span className="text-xs font-medium uppercase tracking-wide text-ink-3">章卡</span>
           <span className="flex-1" />
           <span className="text-[10px] text-ink-3">{chapters.length} 章 · {outlineFiles.filter((f) => !f.endsWith('索引.md') && !f.endsWith('_导演.md') && !f.endsWith('_分幕.md') && !f.startsWith('大纲/审读_')).length} 已回建</span>
           <ColHideButton label="章卡" onClick={() => setColHidden(true)} />
@@ -477,7 +477,7 @@ export default function Outline() {
           {!loading && loadErr && (
             <div className="px-2 py-5 text-center">
               <p className="text-xs text-danger">读取章卡失败</p>
-              <p className="mt-0.5 break-all text-[11px] text-ink-3">{loadErr}</p>
+              <p className="mt-0.5 break-all text-xs text-ink-3">{loadErr}</p>
               <button
                 className="mt-1.5 text-xs text-accent underline-offset-2 hover:underline"
                 onClick={() => {
@@ -678,10 +678,10 @@ export default function Outline() {
             {sel === '大纲/索引.md' ? '章卡索引' : sel?.replace('大纲/', '').replace(/\.md$/, '').replace(/_(导演|分幕)$/, '').replace(/^审读_/, '')}
           </span>
           <span className="flex-1" />
-          {msg && <span className={cn('max-w-[40vw] truncate rounded-full px-2.5 py-0.5 text-[11px]', msg.startsWith('✓') ? 'bg-success-soft text-success' : msg.startsWith('✗') ? 'bg-danger-soft text-danger' : 'bg-accent-soft text-accent')} title={msg}>{msg}</span>}
+          {msg && <span className={cn('max-w-[40vw] truncate rounded-full px-2.5 py-0.5 text-xs', msg.startsWith('✓') ? 'bg-success-soft text-success' : msg.startsWith('✗') ? 'bg-danger-soft text-danger' : 'bg-accent-soft text-accent')} title={msg}>{msg}</span>}
           {guardIssues.length > 0 && <GuardIssuesNote issues={guardIssues} projectId={id} className="shrink-0" />}
           {building && (
-            <span className="flex items-center gap-1 text-[11px] text-accent">
+            <span className="flex items-center gap-1 text-xs text-accent">
               <LoadingIndicator size={12} /> 写作引擎逐章回建中…每章约一两分钟
             </span>
           )}
@@ -695,7 +695,7 @@ export default function Outline() {
             <Hammer className="h-3.5 w-3.5" />
           </button>
           {directing && (
-            <span className="flex items-center gap-1 text-[11px] text-accent">
+            <span className="flex items-center gap-1 text-xs text-accent">
               <LoadingIndicator size={12} /> 写作引擎导演中…约一两分钟
             </span>
           )}
@@ -727,7 +727,7 @@ export default function Outline() {
             <Waypoints className="h-3.5 w-3.5" />
           </button>
           {(acting || repairing) && (
-            <span className="flex items-center gap-1 text-[11px] text-accent">
+            <span className="flex items-center gap-1 text-xs text-accent">
               <LoadingIndicator size={12} />
               {repairing ? '写作引擎补写缺段中…每段约一两分钟' : '写作引擎分幕起草中…每段约一两分钟'}
             </span>
@@ -735,7 +735,7 @@ export default function Outline() {
           <button
             onClick={() => void act()}
             disabled={acting || repairing || !selChapter || !hasBoard(selChapter)}
-            className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
+            className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-hair px-2 py-1 text-xs text-ink-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-40"
             title={selChapter && hasBoard(selChapter) ? `按「${selChapter.name}」导演板的情绪弧分幕，逐段起草整章草稿（落 大纲/）` : selChapter ? '本章还没有导演板，先点「导演本章」' : '先在左侧选中一章'}
           >
             <PenLine className="h-3 w-3" /> 分幕生成
@@ -756,7 +756,7 @@ export default function Outline() {
             </button>
           )}
           {adopting && (
-            <span className="flex items-center gap-1 text-[11px] text-accent">
+            <span className="flex items-center gap-1 text-xs text-accent">
               <LoadingIndicator size={12} /> 采纳为正文中…
             </span>
           )}
@@ -764,7 +764,7 @@ export default function Outline() {
             onClick={() => void adopt()}
             disabled={adopting || !selChapter || !hasActs(selChapter)}
             className={cn(
-              'flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 text-[11px] transition-colors disabled:opacity-40',
+              'flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border px-2 py-1 text-xs transition-colors disabled:opacity-40',
               confirmAdopt
                 ? 'border-danger bg-danger-soft text-danger hover:border-danger'
                 : 'border-accent/50 text-accent hover:border-accent'
@@ -794,7 +794,7 @@ export default function Outline() {
           </button>
         </div>
         {selChapter && staleBoards.has(selChapter.name) && (
-          <div className="flex shrink-0 items-center gap-1.5 border-b border-hair bg-warn-soft px-4 py-1 text-[11px] text-warn">
+          <div className="flex shrink-0 items-center gap-1.5 border-b border-hair bg-warn-soft px-4 py-1 text-xs text-warn">
             <Clapperboard className="h-3 w-3 shrink-0" />
             <span className="truncate" title="本章导演板早于正文：兑现检查对照的是旧承诺，正文有改动建议点「导演本章」重导。">本章导演板早于正文：兑现检查对照的是旧承诺，正文有改动建议点「导演本章」重导。</span>
           </div>
@@ -804,6 +804,7 @@ export default function Outline() {
             <DocEditor
               projectId={id}
               rel={sel}
+              withFm
               extVersion={extVersion}
               saveHandleRef={saveRef}
               onDirtyChange={guard.reportDirty}

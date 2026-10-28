@@ -399,7 +399,7 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
       <aside data-zj-libtree data-testid="lib-col" className="flex w-56 shrink-0 flex-col border-r border-hair bg-surface-2">
         <div className="flex items-center gap-1.5 px-3 pb-2 pt-3">
           <LibraryIcon className="h-3.5 w-3.5 text-ink-3" />
-          <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">素材库</span>
+          <span className="text-xs font-medium uppercase tracking-wide text-ink-3">素材库</span>
           <span className="flex-1" />
           <ColHideButton label="素材库" onClick={() => setColHidden(true)} />
         </div>
@@ -474,7 +474,7 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
           <Button
             variant="ghost"
             size="sm"
-            className="w-full justify-start gap-1.5 text-[11px] text-ink-2 [&_svg]:size-3"
+            className="w-full justify-start gap-1.5 text-xs text-ink-2 [&_svg]:size-3"
             onClick={() => {
               setNewCatErr('')
               setNewCatName('')
@@ -564,7 +564,7 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
                 <div data-testid="lib-search-error" role="alert" className="py-10 text-center">
                   <p className="text-sm font-medium text-danger">搜索失败</p>
                   <p className="mt-1 break-all text-xs text-ink-3">{searchErr}</p>
-                  <p className="mt-1 text-[11px] text-ink-3">素材没有丢，是这次读盘/解析失败。</p>
+                  <p className="mt-1 text-xs text-ink-3">素材没有丢，是这次读盘/解析失败。</p>
                   <button
                     className="mt-3 text-xs text-accent underline-offset-2 hover:underline"
                     onClick={() => runSearch(searchQ.trim())}
@@ -580,7 +580,7 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
                   <p className="py-8 text-center text-xs text-ink-3">没有找到与「{searchQ.trim()}」相关的素材（文件名与正文都查了）。</p>
                 ) : (
                   <>
-                    <p className="mb-2 text-[11px] text-ink-3">搜索结果（{hits.length} 条，含文件名与正文）</p>
+                    <p className="mb-2 text-xs text-ink-3">搜索结果（{hits.length} 条，含文件名与正文）</p>
                     {hits.map((h) => (
                       <button
                         key={h.file}
@@ -594,7 +594,7 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
                             {h.field === 'name' ? '文件名' : '正文'}
                           </span>
                         </div>
-                        <p className="mt-1 line-clamp-2 whitespace-pre-wrap break-all text-[11px] text-ink-3" title={h.snippet}>{h.snippet}</p>
+                        <p className="mt-1 line-clamp-2 whitespace-pre-wrap break-all text-xs text-ink-3" title={h.snippet}>{h.snippet}</p>
                       </button>
                     ))}
                   </>
@@ -623,7 +623,7 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
                           <FileText className="h-3.5 w-3.5 shrink-0 text-ink-3" />
                           <span className="truncate text-sm font-medium text-ink" title={f.name.replace(/\.md$/, '')}>{f.name.replace(/\.md$/, '')}</span>
                           {sub && <span className="shrink-0 text-[10px] text-ink-3">{sub}/</span>}
-                          <span className="ml-auto shrink-0 text-[11px] text-ink-3">
+                          <span className="ml-auto shrink-0 text-xs text-ink-3">
                             {new Date(f.mtime).toLocaleDateString('zh-CN')}
                           </span>
                         </div>
@@ -636,7 +636,7 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
                             ))}
                           </div>
                         )}
-                        {meta && meta.preview && <p className="mt-1 line-clamp-2 whitespace-pre-wrap break-all text-[11px] text-ink-3" title={meta.preview}>{meta.preview}</p>}
+                        {meta && meta.preview && <p className="mt-1 line-clamp-2 whitespace-pre-wrap break-all text-xs text-ink-3" title={meta.preview}>{meta.preview}</p>}
                       </button>
                       {/* 素材卡行操作（重命名/删除）：破坏性项置末 + danger 红字（HIG Context menus，先例=DocSection） */}
                       <DropdownMenu>
@@ -675,7 +675,7 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
           <>
             <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hair px-4">
               <button
-                className="flex shrink-0 items-center gap-0.5 whitespace-nowrap text-[11px] text-ink-3 transition-colors hover:text-ink"
+                className="flex shrink-0 items-center gap-0.5 whitespace-nowrap text-xs text-ink-3 transition-colors hover:text-ink"
                 onClick={() => void openMaterial(null)}
               >
                 <ChevronLeft className="h-3.5 w-3.5" /> 返回
@@ -721,7 +721,7 @@ export default function LibraryBrowser({ openDoc, searchActions }: LibraryBrowse
                   </Button>
                 </>
               )}
-              <span className="shrink-0 text-[11px] text-ink-3">素材为整理后草稿 · ⌘S 保存</span>
+              <span className="shrink-0 text-xs text-ink-3">素材为整理后草稿 · ⌘S 保存</span>
             </div>
             <div className="min-h-0 flex-1">
               <DocEditor

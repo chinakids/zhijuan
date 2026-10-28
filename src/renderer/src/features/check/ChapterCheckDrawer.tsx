@@ -160,7 +160,7 @@ export default function ChapterCheckDrawer({ projectId, chapter, chapterTitle, o
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-2 border-b border-hair px-4 py-2 text-[11px] text-ink-3">
+            <div className="flex items-center gap-2 border-b border-hair px-4 py-2 text-xs text-ink-3">
               {tab === 'chapter' ? (
                 <AlertTriangle className="h-3.5 w-3.5" />
               ) : (
@@ -212,7 +212,7 @@ export default function ChapterCheckDrawer({ projectId, chapter, chapterTitle, o
                       setErr('')
                       void run()
                     }}
-                    className="mt-3 inline-flex items-center gap-1 rounded-md border border-hair px-2.5 py-1 text-[11px] text-ink-2 hover:border-accent hover:text-accent"
+                    className="mt-3 inline-flex items-center gap-1 rounded-md border border-hair px-2.5 py-1 text-xs text-ink-2 hover:border-accent hover:text-accent"
                   >
                     <RefreshCw className="h-3 w-3" /> 重试
                   </button>
@@ -244,7 +244,7 @@ export default function ChapterCheckDrawer({ projectId, chapter, chapterTitle, o
                   }
                   return (
                     <div key={g.key as string} className="mb-3">
-                      <p className="mb-1.5 flex items-center gap-1.5 px-0.5 text-[11px] font-medium">
+                      <p className="mb-1.5 flex items-center gap-1.5 px-0.5 text-xs font-medium">
                         <span className={cn('rounded px-1.5 py-0.5', clsFor[g.key as string])}>{valKw[g.key as string]}</span>
                         <span className="text-ink-3">{g.rows.length} 条</span>
                       </p>
@@ -270,34 +270,34 @@ export default function ChapterCheckDrawer({ projectId, chapter, chapterTitle, o
       <div key={k} className="mb-2 rounded-lg border border-hair bg-surface p-3">
         <div className="flex items-center gap-2">
           <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', SEV_CN[it.severity])}>{it.severity}</span>
-          <span className="text-[11px] font-medium text-accent">{TYPE_TXT[it.type] ?? it.type}</span>
+          <span className="text-xs font-medium text-accent">{TYPE_TXT[it.type] ?? it.type}</span>
           <span className="flex-1" />
           {it.target &&
             (made.has(k) ? (
-              <span className="flex items-center gap-1 text-[11px] text-success"><Check className="h-3 w-3" /> 已建提案</span>
+              <span className="flex items-center gap-1 text-xs text-success"><Check className="h-3 w-3" /> 已建提案</span>
             ) : (
               <button
                 onClick={() => void makeProposal(kind, gi, it)}
-                className="flex items-center gap-1 rounded-md border border-hair px-2 py-0.5 text-[11px] text-ink-2 hover:border-accent hover:text-accent"
+                className="flex items-center gap-1 rounded-md border border-hair px-2 py-0.5 text-xs text-ink-2 hover:border-accent hover:text-accent"
               >
                 <AlertTriangle className="h-3 w-3" /> 转提案
               </button>
             ))}
           {kind === 'revision' &&
             (copied === k ? (
-              <span className="flex items-center gap-1 text-[11px] text-success"><Check className="h-3 w-3" /> 已复制</span>
+              <span className="flex items-center gap-1 text-xs text-success"><Check className="h-3 w-3" /> 已复制</span>
             ) : (
               <button
                 onClick={() => void copySuggestion(k, it)}
-                className="flex items-center gap-1 rounded-md border border-hair px-2 py-0.5 text-[11px] text-ink-2 hover:border-accent hover:text-accent"
+                className="flex items-center gap-1 rounded-md border border-hair px-2 py-0.5 text-xs text-ink-2 hover:border-accent hover:text-accent"
               >
                 <ClipboardCopy className="h-3 w-3" /> 复制改法
               </button>
             ))}
         </div>
-        <p className="mt-2 text-[11px] text-ink-3">{it.where}</p>
+        <p className="mt-2 text-xs text-ink-3">{it.where}</p>
         <p className="mt-1 text-xs text-ink">{it.what}</p>
-        <p className="mt-1 text-[11px] text-ink-2">建议：{it.suggest}</p>
+        <p className="mt-1 text-xs text-ink-2">建议：{it.suggest}</p>
       </div>
     )
   }

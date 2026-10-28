@@ -192,40 +192,40 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
     <div key={keyIdx} className="mb-2 rounded-lg border border-hair bg-surface p-3">
       <div className="flex items-center gap-2">
         <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', SEV_CN[it.severity])}>{it.severity}</span>
-        <span className="text-[11px] font-medium text-accent">{TYPE_TXT[it.type] ?? it.type}</span>
+        <span className="text-xs font-medium text-accent">{TYPE_TXT[it.type] ?? it.type}</span>
         {it.viewer && <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-3">{VIEWER_TXT[it.viewer] ?? it.viewer}</span>}
         {extra?.prevSeverity && extra.severityChanged && (
-          <span className="flex items-center gap-1 text-[11px] text-warn" title="严重度等级与上次不同">严重度 {extra.prevSeverity} → {it.severity}</span>
+          <span className="flex items-center gap-1 text-xs text-warn" title="严重度等级与上次不同">严重度 {extra.prevSeverity} → {it.severity}</span>
         )}
         <span className="flex-1" />
         {onToAgent && (
           <button
             onClick={() => onToAgent(auditItemToAgentPrompt(it))}
             disabled={toAgentBusy}
-            className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-warn px-2 py-0.5 text-[11px] text-warn transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-warn px-2 py-0.5 text-xs text-warn transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Send className="h-3 w-3" /> 让 agent 改
           </button>
         )}
         {it.target &&
           (madeDiff.has(String(keyIdx)) ? (
-            <span className="flex items-center gap-1 text-[11px] text-success"><Check className="h-3 w-3" /> 已建提案</span>
+            <span className="flex items-center gap-1 text-xs text-success"><Check className="h-3 w-3" /> 已建提案</span>
           ) : (
             <button
               onClick={() => void makeDiffProposal(String(keyIdx), it)}
               title={'创建修改提案到 ' + it.target + '（可在提案抽屉决定是否采纳）'}
-              className="flex items-center gap-1 whitespace-nowrap rounded-md border border-hair px-2 py-0.5 text-[11px] text-ink-2 hover:border-accent hover:text-accent"
+              className="flex items-center gap-1 whitespace-nowrap rounded-md border border-hair px-2 py-0.5 text-xs text-ink-2 hover:border-accent hover:text-accent"
             >
               <AlertTriangle className="h-3 w-3" /> 转提案
             </button>
           ))}
       </div>
-      <p className="mt-2 text-[11px] text-ink-3">{it.where}</p>
+      <p className="mt-2 text-xs text-ink-3">{it.where}</p>
       {it.refFile && (
-        <p className="mt-1 text-[11px] text-ink-3">关联档案：<span className="text-accent">{it.refFile}</span></p>
+        <p className="mt-1 text-xs text-ink-3">关联档案：<span className="text-accent">{it.refFile}</span></p>
       )}
       <p className="mt-1 text-xs text-ink">{it.what}</p>
-      <p className="mt-1 text-[11px] text-ink-2">建议：{it.suggest}</p>
+      <p className="mt-1 text-xs text-ink-2">建议：{it.suggest}</p>
     </div>
   )
 
@@ -250,19 +250,19 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
     return (
       <div>
         <div className="mb-3 flex items-center gap-2">
-          <button onClick={() => setDiffView(false)} className="flex shrink-0 items-center gap-1 text-[11px] text-ink-3 hover:text-ink">
+          <button onClick={() => setDiffView(false)} className="flex shrink-0 items-center gap-1 text-xs text-ink-3 hover:text-ink">
             <ChevronLeft className="h-3.5 w-3.5" /> 返回列表
           </button>
           <span className="flex-1" />
-          <span className="text-[11px] text-ink-3">上一版 {prevName ? fmtTime(prevName) : ''} · 共 {c.prev} 条</span>
+          <span className="text-xs text-ink-3">上一版 {prevName ? fmtTime(prevName) : ''} · 共 {c.prev} 条</span>
         </div>
-        <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px]">
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
           <span className="rounded bg-surface-2 px-2 py-1 text-ink-2">新增 <b className="text-warn">{c.added}</b></span>
           <span className="rounded bg-surface-2 px-2 py-1 text-ink-2">已解决 <b className="text-success">{c.resolved}</b></span>
           <span className="rounded bg-surface-2 px-2 py-1 text-ink-2">依旧 <b className="text-accent">{c.same}</b>{sevChanged > 0 && <b className="ml-1 rounded bg-warn-soft px-1.5 py-0.5 text-[10px] font-medium text-warn">严重度变化 {sevChanged}</b>}</span>
         </div>
         {diff.shiftHint > 0 && (
-          <p className="mb-3 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-[11px] leading-relaxed text-ink-2">
+          <p className="mb-3 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-xs leading-relaxed text-ink-2">
             ⚠ 有 {diff.shiftHint} 处同一位置「一增一消」——可能是模型换了个措辞，不一定是新问题，请人工核对。
           </p>
         )}
@@ -272,19 +272,19 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
           <>
             {diff.added.length > 0 && (
               <div className="mb-3">
-                <p className="mb-1.5 text-[11px] font-semibold text-warn">新增（这次发现）</p>
+                <p className="mb-1.5 text-xs font-semibold text-warn">新增（这次发现）</p>
                 {diff.added.map((it, i) => diffItemCard(it, undefined, 'a' + i))}
               </div>
             )}
             {diff.resolved.length > 0 && (
               <div className="mb-3">
-                <p className="mb-1.5 text-[11px] font-semibold text-success">已解决（上次提过，这次没再提）</p>
+                <p className="mb-1.5 text-xs font-semibold text-success">已解决（上次提过，这次没再提）</p>
                 {diff.resolved.map((it, i) => diffItemCard(it, undefined, 'r' + i))}
               </div>
             )}
             {diff.same.length > 0 && (
               <div className="mb-3">
-                <p className="mb-1.5 text-[11px] font-semibold text-accent">依旧（两次都提）</p>
+                <p className="mb-1.5 text-xs font-semibold text-accent">依旧（两次都提）</p>
                 {diff.same.map((s, i) => diffItemCard(s.item, { prevSeverity: s.prevSeverity, severityChanged: s.severityChanged }, 's' + i))}
               </div>
             )}
@@ -337,7 +337,7 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
           </button>
         </div>
 
-        <div className="flex items-center gap-2 border-b border-hair px-4 py-2 text-[11px] text-ink-3">
+        <div className="flex items-center gap-2 border-b border-hair px-4 py-2 text-xs text-ink-3">
           <BookOpenCheck className="h-3.5 w-3.5" />
           {(running || !cur) && !err ? (
             <span className="flex items-center gap-1 text-accent">
@@ -395,7 +395,7 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
                   setErr('')
                   void run()
                 }}
-                className="inline-flex items-center gap-1 rounded-md border border-hair px-2.5 py-1 text-[11px] text-ink-2 hover:border-accent hover:text-accent"
+                className="inline-flex items-center gap-1 rounded-md border border-hair px-2.5 py-1 text-xs text-ink-2 hover:border-accent hover:text-accent"
               >
                 <RefreshCw className="h-3 w-3" /> 重试
               </button>
@@ -415,7 +415,7 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
             <div key={i} className="mb-2 rounded-lg border border-hair bg-surface p-3">
               <div className="flex items-center gap-2">
                 <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', SEV_CN[it.severity])}>{it.severity}</span>
-                <span className="text-[11px] font-medium text-accent">{TYPE_TXT[it.type] ?? it.type}</span>
+                <span className="text-xs font-medium text-accent">{TYPE_TXT[it.type] ?? it.type}</span>
                 {it.viewer && (
                   <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-3">{VIEWER_TXT[it.viewer] ?? it.viewer}</span>
                 )}
@@ -425,30 +425,30 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
                     onClick={() => onToAgent(auditItemToAgentPrompt(it))}
                     disabled={toAgentBusy}
                     title={toAgentBusy ? 'agent 正在生成，稍候再试' : '把这条审读发现发给 agent 修改正文（走 zj_edit_doc 修改卡）'}
-                    className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-warn px-2 py-0.5 text-[11px] text-warn transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
+                    className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-warn px-2 py-0.5 text-xs text-warn transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Send className="h-3 w-3" /> 让 agent 改
                   </button>
                 )}
                 {it.target && (
                   made.has(i) ? (
-                    <span className="flex items-center gap-1 text-[11px] text-success"><Check className="h-3 w-3" /> 已建提案</span>
+                    <span className="flex items-center gap-1 text-xs text-success"><Check className="h-3 w-3" /> 已建提案</span>
                   ) : (
                     <button
                       onClick={() => void makeProposal(i, it)}
-                      className="flex items-center gap-1 rounded-md border border-hair px-2 py-0.5 text-[11px] text-ink-2 hover:border-accent hover:text-accent"
+                      className="flex items-center gap-1 rounded-md border border-hair px-2 py-0.5 text-xs text-ink-2 hover:border-accent hover:text-accent"
                     >
                       <AlertTriangle className="h-3 w-3" /> 转提案
                     </button>
                   )
                 )}
               </div>
-              <p className="mt-2 text-[11px] text-ink-3">{it.where}</p>
+              <p className="mt-2 text-xs text-ink-3">{it.where}</p>
               {it.refFile && (
-                <p className="mt-1 text-[11px] text-ink-3">关联档案：<span className="text-accent">{it.refFile}</span></p>
+                <p className="mt-1 text-xs text-ink-3">关联档案：<span className="text-accent">{it.refFile}</span></p>
               )}
               <p className="mt-1 text-xs text-ink">{it.what}</p>
-              <p className="mt-1 text-[11px] text-ink-2">建议：{it.suggest}</p>
+              <p className="mt-1 text-xs text-ink-2">建议：{it.suggest}</p>
             </div>
           ))}
             </>

@@ -25,6 +25,8 @@ interface DocSectionProps {
   /** 类别下默认存在的总览文件（relative to project） */
   overviewFile?: string
   addLabel: string
+  /** 空态插图（人物/世界观等按目录类型传，保持与正文页同一视觉权重） */
+  art?: 'character' | 'world' | 'material' | 'library'
   addHint: string
   emptyHint: string
   /** 侧栏组头名称（默认「文档」；按语义传入，如 人物档案 / 世界观设定） */
@@ -40,7 +42,7 @@ interface DocSectionProps {
   staleDocFiles?: Set<string>
 }
 
-export default function DocSection({ relDir, overviewFile, addLabel, addHint, emptyHint, listLabel, templateFor, fileTitle, withFm, foldKey, staleDocFiles }: DocSectionProps) {
+export default function DocSection({ relDir, overviewFile, addLabel, addHint, emptyHint, listLabel, templateFor, fileTitle, withFm, foldKey, staleDocFiles, art }: DocSectionProps) {
   const { id = '' } = useParams()
   const [files, setFiles] = useState<{ file: string; name: string }[]>([])
   const [sel, setSel] = useState<string | null>(overviewFile ?? null)
@@ -74,7 +76,14 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
       setFiles(list)
       setLoadErr('')
       // 选中项不在列表（如 overview 缺失/被删）→ 置空显示「选择左侧一个文档开始」，不再指向不存在文档挂空编辑器（docSel.ts）
-      setSel((s) => resolveDocSel(s, list, relDir))
+      setSel((s) => {
+        const kept = resolveDocSel(s, list, relDir)
+        if (kept) return kept
+        // 没有有效选中时：优先总览，其次第一份文档（macOS 侧栏惯例：进目录先打开默认文档）
+        if (overviewFile && list.some((f) => relDir + '/' + f.file === overviewFile)) return overviewFile
+        // 无总览时保持空态（不随意打开某份文档：demo-multiline 防御态约定）
+        return null
+      })
     } catch (e) {
       setLoadErr(String((e as Error).message ?? e))
     } finally {
@@ -199,7 +208,7 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
       {!colHidden && (
         <aside data-testid="doc-col" className="flex w-60 shrink-0 flex-col border-r border-hair bg-surface-2">
           <div className="flex items-center justify-between px-3 pb-2 pt-3">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">{listLabel ?? '文档'}</span>
+            <span className="text-xs font-medium uppercase tracking-wide text-ink-3">{listLabel ?? '文档'}</span>
             <span className="flex items-center gap-0.5">
               <Button variant="ghost" size="icon" className="h-7 w-7" title={addHint} aria-label={addHint} onClick={() => setCreating(true)}>
                 <Plus />
@@ -217,7 +226,7 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
           {!loading && loadErr && (
             <div className="px-2 py-5 text-center">
               <p className="text-xs text-danger">读取失败</p>
-              <p className="mt-0.5 break-all text-[11px] text-ink-3">{loadErr}</p>
+              <p className="mt-0.5 break-all text-xs text-ink-3">{loadErr}</p>
               <button
                 className="mt-1.5 text-xs text-accent underline-offset-2 hover:underline"
                 onClick={() => {
@@ -295,7 +304,7 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
             <div className="flex h-11 shrink-0 items-center gap-2 border-b border-hair px-4">
               <span className="truncate text-sm font-medium text-ink" title={sel}>{fileTitle ? fileTitle(sel.split('/').pop()!.replace(/\.md$/, '')) : sel}</span>
               <span className="flex-1" />
-              <span className="text-[11px] text-ink-3">设定由正文保存时的切片同步维护</span>
+              <span className="text-xs text-ink-3">设定由正文保存时的切片同步维护</span>
             </div>
             <div className="min-h-0 flex-1">
               <DocEditor
@@ -313,8 +322,9 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
         ) : (
           <EmptyState
             className="h-full"
+            art={art}
             title="还没有打开文档"
-            hint={colHidden ? `点上方「显示${listLabel ?? '文档'}列表」恢复侧栏，选择一个文档开始。` : '从左侧列表选择一个文档开始；也可以新建一份。'}
+            hint={colHidden ? `点上方「显示${listLabel ?? '文档'}列表」恢复侧栏，选择一个文档开始。` : '选择左侧一个文档开始'}
             action={
               <Button variant="outline" onClick={() => setCreating(true)}>
                 <Plus /> 新建{addLabel ?? '文档'}

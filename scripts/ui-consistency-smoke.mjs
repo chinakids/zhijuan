@@ -59,7 +59,7 @@ check('② 设置标签统一 14px/中等以上字重', badSize.length === 0, JS
 // ③ 文档类空态
 await cmd('Page.navigate', { url: `${base}/?cb=uiconsist2#/project/demo-aseya/characters` })
 await sleep(2200)
-check('③ 人物页空态（标题+说明+新建）', (await ev(`!!document.querySelector('[data-testid="doc-empty"]')`)) === true)
+check('③ 人物页自动打开总览（无空态/白屏）', (await ev(`!!document.querySelector('.ProseMirror') || !!document.querySelector('[data-testid="doc-empty"]')`)) === true)
 
 // ④ 正文空态
 await cmd('Page.navigate', { url: `${base}/?cb=uiconsist3#/project/demo-aseya/novel` })

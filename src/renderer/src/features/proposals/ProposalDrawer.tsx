@@ -211,12 +211,12 @@ function ItemCard({ p, projectId, onChanged, err, onErr, focused }: { p: Proposa
           <span className="shrink-0" title={`生成于 ${new Date(p.createdAt).toLocaleString('zh-CN')}`}>生成于 {fmtCreated(p.createdAt)}</span>
         </p>
       )}
-      <button onClick={() => setShowDiff((v) => !v)} className="mt-2 flex items-center gap-1 text-[11px] text-ink-3 hover:text-ink">
+      <button onClick={() => setShowDiff((v) => !v)} className="mt-2 flex items-center gap-1 text-xs text-ink-3 hover:text-ink">
         <GitCompare className="h-3 w-3" /> 前后对照
         <ChevronDown className={cn('h-3 w-3 transition-transform motion-reduce:transition-none', showDiff && 'rotate-180')} />
       </button>
       {showDiff && (
-        <div className="mt-2 grid gap-2 text-[11px]">
+        <div className="mt-2 grid gap-2 text-xs">
           <div className="min-w-0 rounded-lg bg-surface-2 p-2">
             <div className="mb-1 font-medium text-ink-3">原状（摘要）</div>
             {/* 原状优先显示生成端基线（beforeExact=完整节内容，作者可对照「将写入」判断是否过时；
@@ -242,27 +242,27 @@ function ItemCard({ p, projectId, onChanged, err, onErr, focused }: { p: Proposa
             disabled 死按钮（HIG Buttons：不提供信息/不可操作的控制不占位）；stale 卡保留「清除」。 */}
         {p.status === 'pending' && (
           <>
-            <Button size="sm" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px] [&_svg]:size-3" onClick={() => void doApply()} disabled={busy}>
+            <Button size="sm" className="h-7 shrink-0 whitespace-nowrap px-2 text-xs [&_svg]:size-3" onClick={() => void doApply()} disabled={busy}>
               <Check className="mr-1" /> 接受
             </Button>
-            <Button size="sm" variant="outline" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px] [&_svg]:size-3" onClick={() => void doReject()}>
+            <Button size="sm" variant="outline" className="h-7 shrink-0 whitespace-nowrap px-2 text-xs [&_svg]:size-3" onClick={() => void doReject()}>
               <X className="mr-1" /> 拒绝
             </Button>
           </>
         )}
         {p.status === 'stale' && (
-          <Button size="sm" variant="ghost" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px] text-danger hover:bg-danger-soft hover:text-danger [&_svg]:size-3" onClick={() => void doDiscard()} title="清除这条过期提案">
+          <Button size="sm" variant="ghost" className="h-7 shrink-0 whitespace-nowrap px-2 text-xs text-danger hover:bg-danger-soft hover:text-danger [&_svg]:size-3" onClick={() => void doDiscard()} title="清除这条过期提案">
             <Trash2 className="mr-1" /> 清除
           </Button>
         )}
         {p.status === 'rejected' && (
-          <Button size="sm" variant="ghost" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px] [&_svg]:size-3" onClick={() => void doReopen()} title="拒绝后改变主意？把它恢复为待确认，可再接受或再拒绝（GitHub dismiss re-open 同语义）">
+          <Button size="sm" variant="ghost" className="h-7 shrink-0 whitespace-nowrap px-2 text-xs [&_svg]:size-3" onClick={() => void doReopen()} title="拒绝后改变主意？把它恢复为待确认，可再接受或再拒绝（GitHub dismiss re-open 同语义）">
             <RotateCcw className="mr-1" /> 重新提议
           </Button>
         )}
         <span className="text-[10px] text-ink-3">来自：{p.source === 'slice-sync' ? '正文保存同步' : p.source === 'annotation-sync' ? '批注同步' : p.source === 'audit' ? '检查' : 'agent'}</span>
       </div>
-      {err && <p className="mt-2 rounded-md bg-danger-soft px-2 py-1 text-[11px] text-danger">{err}</p>}
+      {err && <p className="mt-2 rounded-md bg-danger-soft px-2 py-1 text-xs text-danger">{err}</p>}
     </div>
   )
 }
@@ -422,11 +422,11 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
       <div ref={panelRef} tabIndex={-1} role="dialog" aria-label="提案" className="flex h-full w-[460px] flex-col border-l border-hair bg-paper shadow-[var(--shadow)] animate-in fade-in slide-in-from-right-3">
         <div className="flex h-12 shrink-0 items-center border-b border-hair px-4">
           <span className="text-sm font-medium">提案</span>
-          <span className="ml-2 text-[11px] text-ink-3">切片同步与批注优化都会在这里提出修改</span>
+          <span className="ml-2 text-xs text-ink-3">切片同步与批注优化都会在这里提出修改</span>
           <span className="flex-1" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-[11px] [&_svg]:size-3" data-testid="audit-settings">
+              <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs [&_svg]:size-3" data-testid="audit-settings">
                 <ShieldCheck /> 检查
               </Button>
             </DropdownMenuTrigger>
@@ -444,20 +444,20 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-[11px] [&_svg]:size-3" onClick={() => void doScan()}>
+          <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-xs [&_svg]:size-3" onClick={() => void doScan()}>
             <RefreshCw /> 扫描批注
           </Button>
-          <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={onClose}>收起</Button>
+          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={onClose}>收起</Button>
         </div>
         <ScrollArea className="min-h-0 flex-1 px-3 py-3">
           {listErr && (
             <div data-testid="proposal-list-err" role="alert" className="mb-2 flex items-start gap-2 rounded-md border border-danger/40 bg-danger-soft px-2 py-1.5">
-              <p className="min-w-0 flex-1 break-all text-[11px] leading-5 text-danger">{listErr}</p>
+              <p className="min-w-0 flex-1 break-all text-xs leading-5 text-danger">{listErr}</p>
               <button
                 type="button"
                 data-testid="proposal-list-retry"
                 onClick={retryRefresh}
-                className="shrink-0 rounded px-1 py-0.5 text-[11px] text-ink-2 underline-offset-2 hover:text-accent hover:underline"
+                className="shrink-0 rounded px-1 py-0.5 text-xs text-ink-2 underline-offset-2 hover:text-accent hover:underline"
               >
                 重试
               </button>
@@ -467,8 +467,8 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
             <div className="mb-2 flex items-center gap-2">
               <span className="text-xs font-medium text-warn">待确认 {pending.length}</span>
               <span className="flex-1" />
-              <Button variant="outline" size="sm" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px]" onClick={() => setRejectAllOpen(true)} disabled={allBusy || allRejectBusy}>全部拒绝</Button>
-              <Button size="sm" className="h-7 shrink-0 whitespace-nowrap px-2 text-[11px]" onClick={() => void allApply()} disabled={allBusy || allRejectBusy}>全部接受</Button>
+              <Button variant="outline" size="sm" className="h-7 shrink-0 whitespace-nowrap px-2 text-xs" onClick={() => setRejectAllOpen(true)} disabled={allBusy || allRejectBusy}>全部拒绝</Button>
+              <Button size="sm" className="h-7 shrink-0 whitespace-nowrap px-2 text-xs" onClick={() => void allApply()} disabled={allBusy || allRejectBusy}>全部接受</Button>
             </div>
           )}
           {pending.length === 0 && done.length === 0 && stale.length === 0 && !listErr && (
@@ -482,13 +482,13 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
               数据组）——此前 pending 与 done 无缝混排，作者需逐卡扫徽标才能分辨状态。 */}
           {done.length > 0 && (
             <div className="mt-3 border-t border-hair pt-2">
-              <h3 className="mb-2 text-[11px] font-medium text-ink-3">已处理 {done.length} 条</h3>
+              <h3 className="mb-2 text-xs font-medium text-ink-3">已处理 {done.length} 条</h3>
               {done.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} focused={focusId === p.id} />)}
             </div>
           )}
           {stale.length > 0 && (
             <div className="mt-3 border-t border-hair pt-2">
-              <p className="mb-2 text-[11px] text-ink-3">已过期 {stale.length} 条（章节被删除或再次保存，不可接受，可查看后清除）</p>
+              <p className="mb-2 text-xs text-ink-3">已过期 {stale.length} 条（章节被删除或再次保存，不可接受，可查看后清除）</p>
               {stale.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} focused={focusId === p.id} />)}
             </div>
           )}

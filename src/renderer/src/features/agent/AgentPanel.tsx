@@ -149,7 +149,7 @@ function ToolActivity({ tool, args, done, toolOk, summary, startedAt, elapsedMs,
             setOpen((v) => !v)
           }
         }}
-        className="flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded text-[11px] leading-5 transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/60"
+        className="flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded text-xs leading-5 transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/60"
       >
         {failed ? (
           <CircleX className="h-3 w-3 shrink-0 text-danger" />
@@ -433,11 +433,11 @@ function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
       <div className="mt-2 space-y-2">
         {edits.map((ed, i) => (
           <div key={ed.id ?? i} className="rounded-lg border border-hair bg-surface-2 p-2">
-            {ed.reason && <p className="mb-1 text-[11px] text-ink-2">理由：{ed.reason}</p>}
-            <div className="whitespace-pre-wrap rounded bg-danger-soft/60 px-2 py-1 text-[11px] leading-5 text-danger">
+            {ed.reason && <p className="mb-1 text-xs text-ink-2">理由：{ed.reason}</p>}
+            <div className="whitespace-pre-wrap rounded bg-danger-soft/60 px-2 py-1 text-xs leading-5 text-danger">
               <span className="mr-1 select-none">−</span>{ed.before ?? ed.find}
             </div>
-            <div className="mt-1 whitespace-pre-wrap rounded bg-accent-soft/60 px-2 py-1 text-[11px] leading-5 text-accent">
+            <div className="mt-1 whitespace-pre-wrap rounded bg-accent-soft/60 px-2 py-1 text-xs leading-5 text-accent">
               <span className="mr-1 select-none">＋</span>{ed.after ?? ed.replace}
             </div>
           </div>
@@ -445,24 +445,24 @@ function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
       </div>
       {st === 'pending' && (
         <div className="mt-2.5 flex items-center gap-2">
-          <Button size="sm" className="h-7 px-2.5 text-[11px] [&_svg]:size-3" onClick={() => void accept()} disabled={busy || !edits.length}>
+          <Button size="sm" className="h-7 px-2.5 text-xs [&_svg]:size-3" onClick={() => void accept()} disabled={busy || !edits.length}>
             {busy ? <LoadingIndicator size={12} className="mr-1" /> : <Check className="mr-1" />}
             采纳并写入
           </Button>
-          <Button size="sm" variant="outline" className="h-7 px-2.5 text-[11px] [&_svg]:size-3" onClick={() => useAgentStore.getState().setEditState(id, 'rejected')} disabled={busy}>
+          <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs [&_svg]:size-3" onClick={() => useAgentStore.getState().setEditState(id, 'rejected')} disabled={busy}>
             <X className="mr-1" /> 拒绝
           </Button>
           <span className="text-[10px] text-ink-3">择优后再采纳，采纳即写入 {file}</span>
         </div>
       )}
-      {st === 'error' && error && <p className="mt-2 rounded-md bg-danger-soft px-2 py-1 text-[11px] text-danger">{error}</p>}
+      {st === 'error' && error && <p className="mt-2 rounded-md bg-danger-soft px-2 py-1 text-xs text-danger">{error}</p>}
       {/* 采纳失败出口（2026-09-15 智能层）：失败非终态——可重试采纳（原文可能已被作者改动，重跑 find）或拒绝放弃；
           与切片同步「失败可感知可重试」同口径，避免 error 态卡死无按钮、只能清空对话重来 */}
       {st === 'error' && (
         <div className="mt-2.5 flex items-center gap-2">
           <Button
             size="sm"
-            className="h-7 px-2.5 text-[11px] [&_svg]:size-3"
+            className="h-7 px-2.5 text-xs [&_svg]:size-3"
             data-testid="zj-edit-retry"
             onClick={() => void accept()}
             disabled={busy || !edits.length}
@@ -473,7 +473,7 @@ function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
           <Button
             size="sm"
             variant="outline"
-            className="h-7 px-2.5 text-[11px] [&_svg]:size-3"
+            className="h-7 px-2.5 text-xs [&_svg]:size-3"
             data-testid="zj-edit-reject"
             onClick={() => useAgentStore.getState().setEditState(id, 'rejected')}
             disabled={busy}
@@ -485,7 +485,7 @@ function EditCard({ id, file, edits, state, error, projectId, onChanged }: {
       )}
       {sync && (
         <div className="mt-2 flex items-center gap-2">
-          <p className={cn('min-w-0 flex-1 text-[11px]', sync.text.startsWith('✗') ? 'text-danger' : 'text-ink-2')}>{sync.text}</p>
+          <p className={cn('min-w-0 flex-1 text-xs', sync.text.startsWith('✗') ? 'text-danger' : 'text-ink-2')}>{sync.text}</p>
           {sync.issues.length > 0 && <GuardIssuesNote issues={sync.issues} projectId={projectId} className="shrink-0" />}
           {sync.retry && (
             <button
@@ -511,12 +511,12 @@ function ThinkingBlock({ text, active }: { text: string; active?: boolean }) {
   }, [active])
   return (
     <details open={open} onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)} className="mb-2 group">
-      <summary className="flex cursor-pointer select-none items-center gap-1 text-[11px] text-ink-3 hover:text-ink">
+      <summary className="flex cursor-pointer select-none items-center gap-1 text-xs text-ink-3 hover:text-ink">
         <Brain className="h-3 w-3" />
         <span>{active ? '思考中…' : '思考过程'}</span>
         <ChevronRight className="h-3 w-3 transition-transform motion-reduce:transition-none" />
       </summary>
-      <div className="mt-1.5 max-h-48 overflow-y-auto whitespace-pre-wrap rounded bg-surface-2 px-2 py-1.5 text-[11px] leading-5 text-ink-2">
+      <div className="mt-1.5 max-h-48 overflow-y-auto whitespace-pre-wrap rounded bg-surface-2 px-2 py-1.5 text-xs leading-5 text-ink-2">
         {text || '正在思考…'}
       </div>
     </details>
@@ -533,7 +533,7 @@ function TerminalMarkLine({ mark }: { mark: TerminalMark }) {
   return (
     <div
       data-testid={truncated ? 'zj-terminal-truncated' : 'zj-terminal-stopped'}
-      className={cn('mt-1.5 flex items-center gap-1 text-[11px]', truncated ? 'text-warn' : 'text-ink-3')}
+      className={cn('mt-1.5 flex items-center gap-1 text-xs', truncated ? 'text-warn' : 'text-ink-3')}
     >
       {truncated ? <CircleAlert className="h-3 w-3 shrink-0" /> : <CircleSlash className="h-3 w-3 shrink-0" />}
       <span>{TERMINAL_TEXT[mark]}</span>
@@ -552,7 +552,7 @@ function TerminalMarkLine({ mark }: { mark: TerminalMark }) {
 function ClipNote({ cap, expanded, onToggle }: { cap: number; expanded: boolean; onToggle: () => void }) {
   const tip = expanded ? '已展开完整回复' : `（回复较长，仅显示前 ${cap} 字）`
   return (
-    <div data-testid="zj-clip-note" className="mt-1.5 flex min-w-0 items-center gap-1 text-[11px] text-ink-3">
+    <div data-testid="zj-clip-note" className="mt-1.5 flex min-w-0 items-center gap-1 text-xs text-ink-3">
       {expanded ? <Check className="h-3 w-3 shrink-0" /> : <MoreHorizontal className="h-3 w-3 shrink-0" />}
       <span className="min-w-0 flex-1 truncate" title={tip}>
         {tip}
@@ -561,7 +561,7 @@ function ClipNote({ cap, expanded, onToggle }: { cap: number; expanded: boolean;
         type="button"
         aria-expanded={expanded}
         onClick={onToggle}
-        className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded px-0.5 py-px text-[11px] text-accent transition-colors hover:bg-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 active:opacity-80"
+        className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded px-0.5 py-px text-xs text-accent transition-colors hover:bg-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 active:opacity-80"
       >
         {expanded ? '收起' : '查看完整回复'}
         {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
@@ -1668,7 +1668,7 @@ export default function AgentPanel(props: AgentPanelProps) {
         <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3">
           {messages.length === 0 && (
             <div data-testid="agent-empty" className="space-y-2.5 rounded-xl border border-hair bg-surface-2/50 px-3 py-3">
-              <p className="text-[11px] font-medium text-ink-2">与 agent 边聊边生成正文</p>
+              <p className="text-xs font-medium text-ink-2">与 agent 边聊边生成正文</p>
               <ul className="space-y-1.5">
                 {(
                   [
@@ -1680,7 +1680,7 @@ export default function AgentPanel(props: AgentPanelProps) {
                 ).map((g, i) => (
                   <li key={i} data-testid="agent-empty-guide" className="flex min-w-0 items-center gap-1.5">
                     <g.icon aria-hidden="true" className="h-3 w-3 shrink-0 text-accent" />
-                    <span className="truncate text-[11px] leading-4 text-ink-2" title={g.text}>{g.text}</span>
+                    <span className="truncate text-xs leading-4 text-ink-2" title={g.text}>{g.text}</span>
                   </li>
                 ))}
               </ul>
@@ -1756,7 +1756,7 @@ export default function AgentPanel(props: AgentPanelProps) {
                   )}
                 >
                   {m.quote && (
-                    <blockquote className="mb-1.5 rounded bg-surface-2 px-2 py-1 text-[11px] text-ink-2" style={{ whiteSpace: 'pre-wrap' }}>
+                    <blockquote className="mb-1.5 rounded bg-surface-2 px-2 py-1 text-xs text-ink-2" style={{ whiteSpace: 'pre-wrap' }}>
                       {m.quote.slice(0, 300)}
                       {m.quote.length > 300 ? '…' : ''}
                     </blockquote>
@@ -1810,7 +1810,7 @@ export default function AgentPanel(props: AgentPanelProps) {
             )
           })}
           {streaming && (
-            <div className="flex items-center gap-2 px-2 text-[11px] text-ink-3">
+            <div className="flex items-center gap-2 px-2 text-xs text-ink-3">
               <LoadingIndicator size={12} /> 生成中…
             </div>
           )}
@@ -1857,7 +1857,7 @@ export default function AgentPanel(props: AgentPanelProps) {
 
         <div className="shrink-0 border-t border-hair p-3">
           {quote && (
-            <div className="mb-2 flex items-start gap-1.5 rounded bg-surface px-2 py-1.5 text-[11px] text-ink-2">
+            <div className="mb-2 flex items-start gap-1.5 rounded bg-surface px-2 py-1.5 text-xs text-ink-2">
               <Quote className="mt-0.5 h-3 w-3 shrink-0" />
               <div className="min-w-0 flex-1">
                 {quote.src && (
@@ -1887,7 +1887,7 @@ export default function AgentPanel(props: AgentPanelProps) {
                   onClick={() => insertCmd(c.name)}
                   title={`${c.name}：${c.desc}`}
                   aria-label={`${c.name}：${c.desc}`}
-                  className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-hair bg-surface px-1.5 py-1 text-[11px] text-ink-2 transition-colors hover:bg-well hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                  className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-hair bg-surface px-1.5 py-1 text-xs text-ink-2 transition-colors hover:bg-well hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                 >
                   <c.icon className="h-3 w-3" />
                   <span>{c.name}</span>
@@ -1900,7 +1900,7 @@ export default function AgentPanel(props: AgentPanelProps) {
               <div className="mb-2 flex items-start gap-2 rounded-lg border border-danger/40 bg-danger-soft px-2.5 py-2">
                 <CircleX className="mt-0.5 h-3 w-3 shrink-0 text-danger" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-medium text-danger">引擎离线，无法发送</p>
+                  <p className="text-xs font-medium text-danger">引擎离线，无法发送</p>
                   <p className="break-all text-[10px] leading-4 text-ink-2" title={engineOff}>{engineOff}</p>
                 </div>
                 <button

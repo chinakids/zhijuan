@@ -93,7 +93,7 @@ export default function StructureCheckDrawer({ projectId, open, onClose }: Props
           </button>
         </div>
 
-        <div className="flex items-center gap-2 border-b border-hair px-4 py-2 text-[11px] text-ink-3">
+        <div className="flex items-center gap-2 border-b border-hair px-4 py-2 text-xs text-ink-3">
           <Waypoints className="h-3.5 w-3.5" />
           {running ? (
             <span className="flex items-center gap-1 text-accent">
@@ -121,7 +121,7 @@ export default function StructureCheckDrawer({ projectId, open, onClose }: Props
 
           {!err && res && res.lines.map((line, li) => (
             <div key={li} className="mb-3">
-              <p className="mb-1.5 flex items-center gap-1.5 px-0.5 text-[11px] font-medium text-ink-2">
+              <p className="mb-1.5 flex items-center gap-1.5 px-0.5 text-xs font-medium text-ink-2">
                 时间线：{line.name}
                 <span className="text-ink-3">{line.points.length} 个结构点</span>
               </p>
@@ -131,18 +131,18 @@ export default function StructureCheckDrawer({ projectId, open, onClose }: Props
                     <span className="mt-0.5 shrink-0 rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent">{p.role}</span>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs leading-snug text-ink">{p.chapter}</p>
-                      <p className="mt-1 text-[11px] text-ink-2">{p.note}</p>
+                      <p className="mt-1 text-xs text-ink-2">{p.note}</p>
                     </div>
                   </div>
                 </div>
               ))}
-              {line.pacingNote && <p className="px-1 text-[11px] text-ink-3">节奏观察：{line.pacingNote}</p>}
+              {line.pacingNote && <p className="px-1 text-xs text-ink-3">节奏观察：{line.pacingNote}</p>}
             </div>
           ))}
 
           {!err && res && res.ends.length > 0 && (
             <div className="mb-3">
-              <p className="mb-1.5 flex items-center gap-1.5 px-0.5 text-[11px] font-medium text-ink-2">
+              <p className="mb-1.5 flex items-center gap-1.5 px-0.5 text-xs font-medium text-ink-2">
                 早线收束检查（Weiland 双线法则⑥）
               </p>
               {res.ends.map((e, i) => (
@@ -167,8 +167,8 @@ export default function StructureCheckDrawer({ projectId, open, onClose }: Props
                         )}
                         早线「{e.line}」
                       </p>
-                      <p className="mt-1 text-[11px] text-ink-2">{e.evidence}</p>
-                      {e.note && <p className="mt-1 text-[11px] text-ink-3">{e.note}</p>}
+                      <p className="mt-1 text-xs text-ink-2">{e.evidence}</p>
+                      {e.note && <p className="mt-1 text-xs text-ink-3">{e.note}</p>}
                     </div>
                   </div>
                 </div>
@@ -178,9 +178,9 @@ export default function StructureCheckDrawer({ projectId, open, onClose }: Props
 
           {!err && res && res.notes && res.notes.length > 0 && (
             <div className="mb-3">
-              <p className="mb-1.5 px-0.5 text-[11px] font-medium text-ink-2">其他发现</p>
+              <p className="mb-1.5 px-0.5 text-xs font-medium text-ink-2">其他发现</p>
               {res.notes.map((n, i) => (
-                <p key={i} className="mb-1.5 rounded-lg border border-hair bg-surface px-3 py-2 text-[11px] leading-relaxed text-ink-2">
+                <p key={i} className="mb-1.5 rounded-lg border border-hair bg-surface px-3 py-2 text-xs leading-relaxed text-ink-2">
                   {n}
                 </p>
               ))}
@@ -191,7 +191,7 @@ export default function StructureCheckDrawer({ projectId, open, onClose }: Props
             <div className="py-10 text-center text-xs text-ink-3">
               <AlertTriangle className="mx-auto mb-2 h-6 w-6 text-warn" />
               <p>检查未完成：写作引擎没有给出有效结果（输出可能被中断）。</p>
-              <button onClick={retry} className="mt-3 inline-flex items-center gap-1 rounded-md border border-hair px-2.5 py-1 text-[11px] text-ink-2 hover:border-accent hover:text-accent">
+              <button onClick={retry} className="mt-3 inline-flex items-center gap-1 rounded-md border border-hair px-2.5 py-1 text-xs text-ink-2 hover:border-accent hover:text-accent">
                 <RefreshCw className="h-3 w-3" /> 重试
               </button>
             </div>

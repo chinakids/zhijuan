@@ -292,13 +292,13 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
         <CloudDownload className="h-4 w-4 text-accent" />
         <span className="text-xs font-medium text-ink">采集任务（本机管道按需求抓取）</span>
         <span className="flex-1" />
-        <Button variant="outline" size="sm" className="h-7 px-2.5 text-[11px] [&_svg]:size-3" onClick={() => void refresh()}>
+        <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs [&_svg]:size-3" onClick={() => void refresh()}>
           <RefreshCw className="mr-1" /> 刷新
         </Button>
-        <Button size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => setOpen(true)}>＋ 发起采集</Button>
+        <Button size="sm" className="h-7 px-2.5 text-xs" onClick={() => setOpen(true)}>＋ 发起采集</Button>
       </div>
       {tasks.length === 0 ? (
-        <p className="text-[11px] text-ink-3">还没有采集任务。点击「发起采集」，任务会落到 素材库/采集池，由本机采集子 agent 处理（也可在卡片上手动「派发」）。</p>
+        <p className="text-xs text-ink-3">还没有采集任务。点击「发起采集」，任务会落到 素材库/采集池，由本机采集子 agent 处理（也可在卡片上手动「派发」）。</p>
       ) : (
         <div className="flex flex-wrap gap-2">
           {tasks.map((t) => {
@@ -320,7 +320,7 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
                       停滞 {staleDays(t.mtime, Date.now())} 天
                     </span>
                   )}
-                  <span className="max-w-[220px] truncate text-[11px] text-ink" title={t.summary}>{t.summary}</span>
+                  <span className="max-w-[220px] truncate text-xs text-ink" title={t.summary}>{t.summary}</span>
                   <span className="text-[10px] text-ink-3" title={new Date(t.mtime).toLocaleString('sv')}>{new Date(t.mtime).toLocaleDateString('zh-CN')}</span>
                 </button>
                 {canDispatch && (
@@ -364,7 +364,7 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
                 {/* 2026-10-08 体验层：需求长度提示（观察项转正）——长需求填完不可见长度；计数走
                     项目统一 countWords 口径（中文按字、连续西文按一词）；贴字段首行、不占新行；
                     HIG 无强制条款但 macOS 写作工具（TextEdit/Pages 状态栏字数统计）同族先例。 */}
-                {demand.trim() && <span className="shrink-0 text-[11px] text-ink-3">{countWords(demand)} 字</span>}
+                {demand.trim() && <span className="shrink-0 text-xs text-ink-3">{countWords(demand)} 字</span>}
               </div>
               <Textarea
                 id="collect-demand"
@@ -380,7 +380,7 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
                     (t) => (t.status === 'pending' || t.status === 'running') && t.demand && normDemand(t.demand) === normDemand(demand)
                   )
                   return dup ? (
-                    <p className="rounded-md border border-warn/40 bg-warn-soft px-2.5 py-1.5 text-[11px] text-warn">
+                    <p className="rounded-md border border-warn/40 bg-warn-soft px-2.5 py-1.5 text-xs text-warn">
                       已有进行中的需求相同任务（{dup.summary}）——再次提交会重复采集；确认要复采再提交。
                     </p>
                   ) : null
@@ -426,7 +426,7 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
                       {d.category && <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-ink-2">{d.category}</span>}
                     </div>
                     {isTaskStale(d.status, view.mtime, Date.now()) && (
-                      <p className="rounded-md border border-warn/40 bg-warn-soft px-2.5 py-1.5 text-[11px] text-warn">
+                      <p className="rounded-md border border-warn/40 bg-warn-soft px-2.5 py-1.5 text-xs text-warn">
                         任务已停滞 {staleDays(view.mtime, Date.now())} 天——采集子 agent 似乎未处理该卡（可能未开启「联网采集管道」、主进程停机或上轮失败），可点「派发/重试」立刻交给子 agent，或删除重发起。
                       </p>
                     )}
@@ -444,7 +444,7 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
                                 onClick={() => void togglePreview(d.result)}
                                 title={preview?.rel === d.result ? '收起素材预览' : '点击在下方预览素材内容'}
                                 className={cn(
-                                  'inline-flex max-w-full items-start gap-1.5 break-all text-left font-mono text-[11px] transition-colors',
+                                  'inline-flex max-w-full items-start gap-1.5 break-all text-left font-mono text-xs transition-colors',
                                   preview?.rel === d.result ? 'font-medium text-accent' : 'text-accent hover:underline'
                                 )}
                               >
@@ -452,7 +452,7 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
                                 <span className="min-w-0 break-all">{d.result}</span>
                               </button>
                             ) : (
-                              <span className="font-mono text-[11px] text-accent">{d.result}</span>
+                              <span className="font-mono text-xs text-accent">{d.result}</span>
                             )}
                           </dd>
                         </div>
@@ -462,8 +462,8 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
                     {isLibraryResultPath(d.result) && preview?.rel === d.result && (
                       <div className="overflow-hidden rounded-lg border border-hair">
                         <div className="flex items-center justify-between border-b border-hair bg-surface-2 px-3 py-1.5">
-                          <span className="text-[11px] text-ink-3">素材预览（只读）</span>
-                          <button onClick={() => setPreview(null)} className="flex shrink-0 items-center gap-1 text-[11px] text-ink-3 transition-colors hover:text-ink" title="收起预览" aria-label="收起预览">
+                          <span className="text-xs text-ink-3">素材预览（只读）</span>
+                          <button onClick={() => setPreview(null)} className="flex shrink-0 items-center gap-1 text-xs text-ink-3 transition-colors hover:text-ink" title="收起预览" aria-label="收起预览">
                             <X className="h-3 w-3" /> 收起
                           </button>
                         </div>
@@ -473,7 +473,7 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
                               <ReactMarkdown remarkPlugins={[remarkGfm]}>{preview.text}</ReactMarkdown>
                             </div>
                           ) : (
-                            <p className="text-[11px] text-ink-3">未找到素材文件（可能已被移动或删除）。</p>
+                            <p className="text-xs text-ink-3">未找到素材文件（可能已被移动或删除）。</p>
                           )}
                         </div>
                       </div>
@@ -551,7 +551,7 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
             <div className="space-y-1.5">
               <div className="flex items-baseline justify-between gap-2">
                 <Label htmlFor="edit-demand">需求描述 *</Label>
-                {editDemand.trim() && <span className="shrink-0 text-[11px] text-ink-3">{countWords(editDemand)} 字</span>}
+                {editDemand.trim() && <span className="shrink-0 text-xs text-ink-3">{countWords(editDemand)} 字</span>}
               </div>
               <Textarea
                 id="edit-demand"

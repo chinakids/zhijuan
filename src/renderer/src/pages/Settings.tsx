@@ -5,6 +5,7 @@ import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { Separator } from '../components/ui/separator'
+import { PageHeader } from '../components/PageHeader'
 import { Switch } from '../components/ui/switch'
 import { Card } from '../components/ui/card'
 import { cn } from '../lib/utils'
@@ -501,20 +502,23 @@ export default function Settings() {
           </div>
         ) : (
           <div className="mx-auto max-w-2xl p-8">
-          <div className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
-            <div>
-              <h2 className="text-lg font-semibold">{cur?.label}</h2>
-              <p className="mt-0.5 text-sm text-ink-3">{cur?.hint}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              {saved && !saveErr && <span className="text-xs text-success">已保存 ✓</span>}
-              {saveErr && (
-                <span role="alert" className="max-w-56 truncate text-xs text-danger" title={saveErr}>
-                  {saveErr}
-                </span>
-              )}
-              <Button onClick={() => void save()}>保存设置</Button>
-            </div>
+          <div>
+            <PageHeader
+              className="mb-0"
+              title={cur?.label}
+              subtitle={cur?.hint}
+              actions={
+                <>
+                  {saved && !saveErr && <span className="text-xs text-success">已保存 ✓</span>}
+                  {saveErr && (
+                    <span role="alert" className="max-w-56 truncate text-xs text-danger" title={saveErr}>
+                      {saveErr}
+                    </span>
+                  )}
+                  <Button onClick={() => void save()}>保存设置</Button>
+                </>
+              }
+            />
           </div>
 
           {/* 即时写盘失败（2026-10-27）：开关已回滚，这里留可读原因（role=alert 让读屏也听到） */}
@@ -547,7 +551,7 @@ export default function Settings() {
         <div className="flex items-center justify-between rounded-lg border border-hair bg-surface-2 px-3 py-2">
           <div className="min-w-0">
             <p className="truncate text-xs text-ink-2" title={wsInfo ? wsInfo.dir : undefined}>当前：{wsInfo ? wsInfo.dir : '读取中…'}</p>
-            <p className="text-[11px] text-ink-3">
+            <p className="text-xs text-ink-3">
               {wsInfo ? (wsInfo.inited ? `已落档 ${wsInfo.docs.length} 篇说明文档` : '尚未落档说明文档') : ''}
             </p>
           </div>
@@ -564,7 +568,7 @@ export default function Settings() {
                   {openDoc === d.file ? '▾' : '▸'} {d.name}
                 </button>
                 {openDoc === d.file && (
-                  <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap rounded border border-hair bg-surface-2 p-3 text-[11px] leading-relaxed text-ink-2">
+                  <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap rounded border border-hair bg-surface-2 p-3 text-xs leading-relaxed text-ink-2">
                     {openDocBody}
                   </pre>
                 )}
@@ -583,7 +587,7 @@ export default function Settings() {
           <div className="flex items-center justify-between rounded-lg border border-hair bg-surface-2 px-3 py-2">
             <div className="min-w-0">
               <p className="truncate text-xs text-ink-2" title={libPath ?? undefined}>当前：{libPath ?? '读取中…'}</p>
-              <p className="text-[11px] text-ink-3">项目实际保存在这里（生效库根）。</p>
+              <p className="text-xs text-ink-3">项目实际保存在这里（生效库根）。</p>
             </div>
           </div>
         </Card>
@@ -652,7 +656,7 @@ export default function Settings() {
                           <pre
                             role={llmCheck.ok ? 'status' : 'alert'}
                             data-testid="llm-check-result"
-                            className={`mt-2 max-h-40 overflow-auto break-all whitespace-pre-wrap rounded-md border p-2 text-[11px] leading-relaxed ${
+                            className={`mt-2 max-h-40 overflow-auto break-all whitespace-pre-wrap rounded-md border p-2 text-xs leading-relaxed ${
                               llmCheck.ok ? 'border-hair text-ink' : 'border-destructive/40 bg-destructive/5 text-destructive'
                             }`}
                           >
@@ -664,7 +668,7 @@ export default function Settings() {
                             type="button"
                             data-testid="llm-copy"
                             onClick={() => { void navigator.clipboard?.writeText(JSON.stringify(llmCheck, null, 2)) }}
-                            className="mt-1 rounded px-1 py-0.5 text-[11px] text-ink-3 transition-colors hover:text-accent"
+                            className="mt-1 rounded px-1 py-0.5 text-xs text-ink-3 transition-colors hover:text-accent"
                           >
                             复制诊断
                           </button>
@@ -699,7 +703,7 @@ export default function Settings() {
             disabled={diagBusy}
             onClick={() => void exportDiagnostics()}
             title="导出诊断快照（版本/引擎/路径/主进程日志尾）为 JSON"
-            className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-normal text-ink-3 transition-colors hover:text-accent disabled:opacity-50"
+            className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-normal text-ink-3 transition-colors hover:text-accent disabled:opacity-50"
           >
             <Download className="h-3.5 w-3.5" />
             {diagBusy ? '导出中…' : '导出诊断'}
@@ -707,7 +711,7 @@ export default function Settings() {
         </h3>
         <Separator className="my-4" />
         {diagMsg && (
-          <p className="mb-2 break-all text-[11px] text-ink-2" role="status" data-testid="diagnostics-msg-engine">
+          <p className="mb-2 break-all text-xs text-ink-2" role="status" data-testid="diagnostics-msg-engine">
             {diagMsg}
           </p>
         )}
@@ -720,12 +724,12 @@ export default function Settings() {
         ) : (
           <div data-testid="engine-status" role="alert">
             <p className="min-w-0 text-xs font-medium text-destructive">● 引擎离线</p>
-            <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-md border border-destructive/40 bg-destructive/5 p-2 text-[11px] leading-relaxed text-ink">{engStatus.message}</pre>
+            <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs leading-relaxed text-ink">{engStatus.message}</pre>
             <button
               type="button"
               data-testid="engine-copy"
               onClick={() => { void navigator.clipboard?.writeText(engStatus.message ?? '') }}
-              className="mt-1 rounded px-1 py-0.5 text-[11px] text-ink-3 transition-colors hover:text-accent"
+              className="mt-1 rounded px-1 py-0.5 text-xs text-ink-3 transition-colors hover:text-accent"
             >
               复制诊断
             </button>
@@ -936,7 +940,7 @@ export default function Settings() {
                       type="button"
                       data-testid="guide-replay"
                       onClick={() => void window.zhijuan.getSettings().then((s) => window.zhijuan.setSettings({ guideSeen: [] })).catch(() => {})}
-                      className="whitespace-nowrap rounded-md border border-hair px-2 py-1 text-[11px] text-ink-2 transition-colors hover:border-accent hover:text-accent"
+                      className="whitespace-nowrap rounded-md border border-hair px-2 py-1 text-xs text-ink-2 transition-colors hover:border-accent hover:text-accent"
                       title="清空已看过的引导记录，让核心页面的引导重新出现"
                     >
                       重新查看
@@ -1098,8 +1102,8 @@ export default function Settings() {
               )}
               {forensicsErr && (
                 <div className="mt-3 flex items-start gap-2 rounded-md border border-danger/40 bg-danger-soft px-2 py-1.5" role="alert">
-                  <p className="min-w-0 flex-1 break-all text-[11px] text-danger">{forensicsErr}</p>
-                  <button type="button" className="shrink-0 text-[11px] text-ink-2 hover:text-accent" onClick={loadForensics}>
+                  <p className="min-w-0 flex-1 break-all text-xs text-danger">{forensicsErr}</p>
+                  <button type="button" className="shrink-0 text-xs text-ink-2 hover:text-accent" onClick={loadForensics}>
                     重试
                   </button>
                 </div>
@@ -1119,7 +1123,7 @@ export default function Settings() {
                           type="button"
                           data-testid={`reveal-${f.kind}`}
                           onClick={() => void revealForensics(f.path)}
-                          className="shrink-0 rounded px-1 py-0.5 text-[11px] text-accent transition-colors hover:underline"
+                          className="shrink-0 rounded px-1 py-0.5 text-xs text-accent transition-colors hover:underline"
                         >
                           打开
                         </button>
@@ -1128,7 +1132,7 @@ export default function Settings() {
                             type="button"
                             data-testid={`tail-${f.kind}`}
                             onClick={() => setTailOpen((m) => ({ ...m, [f.kind]: !m[f.kind] }))}
-                            className="shrink-0 rounded px-1 py-0.5 text-[11px] text-ink-3 transition-colors hover:text-accent"
+                            className="shrink-0 rounded px-1 py-0.5 text-xs text-ink-3 transition-colors hover:text-accent"
                           >
                             {tailOpen[f.kind] ? '收起' : '看尾部'}
                           </button>
@@ -1147,7 +1151,7 @@ export default function Settings() {
                 </div>
               )}
               {!projectId && (
-                <p className="mt-3 text-[11px] leading-4 text-ink-3">
+                <p className="mt-3 text-xs leading-4 text-ink-3">
                   在项目内打开设置，这里还会列出该项目的 write-log / save-trace / sync-log。
                 </p>
               )}

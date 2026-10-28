@@ -101,7 +101,7 @@ export default function HealthBar({ projectId, refreshSignal = 0 }: Props) {
           : '规则体检进行中'
   const healthAria =
     health === 'ok'
-      ? '规则体检：无问题'
+      ? '体检：正常'
       : health === 'issues'
         ? `规则体检：${total} 处问题`
         : health === 'error'
@@ -111,7 +111,7 @@ export default function HealthBar({ projectId, refreshSignal = 0 }: Props) {
   return (
     <div
       data-testid="health-bar"
-      className="flex shrink-0 items-center gap-2 text-[11px] text-ink-3"
+      className="flex shrink-0 items-center gap-2 text-xs text-ink-3"
     >
       <button
         type="button"
@@ -142,12 +142,12 @@ export default function HealthBar({ projectId, refreshSignal = 0 }: Props) {
         </span>
         <span className="truncate">
           {health === 'checking'
-            ? '规则体检中…'
+            ? '体检中…'
             : health === 'ok'
-              ? '规则体检：无问题'
+              ? '体检：正常'
               : health === 'issues'
-                ? '规则体检：有问题'
-                : `规则体检：${note || '不可用'}`}
+                ? '体检：有问题'
+                : `体检：${note || '不可用'}`}
         </span>
       </button>
       <button

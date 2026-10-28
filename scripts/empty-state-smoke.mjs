@@ -136,7 +136,7 @@ await step('③ 正文页无章节空态+新建第一章', async () => {
   const tab = await openTab(BASE + '/?cb=' + Date.now() + '&zj-empty=chapters#/project/demo-aseya/novel')
   const page = await attach(tab.webSocketDebuggerUrl)
   await evalUntil(page, has('[data-testid="empty-chapters"]'), Boolean, 20000, 'empty-chapters')
-  const noArt = await page.eval(has('svg[data-zj-art]'))
+  const noArt = await page.eval(`(() => { const el = document.querySelector('[data-testid="empty-chapters"]'); return !!el?.querySelector('svg[data-zj-art]') })()`)
   if (noArt) throw new Error('compact 模式不应有插图')
   await clickText(page, '新建第一章')
   await evalUntil(page, has('[role="dialog"]'), Boolean, 8000, 'create chapter dialog')

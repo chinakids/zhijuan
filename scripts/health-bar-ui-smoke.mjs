@@ -79,7 +79,7 @@ for (let i = 0; i < 30; i++) {
 }
 ok(!!icon && !!icon.issues, `体检完成后为「有问题」态（琥珀盾）（实际 ${icon?.txt}）`)
 ok(!!icon && !!icon.badge && /^\d+$/.test(icon.badge), `问题数为角标 badge（实际 ${icon?.badge}）`)
-ok(!!icon && /有问题/.test(icon.txt) && !/处问题/.test(icon.txt), `状态文案不写数字（「规则体检：有问题」），实际 ${JSON.stringify(icon?.txt)}`)
+ok(!!icon && /体检：有问题/.test(icon.txt) && !/\d+处问题/.test(icon.txt), `状态文案不写数字（「体检：有问题」），实际 ${JSON.stringify(icon?.txt)}`)
 
 // 3. 点击状态钮 → AuditDrawer 打开（首个有问题类=人物在场核查）
 await ev(`document.querySelector('[data-testid="health-status"]').click()`)

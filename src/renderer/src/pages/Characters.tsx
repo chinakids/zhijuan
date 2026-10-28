@@ -3,6 +3,7 @@ import DocSection from '../features/docs/DocSection'
 export default function Characters() {
   return (
     <DocSection
+      art="character"
       relDir="人物"
       overviewFile="人物/总览.md"
       addLabel="人物档案"
