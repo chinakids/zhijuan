@@ -303,10 +303,21 @@ export default function Novel() {
     }
   }, [prefillChapter, id])
 
-  // 项目引导「现在新建第一章」：经 Outlet context 发信号（递增计数），打开建章对话框（无上一章则空开）
+  // 项目引导「现在新建第一章」：经 Outlet context 发信号（递增计数），打开建章对话框。
+  // 2026-10-28 修：信号计数在 Workspace 里持久 >0，此前每次重挂载（点「正文创作」）都重复弹窗；
+  // 现在按「递增消费 + 章节已加载且为空」才弹——有章节时只标记已消费，不再打扰。
+  const lastNewChapterReq = useRef(0)
   useEffect(() => {
-    if (newChapterReq > 0) openCreate()
-  }, [newChapterReq, openCreate])
+    if (loading) return
+    if (chapters.length === 0) {
+      if (newChapterReq > 0 && lastNewChapterReq.current === newChapterReq) return
+      lastNewChapterReq.current = newChapterReq
+      openCreate()
+    } else if (newChapterReq > 0) {
+      // 已有章节：只消费引导信号，不弹建章（此前每次进正文页都弹的根因）
+      lastNewChapterReq.current = newChapterReq
+    }
+  }, [newChapterReq, loading, chapters.length, openCreate])
 
   // 系统菜单 文件→新建章节…（MenuBridge 单点分发 → 本页监听；openCreate 用 ref 取最新闭包）
   const openCreateRef = useRef(openCreate)
