@@ -173,3 +173,25 @@ export function listLinesFromEntries(entries: { line: string }[]): LineInfo[] {
   for (const e of entries) count.set(e.line, (count.get(e.line) ?? 0) + 1)
   return [...count.entries()].map(([name, chapters]) => ({ name, chapters }))
 }
+
+/**
+ * 章 → 线名（卡片元信息「这条提案/检查属于哪条线」；2026-10-28 体验层，封版① 双线中篇验收）。
+ * 为什么：跨线重名切片（R7）下，同一 target + 同一切片名的两张提案卡文案完全相同，作者接受前
+ * 必须能一眼看出「这是哪条线的状态」——Scrivener 多线实践同样要求线标识在每个决策点可见
+ * （彩色标签/独立文件夹，literatureandlatte.com/blog/how-to-work-with-multiple-timelines-in-scrivener-projects）。
+ * 入参 chapters = listChapters 结果（file 相对项目根，如 正文/第01章_晨港.md）；找不到该章（已删/脏数据）
+ * → null，调用方不显示线徽标（不猜归属）。线名归一走 chapterLine，与其他视图同一权威源。
+ */
+export function lineOfChapter(
+  chapters: { file: string; fm: { 时间线?: unknown } | null }[],
+  chapterRel: string
+): string | null {
+  if (!chapterRel) return null
+  // 口径差（2026-10-28 实探）：提案的 chapter 带「正文/」前缀（如 正文/第02章_旧港.md），
+  // 而 listChapters 的 file 是相对「正文/」的（第02章_旧港.md，store.listChapters 与 devShim 同）。
+  // 两侧都剥掉可选前缀再比，避免调用方各自猜前缀（这坑在 listDocs/chapters 上已踩过两次）。
+  const norm = (s: string) => s.replace(/^正文\//, '')
+  const want = norm(chapterRel)
+  const hit = chapters.find((c) => norm(c.file) === want)
+  return hit ? chapterLine(hit.fm) : null
+}

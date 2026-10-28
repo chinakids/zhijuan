@@ -9,6 +9,7 @@ import { runAudit, type AuditKind } from './audit'
 import { createProposals, listProposals } from '../proposals'
 import { libraryRoot, readSettings } from '../settings'
 import type { Proposal, ProposalItem } from '../../shared/types'
+import { AUDIT_KIND_SHORT } from '../../shared/auditLabels'
 
 /** 本地规则 9 项（零模型、秒级） */
 export const LOCAL_AUDIT_KINDS: AuditKind[] = [
@@ -61,7 +62,7 @@ export async function runAuditAuto(projectId: string, opts?: { ai?: boolean; kin
             kind: 'append',
             before: '',
             after: it.suggest + '\n\n> 依据：' + it.what,
-            reason: '检查 · ' + kind
+            reason: '检查 · ' + AUDIT_KIND_SHORT[kind]
           }
         const key = `${item.target}\u0000${item.after}`
         if (seen.has(key)) continue

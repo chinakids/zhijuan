@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, X, FileText, GitCompare, Inbox, ChevronDown, Trash2, RefreshCw, RotateCcw, ShieldCheck } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -18,6 +18,9 @@ import { precheckApply } from '../../../../shared/proposalPrecheck'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '../../components/ui/dialog'
 import { useProposalStore } from '../../store/proposals'
 import { isChapterTarget } from '../../../../shared/editSyncGate'
+import { chapterLine, lineOfChapter, listLinesFromEntries, DEFAULT_LINE } from '../../../../shared/line'
+import { chapterDisplayName } from '../../../../shared/chapters'
+import type { ChapterEntry } from '../../../../shared/types'
 import type { SliceSyncResult } from '../sync/sliceSync'
 
 interface Props {
@@ -143,8 +146,12 @@ function toastAfterChapterApply(projectId: string, target: string) {
     })
 }
 
-function ItemCard({ p, projectId, onChanged, err, onErr, focused }: { p: Proposal; projectId: string; onChanged: () => void; err?: string; onErr: (id: string, msg: string) => void; focused?: boolean }) {
+function ItemCard({ p, projectId, onChanged, err, onErr, focused, lineOf, showLine }: { p: Proposal; projectId: string; onChanged: () => void; err?: string; onErr: (id: string, msg: string) => void; focused?: boolean; lineOf: (rel: string) => string | null; showLine: boolean }) {
   const it = p.items[0]
+  // 多线项目：本条提案属于哪条时间线（2026-10-28 体验层）。跨线重名切片（R7）下两张卡
+  // target/切片/理由可能完全一致，接受前必须能分辨是哪条线的设定状态——线名从章头归一后取
+  // （shared/line 单一源，与章列徽标/同步证据同口径）；找不到章（已删/脏数据）→ 不显示。
+  const line = p.chapter ? lineOf(p.chapter) : null
   const [showDiff, setShowDiff] = useState(false)
   const [busy, setBusy] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -204,13 +211,18 @@ function ItemCard({ p, projectId, onChanged, err, onErr, focused }: { p: Proposa
         <span className={cn('rounded-full px-2 py-0.5 text-[10px]', st.cls)}>{st.text}</span>
       </div>
       <p className="mt-1.5 text-xs text-ink-2">理由：{it?.reason}</p>
-      {(p.chapter || p.slice) && (
-        <p className="mt-1 flex items-center gap-2 text-[10px] text-ink-3">
-          {p.chapter && <span className="truncate" title={p.chapter}>章：{p.chapter}</span>}
-          {p.slice && <span className="truncate" title={p.slice}>切片：{p.slice}</span>}
-          <span className="shrink-0" title={`生成于 ${new Date(p.createdAt).toLocaleString('zh-CN')}`}>生成于 {fmtCreated(p.createdAt)}</span>
-        </p>
-      )}
+      {/* 元信息行（2026-10-28 体验层）：章（剥 正文/ 与 .md，全量路径进 title）/ 线名徽标（仅多线项目，
+          与 Novel 章列「multiLine 才显示线」同口径）/ 切片 / 生成时间。
+          旧实现整行包在 (p.chapter||p.slice) 里——检查类提案（audit，chapter/slice 皆空）连「生成于」
+          都看不见，作者无从判断这条建议多老；现改为常显，缺什么少显示什么（HIG Lists：每行都要能定位自己）。 */}
+      <p className="mt-1 flex items-center gap-2 text-[10px] text-ink-3" data-testid="proposal-meta">
+        {p.chapter && <span className="truncate" title={p.chapter}>章：{chapterDisplayName(p.chapter)}</span>}
+        {showLine && line && (
+          <span className="shrink-0 rounded bg-well px-1 py-px text-[10px] text-ink-2" title={`所属时间线：${line}`} data-testid="proposal-line">{line}</span>
+        )}
+        {p.slice && <span className="truncate" title={p.slice}>切片：{p.slice}</span>}
+        <span className="shrink-0" title={`生成于 ${new Date(p.createdAt).toLocaleString('zh-CN')}`}>生成于 {fmtCreated(p.createdAt)}</span>
+      </p>
       <button onClick={() => setShowDiff((v) => !v)} className="mt-2 flex items-center gap-1 text-xs text-ink-3 hover:text-ink">
         <GitCompare className="h-3 w-3" /> 前后对照
         <ChevronDown className={cn('h-3 w-3 transition-transform motion-reduce:transition-none', showDiff && 'rotate-180')} />
@@ -268,6 +280,23 @@ function ItemCard({ p, projectId, onChanged, err, onErr, focused }: { p: Proposa
 }
 
 export default function ProposalDrawer({ projectId, list, onChanged, onClose, focusId }: Props) {
+  // 多线可辨性（2026-10-28 体验层）：卡片元信息要显示「哪条时间线」，线名来源=章头约定头（正文为源）。
+  // 读一次 listChapters（与章列同一 IPC、同口径），失败静默降级为不显示线徽标（不挡提案处置）。
+  const [chapters, setChapters] = useState<ChapterEntry[]>([])
+  useEffect(() => {
+    let alive = true
+    void window.zhijuan
+      .listChapters(projectId)
+      .then((cs) => { if (alive) setChapters(cs) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [projectId])
+  const lineOf = useCallback((rel: string) => lineOfChapter(chapters, rel), [chapters])
+  // 多线项目才显示线徽标（单线/主线项目零打扰；与 Novel 章列 multiLine 判据同源）
+  const showLine = useMemo(
+    () => listLinesFromEntries(chapters.filter((c) => c.fm).map((c) => ({ line: chapterLine(c.fm) }))).length > 1,
+    [chapters]
+  )
   // 检查自动化配置（2026-10-28，F-20261028-08）：提案抽屉=统一收口，开关就放在这里
   const [auditCfg, setAuditCfg] = useState<{ enabled: boolean; ai: boolean }>({ enabled: true, ai: false })
   const [auditBusy, setAuditBusy] = useState(false)
@@ -477,19 +506,19 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
               <p className="text-xs">还没有提案。保存正文后，切片同步会在这里提出设定更新。</p>
             </div>
           )}
-          {pending.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} focused={focusId === p.id} />)}
+          {pending.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} focused={focusId === p.id} lineOf={lineOf} showLine={showLine} />)}
           {/* 2026-09-21 14:15 轮：已处理卡与待确认分组+组头（HIG Lists grouped style：headers/space 分隔
               数据组）——此前 pending 与 done 无缝混排，作者需逐卡扫徽标才能分辨状态。 */}
           {done.length > 0 && (
             <div className="mt-3 border-t border-hair pt-2">
               <h3 className="mb-2 text-xs font-medium text-ink-3">已处理 {done.length} 条</h3>
-              {done.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} focused={focusId === p.id} />)}
+              {done.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} focused={focusId === p.id} lineOf={lineOf} showLine={showLine} />)}
             </div>
           )}
           {stale.length > 0 && (
             <div className="mt-3 border-t border-hair pt-2">
               <p className="mb-2 text-xs text-ink-3">已过期 {stale.length} 条（章节被删除或再次保存，不可接受，可查看后清除）</p>
-              {stale.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} focused={focusId === p.id} />)}
+              {stale.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} focused={focusId === p.id} lineOf={lineOf} showLine={showLine} />)}
             </div>
           )}
         </ScrollArea>

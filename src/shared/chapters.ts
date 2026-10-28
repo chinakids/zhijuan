@@ -50,3 +50,12 @@ export function listChapterEntries(sources: ChapterSource[]): ChapterEntry[] {
     })
     .sort((a, b) => numOf(a.name) - numOf(b.name))
 }
+
+/**
+ * 章名显示（提案卡/编辑卡等元信息行；2026-10-28 体验层）：剥「正文/」前缀与 .md，
+ * 得到与章列一致的「第01章_晨港」。约定头完整路径留给 title（HIG：列表显示简洁标签，
+ * 全量值放 help tag）。非正文路径（人物/x.md 等）只剥扩展名，前缀不动。
+ */
+export function chapterDisplayName(rel: string): string {
+  return rel.replace(/^正文\//, '').replace(/\.md$/, '')
+}

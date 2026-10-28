@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { listChapterEntries, type ChapterSource } from '../../src/shared/chapters'
+import { chapterDisplayName, listChapterEntries, type ChapterSource } from '../../src/shared/chapters'
 
 // shared/chapters：章节列表解析口径（真机 store.listChapters 与 devShim 共用同一实现，2026-09-12）
 // 重点锁住老 devShim 手写正则分叉过的行为：只认约定头块、剥行尾注释、空数组不产生键、按文件名章号排序。
@@ -54,5 +54,17 @@ describe('listChapterEntries（与真机同口径）', () => {
       src('序章.md', mk('序章.md', 0).text) // 顺序无关，文件名无第N章 → Infinity
     ].map((s, i) => ({ ...s, file: s.file, mtime: i })))
     expect(out.map((c) => c.file)).toEqual(['第02章_二.md', '第10章_十.md', '序章.md'])
+  })
+})
+
+describe('chapterDisplayName（卡片元信息行章名显示）', () => {
+  it('剥「正文/」前缀与 .md；保留章文件名本身', () => {
+    expect(chapterDisplayName('正文/第02章_旧港.md')).toBe('第02章_旧港')
+    expect(chapterDisplayName('正文/第02章_旧港')).toBe('第02章_旧港')
+  })
+
+  it('非正文路径只去扩展名（前缀语义不明不猜）', () => {
+    expect(chapterDisplayName('人物/苏晚.md')).toBe('人物/苏晚')
+    expect(chapterDisplayName('第01章.md')).toBe('第01章')
   })
 })

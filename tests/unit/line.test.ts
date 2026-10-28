@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chapterLine, linePredecessor, listLinesFromEntries, lineSliceNames, filterCharDocByLine, prefillSource, lineDisciplineNote, lineSyncNote, DEFAULT_LINE, type LineEntryNode } from '../../src/shared/line'
+import { chapterLine, linePredecessor, listLinesFromEntries, lineSliceNames, filterCharDocByLine, prefillSource, lineDisciplineNote, lineSyncNote, lineOfChapter, DEFAULT_LINE, type LineEntryNode } from '../../src/shared/line'
 
 describe('chapterLine（约定头「时间线」字段提取）', () => {
   it('缺省=主线（无字段/无 fm）', () => {
@@ -270,5 +270,33 @@ describe('lineSyncNote（切片同步按线落笔纪律，2026-10-28 封版①�
     const note = lineSyncNote(['主线', '过去线'], '  ')
     expect(note).not.toContain('anchor 仍写')
     expect(note).toContain('本章属「主线」')
+  })
+})
+
+describe('lineOfChapter（提案/检查卡「属于哪条线」）', () => {
+  // 真机口径：listChapters 的 file 相对「正文/」（第01章_晨港.md），提案的 chapter 带前缀（正文/第01章_晨港.md）
+  const chapters = [
+    { file: '第01章_晨港.md', fm: { 题名: '晨港' } },
+    { file: '第02章_旧港.md', fm: { 题名: '旧港', 时间线: '过去线' } },
+    { file: '第03章_长堤.md', fm: { 题名: '长堤', 时间线: ' 过去线 ' } },
+    { file: '第04章_空头.md', fm: null }
+  ]
+
+  it('命中章 → 归一后线名（缺省=主线；空白/带空格补正）', () => {
+    expect(lineOfChapter(chapters, '正文/第01章_晨港.md')).toBe(DEFAULT_LINE)
+    expect(lineOfChapter(chapters, '正文/第02章_旧港.md')).toBe('过去线')
+    // fm 为 null（约定头缺失/解析失败）→ 主线（与 chapterLine 同口径，不抛）
+    expect(lineOfChapter(chapters, '正文/第04章_空头.md')).toBe(DEFAULT_LINE)
+  })
+
+  it('前缀两侧都容忍（提案带 正文/、listChapters 不带）', () => {
+    expect(lineOfChapter(chapters, '第02章_旧港.md')).toBe('过去线')
+    expect(lineOfChapter(chapters, '正文/第03章_长堤.md')).toBe('过去线')
+  })
+
+  it('找不到章 / 空路径 → null（不猜归属，卡片不显示线徽标）', () => {
+    expect(lineOfChapter(chapters, '正文/第09章_已删.md')).toBeNull()
+    expect(lineOfChapter(chapters, '')).toBeNull()
+    expect(lineOfChapter([], '正文/第01章_晨港.md')).toBeNull()
   })
 })

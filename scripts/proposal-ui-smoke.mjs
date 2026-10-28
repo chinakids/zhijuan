@@ -93,9 +93,13 @@ try {
   // ③ 抽屉里出现章/切片归属（卡片级选择器）
   await evalUntil(page, `document.body.innerText.includes('切片：第一幕_雾港之夜')`, (v) => v === true, 10000, '切片归属显示')
   const cardText = await page.eval(`[...document.querySelectorAll('.rounded-xl')].find((x) => x.innerText?.includes('人物/林晓.md'))?.innerText ?? ''`)
-  ok('slice-sync 卡：章+切片归属', cardText.includes('章：第01章_雾港.md') && cardText.includes('切片：第一幕_雾港之夜'), cardText.replace(/\\n/g, ' | ').slice(0, 120))
+  // 章名显示口径（2026-10-28 体验层）：剥「正文/」与 .md，与章列一致（全量路径在 title）
+  const metaText = await page.eval(`[...document.querySelectorAll('[data-testid="proposal-meta"]')].map((x) => x.innerText).join(' ;; ')`)
+  ok('slice-sync 卡：章+切片归属', cardText.includes('章：第01章_雾港') && cardText.includes('切片：第一幕_雾港之夜') && !metaText.includes('正文/') && !metaText.includes('.md'), metaText.slice(0, 120))
   const card2Text = await page.eval(`[...document.querySelectorAll('.rounded-xl')].find((x) => x.innerText?.includes('人物/陈默.md'))?.innerText ?? ''`)
-  ok('agent 卡：无切片只显示章', card2Text.includes('章：第2章_灯下.md') && !card2Text.includes('切片：'), card2Text.replace(/\\n/g, ' | ').slice(0, 120))
+  ok('agent 卡：无切片只显示章', card2Text.includes('章：第2章_灯下') && !card2Text.includes('切片：'), card2Text.replace(/\\n/g, ' | ').slice(0, 120))
+  // 单线项目不显示线徽标（2026-10-28：多线才显示，零打扰）
+  ok('单线项目：卡片无线徽标', !(await page.eval(`!!document.querySelector('[data-testid="proposal-line"]')`)))
 
   // ④ 无页面异常
   const errs = page.errors.filter((e) => !/ResizeObserver/.test(e) && !/Download the React DevTools/.test(e))
