@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chapterLine, linePredecessor, listLinesFromEntries, lineSliceNames, filterCharDocByLine, prefillSource, lineDisciplineNote, DEFAULT_LINE, type LineEntryNode } from '../../src/shared/line'
+import { chapterLine, linePredecessor, listLinesFromEntries, lineSliceNames, filterCharDocByLine, prefillSource, lineDisciplineNote, lineSyncNote, DEFAULT_LINE, type LineEntryNode } from '../../src/shared/line'
 
 describe('chapterLine（约定头「时间线」字段提取）', () => {
   it('缺省=主线（无字段/无 fm）', () => {
@@ -247,5 +247,28 @@ describe('lineDisciplineNote（检查材料时间线纪律，2026-10-27 封版�
   it('空白线名过滤（防御脏数据，不产出「共 N 条」虚数）', () => {
     const note = lineDisciplineNote(['主线', '  ', '过去线'])
     expect(note).toContain('共 2 条时间线')
+  })
+})
+
+describe('lineSyncNote（切片同步按线落笔纪律，2026-10-28 封版①）', () => {
+  it('单线/空清单 → 空串（单线项目与旧提示词逐字一致）', () => {
+    expect(lineSyncNote([], '主线', '第一幕')).toBe('')
+    expect(lineSyncNote(['主线', '主线'], '主线', '第一幕')).toBe('')
+  })
+
+  it('多线 → 点明本章线 + 线名单 + 不得并入别线状态', () => {
+    const note = lineSyncNote(['主线', '过去线', '主线'], '过去线', '旧巷')
+    expect(note).toContain('【本次同步的时间线】')
+    expect(note).toContain('本章属「过去线」')
+    expect(note).toContain('共 2 条：主线、过去线')
+    expect(note).toContain('不得并入本线')
+    expect(note).toContain('anchor 仍写「切片：旧巷」')
+    expect(note).toContain('闪回')
+  })
+
+  it('无切片名时不写 anchor 句（同名切片跨线提示无意义）；线名空白归主线', () => {
+    const note = lineSyncNote(['主线', '过去线'], '  ')
+    expect(note).not.toContain('anchor 仍写')
+    expect(note).toContain('本章属「主线」')
   })
 })

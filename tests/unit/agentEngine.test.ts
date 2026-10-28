@@ -5,7 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // 只有 normalize/ensure/guard 被替换；guardPersonTargets 可注入行为（runSync 测试用）。
 const mocks = vi.hoisted(() => ({
   driveSession: vi.fn(),
-  guardPersonTargets: vi.fn()
+  guardPersonTargets: vi.fn(),
+  // 多线判定（2026-10-28：runSync 按线落笔纪律依赖 context.previousChapterInfo）
+  prevInfo: vi.fn(),
+  chapters: [] as { fm?: { 时间线?: string } }[]
 }))
 // engine 新增依赖 settings（workspaceDir 用 app.getPath('documents')）——测试环境给 /tmp 假路径
 vi.mock('electron', () => ({ app: { getPath: (_n: string) => '/tmp/zj-test-docs' } }))
@@ -13,10 +16,15 @@ vi.mock('../../src/main/agent/runtime', () => ({
   driveSession: (...a: unknown[]) => mocks.driveSession(...a),
   closeHarness: () => {}
 }))
-vi.mock('../../src/main/store', () => ({ projectDir: () => '/tmp/zj-test', listDocs: () => [] }))
+vi.mock('../../src/main/store', () => ({
+  projectDir: () => '/tmp/zj-test',
+  listDocs: () => [],
+  listChapters: () => mocks.chapters
+}))
 vi.mock('../../src/main/agent/context', () => ({
   buildWritingContext: async () => ({ blocks: [] }),
   buildProjectContext: async () => ({ blocks: [] }),
+  previousChapterInfo: (...a: unknown[]) => mocks.prevInfo(...a),
   isTemplateShell: () => false
 }))
 vi.mock('../../src/main/agent/refs', () => ({ expandAtRefs: async () => ({ block: null }) }))
@@ -50,6 +58,9 @@ const INPUT = {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.guardPersonTargets.mockImplementation((x: unknown) => ({ items: x, issues: [] }))
+  // 默认单线（旧行为零打扰）
+  mocks.prevInfo.mockReturnValue({ rel: null, line: '主线', multi: false, predNo: null, lineSlices: new Set() })
+  mocks.chapters = []
 })
 
 describe('translate 事件面映射（候选 1 工具事件面体检）', () => {
@@ -221,6 +232,27 @@ describe('runSync 产出解析健康（候选 2f：静默空加固）', () => {
     expect((r as any).items).toHaveLength(0)
     expect((r as any).guard.issues).toHaveLength(1)
     expect(mocks.driveSession).toHaveBeenCalledTimes(1)
+  })
+
+  // 2026-10-28 智能层（封版目标①）：多线项目切片同步「按线落笔」纪律
+  it('多线项目：材料带【本次同步的时间线】与线名单（防提案串线）', async () => {
+    mocks.prevInfo.mockReturnValue({ rel: null, line: '过去线', multi: true, predNo: null, lineSlices: new Set() })
+    mocks.chapters = [{ fm: { 时间线: '主线' } }, { fm: { 时间线: '过去线' } }]
+    mocks.driveSession.mockImplementation(async () => '[]')
+    await runSync('p', '正文/第01章.md')
+    const prompt = mocks.driveSession.mock.calls[0][1] as string
+    expect(prompt).toContain('【本次同步的时间线】')
+    expect(prompt).toContain('本章属「过去线」')
+    expect(prompt).toContain('主线、过去线')
+    expect(prompt).toContain('不得并入本线')
+  })
+
+  it('单线项目：材料无纪律块（与旧口径逐字一致）', async () => {
+    mocks.chapters = [{ fm: { 时间线: '主线' } }]
+    mocks.driveSession.mockImplementation(async () => '[]')
+    await runSync('p', '正文/第01章.md')
+    const prompt = mocks.driveSession.mock.calls[0][1] as string
+    expect(prompt).not.toContain('【本次同步的时间线】')
   })
 })
 

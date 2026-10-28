@@ -122,6 +122,25 @@ export function lineDisciplineNote(lines: readonly string[], curLine?: string): 
 }
 
 /**
+ * 切片同步「按线落笔」纪律（2026-10-28 智能层，封版目标①）。
+ * 与 lineDisciplineNote（检查域：别把别线差异当矛盾）互补——同步域的风险是**写**：syncSystem 只规定
+ * anchor=「切片：<本片切片名>」，不讲线归属；双线交错时模型会把别线切片小节的状态并进本线切片（提案串线），
+ * 而封版验收要求「两线切片各与正文自洽」。单线项目（uniq ≤1）返回空串＝零打扰。
+ */
+export function lineSyncNote(lines: readonly string[], curLine: string, sliceName?: string): string {
+  const uniq = [...new Set(lines.map((l) => (typeof l === 'string' ? l.trim() : '')).filter(Boolean))]
+  if (uniq.length <= 1) return ''
+  const cur = (typeof curLine === 'string' ? curLine.trim() : '') || DEFAULT_LINE
+  const slice = typeof sliceName === 'string' ? sliceName.trim() : ''
+  return (
+    `【本次同步的时间线】本章属「${cur}」；本卷多线交错，共 ${uniq.length} 条：${uniq.join('、')}。\n` +
+    '- 补丁只记录本章正文里、本线发生的新事态；其他线切片小节的状态（伤情、处境、时间点）不得并入本线。\n' +
+    (slice ? `- anchor 仍写「切片：${slice}」；若该切片名在其他线也出现，after 只写本线事实，不要按别线补写。\n` : '') +
+    '- 本章若含别线闪回/插叙，只取本线当刻变化；别线变化留待那条线自己的章同步。'
+  )
+}
+
+/**
  * 建章预填基准决策（2026-09-17；多线项目建章预填按选中章线评估，02-创作层候选 2）。
  * 现状口径（0181b8d）：建章对话框预填「上一章」= 约定头章号最大章（切片/时间线/涉及人物三字段同源）。
  * 多线项目作者续写非最新线（如正编辑过去线第 2 章）时，最新章属于另一线 → 预填给出错误线的默认值，

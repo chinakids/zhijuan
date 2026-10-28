@@ -3,16 +3,16 @@
 // 会话模型：每一轮用全新 session id（避免 SDK 高层续轮坑），可见历史由渲染层带进 prompt，
 // 上下文完全可控；工具读文件由写作引擎完成。
 import { driveSession, cancelTurn, type DriveEvent } from './runtime'
-import { projectDir, listDocs } from '../store'
+import { projectDir, listDocs, listChapters } from '../store'
 import { workspaceDir } from '../settings'
-import { buildWritingContext, buildProjectContext } from './context'
+import { buildWritingContext, buildProjectContext, previousChapterInfo } from './context'
 import { expandAtRefs } from './refs'
 import { trimHistoryMessage } from '../../shared/historyTrim'
 import { summarizeToolArgs, serializeToolArgs } from '../../shared/toolArgs'
 import { normalizeSyncItems, ensureWorldSliceFile, guardPersonTargets, classifySyncRaw } from './syncAnchor'
 import { appendSyncLog, clipLogError } from './syncLog'
 import { extractFrontMatter } from '../../shared/fmatter'
-import { chapterLine, DEFAULT_LINE } from '../../shared/line'
+import { chapterLine, DEFAULT_LINE, lineSyncNote } from '../../shared/line'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import type { ProposalItem } from '../../shared/types'
@@ -420,6 +420,19 @@ export async function runSync(
   }
   const parts: string[] = []
   parts.push(syncSystem({ files: knownFiles, cast: castAll, noFile }))
+  // 多线项目「按线落笔」纪律（2026-10-28 智能层，封版目标①）：syncSystem 只规定 anchor=本片切片名，
+  // 不讲线归属——双线交错时模型会把别线切片小节的状态并进本线切片（提案串线），而封版验收正是要
+  // 「两线切片各与正文自洽」。单线项目零打扰（与旧材料逐字一致）。
+  try {
+    const info = previousChapterInfo(projectId, chapterRel)
+    if (info.multi) {
+      const allLines = listChapters(projectId).map((c) => chapterLine(c.fm as { 时间线?: unknown }))
+      const note = lineSyncNote(allLines, info.line, sliceName)
+      if (note) parts.push(note)
+    }
+  } catch {
+    /* 章列读失败不阻断同步：纪律块只是加强项 */
+  }
   parts.push(envBlock(projectId, chapterRel))
   try {
     const ctx = await buildWritingContext(projectId, chapterRel)
