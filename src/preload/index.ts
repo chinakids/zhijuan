@@ -170,6 +170,20 @@ const api = {
   searchDocs: (id: string, relDir: string, query: string, opts?: { excludePrefix?: string[]; limit?: number }) =>
     ipcRenderer.invoke('docs:search', id, relDir, query, opts) as Promise<SearchHit[]>,
   recentLibraryDocs: (id: string, n?: number) => ipcRenderer.invoke('library:recentDocs', id, n) as Promise<RecentLibraryDoc[]>,
+  // 采集子 agent：把一张 pending 任务卡派给独立 pi 会话（素材库/采集池/任务_<ts>.md → running → done/failed）
+  collectRun: (projectId: string, taskRel: string) =>
+    ipcRenderer.invoke('collect:run', projectId, taskRel) as Promise<{
+      ok: boolean
+      status: 'done' | 'failed' | 'skipped'
+      message: string
+      resultRel?: string
+      ms?: number
+    }>,
+  /** 待派发的采集任务（status=pending 的卡；自动派发用同一扫描） */
+  collectPending: (projectId: string) =>
+    ipcRenderer.invoke('collect:pending', projectId) as Promise<
+      { file: string; rel: string; mtime: number; demand: string; keywords: string[]; category: string }[]
+    >,
   // 正文版本历史（M3）：列表元信息 + 读单版内容
   listHistory: (id: string, rel: string) => ipcRenderer.invoke('history:list', id, rel) as Promise<HistorySnapshot[]>,
   readHistory: (id: string, rel: string, name: string) => ipcRenderer.invoke('history:read', id, rel, name) as Promise<string | null>,

@@ -45,6 +45,7 @@ import {
   watchProject
 } from './store'
 import { workspaceStatus, ensureWorkspaceDocs, readWorkspaceDoc } from './workspace'
+import { runCollectTask, scanPendingTasks, startCollectorAuto } from './agent/collector'
 import { appendSaveTrace } from './saveTrace'
 import { runWritingInsights } from './writingInsights'
 import { buildCompiledBody, buildChapterInputs } from './compile'
@@ -187,6 +188,8 @@ export function registerIpc() {
     // 门控/失败都不会抛（runWritingInsights 内部 try/catch + reason 返回）；setImmediate 确保 project:open
     // 响应先返回（gatherSignals 是同步 IO 读快照，大项目会阻塞 IPC 响应——04c 落档观察项）。
     setImmediate(() => void runWritingInsights(id))
+    // 采集子 agent 自动派发（collectionEnabled 时每 30s 扫 pending 卡；开关每次 tick 现读）
+    startCollectorAuto(id)
     return true
   })
   ipcMain.handle('project:recents', () => getRecentEntries())
@@ -511,6 +514,13 @@ export function registerIpc() {
   ipcMain.handle('annotations:add', (_e, id: string, mdRel: string, entry: { loc: string; before: string; note: string }) => addAnnotation(id, mdRel, entry))
   ipcMain.handle('annotations:list', (_e, id: string, mdRel: string) => listAnnotations(id, mdRel))
   ipcMain.handle('annotations:remove', (_e, id: string, mdRel: string, row: number) => removeAnnotation(id, mdRel, row))
+
+  // ===== 采集子 agent（待处理任务卡 → 独立 pi 会话；卡 running→done/failed） =====
+  // 手动派发一张：taskRel 相对项目根（素材库/采集池/任务_<ts>.md）。返回 {ok,status,message,resultRel}，
+  // 单个任务最长 180s（主进程内超时即置 failed），渲染层按钮态自己兜。
+  ipcMain.handle('collect:run', (_e, id: string, taskRel: string) => runCollectTask(id, taskRel))
+  // 待派发清单（UI 轮询/诊断用；自动派发也走同一扫描）
+  ipcMain.handle('collect:pending', (_e, id: string) => scanPendingTasks(id))
 
   // agent（dsh 写作引擎）
   registerAgentIpc()

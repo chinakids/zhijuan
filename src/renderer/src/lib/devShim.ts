@@ -2513,6 +2513,9 @@ const mock = {
     if (typeof location !== 'undefined' && location.search.includes('zj-engineoff')) return { online: false, provider: '本机 vLLM', model: 'deepseek-v4-flash-vision-exp-uncensored', message: '引擎未启动（注入离线态，测首启引导）' }
     return { online: true, provider: '本机 vLLM', model: 'deepseek-v4-flash-vision-exp-uncensored', message: '' }
   },
+  // 采集子 agent（devShim 演示：真机走 main/collector；这里只让派发按钮可点/可断言）
+  collectPending: async () => [],
+  collectRun: async (_id: string, taskRel: string) => ({ ok: true, status: 'done', message: '（演示）已派发给采集子 agent：' + taskRel }),
   checkLlmConnection: async (cfg: { provider: string; model?: string; baseUrl?: string; apiKey?: string }) => {
     // devShim 演示：模拟 DeepSeek 缺 key / 模型名不存在的诊断（供无头验证连接检测 UI）
     const model = cfg.model || 'deepseek-chat'

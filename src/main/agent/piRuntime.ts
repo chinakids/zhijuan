@@ -277,15 +277,16 @@ function mapThinking(effort?: string): string {
   }
 }
 
-function resourceLoader() {
+function resourceLoader(systemPrompt?: string) {
   // 最小 loader：不发现 AGENTS.md / skills / 扩展，system prompt 完全由本文件决定
+  // （采集子 agent 等专用会话可传 systemPrompt 覆盖，写作会话用默认常量）
   return {
     getExtensions: () => ({ extensions: [], errors: [], runtime: (sdkCache?.sdk.createExtensionRuntime ? sdkCache!.sdk.createExtensionRuntime() : {}) }),
     getSkills: () => ({ skills: [], diagnostics: [] }),
     getPrompts: () => ({ prompts: [], diagnostics: [] }),
     getThemes: () => ({ themes: [], diagnostics: [] }),
     getAgentsFiles: () => ({ agentsFiles: [] }),
-    getSystemPrompt: () => (process.env.ZHJUAN_PI_SYSTEM_PROMPT || SYSTEM_PROMPT),
+    getSystemPrompt: () => systemPrompt || process.env.ZHJUAN_PI_SYSTEM_PROMPT || SYSTEM_PROMPT,
     getSystemPromptSource: () => undefined,
     getAppendSystemPrompt: () => [],
     getAppendSystemPromptSources: () => [],
@@ -351,14 +352,44 @@ function toDriveEvent(ev: any): DriveEvent[] {
   }
 }
 
-async function createSession(sid: string, thinkingLevel: string): Promise<PiSessionWrap> {
+/** 会话创建选项（专用会话：如采集子 agent 只带自己的四件工具 + 自己的 system prompt） */
+export interface SessionCreateOpts {
+  /** 该会话专属的额外工具（默认与写作域 zj_* 合并） */
+  extraTools?: ToolDefinition[]
+  /** true = 只用 extraTools（不带 zj_* 写作工具）；false/缺省 = 合并 */
+  replaceTools?: boolean
+  /** 覆盖会话 system prompt（缺省用写作域 prompt / ZHJUAN_PI_SYSTEM_PROMPT） */
+  systemPrompt?: string
+  /** 思考档位（off|minimal|low|medium|high|xhigh|max；缺省 medium） */
+  reasoningEffort?: string
+  /** 丢弃同名旧会话（重试用：不要延续上一轮历史） */
+  fresh?: boolean
+}
+
+function disposeWrap(sid: string): boolean {
+  const w = sessions.get(sid)
+  if (!w) return false
+  sessions.delete(sid)
+  try {
+    w.session.dispose()
+  } catch {
+    /* dispose 失败不影响后续 */
+  }
+  return true
+}
+
+async function createSession(sid: string, thinkingLevel: string, opts?: SessionCreateOpts): Promise<PiSessionWrap> {
   const { sdk } = await loadSdk()
   if (!modelRuntime || !modelRef) throw new Error('pi 运行时未就绪')
+  if (opts?.fresh) disposeWrap(sid)
   const settings = getSettings()
-  const tools = buildPiTools({
-    answerDir,
-    interactive: { todo: settings.agentTools?.todo !== false, askUser: settings.agentTools?.askUser !== false }
-  }) as ToolDefinition[]
+  const baseTools = opts?.replaceTools
+    ? []
+    : (buildPiTools({
+        answerDir,
+        interactive: { todo: settings.agentTools?.todo !== false, askUser: settings.agentTools?.askUser !== false }
+      }) as ToolDefinition[])
+  const tools = [...baseTools, ...(opts?.extraTools ?? [])]
   const cwd = sessionDir() // 仅用于会话头；织卷工具全靠 base 绝对路径，不依赖 cwd
   const { session } = await sdk.createAgentSession({
     cwd,
@@ -366,7 +397,7 @@ async function createSession(sid: string, thinkingLevel: string): Promise<PiSess
     model: modelRef,
     thinkingLevel,
     modelRuntime,
-    resourceLoader: resourceLoader(),
+    resourceLoader: resourceLoader(opts?.systemPrompt),
     // 关掉 pi 内建 read/bash/edit/write：写作域只用 zj_* 工具（noTools:'builtin' 保留 customTools 启用）
     noTools: 'builtin',
     customTools: tools,
@@ -386,12 +417,15 @@ async function createSession(sid: string, thinkingLevel: string): Promise<PiSess
     }
   })
   sessions.set(sid, wrap)
-  // LRU 上限：pi 会话持有完整消息历史，长期不 dispose 会吃内存
+  // LRU 上限：pi 会话持有完整消息历史，长期不 dispose 会吃内存。
+  // 采集会话（zj-collect-*）优先不动：它跑在后台、随时可能在工具调用中，被 dispose 会打断一次采集；
+  // 先淘汰写作会话，写作会话都没了才淘汰最老的采集会话。
   while (sessions.size > MAX_SESSIONS) {
-    const oldest = sessions.keys().next().value as string | undefined
-    if (!oldest || oldest === sid) break
-    const w = sessions.get(oldest)
-    sessions.delete(oldest)
+    const keys = [...sessions.keys()].filter((k) => k !== sid)
+    if (!keys.length) break
+    const victim = keys.find((k) => !k.startsWith('zj-collect-')) ?? keys[0]
+    const w = sessions.get(victim)
+    sessions.delete(victim)
     try {
       w?.session.dispose()
     } catch {
@@ -409,6 +443,25 @@ export async function sessionHandle(key: string): Promise<unknown> {
   if (hit) return hit.session
   const wrap = await createSession(key, mapThinking(undefined))
   return wrap.session
+}
+
+/**
+ * 建一个**带专属工具/提示词**的会话（同名 key 已存在且有 opts.fresh=false 时复用）。
+ * 用途：后台子 agent（采集）只看到自己的工具集，不受写作会话工具/历史污染；
+ * 采集侧传 replaceTools:true（不带 zj_*），写作/同步不传（行为与 sessionHandle 一致）。
+ */
+export async function createSessionWithTools(sid: string, opts: SessionCreateOpts = {}): Promise<unknown> {
+  const err = await ensureHarness()
+  if (err) throw new Error(err)
+  const hit = sessions.get(sid)
+  if (hit && !opts.fresh) return hit.session
+  const wrap = await createSession(sid, mapThinking(opts.reasoningEffort), opts)
+  return wrap.session
+}
+
+/** 主动释放一个会话（子 agent 跑完即放，别让后台会话占着内存/LRU 名额）。返回是否真有会话被释放。 */
+export function disposeSession(sid: string): boolean {
+  return disposeWrap(sid)
 }
 
 /** 低阶驱动一轮：prompt + subscribe 映射事件，直到 agent 收尾（agent_end / abort / 超时）。

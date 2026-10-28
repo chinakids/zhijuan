@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { CloudDownload, Eye, Pencil, RefreshCw, X } from 'lucide-react'
+import { CloudDownload, Eye, Loader2, Pencil, Play, RefreshCw, RotateCcw, X } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog'
 import { Input } from '../../components/ui/input'
@@ -82,6 +82,8 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
   const [editCategory, setEditCategory] = useState('')
   const [editSource, setEditSource] = useState('')
   const [editSaving, setEditSaving] = useState(false)
+  // 派发中（按文件名）：主进程并发=1，但列表上多张卡可各点一次；按钮按卡显示 loading
+  const [dispatching, setDispatching] = useState<string[]>([])
 
   // 刷新失败：toast 节流（5s 内不重复弹），失败时保留旧列表（不闪空）
   const refresh = useCallback(async () => {
@@ -236,6 +238,44 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
     }
   }
 
+  /**
+   * 派发给子 agent：主进程建独立 pi 会话执行这张卡（卡变 running → done/failed）。
+   * 返回后刷新列表（fs 事件也会到，双保险）；失败原因直接进 toast，不用开详情找。
+   */
+  async function dispatch(t: TaskInfo) {
+    if (!id || dispatching.includes(t.file)) return
+    const run = window.zhijuan.collectRun
+    if (!run) {
+      toast.add({ kind: 'info', title: '当前环境不支持派发', description: '开发演示模式没有主进程采集器；真机上可直接派发。' })
+      return
+    }
+    setDispatching((prev) => [...prev, t.file])
+    try {
+      const r = await run(id, '素材库/采集池/' + t.file)
+      if (r.ok) {
+        toast.add({
+          kind: 'success',
+          title: '采集完成',
+          description: r.resultRel ? '素材：' + r.resultRel : r.message
+        })
+      } else if (r.status === 'skipped') {
+        toast.add({ kind: 'info', title: '未派发', description: r.message })
+      } else {
+        toast.add({ kind: 'error', title: '采集失败', description: (r.message || '未知原因').slice(0, 160) })
+      }
+    } catch (e) {
+      toast.add({ kind: 'error', title: '派发失败', description: String((e as Error).message ?? e).slice(0, 160) })
+    } finally {
+      setDispatching((prev) => prev.filter((f) => f !== t.file))
+      await refresh()
+      // 详情弹窗开着时同步重读卡面（结果/完成/失败原因当场可见，不用关了重开）
+      if (id && view?.file === t.file) {
+        const text = (await window.zhijuan.readDoc(id, '素材库/采集池/' + t.file)) ?? ''
+        setViewText(text)
+      }
+    }
+  }
+
   /** 发起采集表单：单行字段 Enter=提交（HIG Buttons「primary button responds to the Return key」；IME 组合期 Enter 只确认候选不提交；多行 Textarea 保持换行语义不接） */
   const fieldSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (isImeComposing(e)) return
@@ -257,29 +297,57 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
         <Button size="sm" className="h-7 px-2.5 text-[11px]" onClick={() => setOpen(true)}>＋ 发起采集</Button>
       </div>
       {tasks.length === 0 ? (
-        <p className="text-[11px] text-ink-3">还没有采集任务。点击「发起采集」，任务会落到 素材库/采集池，由本机管道处理。</p>
+        <p className="text-[11px] text-ink-3">还没有采集任务。点击「发起采集」，任务会落到 素材库/采集池，由本机采集子 agent 处理（也可在卡片上手动「派发」）。</p>
       ) : (
         <div className="flex flex-wrap gap-2">
-          {tasks.map((t) => (
-            <button
-              key={t.file}
-              onClick={() => void openView(t)}
-              title="点击查看任务卡详情（回填的结果在此）"
-              className="flex items-center gap-2 rounded-lg border border-hair bg-surface px-2.5 py-1.5 text-left transition-colors hover:border-accent/60 hover:bg-surface-2"
-            >
-              <span className={cn('rounded-full px-1.5 py-0.5 text-[10px]', STATUS_CLS[t.status])}>{t.status}</span>
-              {t.stale && (
-                <span
-                  title={`已 ${staleDays(t.mtime, Date.now())} 天未被本机管道触碰（可能停机/失败/被跳过），确认后可在详情里删除重发起`}
-                  className="rounded-full border border-warn/40 bg-warn-soft px-1.5 py-0.5 text-[10px] font-medium text-warn"
+          {tasks.map((t) => {
+            const busy = dispatching.includes(t.file)
+            const canDispatch = t.status === 'pending' || t.status === 'failed'
+            return (
+              <div key={t.file} className="flex items-center gap-1">
+                <button
+                  onClick={() => void openView(t)}
+                  title="点击查看任务卡详情（回填的结果在此）"
+                  className="flex items-center gap-2 rounded-lg border border-hair bg-surface px-2.5 py-1.5 text-left transition-colors hover:border-accent/60 hover:bg-surface-2"
                 >
-                  停滞 {staleDays(t.mtime, Date.now())} 天
-                </span>
-              )}
-              <span className="max-w-[220px] truncate text-[11px] text-ink" title={t.summary}>{t.summary}</span>
-              <span className="text-[10px] text-ink-3" title={new Date(t.mtime).toLocaleString('sv')}>{new Date(t.mtime).toLocaleDateString('zh-CN')}</span>
-            </button>
-          ))}
+                  <span className={cn('rounded-full px-1.5 py-0.5 text-[10px]', STATUS_CLS[t.status])}>{t.status}</span>
+                  {t.stale && (
+                    <span
+                      title={`已 ${staleDays(t.mtime, Date.now())} 天未被处理（采集 agent 可能停机/失败），可点右侧「派发/重试」或删除重发起`}
+                      className="rounded-full border border-warn/40 bg-warn-soft px-1.5 py-0.5 text-[10px] font-medium text-warn"
+                    >
+                      停滞 {staleDays(t.mtime, Date.now())} 天
+                    </span>
+                  )}
+                  <span className="max-w-[220px] truncate text-[11px] text-ink" title={t.summary}>{t.summary}</span>
+                  <span className="text-[10px] text-ink-3" title={new Date(t.mtime).toLocaleString('sv')}>{new Date(t.mtime).toLocaleDateString('zh-CN')}</span>
+                </button>
+                {canDispatch && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    data-testid="collect-dispatch"
+                    disabled={busy}
+                    onClick={() => void dispatch(t)}
+                    title={
+                      t.status === 'failed'
+                        ? '重试：清掉失败状态，重新交给采集子 agent'
+                        : '派发给子 agent：建独立会话联网检索，写素材卡并回填本任务'
+                    }
+                    className="h-7 shrink-0 gap-1 px-2 text-[10px] [&_svg]:size-3"
+                  >
+                    {busy ? <Loader2 className="animate-spin" /> : t.status === 'failed' ? <RotateCcw /> : <Play />}
+                    {busy ? '采集…' : t.status === 'failed' ? '重试' : '派发'}
+                  </Button>
+                )}
+                {t.status === 'running' && (
+                  <span className="flex items-center gap-1 text-[10px] text-accent" title="采集子 agent 正在执行这张卡">
+                    <Loader2 className="h-3 w-3 animate-spin" /> 进行中
+                  </span>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -358,7 +426,7 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
                     </div>
                     {isTaskStale(d.status, view.mtime, Date.now()) && (
                       <p className="rounded-md border border-warn/40 bg-warn-soft px-2.5 py-1.5 text-[11px] text-warn">
-                        任务已停滞 {staleDays(view.mtime, Date.now())} 天——本机管道似乎未处理该卡（可能停机/失败/被跳过），确认后删除重发起。
+                        任务已停滞 {staleDays(view.mtime, Date.now())} 天——采集子 agent 似乎未处理该卡（可能未开启「联网采集管道」、主进程停机或上轮失败），可点「派发/重试」立刻交给子 agent，或删除重发起。
                       </p>
                     )}
                     <dl className="space-y-1 text-xs">
@@ -422,6 +490,28 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
           <DialogFooter>
             <Button variant="ghost" onClick={() => setView(null)}>关闭</Button>
             <div className="flex-1" />
+            {view && (view.status === 'pending' || view.status === 'failed') && (
+              <Button
+                variant="outline"
+                data-testid="collect-dispatch-detail"
+                disabled={dispatching.includes(view.file)}
+                onClick={() => view && void dispatch(view)}
+                title={
+                  view.status === 'failed'
+                    ? '重试：重新交给采集子 agent（覆盖失败状态）'
+                    : '派发给子 agent：建独立 pi 会话联网检索，写素材卡并回填本任务'
+                }
+              >
+                {dispatching.includes(view.file) ? (
+                  <Loader2 className="mr-1 animate-spin" />
+                ) : view.status === 'failed' ? (
+                  <RotateCcw className="mr-1" />
+                ) : (
+                  <Play className="mr-1" />
+                )}
+                {dispatching.includes(view.file) ? '采集中…' : view.status === 'failed' ? '重试采集' : '派发给子 agent'}
+              </Button>
+            )}
             {view && view.status !== 'running' && (
               <Button
                 variant="outline"
