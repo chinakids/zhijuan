@@ -168,6 +168,11 @@ export default function Novel() {
   // 章节「时间线」修改（2026-10-05 创作层：多线叙事建章后无改线入口=约定头字段编辑收口补齐）
   const [lineEditing, setLineEditing] = useState<ChapterEntry | null>(null)
   const [lineVal, setLineVal] = useState('')
+  // 章节「涉及人物」修改（2026-10-28 体验层，F-20261028-07）：建章后此前无入口；
+  // 可按正文本地识别漏列人物（零模型）一键补全，AI 也能通过 zj_chapter_cast 工具改同一字段。
+  const [castEditing, setCastEditing] = useState<ChapterEntry | null>(null)
+  const [castVal, setCastVal] = useState('')
+  const [castSug, setCastSug] = useState<string[]>([])
   const [deleting, setDeleting] = useState<ChapterEntry | null>(null)
   // 切章未保存守卫（2026-09-23 创作层）：dirty 时点其他章节 → 确认（保存并切换/不保存切换/取消），
   // 防「写了一半点错章/随手切章丢稿」。dirtyRef 由 DocEditor onDirty 实时维护（只读，不参与保存行为）。
@@ -679,6 +684,48 @@ export default function Novel() {
       description: `${r.newSlice}${r.synced ? `（已同步 ${r.synced} 篇大纲副产物）` : ''}${r.staled ? `；${r.staled} 条旧切片提案已过期` : ''}；旧切片设定已保留为历史、不再参与后续同步`
     })
   }
+  /** 「涉及人物」输入解析：支持中文/英文逗号、顿号、分号、换行；去空去重（保序） */
+  function parseCastInput(s: string): string[] {
+    return [...new Set(s.split(/[,，、;；\n]+/).map((x) => x.trim()).filter(Boolean))]
+  }
+  async function doEditCast() {
+    if (!id || !castEditing) return
+    let r: Awaited<ReturnType<typeof window.zhijuan.editChapterCast>>
+    try {
+      r = await window.zhijuan.editChapterCast(id, '正文/' + castEditing.file, parseCastInput(castVal))
+    } catch (e) {
+      toast.add({ kind: 'error', title: '修改涉及人物失败', description: String((e as Error).message ?? e) })
+      return
+    }
+    if (!r.ok) {
+      toast.add({ kind: 'error', title: '修改涉及人物失败', description: r.error })
+      return
+    }
+    setCastEditing(null)
+    await refresh()
+    toast.add({
+      kind: 'success',
+      title: '已更新涉及人物',
+      description: r.newCast?.length ? r.newCast.join('、') : '已清空（本章不列任何人物）'
+    })
+  }
+  /** 按正文识别漏列人物（本地规则，零模型；别名参与匹配）→ 合并进输入框 */
+  async function doSuggestCast() {
+    if (!id || !castEditing) return
+    try {
+      const r = await window.zhijuan.suggestChapterCast(id, '正文/' + castEditing.file)
+      if (!r.ok) {
+        toast.add({ kind: 'error', title: '识别失败', description: r.error })
+        return
+      }
+      const merged = [...new Set([...parseCastInput(castVal), ...(r.cast ?? [])])]
+      setCastVal(merged.join('，'))
+      setCastSug(r.labels ?? [])
+      if (!r.cast?.length) toast.add({ kind: 'info', title: '正文里没有发现漏列的人物' })
+    } catch (e) {
+      toast.add({ kind: 'error', title: '识别失败', description: String((e as Error).message ?? e) })
+    }
+  }
   async function doEditLine() {
     if (!id || !lineEditing) return
     let r: Awaited<ReturnType<typeof window.zhijuan.editChapterLine>>
@@ -893,6 +940,16 @@ export default function Novel() {
         }}
       >
         修改时间线
+      </Item>
+      <Item
+        onSelect={() => {
+          setCastEditing(c)
+          const cur = c.fm?.['涉及人物']
+          setCastVal(Array.isArray(cur) ? cur.join('，') : String(cur ?? ''))
+          setCastSug([])
+        }}
+      >
+        修改涉及人物
       </Item>
       {/* 章节重排（2026-10-09 创作层）：上移=与前一章交换章号，下移=与后一章交换；边界禁用（HIG 置灰示态） */}
       {(() => {
@@ -1527,7 +1584,48 @@ export default function Novel() {
         </DialogContent>
       </Dialog>
 
-      {/* 章节删除确认：正文 + 同名大纲副产物移入系统废纸篓（可找回） */}
+      {/* 章节「涉及人物」修改（2026-10-28，F-20261028-07）：建章后唯一修正入口。
+          只改正文约定头一行、正文体零变化；「按正文识别」用本地规则（零模型）补漏列。 */}
+      <Dialog open={!!castEditing} onOpenChange={(o) => !o && setCastEditing(null)}>
+        <DialogContent className="sm:max-w-md" outsideDismiss={false}>
+          <DialogHeader>
+            <DialogTitle>修改涉及人物</DialogTitle>
+            <DialogDescription>
+              本章约定头列出的出场人物，供人物在场核查与写作上下文装配使用。只改约定头，不动正文。「按正文识别」会按正文里出现的本名/登记别名，补上漏列的人（本地规则、秒级、不调模型）。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label htmlFor="edit-cast">涉及人物</Label>
+            <Input
+              id="edit-cast"
+              autoFocus
+              data-testid="edit-cast-input"
+              value={castVal}
+              placeholder="如：阿七，沈藏（留空=本章不列人物）"
+              onChange={(e) => setCastVal(e.target.value)}
+              onKeyDown={(e) => {
+                if (isImeComposing(e)) return
+                if (e.key === 'Enter') void doEditCast()
+              }}
+            />
+            <div className="flex items-center gap-2 pt-0.5">
+              <Button type="button" variant="outline" size="sm" data-testid="edit-cast-suggest" onClick={() => void doSuggestCast()}>
+                按正文识别
+              </Button>
+              <span className="text-xs text-ink-3">识别结果会并入上面的清单，保存前可再改</span>
+            </div>
+            {castSug.length > 0 && (
+              <p className="text-xs text-accent" data-testid="edit-cast-suggest-result">
+                已补：{castSug.join('、')}
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCastEditing(null)}>取消</Button>
+            <Button data-testid="edit-cast-save" onClick={() => void doEditCast()}>保存</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

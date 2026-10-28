@@ -1259,6 +1259,17 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
       }
       if (apiRef) apiRef.current = api
       testRegister(api)
+      // 挂载基线回声（F-20261028-05，2026-10-28）：磁盘原文经 Milkdown 解析后重新序列化，
+      // 格式与原文必然不同（AI 生成的文档差异更大：空行/列表/转义/尾换行都会被规范化）。
+      // 若不在这里回报一次「程序化」，宿主首次 markdownUpdated 会把它当用户编辑 → 文档刚打开
+      // 就显示「● 未保存」；更严重的是此后任何外部写盘（如采纳提案）都会被 DocEditor 的
+      // dirty 守卫拒绝，表现为「采纳了但编辑器不更新，关掉重开才看到」。
+      // 以 programmatic=true 回报当前序列化结果，宿主据此把它定为保存基线（idle/saved）。
+      try {
+        onEditRef.current?.(api.getMarkdown(), true)
+      } catch {
+        /* 序列化失败不阻塞挂载；下一次 markdownUpdated 仍会正常走 onEdit */
+      }
       // 编辑器就绪：初次计算批注侧标位置
       scheduleGutterRef.current?.()
       if (win.__ZJ_TEST) {

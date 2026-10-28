@@ -40,6 +40,8 @@ import {
   renameChapter,
   editChapterSlice,
   editChapterLine,
+  editChapterCast,
+  suggestChapterCast,
   reorderChapter,
   deleteChapter,
   watchProject
@@ -348,6 +350,9 @@ export function registerIpc() {
   ipcMain.handle('chapter:rename', (_e, id: string, rel: string, newTitle: string) => renameChapter(id, rel, newTitle))
   ipcMain.handle('chapter:editSlice', (_e, id: string, rel: string, newSlice: string) => editChapterSlice(id, rel, newSlice))
   ipcMain.handle('chapter:editLine', (_e, id: string, rel: string, newLine: string) => editChapterLine(id, rel, newLine))
+  // 章节「涉及人物」：建章后唯一修正入口（2026-10-28，F-20261028-07）；suggest=按正文识别漏列人物（本地规则）
+  ipcMain.handle('chapter:editCast', (_e, id: string, rel: string, cast: string[]) => editChapterCast(id, rel, cast))
+  ipcMain.handle('chapter:suggestCast', (_e, id: string, rel: string) => suggestChapterCast(id, rel))
   ipcMain.handle('chapter:reorder', (_e, id: string, rel: string, dir: number) => reorderChapter(id, rel, dir))
   ipcMain.handle('chapter:delete', (_e, id: string, rel: string) => deleteChapter(id, rel))
   ipcMain.handle('chapter:export', async (e, id: string, rel: string) => {

@@ -1116,6 +1116,39 @@ const mock = {
     }
     return { ok: true, oldLine, newLine: s || DEFAULT_LINE, synced }
   },
+  // 章节「涉及人物」修改（真机 store.editChapterCast 同语义：只改正文约定头一行，正文体零变化；空数组=清空）
+  editChapterCast: async (_id: string, rel: string, cast: string[]) => {
+    if (!rel?.startsWith('正文/') || !rel.endsWith('.md') || rel.split('/').some((s) => s === '..')) return { ok: false, error: '路径不合法' }
+    const k = _id + '/' + rel
+    const cur = docs.get(k)
+    if (cur === undefined) return { ok: false, error: '章节不存在' }
+    const list = [...new Set((cast ?? []).map((s) => String(s).trim()).filter(Boolean))]
+    const oldCast = listedFrom(extractFrontMatter(cur).fm ?? {})
+    if (oldCast.join('\u0000') === list.join('\u0000')) return { ok: true, oldCast, newCast: list }
+    docs.set(k, setFrontMatterField(cur, '涉及人物', `[${list.join(', ')}]`))
+    fsEmit(_id, rel)
+    return { ok: true, oldCast, newCast: list }
+  },
+  // 按正文识别漏列人物（真机 store.suggestChapterCast 同语义：本地规则、别名参与匹配）
+  suggestChapterCast: async (_id: string, rel: string) => {
+    if (!rel?.startsWith('正文/') || !rel.endsWith('.md') || rel.split('/').some((s) => s === '..')) return { ok: false, error: '路径不合法' }
+    const cur = docs.get(_id + '/' + rel)
+    if (cur === undefined) return { ok: false, error: '章节不存在' }
+    const { fm, body } = extractFrontMatter(cur)
+    const listed = listedFrom(fm ?? {})
+    const knownChars: string[] = []
+    const aliasMap: Record<string, string[]> = {}
+    for (const [key, raw] of docs) {
+      if (!key.startsWith(_id + '/人物/') || !key.endsWith('.md') || key.endsWith('/总览.md')) continue
+      const f2 = extractFrontMatter(raw).fm ?? {}
+      const name = String(f2['题名'] ?? key.split('/').pop()!.replace(/\.md$/, '')).trim()
+      if (!name) continue
+      knownChars.push(name)
+      aliasMap[name] = parseAliases(f2)
+    }
+    const hits = unlistedInBody({ body, listed, knownChars, aliasMap })
+    return { ok: true, cast: hits.map((h) => h.name), labels: hits.map((h) => (h.alias ? `${h.name}（${h.alias}）` : h.name)) }
+  },
   // 章节「上移/下移」重排（真机 store.reorderChapter 同语义：与相邻章交换章号=文件名前缀+约定头；大纲副产物随章改名+章卡 fm 章号同步+索引重建；历史 key 迁移；proposals 指针迁移）
   reorderChapter: async (_id: string, rel: string, dir: number) => {
     if (!rel?.startsWith('正文/') || !rel.endsWith('.md') || rel.split('/').some((s) => s === '..')) return { ok: false, error: '路径不合法' }

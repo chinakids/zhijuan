@@ -17,9 +17,11 @@
 //
 // 存储：只读 fs（作品根目录由调用方以 base 传入），不引入第二套存储；写操作一律走 UI 提案制。
 
-import { readdir, readFile, stat } from 'node:fs/promises'
+import { readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs'
 import { basename, join, resolve, sep } from 'node:path'
+import { extractFrontMatter, setFrontMatterField } from '../../shared/fmatter'
+import { listedFrom, parseAliases, unlistedInBody } from '../../shared/presence'
 import type { ToolDefinition } from '@earendil-works/pi-coding-agent'
 
 const MAX_HEAD = 80_000 // zj_read_doc 单文件返回上限（与 zj-core 同值）
@@ -365,6 +367,65 @@ export function buildPiTools(deps: PiToolDeps): ToolDefinition[] {
         return textResult(
           `（已为 ${file} 生成修改方案，共 ${out.length} 处；作者采纳后才会写入；完整载荷见下）\n★ZJ_EDIT★\n` + payload + '\n★ZJ_END★',
           { file, edits: out }
+        )
+      }
+    },
+    {
+      name: 'zj_chapter_cast',
+      label: '章节涉及人物',
+      description:
+        '更新某一章约定头里的「涉及人物」清单（直接写盘，只改这一行，不动正文）。用于：写完/改完正文后，让章节的出场人物与正文一致。mode="from_body" 时按正文自动识别漏列人物（本地规则、登记别名参与匹配）并并入现有清单；mode="set"（默认）用 cast 覆盖。file 为相对作品根目录的正文路径（如 正文/第03章_晨雾.md）。',
+      parameters: objectSchema(
+        {
+          base: str('作品根目录（绝对路径）'),
+          file: str('章节相对路径（正文/xxx.md）'),
+          cast: {
+            description: 'mode=set 时的完整人物清单（数组或 JSON 数组字符串）',
+            anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }]
+          },
+          mode: { type: 'string', enum: ['set', 'from_body'], description: 'set=用 cast 覆盖；from_body=按正文补漏列（保留现有）' }
+        },
+        ['base', 'file']
+      ),
+      async execute(_id: string, args: any) {
+        const base = String(args.base)
+        const file = String(args.file)
+        const full = clamp(base, file)
+        let text: string
+        try {
+          text = await readFile(full, 'utf-8')
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code === 'ENOENT') return textResult(`（没有这个文档：${file}）`, { file }, true)
+          throw e
+        }
+        const { fm, body } = extractFrontMatter(text)
+        if (!fm) return textResult(`（${file} 没有约定头，不是织卷章节）`, { file }, true)
+        const listed = listedFrom(fm)
+        let next: string[]
+        if (String(args.mode ?? 'set') === 'from_body') {
+          const knownChars: string[] = []
+          const aliasMap: Record<string, string[]> = {}
+          const dir = join(base, '人物')
+          try {
+            for (const f of await readdir(dir)) {
+              if (!f.endsWith('.md') || f === '总览.md') continue
+              const f2 = extractFrontMatter(await readFile(join(dir, f), 'utf-8')).fm ?? {}
+              const name = String(f2['题名'] ?? f.replace(/\.md$/, '')).trim()
+              if (!name) continue
+              knownChars.push(name)
+              aliasMap[name] = parseAliases(f2)
+            }
+          } catch { /* 没有人物目录=不识别 */ }
+          const hits = unlistedInBody({ body, listed, knownChars, aliasMap })
+          next = [...new Set([...listed, ...hits.map((h) => h.name)])]
+        } else {
+          const raw = Array.isArray(args.cast) ? args.cast : parseJsonArray(args.cast) ?? String(args.cast ?? '').split(/[,，、\n]/)
+          next = [...new Set((raw as unknown[]).map((x) => String(x).trim()).filter(Boolean))]
+        }
+        await writeFile(full, setFrontMatterField(text, '涉及人物', `[${next.join(', ')}]`), 'utf-8')
+        return textResult(
+          `已更新 ${file} 的涉及人物：${next.length ? next.join('、') : '（空）'}（只改约定头，正文未动）`,
+          { file, cast: next }
         )
       }
     },

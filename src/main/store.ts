@@ -21,6 +21,7 @@ import { isOutlineCardRel, outlineIndexDoc, parseOutlineCard, syncChapterNameInD
 import { reorderPlan } from '../shared/chapterReorder'
 import { isMaterialCard } from '../shared/materialCard'
 import { chapterLine, DEFAULT_LINE } from '../shared/line'
+import { listedFrom, parseAliases, unlistedInBody } from '../shared/presence'
 import { listChapterEntries } from '../shared/chapters'
 import { PROJ_FILE, SKELETON_DIRS, DEFAULT_FILES, SKELETON_TEMPLATES, DOT_DIR } from '../shared/paths'
 import { sanitizeFile } from '../shared/paths'
@@ -638,6 +639,61 @@ export function editChapterLine(id: string, rel: string, newLine: string): EditC
     }
   }
   return { ok: true, oldLine, newLine: s || DEFAULT_LINE, synced }
+}
+
+export interface EditChapterCastResult {
+  ok: boolean
+  oldCast?: string[]
+  newCast?: string[]
+  error?: string
+}
+
+/** 章节「涉及人物」修改（2026-10-28 体验层，F-20261028-07）。
+ * 建章后此前无入口（只有建章对话框能填），作者/AI 都无法修正。这里只改约定头一行，
+ * 正文体零变化；空数组=清空。引用面（presence 核查 / 写作上下文装配）都以正文为源现扫，
+ * 改完下一次核查即生效；大纲副产物不带该字段，无需同步。 */
+export function editChapterCast(id: string, rel: string, cast: string[]): EditChapterCastResult {
+  const bad = !rel || !rel.startsWith('正文/') || !rel.endsWith('.md') || rel.startsWith('/') || rel.split('/').some((s) => s === '..')
+  if (bad) return { ok: false, error: '路径不合法' }
+  const list = [...new Set((cast ?? []).map((s) => String(s).trim()).filter(Boolean))]
+  const p = abs(id, rel)
+  if (!existsSync(p)) return { ok: false, error: '章节不存在' }
+  const raw = readFileSync(p, 'utf-8')
+  const { fm } = extractFrontMatter(raw)
+  if (!fm) return { ok: false, error: '该文件没有约定头，不是织卷章节' }
+  const oldCast = listedFrom(fm)
+  if (oldCast.join('\u0000') === list.join('\u0000')) return { ok: true, oldCast, newCast: list }
+  writeDoc(id, rel, setFrontMatterField(raw, '涉及人物', `[${list.join(', ')}]`))
+  return { ok: true, oldCast, newCast: list }
+}
+
+/** 从正文识别「该列但没列」的人物（本地规则，零模型）：供「章节涉及人物」对话框一键补全。
+ * 口径与体检/保存前提示同源（shared/presence.unlistedInBody），别名参与匹配。 */
+export function suggestChapterCast(id: string, rel: string): { ok: boolean; cast?: string[]; labels?: string[]; error?: string } {
+  const bad = !rel || !rel.startsWith('正文/') || !rel.endsWith('.md') || rel.startsWith('/') || rel.split('/').some((s) => s === '..')
+  if (bad) return { ok: false, error: '路径不合法' }
+  const p = abs(id, rel)
+  if (!existsSync(p)) return { ok: false, error: '章节不存在' }
+  const { fm, body } = extractFrontMatter(readFileSync(p, 'utf-8'))
+  const listed = listedFrom(fm ?? {})
+  const knownChars: string[] = []
+  const aliasMap: Record<string, string[]> = {}
+  const dir = join(projectDir(id), '人物')
+  if (existsSync(dir)) {
+    for (const f of readdirSync(dir)) {
+      if (!f.endsWith('.md') || f === '总览.md') continue
+      try {
+        const fraw = readFileSync(join(dir, f), 'utf-8')
+        const f2 = extractFrontMatter(fraw).fm ?? {}
+        const name = String(f2['题名'] ?? f.replace(/\.md$/, '')).trim()
+        if (!name) continue
+        knownChars.push(name)
+        aliasMap[name] = parseAliases(f2)
+      } catch { /* 坏档跳过 */ }
+    }
+  }
+  const hits = unlistedInBody({ body, listed, knownChars, aliasMap })
+  return { ok: true, cast: hits.map((h) => h.name), labels: hits.map((h) => (h.alias ? `${h.name}（${h.alias}）` : h.name)) }
 }
 
 /** 章节「上移/下移」重排（2026-10-09 创作层）：与相邻章交换章号——文件名「第N章」前缀 + 约定头 `章号` 值。
