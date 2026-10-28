@@ -35,3 +35,4 @@ dsh-runtime/node_modules/
 dsh-runtime/dshhome/
 docs/发布冲刺*.md
 docs/架构评审*.md
+build/pi-runtime/

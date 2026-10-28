@@ -1,5 +1,10 @@
-// ===== 织卷 · dsh 写作引擎运行时管理（主进程） =====
-// 定位 dsh-runtime（vendored 引擎）、懒启动 SDK 写作引擎、按设置动态覆写 LLM 端点、会话管理。
+// ===== 织卷 · 写作引擎运行时（主进程）：按 AppSettings.engineCore 分发 pi / dsh =====
+// 两套实现同形（本文件下方全部 dsh* 函数 = dsh 子进程实现；piRuntime.ts = pi 进程内实现）。
+// 对外导出名保持不变（ensureHarness/driveSession/...），调用方（engine.ts、subtask.ts、ipc.ts）零改动。
+//
+// 内核切换（Phase 2，2026-10-28）：AppSettings.engineCore = 'pi'（默认）| 'dsh'（回退）。
+// pi = @earendil-works/pi-coding-agent，进程内 AgentSession，无 dsh-runtime 子进程（308M/185 包 → 150M/78 包）。
+// dsh 代码路径原样保留（dsh-runtime 目录与补丁脚本仍在），引擎出问题时把设置改回 'dsh' 即回到旧行为。
 import { app } from 'electron'
 import { createRequire } from 'module'
 import { execFileSync } from 'child_process'
@@ -10,9 +15,10 @@ import { homedir } from 'os'
 import { pathToFileURL } from 'url'
 import { getSettings } from '../settings'
 import { activeProvider, buildLlmOverrideYml } from '../../shared/providers'
+import * as piRt from './piRuntime'
 
 // ===== 织卷对“写作引擎”的薄接口（模块设计 §14之 / 评审 E2）=====
-// 现状实现是 dsh（runtime 下面所有函数）；以后实验别的 agent 框架 = 换一个实现，调用方通过本接口访问不感知差异。
+// 实现有两套（pi 进程内 / dsh 子进程），由 AppSettings.engineCore 分发；调用方通过本接口访问不感知差异。
 export interface EnginePort {
   /** 确保引擎在跑；失败返回原因串，成功 undefined */
   ensureHarness(): Promise<string | undefined>
@@ -174,7 +180,7 @@ async function loadSdk() {
 }
 
 /** 写作引擎是否已创建（用于设置变更时重启）；崩溃的子进程算「没跑」（2026-10-27） */
-export function isRuntimeCreated() {
+function dshIsRuntimeCreated() {
   return !!harness && harnessAlive(harness)
 }
 
@@ -384,7 +390,7 @@ function nodeBin(): string {
 /** 确保写作引擎在跑；失败返回结构化诊断串（6 行），成功返回 undefined。
  * 2026-10-27 鲁棒性：①整链包 try（加载 SDK / patch 生成 / spawn / 握手 任一步失败都返诊断，不 throw）；
  * ②启动 45s 超时；③句柄非空 ≠ 活着（探活 + exit 监听）；④连续失败退避（限流轮询触发的重复 spawn）。 */
-export async function ensureHarness(): Promise<string | undefined> {
+async function dshEnsureHarness(): Promise<string | undefined> {
   // 崩溃（子进程退出）后 harness 已由 watchEngineExit 置空；这里再兜一层，防 SDK 不暴露 child 的降级路径
   if (harness && !harnessAlive(harness)) {
     harness = null
@@ -455,23 +461,23 @@ export async function ensureHarness(): Promise<string | undefined> {
 
 /** 重启写作引擎（2026-10-27）：关闭旧句柄 → 清失败计数/退避 → 重新拉起。设置页「重启引擎」用；
  * 返回 undefined=成功，否则与 ensureHarness 同格式的诊断串。 */
-export async function restartHarness(): Promise<string | undefined> {
+async function dshRestartHarness(): Promise<string | undefined> {
   await closeHarness()
   failCount = 0
   lastFailAt = 0
   lastFailMsg = ''
   lastExit = null
-  return ensureHarness()
+  return dshEnsureHarness()
 }
 
 /** 引擎运行时状态（设置页/状态点判断用）：running=真的活着；lastExit=最近一次崩溃 */
-export function runtimeState(): { running: boolean; lastExit: { code: number | null; signal: string | null; at: number } | null } {
+function dshRuntimeState(): { running: boolean; lastExit: { code: number | null; signal: string | null; at: number } | null } {
   return { running: !!harness && harnessAlive(harness), lastExit }
 }
 
 // 拿到（或创建）一个会话句柄
-async function sessionHandle(key: string) {
-  const err = await ensureHarness()
+async function dshSessionHandle(key: string) {
+  const err = await dshEnsureHarness()
   if (err) throw new Error(err)
   return harness.session(key)
 }
@@ -484,12 +490,12 @@ async function sessionHandle(key: string) {
  * reasoningEffort（2026-09-20 智能层）：本轮思考档位（'off'|'low'|'high'|'max'）——session/prompt 携带，
  * server 侧经 createSession 的 setup 安装模型选择（vendored 补丁 patch-server-reasoning；dsh-headless 同款
  * 公开模式）；不携带 = 模型默认档（不传参），既有调用零行为变化。 */
-export async function driveSession(
+async function dshDriveSession(
   sid: string,
   text: string,
   opts?: { onEvent?: (n: DriveEvent) => void; maxMs?: number; isAborted?: () => boolean; maxTokens?: number; reasoningEffort?: string }
 ): Promise<string> {
-  const err = await ensureHarness()
+  const err = await dshEnsureHarness()
   if (err) throw new Error(err)
   const client = harness.client
   const sub = client.subscribeSessionTree(sid)
@@ -567,8 +573,8 @@ export const syncSessionId = (projectId: string) => `zj-sync-${projectId}`
  * 实现：harness.client.request('session/cancel') —— 低阶口公开；server 侧需要 vendored 补丁
  * （dsh-runtime/scripts/patch-server-cancel.mjs，install.sh 自动重放）。SDK 无公开中断口
  * （HarnessClient 注释明言无 wire-level cancel），未开机时静默降级（返回 false，调用方按展示性取消兜底）。 */
-export async function cancelTurn(sessionId: string): Promise<boolean> {
-  const err = await ensureHarness()
+async function dshCancelTurn(sessionId: string): Promise<boolean> {
+  const err = await dshEnsureHarness()
   if (err) return false
   const client = (harness as any)?.client
   if (!client?.request) return false
@@ -581,16 +587,73 @@ export async function cancelTurn(sessionId: string): Promise<boolean> {
 }
 
 /** 关闭写作引擎（应用退出时） */
-export async function closeHarness() {
+async function dshCloseHarness() {
   if (!harness) return
   const h = harness
   harness = null
   try { await h.close() } catch {}
 }
 
-export { sessionHandle, runtimeDir, dshHome, runDir, writableRoot }
+export { runtimeDir, dshHome, runDir, writableRoot }
 
-/** E2：以 EnginePort 形式暴露当前 dsh 实现（调用方走接口；以后换引擎 = 换这个单例的实现） */
+// ===== 内核分发（Phase 2）=====
+// pi 为默认内核（进程内）；engineCore='dsh' 时走上面的 dsh 子进程实现。
+// 注意：只按设置分发，不做静默降级——pi 起不来时 ensureHarness 返回的诊断串会带到设置页/错误气泡，
+// 由作者决定是否切回 dsh（静默混用两套内核会让会话历史对不上）。
+
+/** 当前生效的 agent 内核（缺省 pi；显式 'dsh' 才回退） */
+export function engineCore(): 'pi' | 'dsh' {
+  return getSettings().engineCore === 'dsh' ? 'dsh' : 'pi'
+}
+
+/** 确保引擎在跑；失败返回原因串 */
+export async function ensureHarness(): Promise<string | undefined> {
+  return engineCore() === 'dsh' ? dshEnsureHarness() : piRt.ensureHarness()
+}
+
+/** 重启引擎（pi = dispose 会话 + 重建 ModelRuntime；dsh = 关子进程后重拉） */
+export async function restartHarness(): Promise<string | undefined> {
+  return engineCore() === 'dsh' ? dshRestartHarness() : piRt.restartHarness()
+}
+
+/** 运行时状态（设置页/状态点判断用） */
+export function runtimeState(): { running: boolean; lastExit: { code: number | null; signal: string | null; at: number } | null } {
+  if (engineCore() === 'dsh') return dshRuntimeState()
+  const s = piRt.runtimeState()
+  return { running: s.running, lastExit: s.lastExit }
+}
+
+/** 引擎是否已创建（设置变更时决定是否重启） */
+export function isRuntimeCreated(): boolean {
+  return engineCore() === 'dsh' ? dshIsRuntimeCreated() : piRt.isRuntimeCreated()
+}
+
+/** 拿到（或创建）一个会话句柄 */
+export async function sessionHandle(key: string): Promise<unknown> {
+  return engineCore() === 'dsh' ? dshSessionHandle(key) : piRt.sessionHandle(key)
+}
+
+/** 低阶驱动一轮（事件形状 = dsh DriveEvent，engine.translate 共用） */
+export async function driveSession(
+  sid: string,
+  text: string,
+  opts?: { onEvent?: (n: DriveEvent) => void; maxMs?: number; isAborted?: () => boolean; maxTokens?: number; reasoningEffort?: string }
+): Promise<string> {
+  return engineCore() === 'dsh' ? dshDriveSession(sid, text, opts) : piRt.driveSession(sid, text, opts)
+}
+
+/** 真中断指定会话的活动轮次 */
+export async function cancelTurn(sessionId: string): Promise<boolean> {
+  return engineCore() === 'dsh' ? dshCancelTurn(sessionId) : piRt.cancelTurn(sessionId)
+}
+
+/** 关闭引擎（应用退出时） */
+export async function closeHarness(): Promise<void> {
+  if (engineCore() === 'dsh') return dshCloseHarness()
+  return piRt.closeHarness()
+}
+
+/** E2：以 EnginePort 形式暴露当前内核实现（调用方走接口；换引擎 = 换分发目标） */
 export const engine: EnginePort = {
   ensureHarness,
   restartHarness,

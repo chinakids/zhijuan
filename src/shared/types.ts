@@ -121,6 +121,10 @@ export interface AppSettings {
   settingsPane: SettingsPaneKey
   /** 常用 agent 工具开关（harness 引擎内） */
   agentTools?: { todo?: boolean; askUser?: boolean }
+  /** agent 内核（2026-10-28 Phase 2）：'pi' = @earendil-works/pi-coding-agent（进程内，默认）；
+   *  'dsh' = 旧 dsh 子进程内核（回退路径，dsh-runtime 仍在）。
+   *  缺省（undefined）= 'pi'；renderer 设置开关接线另批，本字段先由设置页/配置文件直接改。 */
+  engineCore?: 'pi' | 'dsh'
   /** agent 能力开关（模块 J / E3）：缺省 = 全开；值为 false 即关闭该能力 */
   capabilities?: Record<string, boolean>
   /** 自定义用词词表（2026-09-21 智能层，候选「用词词表二期」；缺省=undefined=仅内置词表）。
@@ -149,6 +153,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   foldedCols: { novel: false, characters: false, worldview: false, outline: false, library: false },
   settingsPane: 'workspace',
   agentTools: { todo: true, askUser: true },
+  engineCore: 'pi',
   writingInsightsEnabled: false,
   guideEnabled: true,
   guideSeen: []

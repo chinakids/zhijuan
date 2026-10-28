@@ -12,32 +12,14 @@ files:
 asar: true
 afterPack: scripts/afterPackMacos.js
 extraResources:
-  # 2026-10-27 迁移：dsh-runtime 现在是**只读模板**——打包版把 DSH_HOME 基础层
-  # （settings.yaml + profiles/{sdk,headless}）在首启从 resources/dsh-runtime/dshhome 复制到
-  # userData/dshhome，run/ 的 override patch 也写 userData/run（见 src/main/agent/runtime.ts
-  # 的 writableRoot/ensureWritableHome）。这样首启不再改写 .app 内文件，签名封条不被破坏。
-  # 因此这里只需带「不可变部分」，不要把本机可变状态打进包。
-  - from: dsh-runtime
-    to: dsh-runtime
+  # 2026-10-28：pi 内核取代 dsh（engineCore 默认 'pi'）。dsh-runtime（308M）不再随包；
+  # dev 工作区仍保留 dsh-runtime，供 engineCore='dsh' 回退与 scripts/dsh-boot-check 使用。
+  # pi 独立运行时树（149M），piRuntime 从 resources/pi-runtime 解析。
+  # pi 内核（2026-10-28 替换 dsh）：独立运行时树，piRuntime 从 resources/pi-runtime 解析
+  - from: build/pi-runtime/node_modules
+    to: pi-runtime/node_modules
     filter:
       - '**/*'
-      - '!testwork/**'
-      # 2026-10-27：开发态 DSH_HOME 会话历史（43MB，目录名里带本机绝对路径）会整包进 dmg。
-      # 只排 sessions/：profiles/ 与 settings.yaml 必须留（首启要按这份模板复制，dsh --profile sdk 读
-      # DSH_HOME/profiles/sdk）。引擎启动会重建 sessions（自检/首启实测见 scripts/dsh-boot-check.mjs）。
-      # 注：旧安装的 .app 内 sessions 会在首启作为「可选层」搬到 userData（升级不断上下文）。
-      - '!dshhome/sessions/**'
-      # profiles/node_modules 是 186 条目、165 个指向构建机 dsh-runtime/node_modules 的**绝对路径 symlink**
-      # （实测打出的包里是 /Users/chinakids/Desktop/织卷/...）→ 用户机上全悬空，且让 codesign 校验
-      # 报 435 处 file modified。实测删掉后引擎启动会自行重建（boot-check 557ms 通过），故不随包。
-      - '!dshhome/profiles/node_modules/**'
-      # profiles/node_modules_zj 是 spike 遗留的悬空 symlink（→ /tmp/dshspike/node_modules），
-      # 没有任何 cordis.yml 引用它；留在包里同样会让 codesign 报缺文件。
-      - '!dshhome/profiles/node_modules_zj'
-      # run/ 自 2026-10-27 起写在 userData/run（不再写资源目录）；这里仍排掉本机残留的旧 overlay patch，
-      # 免得把构建机的旧配置当模板带进包。
-      - '!run/**'
-      - '!**/*.log'
 mac:
   target:
     - target: dmg
