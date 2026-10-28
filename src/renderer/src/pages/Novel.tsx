@@ -1164,8 +1164,13 @@ export default function Novel() {
       <main
         className="relative flex min-w-0 flex-1 flex-col"
         onMouseDown={(e) => {
-          // 浮层为临时层：点其外任意处关闭（HIG Popovers）；Radix 菜单 portal 在 body，事件不经过本容器
-          if (chapOpen && !chapRef.current?.contains(e.target as Node)) {
+          // 浮层为临时层：点其外任意处关闭（HIG Popovers）；Radix 菜单 portal 在 body，事件不经过本容器。
+          // 2026-10-28 修（F-20261028-10）：菜单项本身也是「抽屉外」——若在这里立刻关抽屉，章列行
+          // 连同其 ContextMenu 触发器一起卸载，Radix 的 onSelect 还没触发就被销毁，表现为「右键菜单
+          // 能弹出，但点重命名/切片/时间线/涉及人物都没反应」。Portal 内的 mousedown 一律放行。
+          const t = e.target as HTMLElement | null
+          const inPopper = !!t?.closest?.('[data-radix-popper-content-wrapper]')
+          if (chapOpen && !inPopper && !chapRef.current?.contains(e.target as Node)) {
             setChapOpen(false)
           }
         }}
