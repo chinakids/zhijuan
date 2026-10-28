@@ -68,7 +68,8 @@ export interface SliceEntry {
 
 /** 目录里扫描到的章节条目 */
 export interface ChapterEntry {
-  file: string // 相对项目根，如 正文/第01章_夏夜.md
+  /** 相对「正文」目录（如 第01章_夏夜.md；store.listChapters 与 devShim 同口径）。注意提案的 `Proposal.chapter` 带「正文/」前缀——两边比较用 shared/line.lineOfChapter（双侧剥前缀）。 */
+  file: string
   name: string
   fm: ChapterFrontMatter | null
   wordCount: number
