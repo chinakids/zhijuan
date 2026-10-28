@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type ComponentType } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type ComponentType, type ReactNode } from 'react'
 import {
   Bold, Code, Ellipsis, Heading1, Heading2, Heading3, Italic, List, ListOrdered, Pilcrow, Quote, Undo2, Redo2
 } from 'lucide-react'
@@ -37,13 +37,19 @@ type EditorLike = { action: (fn: (ctx: any) => void) => void }
 export default function EditorToolbar({
   edRef,
   histTick = 0,
-  active = null
+  active = null,
+  leading = null,
+  trailing = null
 }: {
   edRef: MutableRefObject<EditorLike | null>
   /** Prose 在 markdownUpdated 时递增；工具栏据此重读撤销/重做可用态 */
   histTick?: number
   /** 当前光标处格式激活快照（Prose 侧 selection 级更新；null=编辑器未就绪，视为全灭） */
   active?: ActiveState | null
+  /** 最左插槽（如章节面板开关）：与工具图标同一行，不额外占一条 */
+  leading?: ReactNode
+  /** 最右插槽（如统一检查入口）：与工具图标同一行 */
+  trailing?: ReactNode
 }) {
   const groupsRef = useRef<ToolGroup[] | null>(null)
   const hidePriorityRef = useRef<number[] | null>(null)
@@ -185,6 +191,8 @@ export default function EditorToolbar({
 
   return (
     <div ref={barRef} className="zj-md-toolbar">
+      {leading}
+      {leading ? <span className="sep" /> : null}
       {/* 测量层：全量渲染、离屏不可交互；ResizeObserver 重算时读真实按钮宽 */}
       <div
         aria-hidden
@@ -247,6 +255,7 @@ export default function EditorToolbar({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
+      {trailing}
     </div>
   )
 }

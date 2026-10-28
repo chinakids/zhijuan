@@ -619,6 +619,7 @@ docs.set(
 )
 
 const settings: AppSettings = {
+  auditAuto: { enabled: true, ai: false },
   workspace: '',
   libraryRoot: '',
   llm: { active: 'local', providers: {} },
@@ -2281,6 +2282,11 @@ const mock = {
   agentAnswer: async (_batch: string, answers: unknown[]) => {
     console.log('[devShim] agent answer', JSON.stringify(answers))
     return { ok: true }
+  },
+  // 检查自动化（mock）：真机由 main/agent/auditAuto.ts 跑真实检查并写提案；dev 下返回 0 条
+  auditAuto: async (_id: string, opts?: { ai?: boolean; kinds?: string[] }) => {
+    const kinds = opts?.kinds ?? ['presence', 'order', 'unused', 'actgaps', 'sliceord', 'nameform', 'mixform', 'overuse', 'repeat', ...(opts?.ai ? ['consistency', 'review', 'perspectives'] : [])]
+    return { ok: true, created: 0, ran: kinds.map((kind) => ({ kind, items: 0, proposals: 0 })) }
   },
   agentAudit: async (projectId: string, kind: string) => {
     // 失败态注入（?zj-auditfail=1）：模拟真机 runAudit「提取失败」返回（2026-09-20 智能层保护——

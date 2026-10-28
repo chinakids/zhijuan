@@ -3,6 +3,7 @@ import { ipcMain, BrowserWindow, dialog } from 'electron'
 import { runChat, runSync, abortRequest, type AgentOutEvent } from './engine'
 import { listSyncLog } from './syncLog'
 import { runAudit, runChapterCheck, type AuditKind } from './audit'
+import { runAuditAuto } from './auditAuto'
 import { runOutlineRebuild } from './outline'
 import { runMaterialTriage } from './triage'
 import { runDirector, cancelDirector } from './director'
@@ -69,6 +70,8 @@ export function registerAgentIpc() {
   })
   // 全卷检查子任务（一致性巡查 / 冷读报告）
   ipcMain.handle('agent:audit', (_e, projectId: string, kind: AuditKind) => runAudit(projectId, kind))
+  // 检查自动化（P1）：本地 9 项（+可选 AI 3 项）跑完自动转提案，作者在提案抽屉统一处置
+  ipcMain.handle('audit:auto', (_e, projectId: string, opts?: { ai?: boolean; kinds?: AuditKind[] }) => runAuditAuto(projectId, opts))
   // 本章级小环（每章短巡查 / 分层修订）
   ipcMain.handle('agent:chapterCheck', (_e, projectId: string, chapterRel: string, kind: 'chapter' | 'revision') =>
     runChapterCheck(projectId, chapterRel, kind)

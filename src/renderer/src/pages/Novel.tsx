@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams, useOutletContext, useBlocker, type BlockerFunction } from 'react-router-dom'
-import { Plus, BookOpen, PanelLeftOpen, PanelLeftClose, X, MoreHorizontal } from 'lucide-react'
+import { Plus, BookOpen, PanelLeftOpen, PanelLeftClose, X, MoreHorizontal, ShieldCheck } from 'lucide-react'
 import LoadingIndicator from '../components/LoadingIndicator'
 import type { ChapterEntry, ChapterCheckKind, UnlistedHit, MissingHit } from '../../../shared/types'
 import { serializeFrontMatter, addFrontMatterListItem, removeFrontMatterListItem } from '../../../shared/fmatter'
@@ -19,6 +19,8 @@ import DocEditor from '../features/editor/DocEditor'
 import ChapterNav from '../features/editor/ChapterNav'
 import { chapterNeighborsIn, chapterNavLabel } from '../../../shared/chapterNav'
 import HealthBar from '../features/audit/HealthBar'
+import AuditDrawer from '../features/audit/AuditDrawer'
+import type { AuditKind } from '../../../shared/types'
 import { useTour } from '../features/guide/useTour'
 import TourTip from '../features/guide/TourTip'
 import { runSliceSync } from '../features/sync/sliceSync'
@@ -173,6 +175,27 @@ export default function Novel() {
   const [castEditing, setCastEditing] = useState<ChapterEntry | null>(null)
   const [castVal, setCastVal] = useState('')
   const [castSug, setCastSug] = useState<string[]>([])
+  // 统一检查入口（2026-10-28）：编辑器工具栏一个入口 → 同一个 AuditDrawer（本地 9 类 + AI 3 类都在里面切换）
+  const [auditOpen, setAuditOpen] = useState(false)
+  const [auditTab, setAuditTab] = useState<AuditKind>('presence')
+  // 保存后自动检查（F-20261028-08）：本地 9 项零模型；AI 3 项由设置 auditAuto.ai 决定。
+  // 4s 防抖（连续保存只跑最后一轮）；结果进提案箱，不打断写作（toast 仅在新增时提示）。
+  const auditTimerRef = useRef<number | null>(null)
+  const scheduleAuditAuto = useCallback(() => {
+    if (auditTimerRef.current) window.clearTimeout(auditTimerRef.current)
+    auditTimerRef.current = window.setTimeout(async () => {
+      try {
+        const st = await window.zhijuan.getSettings()
+        if (!(st as any)?.auditAuto?.enabled) return
+        const r = await window.zhijuan.auditAuto(id)
+        if (r.created > 0) {
+          toast.add({ kind: 'success', title: '检查完成', description: `新增 ${r.created} 条提案` })
+          void useProposalStore.getState().refresh(id)
+        }
+      } catch { /* 自动检查失败不打扰写作；可在提案抽屉点「立即检查」看错误 */ }
+    }, 4000)
+  }, [id])
+  useEffect(() => () => { if (auditTimerRef.current) window.clearTimeout(auditTimerRef.current) }, [])
   const [deleting, setDeleting] = useState<ChapterEntry | null>(null)
   // 切章未保存守卫（2026-09-23 创作层）：dirty 时点其他章节 → 确认（保存并切换/不保存切换/取消），
   // 防「写了一半点错章/随手切章丢稿」。dirtyRef 由 DocEditor onDirty 实时维护（只读，不参与保存行为）。
@@ -1147,24 +1170,6 @@ export default function Novel() {
           }
         }}
       >
-        {/* 入口条：章节列已折叠（窄窗自动 / 宽窗手动）时提供「显示章节列表」入口（HIG Sidebars show/hide） */}
-        {effectiveNarrow && (
-          <div className="flex h-9 shrink-0 items-center gap-1 border-b border-hair px-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              data-testid="chapter-toggle"
-              title="显示章节列表"
-              aria-label="显示章节列表"
-              onClick={() => (narrow ? setChapOpen((v) => !v) : setChapHidden(false))}
-            >
-              <PanelLeftOpen />
-            </Button>
-            <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">章节</span>
-            <span className="flex-1" />
-          </div>
-        )}
         {/* 窄窗章节浮层：临时面板，选章/Esc/点外/关闭按钮收起 */}
         {narrow && chapOpen && (
           <div
@@ -1179,7 +1184,34 @@ export default function Novel() {
         {sel ? (
           <>
             <div className="min-h-0 flex-1">
-              <DocEditor projectId={id} rel={chapterRel} withFm extVersion={extVersion} editorApiRef={apiRef} annotations={annotations} onDirty={markDirty} saveHandleRef={saveHandleRef} onSave={() => { void refresh(); void handleChapterSaved(chapterRel) }} quoteSrcLabel={quoteSrcLabel}
+              <DocEditor projectId={id} rel={chapterRel} withFm extVersion={extVersion} editorApiRef={apiRef} annotations={annotations} onDirty={markDirty} saveHandleRef={saveHandleRef} onSave={() => { void refresh(); void handleChapterSaved(chapterRel); scheduleAuditAuto() }} quoteSrcLabel={quoteSrcLabel}
+                toolbarLeading={
+                  effectiveNarrow ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      data-testid="chapter-toggle"
+                      title="显示章节列表"
+                      aria-label="显示章节列表"
+                      onClick={() => (narrow ? setChapOpen((v) => !v) : setChapHidden(false))}
+                    >
+                      <PanelLeftOpen className="h-4 w-4" />
+                    </Button>
+                  ) : undefined
+                }
+                toolbarTrailing={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 px-2 text-xs"
+                    data-testid="audit-open"
+                    title="检查：本地规则（秒级）+ 一致性 / 冷读 / 多视角（AI）"
+                    onClick={() => { setAuditTab('presence'); setAuditOpen(true) }}
+                  >
+                    <ShieldCheck className="h-4 w-4" /> 检查
+                  </Button>
+                }
                 statusExtra={
                   <>
                     <ChapterNav list={chapters} visible={shownChapters} sel={sel} onGo={requestSwitch} hidden={effectiveNarrow} />
@@ -1626,6 +1658,15 @@ export default function Novel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* 统一检查抽屉：本地 9 类 + AI 3 类同处切换（工具栏「检查」与底部体检状态共用） */}
+      <AuditDrawer
+        projectId={id}
+        open={auditOpen}
+        tab={auditTab}
+        onClose={() => setAuditOpen(false)}
+        onTab={setAuditTab}
+      />
+
       <Dialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

@@ -286,6 +286,13 @@ const api = {
   syncLogList: (projectId: string) => ipcRenderer.invoke('sync:log', projectId) as Promise<SyncLogEntry[]>,
   agentAnswer: (batch: string, answers: { id: string; selected: string[]; custom?: string }[]) =>
     ipcRenderer.invoke('agent:answer', batch, answers) as Promise<{ ok: boolean; error?: string }>,
+  /** 检查自动化：本地 9 项（+ai=true 时 AI 3 项）跑完自动生成提案（2026-10-28，F-20261028-08） */
+  auditAuto: (id: string, opts?: { ai?: boolean; kinds?: AuditKind[] }) =>
+    ipcRenderer.invoke('audit:auto', id, opts) as Promise<{
+      ok: boolean
+      created: number
+      ran: { kind: AuditKind; items: number; proposals: number; error?: string }[]
+    }>,
   agentAudit: (projectId: string, kind: AuditKind) =>
     ipcRenderer.invoke('agent:audit', projectId, kind) as Promise<
       | { ok: true; result: { summary: string; items: AuditItem[] }; savedReport?: string }

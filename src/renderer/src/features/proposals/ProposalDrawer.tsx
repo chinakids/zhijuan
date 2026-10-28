@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, X, FileText, GitCompare, Inbox, ChevronDown, Trash2, RefreshCw, RotateCcw } from 'lucide-react'
+import { Check, X, FileText, GitCompare, Inbox, ChevronDown, Trash2, RefreshCw, RotateCcw, ShieldCheck } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Proposal, SyncIssue } from '../../../../shared/types'
 import { Button } from '../../components/ui/button'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../../components/ui/dropdown-menu'
 import { ScrollArea } from '../../components/ui/scroll-area'
 import { toast, type ToastKind, type ToastAction } from '../../store/toasts'
 import { cn } from '../../lib/utils'
@@ -259,7 +260,7 @@ function ItemCard({ p, projectId, onChanged, err, onErr, focused }: { p: Proposa
             <RotateCcw className="mr-1" /> 重新提议
           </Button>
         )}
-        <span className="text-[10px] text-ink-3">来自：{p.source === 'slice-sync' ? '正文保存同步' : p.source === 'annotation-sync' ? '批注同步' : 'agent'}</span>
+        <span className="text-[10px] text-ink-3">来自：{p.source === 'slice-sync' ? '正文保存同步' : p.source === 'annotation-sync' ? '批注同步' : p.source === 'audit' ? '检查' : 'agent'}</span>
       </div>
       {err && <p className="mt-2 rounded-md bg-danger-soft px-2 py-1 text-[11px] text-danger">{err}</p>}
     </div>
@@ -267,6 +268,36 @@ function ItemCard({ p, projectId, onChanged, err, onErr, focused }: { p: Proposa
 }
 
 export default function ProposalDrawer({ projectId, list, onChanged, onClose, focusId }: Props) {
+  // 检查自动化配置（2026-10-28，F-20261028-08）：提案抽屉=统一收口，开关就放在这里
+  const [auditCfg, setAuditCfg] = useState<{ enabled: boolean; ai: boolean }>({ enabled: true, ai: false })
+  const [auditBusy, setAuditBusy] = useState(false)
+  useEffect(() => {
+    void window.zhijuan.getSettings().then((st) => {
+      const c = (st as any)?.auditAuto
+      if (c) setAuditCfg({ enabled: !!c.enabled, ai: !!c.ai })
+    }).catch(() => {})
+  }, [])
+  const saveAuditCfg = async (next: { enabled: boolean; ai: boolean }) => {
+    setAuditCfg(next)
+    try { await window.zhijuan.setSettings({ auditAuto: next } as any) } catch (e) {
+      toast.add({ kind: 'error', title: '保存检查设置失败', description: String((e as Error).message ?? e) })
+    }
+  }
+  const runAuditNow = async () => {
+    setAuditBusy(true)
+    try {
+      const r = await window.zhijuan.auditAuto(projectId, { ai: auditCfg.ai })
+      if (r.created > 0) toast.add({ kind: 'success', title: '检查完成', description: `新增 ${r.created} 条提案` })
+      else toast.add({ kind: 'info', title: '检查完成', description: '没有新的可执行提案' })
+      const errs = r.ran.filter((x) => x.error)
+      if (errs.length) toast.add({ kind: 'warning', title: '部分检查失败', description: errs.map((x) => x.kind).join('、') })
+      onChanged()
+    } catch (e) {
+      toast.add({ kind: 'error', title: '检查失败', description: String((e as Error).message ?? e) })
+    } finally {
+      setAuditBusy(false)
+    }
+  }
   // 提案级错误（proposalId→err）：ItemCard 在 pending→done 换组时会卸载重挂，组件本地错误态
   // 会丢失（15:45 轮实锤）——挂抽屉级 Map，换组后卡片内红字仍可见；2026-09-17 再迁 store：
   // IO 失败保持 pending 后失败卡是「可恢复资源」，关抽屉重开红字不能丢（只靠 toast 记忆作者
@@ -393,6 +424,26 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
           <span className="text-sm font-medium">提案</span>
           <span className="ml-2 text-[11px] text-ink-3">切片同步与批注优化都会在这里提出修改</span>
           <span className="flex-1" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-[11px] [&_svg]:size-3" data-testid="audit-settings">
+                <ShieldCheck /> 检查
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>检查自动化</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => void saveAuditCfg({ ...auditCfg, enabled: !auditCfg.enabled })}>
+                {auditCfg.enabled ? '✓ ' : ''}保存后自动检查（本地 9 项）
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void saveAuditCfg({ ...auditCfg, ai: !auditCfg.ai })}>
+                {auditCfg.ai ? '✓ ' : ''}AI 巡读（一致性 / 冷读 / 多视角）
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled={auditBusy} onSelect={() => void runAuditNow()}>
+                {auditBusy ? '检查中…' : '立即检查一次'}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2 text-[11px] [&_svg]:size-3" onClick={() => void doScan()}>
             <RefreshCw /> 扫描批注
           </Button>

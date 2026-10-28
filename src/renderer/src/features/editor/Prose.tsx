@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type MutableRefObject } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type MutableRefObject, type ReactNode } from 'react'
 import { Editor, rootCtx, defaultValueCtx, editorViewCtx, parserCtx, serializerCtx, prosePluginsCtx } from '@milkdown/kit/core'
 import { commonmark } from '@milkdown/kit/preset/commonmark'
 import { gfm } from '@milkdown/kit/preset/gfm'
@@ -82,6 +82,9 @@ interface ProseProps {
   /** 划词「添加到对话」的来源显示名（DocEditor 由 rel 经 quoteSrcOf 生成）——
    * zj:quote-text 事件 detail 携带 {text, src}，供输入区提示条与发送文案标注准确来源。 */
   quoteSrc?: string
+  /** 编辑器工具栏最左/最右插槽（正文页：章节面板开关 / 统一检查入口） */
+  toolbarLeading?: ReactNode
+  toolbarTrailing?: ReactNode
 }
 
 interface WinWithEditors {
@@ -138,7 +141,7 @@ function testUnregister(api: ProseApi) {
   if (i >= 0) a.splice(i, 1)
 }
 
-export default function Prose({ value, onEdit, apiRef, onCreateError, className, annotations, anno = true, memoryKey, quoteSrc }: ProseProps) {
+export default function Prose({ value, onEdit, apiRef, onCreateError, className, annotations, anno = true, memoryKey, quoteSrc, toolbarLeading, toolbarTrailing }: ProseProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const initialRef = useRef<string>(value)
   const onEditRef = useRef(onEdit)
@@ -1375,7 +1378,7 @@ export default function Prose({ value, onEdit, apiRef, onCreateError, className,
         <TourTip step={quoteTour.step} index={quoteTour.index} total={quoteTour.total} onNext={quoteTour.next} onSkip={quoteTour.skip} onFinish={quoteTour.finish} />
       )}
       <div className={cn('zj-md relative flex h-full min-h-0 flex-col overflow-hidden', className)}>
-        <EditorToolbar edRef={edRef} histTick={histTick} active={active} />
+        <EditorToolbar edRef={edRef} histTick={histTick} active={active} leading={toolbarLeading} trailing={toolbarTrailing} />
         <FindBar
           open={findOpen}
           query={findQuery}

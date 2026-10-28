@@ -138,6 +138,10 @@ export interface AppSettings {
   /** 首次使用功能引导（F-20260923-02）：默认开（guideEnabled）；guideSeen 记录的动线不再重复弹，设置可关闭与重看。 */
   guideEnabled: boolean
   guideSeen: string[]
+  /** 检查自动化（2026-10-28，F-20261028-08/09）：保存后自动跑检查并生成提案。
+   *  enabled=总开关（默认开，本地 9 项零模型秒级）；ai=是否也跑 AI 3 项（默认关，成本高）。
+   *  细项开关留待 P2；当前粒度=本地组 / AI 组。 */
+  auditAuto: { enabled: boolean; ai: boolean }
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -156,7 +160,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   engineCore: 'pi',
   writingInsightsEnabled: false,
   guideEnabled: true,
-  guideSeen: []
+  guideSeen: [],
+  auditAuto: { enabled: true, ai: false }
 }
 
 /** todo 清单项（模型通过 todo_write 维护的全量列表） */
@@ -370,7 +375,7 @@ export interface AnnotationRef {
 }
 export interface Proposal {
   id: string
-  source: 'slice-sync' | 'agent-chat' | 'annotation-sync'
+  source: 'slice-sync' | 'agent-chat' | 'annotation-sync' | 'audit'
   chapter: string
   slice: string
   status: 'pending' | 'accepted' | 'rejected' | 'stale'
