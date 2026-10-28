@@ -1241,7 +1241,17 @@ export default function Novel() {
             />
           </div>
         ) : (
-          <div className="flex h-full items-center justify-center text-sm text-ink-3">选择左侧一个章节开始（编辑器已就绪）</div>
+          <EmptyState
+            art="chapter"
+            title="选择一个章节开始"
+            hint="从左侧章节列表选一章；还没有章节就直接新建一章，编辑器会打开对应切片。"
+            action={
+              <Button onClick={openCreate} data-testid="novel-empty-create">
+                <Plus /> 新建章节
+              </Button>
+            }
+            dataTestId="novel-empty"
+          />
         )}
         {/* 切片同步结果：浮动提示，不占版面（失败带就地重试按钮，可点击） */}
         {syncMsg && (

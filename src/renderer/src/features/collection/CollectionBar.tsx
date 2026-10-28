@@ -27,6 +27,7 @@ interface TaskInfo {
   stale: boolean
 }
 
+const STATUS_TXT: Record<TaskStatus, string> = { pending: '待派发', running: '执行中', done: '已完成', failed: '失败' }
 const STATUS_CLS: Record<string, string> = {
   pending: 'bg-warn-soft text-warn',
   running: 'bg-accent-soft text-accent',
@@ -310,7 +311,7 @@ export default function CollectionBar({ requestOpen = 0 }: { requestOpen?: numbe
                   title="点击查看任务卡详情（回填的结果在此）"
                   className="flex items-center gap-2 rounded-lg border border-hair bg-surface px-2.5 py-1.5 text-left transition-colors hover:border-accent/60 hover:bg-surface-2"
                 >
-                  <span className={cn('rounded-full px-1.5 py-0.5 text-[10px]', STATUS_CLS[t.status])}>{t.status}</span>
+                  <span className={cn('rounded-full px-1.5 py-0.5 text-[10px]', STATUS_CLS[t.status])}>{STATUS_TXT[t.status]}</span>
                   {t.stale && (
                     <span
                       title={`已 ${staleDays(t.mtime, Date.now())} 天未被处理（采集 agent 可能停机/失败），可点右侧「派发/重试」或删除重发起`}

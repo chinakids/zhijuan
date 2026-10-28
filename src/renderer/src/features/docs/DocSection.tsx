@@ -311,9 +311,17 @@ export default function DocSection({ relDir, overviewFile, addLabel, addHint, em
             </div>
           </>
         ) : (
-          <div className="flex h-full items-center justify-center px-4 text-center text-sm text-ink-3">
-            {colHidden ? `点上方「显示${listLabel ?? '文档'}列表」恢复侧栏，选择一个文档开始。` : '选择左侧一个文档开始'}
-          </div>
+          <EmptyState
+            className="h-full"
+            title="还没有打开文档"
+            hint={colHidden ? `点上方「显示${listLabel ?? '文档'}列表」恢复侧栏，选择一个文档开始。` : '从左侧列表选择一个文档开始；也可以新建一份。'}
+            action={
+              <Button variant="outline" onClick={() => setCreating(true)}>
+                <Plus /> 新建{addLabel ?? '文档'}
+              </Button>
+            }
+            dataTestId="doc-empty"
+          />
         )}
       </main>
 

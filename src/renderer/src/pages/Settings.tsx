@@ -22,7 +22,7 @@ import type { SettingsPaneKey } from '../../../shared/types'
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5 pb-4">
-      <Label>{label}</Label>
+      <Label className="text-sm font-medium text-ink">{label}</Label>
       {children}
       {hint && <p className="min-w-0 text-xs leading-5 text-ink-3">{hint}</p>}
     </div>
@@ -501,7 +501,7 @@ export default function Settings() {
           </div>
         ) : (
           <div className="mx-auto max-w-2xl p-8">
-          <div className="flex items-center justify-between">
+          <div className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
             <div>
               <h2 className="text-lg font-semibold">{cur?.label}</h2>
               <p className="mt-0.5 text-sm text-ink-3">{cur?.hint}</p>
@@ -631,18 +631,22 @@ export default function Settings() {
                       <Field label="接入地址（高级，留空用官方默认）" hint={`默认：${p.baseURL}。改了走自定义网关 / 代理。`}>
                         <Input value={provBaseUrl} onChange={(e) => setProvBaseUrl(e.target.value)} placeholder={p.baseURL} />
                       </Field>
-                      <div className="mt-2 rounded-lg border border-hair bg-surface-2 p-3">
-                        <div className="flex items-center gap-2">
+                      <div className="mt-1 rounded-lg border border-hair bg-surface-2 px-3 py-2.5">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium leading-5 text-ink">连接检测</div>
+                            <p className="mt-0.5 text-xs leading-5 text-ink-3">用当前配置发最小请求，诊断「连不上」的原因（连接日志）。</p>
+                          </div>
                           <Button
                             size="sm"
                             variant="outline"
+                            className="shrink-0"
                             data-testid="llm-check"
                             disabled={checking}
                             onClick={runLlmCheck}
                           >
                             {checking ? '检测中…' : '连接检测'}
                           </Button>
-                          <span className="text-xs text-ink-3">用当前配置发最小请求，诊断「连不上」的原因（连接日志）</span>
                         </div>
                         {llmCheck && (
                           <pre
@@ -736,9 +740,9 @@ export default function Settings() {
           后台写作引擎默认生效（无需开关）：有 zj_* 写作工具、可读章节列计划、可向你确认；开始写一章时自动装配当前章节的创作上下文。
         </p>
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>任务清单（todo_write）</Label>
+          <div className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
+            <div className="min-w-0 flex-1">
+              <Label className="text-sm font-medium text-ink">任务清单（todo_write）</Label>
               <p className="min-w-0 text-xs leading-5 text-ink-3">模型会把执行步骤画成清单卡片，随进度更新。</p>
             </div>
             <Switch
@@ -752,9 +756,9 @@ export default function Settings() {
               }}
             />
           </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>需要你确认（ask_user）</Label>
+          <div className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
+            <div className="min-w-0 flex-1">
+              <Label className="text-sm font-medium text-ink">需要你确认（ask_user）</Label>
               <p className="min-w-0 text-xs leading-5 text-ink-3">需要选择时模型会停下，用提问卡等你回答。</p>
             </div>
             <Switch
@@ -776,8 +780,8 @@ export default function Settings() {
           {capsMeta.length ? (
             capsMeta.map((c) => (
               <div key={c.id} className="flex items-center justify-between">
-                <div>
-                  <Label>{c.title}</Label>
+                <div className="min-w-0 flex-1">
+                  <Label className="text-sm font-medium text-ink">{c.title}</Label>
                   <p className="min-w-0 text-xs leading-5 text-ink-3">{c.description ?? '…'}</p>
                 </div>
                 <Switch aria-label={c.title} checked={caps[c.id] !== false} onCheckedChange={(v) => toggleCap(c.id, v)} />
@@ -797,9 +801,9 @@ export default function Settings() {
               <Card className="mt-6 p-6">
                 <h3 className="text-sm font-semibold text-ink-2">外观与采集</h3>
                 <Separator className="my-4" />
-                <div className="flex items-center justify-between pb-4">
-                  <div>
-                    <Label>主题</Label>
+                <div className="flex items-start justify-between gap-4 pb-4">
+                  <div className="min-w-0 flex-1">
+                    <Label className="text-sm font-medium text-ink">主题</Label>
                     <p className="min-w-0 text-xs leading-5 text-ink-3">暖纸（默认）适合长时间写作，深色适合夜间。</p>
                   </div>
                   <div className="flex gap-1 rounded-lg border border-hair p-0.5" role="group" aria-label="主题">
@@ -840,12 +844,13 @@ export default function Settings() {
                     </Button>
                   </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>联网采集管道</Label>
+                <div className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                  <div className="min-w-0 flex-1">
+                    <Label className="text-sm font-medium text-ink">联网采集管道</Label>
                     <p className="min-w-0 text-xs leading-5 text-ink-3">开启后，采集池的任务会由本机管道后台处理（S5）。</p>
                   </div>
                   <Switch
+                    className="shrink-0"
                     aria-label="联网采集管道"
                     checked={collection}
                     onCheckedChange={(v) => {
@@ -855,12 +860,13 @@ export default function Settings() {
                     }}
                   />
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>批注定时优化</Label>
+                <div className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                  <div className="min-w-0 flex-1">
+                    <Label className="text-sm font-medium text-ink">批注定时优化</Label>
                     <p className="min-w-0 text-xs leading-5 text-ink-3">开启后，打开项目 10 秒后及每 30 分钟自动扫描批注并生成提案；关闭后仅在提案抽屉手动「扫描批注」。</p>
                   </div>
                   <Switch
+                    className="shrink-0"
                     aria-label="批注定时优化"
                     checked={annotations}
                     onCheckedChange={(v) => {
@@ -870,14 +876,15 @@ export default function Settings() {
                     }}
                   />
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>写作习惯学习</Label>
+                <div className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                  <div className="min-w-0 flex-1">
+                    <Label className="text-sm font-medium text-ink">写作习惯学习</Label>
                     <p className="min-w-0 text-xs leading-5 text-ink-3">
                       开启后，打开项目时自动分析写作行为（版本改动/批注意图/用词习惯），每周生成技能草稿到草稿区；草稿需在「写作引擎」技能包管理中手动转正才生效。默认关闭。
                     </p>
                   </div>
                   <Switch
+                    className="shrink-0"
                     aria-label="写作习惯学习"
                     checked={writingInsights}
                     onCheckedChange={(v) => {
@@ -887,12 +894,13 @@ export default function Settings() {
                     }}
                   />
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>焦点模式</Label>
+                <div className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                  <div className="min-w-0 flex-1">
+                    <Label className="text-sm font-medium text-ink">焦点模式</Label>
                     <p className="min-w-0 text-xs leading-5 text-ink-3">开启后，正文只强调当前段，其余段落淡化（iA Writer / Typora 同类范式）；默认关闭。</p>
                   </div>
                   <Switch
+                    className="shrink-0"
                     aria-label="焦点模式"
                     checked={focusMode}
                     onCheckedChange={(v) => {
@@ -902,12 +910,13 @@ export default function Settings() {
                     }}
                   />
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>打字机滚动</Label>
+                <div className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                  <div className="min-w-0 flex-1">
+                    <Label className="text-sm font-medium text-ink">打字机滚动</Label>
                     <p className="min-w-0 text-xs leading-5 text-ink-3">开启后，输入时正文自动滚动，让光标保持在屏幕中线附近（Typora 同类范式）；点击定位不强制居中；默认关闭。</p>
                   </div>
                   <Switch
+                    className="shrink-0"
                     aria-label="打字机滚动"
                     checked={typewriter}
                     onCheckedChange={(v) => {
@@ -917,9 +926,9 @@ export default function Settings() {
                     }}
                   />
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label>首次使用引导</Label>
+                <div className="flex items-start justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                  <div className="min-w-0 flex-1">
+                    <Label className="text-sm font-medium text-ink">首次使用引导</Label>
                     <p className="min-w-0 text-xs leading-5 text-ink-3">开启后，首次进入核心页面会弹出功能引导（可跳过，引导过的动线不再重复）；关闭则不打扰。</p>
                   </div>
                   <div className="flex items-center gap-3">
