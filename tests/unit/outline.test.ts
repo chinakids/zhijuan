@@ -55,6 +55,17 @@ describe('shared/outline · 章卡生成与回读', () => {
     expect(loose).not.toBeNull()
     expect(loose?.file).toBe('正文/第01章_雾港.md')
     expect(loose?.no).toBeUndefined()
+    expect(loose?.wordCount).toBe(0) // 老章卡（无「字数」行）→ 0，索引只显章数
+  })
+
+  it('字数随章卡落盘并回读（删章/改名重建索引后「按线分布」的字数不丢）', () => {
+    const doc = outlineCardDoc(card(2, '旧港'), '正文/第02章_旧港.md')
+    expect(doc).toMatch(/切片: 第一幕\n字数: 100\n状态: 已回建/)
+    expect(parseOutlineCard(doc, '大纲/第02章_旧港.md')?.wordCount).toBe(100)
+    // 反向：0 字不写行（缺省零冗余），回读为 0
+    const zero = outlineCardDoc({ ...card(3, '灯塔'), wordCount: 0 }, '正文/第03章_灯塔.md')
+    expect(zero).not.toContain('字数:')
+    expect(parseOutlineCard(zero, '大纲/第03章_灯塔.md')?.wordCount).toBe(0)
   })
 
   it('线名透传：非主线「时间线」写入 fm 且可回读；主线/缺省不写字段（与建章向导零冗余口径）', () => {

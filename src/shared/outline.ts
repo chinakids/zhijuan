@@ -26,8 +26,8 @@ export function outlineCardDoc(c: OutlineCard, chapterRel: string): string {
   const lineRow = c.line && c.line !== DEFAULT_LINE ? `时间线: ${c.line}\n` : ''
   const fm =
     c.no !== undefined
-      ? `---\n章号: ${c.no}\n题名: ${c.title}\n${lineRow}切片: ${c.slice}\n状态: 已回建\n---\n`
-      : `---\n题名: ${c.title}\n${lineRow}状态: 已回建\n---\n`
+      ? `---\n章号: ${c.no}\n题名: ${c.title}\n${lineRow}切片: ${c.slice}\n${c.wordCount > 0 ? `字数: ${c.wordCount}\n` : ''}状态: 已回建\n---\n`
+      : `---\n题名: ${c.title}\n${lineRow}${c.wordCount > 0 ? `字数: ${c.wordCount}\n` : ''}状态: 已回建\n---\n`
   const lines = [
     fm,
     '',
@@ -70,6 +70,8 @@ export function parseOutlineCard(raw: string, rel: string): OutlineCard | null {
   const fileM = raw.match(/^> 对应正文：(.+)$/m)
   const lM = raw.match(/^时间线:\s*(.+)/m)
   const line = lM ? lM[1].trim() : ''
+  // 字数：章卡落盘时记下「回建那刻」的正文计数，索引「按线分布」才能跨重建保持（否则删章/改名重建后字数消失）
+  const wM = raw.match(/^字数:\s*(\d+)/m)
   return {
     file: (fileM?.[1] ?? rel.replace(/^大纲\//, '正文/')).trim(),
     no: noM ? Number(noM[1]) : undefined,
@@ -80,7 +82,7 @@ export function parseOutlineCard(raw: string, rel: string): OutlineCard | null {
     beats: beatLines,
     charProgress: charM?.[1]?.trim() ?? '',
     hooks,
-    wordCount: 0
+    wordCount: wM ? Number(wM[1]) : 0
   }
 }
 
