@@ -1,7 +1,7 @@
 // ===== 织卷 V2 · 文档式 fileStore（模块设计 §2.4 / §四） =====
 // 所有项目数据都是明文文件；本模块只做：扫描、骨架、读写、监听（设置见 settings.ts，工作区见 workspace.ts）。
 import { shell } from 'electron'
-import { join, relative, basename, dirname, resolve, sep } from 'path'
+import { join, basename, dirname, resolve, sep } from 'path'
 import {
   mkdirSync,
   readdirSync,
@@ -17,6 +17,7 @@ import {
 import { writeFileAtomic } from './fsutil'
 import { removeFrontMatterField, extractFrontMatter, serializeFrontMatter, setFrontMatterField } from '../shared/fmatter'
 import { posixRel, toPosix } from '../shared/relpath'
+import { watchRelPath } from '../shared/watchPath'
 import { isOutlineCardRel, outlineIndexDoc, parseOutlineCard, syncChapterNameInDoc, syncChapterLineInDoc, syncChapterNoInDoc, syncChapterSliceInDoc } from '../shared/outline'
 import { reorderPlan } from '../shared/chapterReorder'
 import { isMaterialCard } from '../shared/materialCard'
@@ -827,7 +828,9 @@ export function watchProject(id: string, onEvent: (evt: FsEvent) => void): () =>
   try {
     watcher = watch(root, { recursive: true }, (_evt, filename) => {
       if (!filename) return
-      const rel = toPosix(relative(root, String(filename)))
+      // F-20261029-01：macOS 递归监听给的是「相对 root」的 filename（不是绝对路径），
+      // 直接 relative(root, filename) 会得到 ../.. 串 → 渲染层路径永不匹配 → agent/外部写盘不刷新。
+      const rel = watchRelPath(root, String(filename))
       if (!rel || rel.startsWith(DOT_DIR)) return // 工具目录变化不刷外部界面
       const kind = mapEvt(_evt)
       refreshCb?.({ projectId: id, kind, path: rel })
