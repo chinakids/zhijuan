@@ -150,10 +150,14 @@ try {
     const p = ps.find((x) => x.status === 'rejected')
     const doc = (await window.zhijuan.readDoc('${PID}', '人物/沈藏.md')) ?? ''
     const card = document.querySelector('[data-pid]')
-    return { rejected: !!p, docKept: doc.includes('作者后写：海况自查'), cardErr: card?.innerText.includes('已被修改') ?? false, toast: document.body.innerText.includes('提案未应用') }
+    // 失败卡可能不在 DOM 首位（自动检查/其它提案在同项目里 pending 更靠前）→ 按抽屉全局找红字元素
+    const errEl = document.querySelector('[data-testid="proposal-card-err"]')
+    return { rejected: !!p, docKept: doc.includes('作者后写：海况自查'), cardErr: !!errEl && (errEl.innerText || '').trim().length > 0, errText: (errEl?.innerText || '').slice(0, 80), cardCount: document.querySelectorAll('[data-pid]').length, toast: document.body.innerText.includes('提案未应用') }
   })()`)
   ok(after.rejected, '漂移提案已 rejected（内容校验失败，与 replace-text 同处置）')
-  ok(after.cardErr, '卡片红字「已被修改」可见（errMap 换组保留）')
+  // 断言锚点改结构化 testid（2026-10-29 体验层：旧版按文案「已被修改」判断，文案后来改成「请先核对原文…」
+  // 后恒假 → HEAD 即红的基线漂移；按失败卡红字元素存在且非空断言，文案再改不误红）
+  ok(after.cardErr, '卡片红字失败原因可见（errMap 换组保留）', after.errText)
   ok(after.toast, `toast「提案未应用」可见`)
   await shot('proposal-baseline-rejected')
 

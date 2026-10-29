@@ -189,7 +189,9 @@ export default function Novel() {
         if (!(st as any)?.auditAuto?.enabled) return
         const r = await window.zhijuan.auditAuto(id)
         if (r.created > 0) {
-          toast.add({ kind: 'success', title: '检查完成', description: `新增 ${r.created} 条提案` })
+          // 自动 vs 手动可分辨（2026-10-29 体验层 W44 走查）：标题点明「自动检查」，正文给出落点，
+          // 否则作者刚按的是「保存」，弹一条「检查完成」不知是谁在检查、去哪看。
+          toast.add({ kind: 'success', title: '自动检查完成', description: `新增 ${r.created} 条提案，可在左侧「提案」查看` })
           void useProposalStore.getState().refresh(id)
         }
       } catch { /* 自动检查失败不打扰写作；可在提案抽屉点「立即检查」看错误 */ }

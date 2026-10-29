@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { Proposal, SyncIssue } from '../../../../shared/types'
 import { Button } from '../../components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../../components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../../components/ui/dropdown-menu'
 import { ScrollArea } from '../../components/ui/scroll-area'
 import { toast, type ToastKind, type ToastAction } from '../../store/toasts'
 import { cn } from '../../lib/utils'
@@ -274,7 +274,7 @@ function ItemCard({ p, projectId, onChanged, err, onErr, focused, lineOf, showLi
         )}
         <span className="text-[10px] text-ink-3">来自：{p.source === 'slice-sync' ? '正文保存同步' : p.source === 'annotation-sync' ? '批注同步' : p.source === 'audit' ? '检查' : 'agent'}</span>
       </div>
-      {err && <p className="mt-2 rounded-md bg-danger-soft px-2 py-1 text-xs text-danger">{err}</p>}
+      {err && <p data-testid="proposal-card-err" className="mt-2 rounded-md bg-danger-soft px-2 py-1 text-xs text-danger">{err}</p>}
     </div>
   )
 }
@@ -459,14 +459,20 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
                 <ShieldCheck /> 检查
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent align="end" className="w-60">
               <DropdownMenuLabel>检查自动化</DropdownMenuLabel>
-              <DropdownMenuItem onSelect={() => void saveAuditCfg({ ...auditCfg, enabled: !auditCfg.enabled })}>
-                {auditCfg.enabled ? '✓ ' : ''}保存后自动检查（本地 9 项）
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void saveAuditCfg({ ...auditCfg, ai: !auditCfg.ai })}>
-                {auditCfg.ai ? '✓ ' : ''}AI 巡读（一致性 / 冷读 / 多视角）
-              </DropdownMenuItem>
+              <DropdownMenuCheckboxItem
+                checked={auditCfg.enabled}
+                onCheckedChange={(v) => void saveAuditCfg({ ...auditCfg, enabled: v === true })}
+              >
+                保存后自动检查（本地 9 项）
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={auditCfg.ai}
+                onCheckedChange={(v) => void saveAuditCfg({ ...auditCfg, ai: v === true })}
+              >
+                同时跑 AI 巡读（一致性 / 冷读 / 多视角）
+              </DropdownMenuCheckboxItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem disabled={auditBusy} onSelect={() => void runAuditNow()}>
                 {auditBusy ? '检查中…' : '立即检查一次'}
@@ -503,7 +509,7 @@ export default function ProposalDrawer({ projectId, list, onChanged, onClose, fo
           {pending.length === 0 && done.length === 0 && stale.length === 0 && !listErr && (
             <div className="flex flex-col items-center gap-2 py-16 text-ink-3">
               <Inbox className="h-6 w-6" />
-              <p className="text-xs">还没有提案。保存正文后，切片同步会在这里提出设定更新。</p>
+              <p className="text-xs">还没有提案。保存正文后，切片同步与自动检查会在这里提出设定更新。</p>
             </div>
           )}
           {pending.map((p) => <ItemCard key={p.id} p={p} projectId={projectId} onChanged={onChanged} err={errMap[p.id]} onErr={reportErr} focused={focusId === p.id} lineOf={lineOf} showLine={showLine} />)}
