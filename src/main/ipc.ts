@@ -496,7 +496,7 @@ export function registerIpc() {
 
   // 提案（S4）
   ipcMain.handle('proposal:list', (_e, id: string) => listProposals(libraryRoot(), id))
-  ipcMain.handle('proposal:create', (_e, id: string, source: Proposal['source'], chapter: string, slice: string, items: ProposalItem[], meta?: Proposal['meta'], metas?: Proposal['meta'][]) => createProposals(libraryRoot(), id, source, chapter, slice, items, meta, metas))
+  ipcMain.handle('proposal:create', (_e, id: string, source: Proposal['source'], chapter: string, slice: string, items: ProposalItem[], meta?: Proposal['meta'], metas?: Proposal['meta'][], protectIds?: Set<string>) => createProposals(libraryRoot(), id, source, chapter, slice, items, meta, metas, protectIds))
   // 切片同步专用（2026-09-20 候选 3）：去重「与已拒绝同款」+ 返回被抑制条数（UI 反馈真实性）
   ipcMain.handle('proposal:createSlice', (_e, id: string, chapter: string, slice: string, items: ProposalItem[]) => createSliceProposals(libraryRoot(), id, chapter, slice, items))
   ipcMain.handle('proposal:apply', (_e, id: string, pid: string) => {

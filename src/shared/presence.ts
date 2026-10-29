@@ -7,9 +7,9 @@
 // （与「涉及人物」同语法），别名参与匹配——missing 判定时别名出现=在场（免误报）；unlisted 判定时别名出现=命中；
 // 同一别名被两个及以上人物登记 = 数据冲突（medium）。单字名/未登记别称/指代仍不参与（机械层承认局限）。
 // 纯函数、不读盘，OCR 无关。
-import { extractFrontMatter } from './fmatter'
+import { extractFrontMatter, addFrontMatterListItem, removeFrontMatterListItem, frontMatterLineOf } from './fmatter'
 import { countWords } from './count'
-import type { AuditItem, AuditResult, MissingHit, UnlistedHit } from './types'
+import type { AuditItem, AuditResult, MissingHit, UnlistedHit, ProposalItem } from './types'
 
 export interface PresenceChapter {
   /** 相对项目根的路径，如 正文/第01章_雾港.md */
@@ -173,6 +173,35 @@ function titleOf(fm: Record<string, unknown> | null, file: string): string {
 }
 
 /**
+ * 生成「改本章约定头『涉及人物』」的**按章合并**可执行提案（2026-10-29 智能层）：
+ * 检查自动化（auditAuto）只把带 target（或自带 proposal）的条目转提案，而 presence 条目原本都没有
+ * target → 本地 9 项里最高频的「约定头 vs 正文不一致」永远进不了提案箱（设计 §3.3 第 3 条
+ * 承诺的可执行卡未落地，保存后「检查完成：新增 0 条提案」）。
+ * 一行约定头 = 一个处置单元：同章的多处增删合成**一张卡**（作者一次采纳改完），
+ * before=约定头那一整行原文 → 作者手改过该行时 apply 如实报「原文段已变」，不会错位替换。
+ * 无约定头 / 清单无净变化 → undefined（条目仍以建议卡形态留在审计抽屉）。
+ */
+function mergedCastProposal(raw: string, file: string, ops: { name: string; add: boolean }[]): ProposalItem | undefined {
+  if (!ops.length) return undefined
+  const beforeLine = frontMatterLineOf(raw, '涉及人物')
+  if (!beforeLine) return undefined
+  let next = raw
+  for (const op of ops) {
+    next = op.add ? addFrontMatterListItem(next, '涉及人物', op.name) : removeFrontMatterListItem(next, '涉及人物', op.name)
+  }
+  if (next === raw) return undefined
+  const afterLine = frontMatterLineOf(next, '涉及人物')
+  const added = ops.filter((o) => o.add).map((o) => `「${o.name}」`)
+  const removed = ops.filter((o) => !o.add).map((o) => `「${o.name}」`)
+  const parts = [...(removed.length ? [`移出${removed.join('、')}`] : []), ...(added.length ? [`补入${added.join('、')}`] : [])]
+  const reason = `检查 · 在场核查：本章涉及人物${parts.join('，')}`
+  return afterLine
+    ? { target: file, anchor: '', kind: 'replace-text', before: beforeLine, after: afterLine, reason }
+    : // 清单被移空 → 整行删除（before 带换行，避免约定头里留空行）
+      { target: file, anchor: '', kind: 'replace-text', before: beforeLine + '\n', after: '', reason }
+}
+
+/**
  * 人物在场与称谓核查：输入全部章节（约定头 + 正文）、人物档案题名清单（knownChars）与
  * 档案登记的别名表（aliasMap: 本名 → 别名数组），输出 AuditResult（与审计抽屉同构）。
  * - missing：约定头「涉及人物」列了、但正文既无本名也无登记别名 → medium
@@ -213,6 +242,10 @@ export function presenceCheck(opts: { knownChars: string[]; chapters: PresenceCh
     const listed = listedFrom(fm ?? {})
     const title = titleOf(fm, ch.file)
     const where = `${title}（${ch.file}）`
+    // 本章的约定头改单（逐人条目照旧进抽屉；**提案卡按章合并**——同一行 before 的两张卡
+    // 会互相作废：采纳第一张后第二张的 before 已漂移 → apply 报「原文段已变」，残留 pending 卡）。
+    const chItems: AuditItem[] = []
+    const ops: { name: string; add: boolean }[] = []
     for (const n of listed) {
       if (n.length < NAME_MIN) continue
       const aliases = aliasMap[n] ?? []
@@ -221,19 +254,20 @@ export function presenceCheck(opts: { knownChars: string[]; chapters: PresenceCh
       if (!body.includes(n) && !byAlias) {
         missCount++
         touched++
-        items.push({
+        chItems.push({
           severity: 'medium',
           type: 'character',
           where,
           what: `「涉及人物」列了「${n}」，但本章正文未出现 TA 的署名或登记的别名（${aliases.length ? aliases.join('、') + ' 均未出现' : '档案未登记别名'}）——可能已删戏，或用了未登记的别称/指代。`,
           suggest: `确认本章是否真需要「${n}」出场：需要则在正文补写该人物，不需要就把 TA 移出本章约定头的「涉及人物」。`
         })
+        ops.push({ name: n, add: false })
       }
     }
     for (const hit of unlistedInBody({ body, listed, knownChars: opts.knownChars, aliasMap, conflicted })) {
       unCount++
       touched++
-      items.push({
+      chItems.push({
         severity: 'low',
         type: 'character',
         where,
@@ -243,6 +277,12 @@ export function presenceCheck(opts: { knownChars: string[]; chapters: PresenceCh
         ...(hit.alias ? { refFile: `人物/${hit.name}.md` } : {}),
         suggest: `若「${hit.name}」确实在这一章出场，把 TA 加进本章约定头的「涉及人物」；若只是回忆/提及一笔，保留现状即可。`
       })
+      ops.push({ name: hit.name, add: true })
+    }
+    if (chItems.length) {
+      const merged = mergedCastProposal(ch.raw, ch.file, ops)
+      if (merged) chItems[0].proposal = merged // 卡挂首条；其余条目同 where 同源，抽屉里各自仍可见
+      items.push(...chItems)
     }
   }
   const n = opts.chapters.length

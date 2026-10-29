@@ -211,8 +211,8 @@ const api = {
 
   // 提案（S4）
   listProposals: (id: string) => ipcRenderer.invoke('proposal:list', id) as Promise<Proposal[]>,
-  createProposals: (id: string, source: 'slice-sync' | 'agent-chat' | 'annotation-sync', chapter: string, slice: string, items: ProposalItem[], meta?: { annotations?: { file: string; rows: number[] }[]; note?: string }, metas?: { annotations?: { file: string; rows: number[] }[]; note?: string }[]) =>
-    ipcRenderer.invoke('proposal:create', id, source, chapter, slice, items, meta, metas) as Promise<Proposal[]>,
+  createProposals: (id: string, source: 'slice-sync' | 'agent-chat' | 'annotation-sync' | 'audit', chapter: string, slice: string, items: ProposalItem[], meta?: { annotations?: { file: string; rows: number[] }[]; note?: string }, metas?: { annotations?: { file: string; rows: number[] }[]; note?: string }[], protectIds?: Set<string>) =>
+    ipcRenderer.invoke('proposal:create', id, source, chapter, slice, items, meta, metas, protectIds) as Promise<Proposal[]>,
   // 切片同步专用建提案（2026-09-20）：过滤「与已拒绝同款」，返回 {created, suppressed}
   createSliceProposals: (id: string, chapter: string, slice: string, items: ProposalItem[]) =>
     ipcRenderer.invoke('proposal:createSlice', id, chapter, slice, items) as Promise<{ created: Proposal[]; suppressed: number; kept: number; keptIds: string[] }>,

@@ -1632,7 +1632,7 @@ const mock = {
   // 提案（S4）
   proposals: [] as Proposal[],
   listProposals: async () => mock.proposals.slice(),
-  createProposals: async (_id: string, source: 'slice-sync' | 'agent-chat' | 'annotation-sync', chapter: string, sliceName: string, items: ProposalItem[], meta?: { annotations?: { file: string; rows: number[] }[]; note?: string }, metas?: { annotations?: { file: string; rows: number[] }[]; note?: string }[], protectIds?: Set<string>) => {
+  createProposals: async (_id: string, source: 'slice-sync' | 'agent-chat' | 'annotation-sync' | 'audit', chapter: string, sliceName: string, items: ProposalItem[], meta?: { annotations?: { file: string; rows: number[] }[]; note?: string }, metas?: { annotations?: { file: string; rows: number[] }[]; note?: string }[], protectIds?: Set<string>) => {
     console.log('[sync] items', JSON.stringify(items))
     // 与真机 createProposals 同口径：同章旧 pending 一律置 stale（protectIds 除外，2026-09-20 候选 3）
     for (const old of mock.proposals) {
@@ -2283,10 +2283,54 @@ const mock = {
     console.log('[devShim] agent answer', JSON.stringify(answers))
     return { ok: true }
   },
-  // 检查自动化（mock）：真机由 main/agent/auditAuto.ts 跑真实检查并写提案；dev 下返回 0 条
-  auditAuto: async (_id: string, opts?: { ai?: boolean; kinds?: string[] }) => {
-    const kinds = opts?.kinds ?? ['presence', 'order', 'unused', 'actgaps', 'sliceord', 'nameform', 'mixform', 'overuse', 'repeat', ...(opts?.ai ? ['consistency', 'review', 'perspectives'] : [])]
-    return { ok: true, created: 0, ran: kinds.map((kind) => ({ kind, items: 0, proposals: 0 })) }
+  // 检查自动化（2026-10-29 起 devShim 与真机同口径）：真跑 presence（共享纯函数 + 内存文档）
+  // → 按章合并的可执行提案进提案箱。此前是写死返回 0 条，导致 dev/无头冒烟看不到「检查完成：
+  // 新增 N 条提案」与提案卡，真机行为只能靠猜（F-20261028-09「真实提案落盘待验证」的成因之一）。
+  // 去重与真机一致：pending ∪ rejected 同款跳过；单类上限 20 条；审计提案 chapter='' 需 protectIds
+  // 防 createProposals 的同章置 stale。
+  auditAuto: async (projectId: string, opts?: { ai?: boolean; kinds?: string[] }) => {
+    const kinds =
+      opts?.kinds ??
+      ['presence', 'order', 'unused', 'actgaps', 'sliceord', 'nameform', 'mixform', 'overuse', 'repeat', ...(opts?.ai ? ['consistency', 'review', 'perspectives'] : [])]
+    const keyOf = (it?: { target?: string; before?: string; after?: string }) =>
+      `${it?.target ?? ''}\u0000${it?.before ?? ''}\u0000${it?.after ?? ''}`
+    const seen = new Set(
+      mock.proposals.filter((p) => p.status === 'pending' || p.status === 'rejected').map((p) => keyOf(p.items[0]))
+    )
+    const protectIds = new Set(mock.proposals.filter((p) => p.status === 'pending' && p.source === 'audit').map((p) => p.id))
+    const ran: { kind: string; items: number; proposals: number }[] = []
+    let created = 0
+    for (const kind of kinds) {
+      if (kind !== 'presence') {
+        ran.push({ kind, items: 0, proposals: 0 }) // dev：其余本地项仍为 0（真机由主进程算）
+        continue
+      }
+      const aliasMap: Record<string, string[]> = {}
+      const names: string[] = []
+      for (const { file, name } of docsOf(projectId + '/人物')) {
+        const n = name.replace(/\.md$/i, '').trim()
+        if (n && !['总览', '索引'].includes(n)) {
+          names.push(n)
+          const al = parseAliases(extractFrontMatter(docs.get(projectId + '/人物/' + file) ?? '').fm)
+          if (al.length) aliasMap[n] = al
+        }
+      }
+      const res = presenceCheck({ knownChars: names, chapters: volumeChaptersOf(projectId), aliasMap })
+      let n = 0
+      for (const it of res.items) {
+        if (n >= 20) break
+        if (!it.proposal) continue
+        const key = keyOf(it.proposal)
+        if (seen.has(key)) continue
+        seen.add(key)
+        const ps: Proposal[] = await window.zhijuan.createProposals(projectId, 'audit', '', '', [it.proposal], { note: kind }, undefined, protectIds)
+        for (const p of ps) protectIds.add(p.id)
+        n++
+      }
+      created += n
+      ran.push({ kind, items: res.items.length, proposals: n })
+    }
+    return { ok: true, created, ran }
   },
   agentAudit: async (projectId: string, kind: string) => {
     // 失败态注入（?zj-auditfail=1）：模拟真机 runAudit「提取失败」返回（2026-09-20 智能层保护——

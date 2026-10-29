@@ -127,11 +127,12 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
   /** 建提案公共体：有 target 才建，命中返回 true（清单/对比两视图共用同一规则）。
    *  称谓类条目走已构造的可执行变更（it.proposal：把别名并入约定头），其余回退旧「建议文本追加」。 */
   const createProposalFor = async (it: AuditItem): Promise<boolean> => {
-    if (!it.target) return false
+    // 落点判据与主进程 auditAuto 同口径（2026-10-29）：自带可执行 proposal（在场核查改约定头）也算有落点
+    if (!it.target && !it.proposal) return false
     try {
       const item =
         it.proposal ?? {
-          target: it.target,
+          target: it.target as string,
           anchor: '',
           kind: 'append' as const,
           before: '',
@@ -204,13 +205,13 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
             <Send className="h-3 w-3" /> 让 agent 改
           </button>
         )}
-        {it.target &&
+        {(it.target || it.proposal) &&
           (madeDiff.has(String(keyIdx)) ? (
             <span className="flex items-center gap-1 text-xs text-success"><Check className="h-3 w-3" /> 已建提案</span>
           ) : (
             <button
               onClick={() => void makeDiffProposal(String(keyIdx), it)}
-              title={'创建修改提案到 ' + it.target + '（可在提案抽屉决定是否采纳）'}
+              title={'创建修改提案到 ' + (it.proposal?.target ?? it.target) + '（可在提案抽屉决定是否采纳）'}
               className="flex items-center gap-1 whitespace-nowrap rounded-md border border-hair px-2 py-0.5 text-xs text-ink-2 hover:border-accent hover:text-accent"
             >
               <AlertTriangle className="h-3 w-3" /> 转提案
@@ -427,7 +428,7 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
                     <Send className="h-3 w-3" /> 让 agent 改
                   </button>
                 )}
-                {it.target && (
+                {it.target || it.proposal ? (
                   made.has(i) ? (
                     <span className="flex items-center gap-1 text-xs text-success"><Check className="h-3 w-3" /> 已建提案</span>
                   ) : (
@@ -438,7 +439,7 @@ export default function AuditDrawer({ projectId, open, tab, onClose, onTab, onTo
                       <AlertTriangle className="h-3 w-3" /> 转提案
                     </button>
                   )
-                )}
+                ) : null}
               </div>
               <p className="mt-2 text-xs text-ink-3">{it.where}</p>
               {it.refFile && (

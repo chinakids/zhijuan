@@ -97,6 +97,19 @@ export function addFrontMatterListItem(text: string, key: string, value: string)
 }
 
 /**
+ * 取约定头里某个键的**整行原文**（含原缩进、不含换行符）；无约定头/无该键 → null。
+ * 用途：生成「改约定头某行」的可执行提案（replace-text 的 before 必须是原文精确行，
+ * 这样作者手改过该行时 apply 会如实漂移失败，而不是错位置替换）。
+ */
+export function frontMatterLineOf(text: string, key: string): string | null {
+  const m = text.match(FM_RE)
+  if (!m) return null
+  const keyRe = new RegExp('^\\s*' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*:')
+  for (const line of m[1].split('\n')) if (keyRe.test(line)) return line
+  return null
+}
+
+/**
  * 移除约定头里的标量键（如 disabled）：键存在 → 删那一行（保其他行原样）；
  * 键不存在 / 无约定头 → 原样返回。
  */

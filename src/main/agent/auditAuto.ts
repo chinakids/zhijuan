@@ -26,6 +26,9 @@ export const LOCAL_AUDIT_KINDS: AuditKind[] = [
 /** AI 巡读 3 项（模型级、分钟级） */
 export const AI_AUDIT_KINDS: AuditKind[] = ['consistency', 'review', 'perspectives']
 
+/** 单类单轮转提案上限（设计 §3.3：默认 20，防一次保存把提案箱刷满） */
+export const AUDIT_AUTO_MAX_PER_KIND = 20
+
 export interface AuditAutoResult {
   ok: boolean
   created: number
@@ -38,10 +41,20 @@ export async function runAuditAuto(projectId: string, opts?: { ai?: boolean; kin
   const ai = opts?.ai ?? cfg.ai
   const kinds = opts?.kinds ?? [...LOCAL_AUDIT_KINDS, ...(ai ? AI_AUDIT_KINDS : [])]
   const root = libraryRoot()
-  const pending = listProposals(root, projectId).filter((p) => p.status === 'pending')
+  const all = listProposals(root, projectId)
+  const pending = all.filter((p) => p.status === 'pending')
   // 保护现有 pending 不被 createProposals 的「同章旧 pending 置 stale」冲掉（审计提案 chapter 都是 ''）
   const protectIds = new Set(pending.filter((p) => p.source === 'audit').map((p) => p.id))
-  const seen = new Set(pending.map((p) => `${p.items[0]?.target}\u0000${p.items[0]?.after}`))
+  const keyOf = (p: { items: ProposalItem[] }): string => {
+    const it = p.items[0]
+    return `${it?.target ?? ''}\u0000${it?.before ?? ''}\u0000${it?.after ?? ''}`
+  }
+  // 去重集合=「已挂着的 pending」∪「作者已拒绝的」（2026-10-29 智能层）：
+  // 只按 pending 去重会让作者拒绝过的条目在每次保存后 4s 又原样回魂（同一张卡反复弹），
+  // 与 GitHub code scanning 的处置语义对齐——「Next time code scanning runs, the same code
+  // won't generate an alert」（作者拒绝=已裁决，除非正文/约定头变了才会产生新的 before）。
+  const seen = new Set<string>(pending.map(keyOf))
+  for (const p of all) if (p.status === 'rejected') seen.add(keyOf(p))
   const ran: AuditAutoResult['ran'] = []
   let created = 0
 
@@ -54,17 +67,21 @@ export async function runAuditAuto(projectId: string, opts?: { ai?: boolean; kin
       }
       let n = 0
       for (const it of r.result.items) {
-        if (!it.target) continue
+        // 单类上限（设计 §3.3：同一检查同一轮最多 20 条，防一次保存刷屏）
+        if (n >= AUDIT_AUTO_MAX_PER_KIND) break
+        // 落点判据：条目自带可执行 proposal（如在场核查改约定头）或自带 target（称谓/腐坏类）；
+        // 两者都无=纯建议 → 只留在审计抽屉，不进提案箱（设计 §3.3「只对确定性项生成可执行卡」）。
+        if (!it.proposal && !it.target) continue
         const item: ProposalItem =
           it.proposal ?? {
-            target: it.target,
+            target: it.target as string,
             anchor: '',
             kind: 'append',
             before: '',
             after: it.suggest + '\n\n> 依据：' + it.what,
             reason: '检查 · ' + AUDIT_KIND_SHORT[kind]
           }
-        const key = `${item.target}\u0000${item.after}`
+        const key = `${item.target}\u0000${item.before}\u0000${item.after}`
         if (seen.has(key)) continue
         seen.add(key)
         const [p] = createProposals(root, projectId, 'audit', '', '', [item], { note: kind }, undefined, protectIds)

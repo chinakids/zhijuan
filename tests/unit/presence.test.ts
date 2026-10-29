@@ -403,6 +403,56 @@ describe('chapterMissingFromRaw（保存快检：含噪声阈值）', () => {
   })
 })
 
+describe('presenceCheck · 约定头改单提案（2026-10-29 智能层：检查自动化→提案收口）', () => {
+  const chapter = (file: string, listed: string[] | string, body: string) => ({ file, raw: fm(listed) + body })
+
+  it('同章增删合并成一张卡：before=约定头原文行，after=增删后的行', () => {
+    const r = presenceCheck({
+      knownChars: ['林晓'],
+      chapters: [chapter('正文/第01章_雾港.md', ['沈藏', '阿七'], '阿七站在栈桥上。\n\n林晓从雾里走出来。')]
+    })
+    // 条目仍是逐人（抽屉里逐条可见）
+    expect(r.items).toHaveLength(2)
+    // 卡只挂一次（挂首条），避免同一行 before 的两张卡互相作废
+    const cards = r.items.filter((x) => x.proposal)
+    expect(cards).toHaveLength(1)
+    expect(cards[0].proposal).toMatchObject({
+      target: '正文/第01章_雾港.md',
+      kind: 'replace-text',
+      before: '涉及人物: [沈藏, 阿七]',
+      after: '涉及人物: [阿七, 林晓]'
+    })
+    expect(cards[0].proposal?.reason).toContain('移出「沈藏」')
+    expect(cards[0].proposal?.reason).toContain('补入「林晓」')
+  })
+
+  it('清单被移空 → before 带换行（整行删除，不在约定头留空行）', () => {
+    const r = presenceCheck({
+      knownChars: [],
+      chapters: [chapter('正文/第03章_清空.md', ['沈藏'], '（本章无署名。）')]
+    })
+    const card = r.items.find((x) => x.proposal)?.proposal
+    expect(card?.before).toBe('涉及人物: [沈藏]\n')
+    expect(card?.after).toBe('')
+  })
+
+  it('无约定头 → 不出卡（条目仍以建议卡进抽屉）', () => {
+    const r = presenceCheck({
+      knownChars: ['林晓'],
+      chapters: [{ file: '正文/无头.md', raw: '林晓走进来。' }]
+    })
+    expect(r.items.some((x) => x.proposal)).toBe(false)
+  })
+
+  it('正文/约定头一致 → 零条目', () => {
+    const r = presenceCheck({
+      knownChars: ['阿七'],
+      chapters: [chapter('正文/第02章_灯塔.md', ['阿七'], '阿七提着灯。')]
+    })
+    expect(r.items).toHaveLength(0)
+  })
+})
+
 describe('runChapterMissing（主进程薄壳：读章节 + 档案别名 → 纯函数）', () => {
   it('章节文档不存在 → ok:false', () => {
     const r = runChapterMissing('demo', '正文/不存在.md')
