@@ -62,8 +62,11 @@ async function evalUntil(page, expr, pred, timeoutMs = 20000, label = expr) {
 
 const clickBtn = (text, inDialog = false) => `(() => {
   const roots = ${inDialog ? "[...document.querySelectorAll('[role=dialog]')]" : '[document]'}
-  const el = roots.flatMap(r => [...r.querySelectorAll('button')]).find(b => (b.innerText || '').trim() === ${JSON.stringify(text)})
-  if (!el || el.disabled) return false
+  // 2026-10-29 平台层：章节行菜单已改 Radix ContextMenu（删除等条目是 [role=menuitem] 不是 button），
+  // 只查 button 会静默点空 → 「删除确认框」超时。两类一起找，保持原断言不变。
+  const els = roots.flatMap(r => [...r.querySelectorAll('button, [role=menuitem]')])
+  const el = els.find(b => (b.innerText || '').trim() === ${JSON.stringify(text)})
+  if (!el || el.disabled || el.getAttribute('aria-disabled') === 'true') return false
   el.click()
   return true
 })()`
@@ -75,6 +78,12 @@ const ctxMenuOn = (label) => `(() => {
   btn.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 120, clientY: 200, button: 2 }))
   return true
 })()`
+
+// 2026-10-29 平台层：提案入口已从顶栏移入左侧导航底部（F-20260917-08），文案 =「已过期提案」+ 数字角标
+// （角标换行渲染成 "已过期提案\n1"）——按结构定位 + 空白归一后断言，不再依赖顶栏连写文案。
+const NAV_PROPOSALS = `Array.from(document.querySelectorAll('aside button')).find(x => /(已过期|待确认)提案/.test(x.innerText || '')) || null`
+const navProposalsText = `(() => { const b = ${NAV_PROPOSALS}; return b ? b.innerText.replace(/\\s+/g, ' ').trim() : '' })()`
+const clickNavProposals = `(() => { const b = ${NAV_PROPOSALS}; if (!b) return false; b.click(); return true })()`
 
 async function shot(page, name) {
   try {
@@ -113,18 +122,19 @@ try {
   await evalUntil(page, `!document.body.innerText.includes('第1章 · 雾港')`, (v) => v === true, 10000, '列表移除第1章')
   ok('正文列表已移除第1章', true)
 
-  // ④ 顶栏入口应变为「已过期提案 1」：pending→stale 且提案 store 被删除动作刷新
-  await evalUntil(page, pageHas('已过期提案 1'), (v) => v === true, 10000, '顶栏已过期入口')
-  ok('顶栏显示「已过期提案 1」', true)
+  // ④ 左侧导航底部入口应变为「已过期提案」+ 1（pending→stale 且提案 store 被删除动作刷新）
+  await evalUntil(page, navProposalsText, (v) => typeof v === 'string' && v.includes('已过期提案') && /(^|\s)1$/.test(v), 10000, '入口已过期')
+  ok('导航底部显示「已过期提案」+ 1', true)
 
   // ⑤ 打开抽屉：已过期卡片（徽标/接受禁用/清除可用）
-  ok('点击已过期入口', (await page.eval(clickBtn('已过期提案 1', false))) === true)
+  ok('点击已过期入口', (await page.eval(clickNavProposals)) === true)
   await evalUntil(page, pageHas('已过期 1 条'), (v) => v === true, 8000, '抽屉已过期小节')
   ok('抽屉显示「已过期 1 条」', true)
   ok('卡片显示目标与已过期徽标', (await page.eval(pageHas('已过期'))) === true && (await page.eval(pageHas('人物/沈藏.md'))) === true)
-  ok('接受按钮已禁用', (await page.eval(`(() => {
-    const b = [...document.querySelectorAll('[role=dialog] button')].find(x => (x.innerText || '').trim() === '接受')
-    return !!b && b.disabled
+  // 语义：已过期提案不可被接受——当前实现是**不渲染**「接受」（旧版为禁用态），两种都算合格
+  ok('已过期卡不可接受（无可用「接受」按钮）', (await page.eval(`(() => {
+    const bs = [...document.querySelectorAll('[role=dialog] button')].filter(x => (x.innerText || '').trim() === '接受')
+    return bs.length === 0 || bs.every(x => x.disabled)
   })()`)) === true)
   ok('清除按钮存在', (await page.eval(`[...document.querySelectorAll('[role=dialog] button')].some(x => (x.innerText || '').trim() === '清除')`)) === true)
   await shot(page, 'zj-stale-drawer.png')
@@ -150,14 +160,14 @@ try {
   // ⑦ 回正文页，打开抽屉清除：入口消失、抽屉空态
   await page.eval(`location.hash = '#/project/demo-aseya/novel'`)
   await evalUntil(page, `location.hash.includes('/novel')`, (v) => v === true, 10000, 'hash切换回正文页')
-  await evalUntil(page, pageHas('已过期提案 1'), (v) => v === true, 15000, '回正文页入口还在')
-  await page.eval(clickBtn('已过期提案 1', false))
+  await evalUntil(page, navProposalsText, (v) => typeof v === 'string' && v.includes('已过期提案') && /(^|\s)1$/.test(v), 15000, '回正文页入口还在')
+  await page.eval(clickNavProposals)
   await evalUntil(page, pageHas('已过期 1 条'), (v) => v === true, 8000, '抽屉再开')
   ok('点击清除按钮', (await page.eval(clickBtn('清除', true))) === true)
   await evalUntil(page, pageHas('还没有提案'), (v) => v === true, 10000, '抽屉回空态')
   ok('清除后抽屉空态', true)
   await evalUntil(page, `!document.body.innerText.includes('已过期提案')`, (v) => v === true, 8000, '入口消失')
-  ok('清除后顶栏入口消失', true)
+  ok('清除后入口回到常驻「提案」态', (await page.eval(`!!document.querySelector('[data-testid="nav-proposals"]')`)) === true)
 
   const jsErrors = page.errors.filter((e) => !e.includes('favicon')).slice(0, 5)
   ok('无 JS 异常', jsErrors.length === 0, jsErrors.join(' ; '))

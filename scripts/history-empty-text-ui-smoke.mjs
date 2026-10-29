@@ -58,7 +58,9 @@ const ok = (name, cond, extra = '') => {
 try {
   await evalUntil(page, `document.body.innerText.includes('章卡索引')`, (v) => v === true, 25000, '大纲页就绪')
   // 打开章卡历史抽屉 → 空态
-  await page.eval(`(() => { const b = document.querySelector('[data-testid="card-history"]'); if (b) { b.click(); return true } return false })()`)
+  // 2026-10-29 平台层：历史入口已并入编辑器底部状态条（DocEditor statusExtra 同行），旧 testid `card-history` 已移除，
+  // 改按 title 定位（title 含「版本历史」的唯一按钮），断言不变。
+  await page.eval(`(() => { const b = [...document.querySelectorAll('button')].find(x => ((x.getAttribute('title') || '') + (x.getAttribute('aria-label') || '')).includes('版本历史')); if (b) { b.click(); return true } return false })()`)
   await evalUntil(page, `document.body.innerText.includes('版本历史')`, (v) => v === true, 8000, '抽屉打开')
   const p = await page.eval(`(() => {
     const ps = [...document.querySelectorAll('p')].filter((x) => (x.textContent || '').includes('还没有历史版本'))
