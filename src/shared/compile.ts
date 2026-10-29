@@ -11,7 +11,7 @@
 
 import { extractFrontMatter } from './fmatter'
 import { stripHtmlComments } from './comments'
-import { DEFAULT_LINE } from './line'
+import { lineTag } from './line'
 
 export interface CompileChapterInput {
   /** 显示名（去 .md，如 第01章_雾港栈桥） */
@@ -35,7 +35,7 @@ export function chapterHeading(name: string, fm: Record<string, unknown> | null,
   const title = fm?.['题名'] != null ? String(fm['题名']).trim() : ''
   const base = title || name
   head = no ? `第${no}章 ${base}` : base
-  if (annotate && line && line !== DEFAULT_LINE) head += `（线：${line}）`
+  if (annotate) head += lineTag(line)
   return head
 }
 

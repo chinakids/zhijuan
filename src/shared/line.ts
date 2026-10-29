@@ -16,6 +16,17 @@ export function chapterLine(fm: Lineable | null): string {
   return s || DEFAULT_LINE
 }
 
+/**
+ * 线名 → 文字标记 `（线：X）`；主线/空 → 空串（缺省零冗余，与建章向导/章卡 fm 的「非主线才写」同口径）。
+ * 单一来源：作品编译（成品章标题，compile.ts）与大纲索引（章卡索引，outline.ts）共用——
+ * 作者在索引里看到的归属标记与导出成品里的标记必须一字不差，否则对不上稿
+ * （2026-10-29 平台层：多线中篇验收前，索引此前完全不标线，双线读起来像单线）。
+ */
+export function lineTag(line: unknown): string {
+  const s = typeof line === 'string' ? line.trim() : ''
+  return !s || s === DEFAULT_LINE ? '' : `（线：${s}）`
+}
+
 /** 线内前驱的章条目（调用方负责从章头解析章号与线名；file=相对 正文/ 的文件名，如 第03章_雾港.md） */
 export interface LineEntryNode {
   file: string

@@ -167,4 +167,38 @@ describe('shared/outline · 索引生成', () => {
     expect(idx).toContain('> 定位：定位1')
     expect(outlineIndexDoc([])).toContain('还没有章卡')
   })
+
+  it('单线（全主线）：零冗余——章块不带线标记、无按线分布段', () => {
+    const idx = outlineIndexDoc([card(1, '雾港'), card(2, '灯塔')])
+    expect(idx).not.toContain('（线：')
+    expect(idx).not.toContain('按线分布')
+  })
+
+  it('多线：章块标所属线（与成品导出同字）+ 按线分布（章数/字数）', () => {
+    const idx = outlineIndexDoc([
+      card(1, '晨港'),
+      { ...card(2, '旧港'), line: '过去线' },
+      card(3, '灯塔'),
+      { ...card(4, '长堤'), line: '过去线' }
+    ])
+    // 章块归属标记：非主线才标，主线不标（缺省零冗余）
+    expect(idx).toContain('## 第1章 · 晨港\n')
+    expect(idx).toContain('## 第2章 · 旧港（线：过去线）')
+    expect(idx).toContain('## 第4章 · 长堤（线：过去线）')
+    // 按首次出现顺序列线，状态数字嵌在名称内（文案口径表：不用括号计数）
+    expect(idx).toContain('按线分布（章块按章号排列）：')
+    expect(idx).toContain('- 主线 · 2 章 · 200 字')
+    expect(idx).toContain('- 过去线 · 2 章 · 200 字')
+    expect(idx.indexOf('- 主线 · 2 章')).toBeLessThan(idx.indexOf('- 过去线 · 2 章'))
+  })
+
+  it('多线但字数为 0（旧卡/空章）：只给章数，不写 0 字', () => {
+    const idx = outlineIndexDoc([
+      { ...card(1, '晨港'), wordCount: 0 },
+      { ...card(2, '旧港'), line: '过去线', wordCount: 0 }
+    ])
+    expect(idx).toContain('- 主线 · 1 章\n')
+    expect(idx).toContain('- 过去线 · 1 章\n')
+    expect(idx).not.toContain(' 0 字')
+  })
 })

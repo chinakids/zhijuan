@@ -4,7 +4,7 @@
 // devShim（无头冒烟）共用同一套口径——避免「无头 mock 与真机不一致」假绿（2026-09-12 创作层）。
 import type { OutlineCard } from './types'
 import { extractFrontMatter, removeFrontMatterField, setFrontMatterField } from './fmatter'
-import { DEFAULT_LINE } from './line'
+import { DEFAULT_LINE, lineTag } from './line'
 
 /**
  * 章卡文件判据：排除 索引.md、<章>_导演.md、<章>_分幕.md、审读_*.md 等写作副产物与 dot 文件。
@@ -138,8 +138,22 @@ export function syncChapterNoInDoc(raw: string, newNo: number): string {
   return next === raw ? raw : next
 }
 
-/** 章卡列表 → 大纲/索引.md 文档（计数 + 逐章块；章卡文件为权威，索引是预览文档） */
+/** 章卡列表 → 大纲/索引.md 文档（计数 + 逐章块；章卡文件为权威，索引是预览文档）
+ * 多线（>1 条时间线）时：章块标题带「（线：X）」（与成品导出 lineTag 同源同字），并给一行按线分布
+ * （章数+字数）——双线中篇要在索引这一张图上看出「两条线各占多少」，别读成一本单线书
+ * （2026-10-29 平台层；业界：双线小说最常见失败点＝读者/作者失去线的方位，chapter.pub 2026）。 */
 export function outlineIndexDoc(cards: OutlineCard[]): string {
+  const lineOf = (c: OutlineCard) => (typeof c.line === 'string' ? c.line.trim() : '') || DEFAULT_LINE
+  // 按首次出现顺序统计（=读序里线的登场次序，比字母序更贴合作者心里的结构）
+  const byLine = new Map<string, { chapters: number; words: number }>()
+  for (const c of cards) {
+    const k = lineOf(c)
+    const e = byLine.get(k) ?? { chapters: 0, words: 0 }
+    e.chapters += 1
+    e.words += typeof c.wordCount === 'number' && c.wordCount > 0 ? c.wordCount : 0
+    byLine.set(k, e)
+  }
+  const multi = byLine.size > 1
   const lines = [
     '---',
     '状态: 已回建',
@@ -153,9 +167,16 @@ export function outlineIndexDoc(cards: OutlineCard[]): string {
       : '还没有章卡。先写几章正文，再点「回建大纲」。',
     ''
   ]
+  if (multi) {
+    lines.push('按线分布（章块按章号排列）：', '')
+    for (const [name, s] of byLine) {
+      lines.push(`- ${name} · ${s.chapters} 章${s.words ? ` · ${s.words} 字` : ''}`)
+    }
+    lines.push('')
+  }
   for (const c of cards) {
     const no = c.no !== undefined ? `第${c.no}章 · ` : ''
-    lines.push(`## ${no}${c.title || '(无名)'}`)
+    lines.push(`## ${no}${c.title || '(无名)'}${multi ? lineTag(lineOf(c)) : ''}`)
     lines.push('')
     lines.push(`> 定位：${c.oneLine || '（待补）'}`)
     lines.push('')

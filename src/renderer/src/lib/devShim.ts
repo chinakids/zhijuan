@@ -2677,7 +2677,8 @@ const mock = {
       }
     ] as OutlineCard[]
     // 多线演示项目：与真机 runOutlineRebuild 同口径从演示章节真读——章卡透传线名（shared/outline 单一权威源，2026-09-17）
-    if (projectId === 'demo-multiline') {
+    // demo-order（潮汐的岔路）同为双线项目：2026-10-29 起一并真读，索引「按线分布」才有双线素材可看
+    if (projectId === 'demo-multiline' || projectId === 'demo-order') {
       const chs = await mock.listChapters(projectId)
       cards = chs.map((c) => ({
         file: '正文/' + c.file,
