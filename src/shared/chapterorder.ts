@@ -13,9 +13,9 @@
 // 线内判定（2026-09-16 多时间线叙事）：R5/R6 只在**同一条线内**比较——多线交错时全局比较会把
 // 有意的跨线切换误报成倒流/滥用（设计文档 §4.4「审计切片序号倒流/同名切片共用改为线内判定」）。
 // 与 presenceCheck 同构：纯函数、不读盘，输出 AuditResult（审计抽屉渲染）。
-import { extractFrontMatter } from './fmatter'
+import { extractFrontMatter, frontMatterLastLine, frontMatterLineOf, setFrontMatterField } from './fmatter'
 import { chapterLine } from './line'
-import type { AuditItem, AuditResult } from './types'
+import type { AuditItem, AuditResult, ProposalItem } from './types'
 
 export interface OrderChapter {
   /** 相对项目根的路径，如 正文/第01章_雾港.md */
@@ -73,6 +73,42 @@ function titleOf(fm: Record<string, unknown> | null, file: string): string {
   return (file.split('/').pop() ?? file).replace(/\.md$/i, '')
 }
 
+/**
+ * 「把约定头章号对齐文件名编号」的可执行提案（2026-10-30 智能层）。
+ * 只服务于 R1（章号缺失）与 R2（章号 ≠ 文件名编号）：这两条的目标值是**唯一确定**的
+ * （约定建议原文就是「与文件名编号一致」），所以敢做成一键卡；
+ * R3 重号 / R5 倒流 / R6 同名不连续 / R7 跨线重名都涉及「动哪一章」的编辑判断 → 仍只出建议卡
+ * （与 Vale action 系统同哲学：能确定替换的才给 quick fix）。
+ * 文件名里也没有编号 → 无从确定目标章号，返回 undefined（保留建议卡）。
+ */
+function numberFix(raw: string, file: string, fNo: number | null): ProposalItem | undefined {
+  if (fNo === null) return undefined
+  const cur = frontMatterLineOf(raw, '章号')
+  if (cur) {
+    const after = frontMatterLineOf(setFrontMatterField(raw, '章号', String(fNo)), '章号')
+    if (!after || after === cur) return undefined
+    return {
+      target: file,
+      anchor: '',
+      kind: 'replace-text',
+      before: cur,
+      after,
+      reason: `检查 · 时序核查：章号对齐文件名（第${fNo}章）`
+    }
+  }
+  // 约定头尚无「章号」：在块末那行后追加（replace-text 只能替换现存文本）
+  const last = frontMatterLastLine(raw)
+  const before = last ?? '---\n'
+  return {
+    target: file,
+    anchor: '',
+    kind: 'replace-text',
+    before,
+    after: before === '---\n' ? `---\n章号: ${fNo}\n` : `${before}\n章号: ${fNo}`,
+    reason: `检查 · 时序核查：补上约定头章号（第${fNo}章）`
+  }
+}
+
 /** 约定头「章号」→ 正整数；缺失/非正整数返回 null */
 function fmNo(fm: Record<string, unknown> | null): number | null {
   const v = fm?.['章号']
@@ -113,21 +149,25 @@ export function chapterOrderCheck(opts: { chapters: OrderChapter[] }): AuditResu
     const title = titleOf(fm, ch.file)
     const where = `${title}（${ch.file}）`
     if (headNo === null) {
+      const fix = numberFix(ch.raw, ch.file, fNo)
       items.push({
         severity: 'medium',
         type: 'timeline',
         where,
         what: '约定头「章号」缺失或不是正整数——切片同步、正文章卡、agent 上下文都按章号排序，缺号会让顺序不可靠。',
-        suggest: fNo !== null ? `在文件头部 front matter 补上「章号: ${fNo}」（与文件名编号一致）。` : '在文件头部 front matter 补上「章号: N」。'
+        suggest: fNo !== null ? `在文件头部 front matter 补上「章号: ${fNo}」（与文件名编号一致）。` : '在文件头部 front matter 补上「章号: N」。',
+        ...(fix ? { proposal: fix } : {})
       })
     }
     if (headNo !== null && fNo !== null && headNo !== fNo) {
+      const fix = numberFix(ch.raw, ch.file, fNo)
       items.push({
         severity: 'medium',
         type: 'timeline',
         where,
         what: `约定头「章号」写的是 ${headNo}，但文件名是 第${fNo}章，两处不一致。`,
-        suggest: '把约定头「章号」改成与文件名编号一致（涉及人物清单与切片索引都按章号工作）。'
+        suggest: '把约定头「章号」改成与文件名编号一致（涉及人物清单与切片索引都按章号工作）。',
+        ...(fix ? { proposal: fix } : {})
       })
     }
     rows.push({ file: ch.file, title, sortNo: headNo ?? fNo ?? Number.POSITIVE_INFINITY, headNo, fNo, slice, line: chapterLine(fm) })

@@ -33,6 +33,18 @@ interface Props {
   focusId?: string
 }
 
+// 结构化文本判定（2026-10-30 智能层）：检查类可执行卡改的是「约定头某一行」或「占位注释」，
+// 这两类走 markdown 渲染会失真——`<!-- … -->` 整段被吞掉（作者看不到要删的是什么）、
+// 约定头多行按软换行折成一行（`题名: A 切片: B 章号: 3`）。命中即按原样等宽显示。
+const KV_LINE = /^[\u4e00-\u9fa5A-Za-z][\u4e00-\u9fa5A-Za-z0-9_\-]*\s*[:：]/
+function isStructuredText(s: string): boolean {
+  const t = (s ?? '').trim()
+  if (!t) return false
+  if (t.includes('<!--')) return true
+  const lines = t.split('\n').map((l) => l.trim()).filter(Boolean)
+  return lines.length > 1 && lines.every((l) => KV_LINE.test(l))
+}
+
 const STATUS: Record<string, { text: string; cls: string }> = {
   pending: { text: '待确认', cls: 'bg-warn-soft text-warn' },
   accepted: { text: '已接受', cls: 'bg-success-soft text-success' },
@@ -148,6 +160,8 @@ function toastAfterChapterApply(projectId: string, target: string) {
 
 function ItemCard({ p, projectId, onChanged, err, onErr, focused, lineOf, showLine }: { p: Proposal; projectId: string; onChanged: () => void; err?: string; onErr: (id: string, msg: string) => void; focused?: boolean; lineOf: (rel: string) => string | null; showLine: boolean }) {
   const it = p.items[0]
+  // 原状显示源：优先生成端基线 (beforeExact)，否则 before；两者皆空 → null（新小节）
+  const rawBefore = it ? (it.beforeExact !== undefined ? it.beforeExact : it.before) : null
   // 多线项目：本条提案属于哪条时间线（2026-10-28 体验层）。跨线重名切片（R7）下两张卡
   // target/切片/理由可能完全一致，接受前必须能分辨是哪条线的设定状态——线名从章头归一后取
   // （shared/line 单一源，与章列徽标/同步证据同口径）；找不到章（已删/脏数据）→ 不显示。
@@ -236,7 +250,11 @@ function ItemCard({ p, projectId, onChanged, err, onErr, focused, lineOf, showLi
                 2026-09-21 14:15 轮：改 ReactMarkdown 渲染（与 AgentPanel prose 同口径）——作者审阅
                 「接受后将成什么样」需要成品视觉而非 md 源码；摘要限高 overflow-hidden 防 prose 撑高。 */}
             <div className="prose max-h-[4.5rem] overflow-hidden text-ink-2" title={it.beforeExact !== undefined ? (it.beforeExact || '（新小节）') : it.before || '（新小节）'}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{it.beforeExact !== undefined ? (it.beforeExact || '（新小节）') : it.before || '（新小节）'}</ReactMarkdown>
+              {rawBefore !== null && isStructuredText(rawBefore) ? (
+                <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-5" data-testid="proposal-before-raw">{rawBefore}</pre>
+              ) : (
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{rawBefore || '（新小节）'}</ReactMarkdown>
+              )}
             </div>
           </div>
           <div className="min-w-0 rounded-lg border border-accent/30 bg-accent-soft/50 p-2">
@@ -244,7 +262,13 @@ function ItemCard({ p, projectId, onChanged, err, onErr, focused, lineOf, showLi
             {/* 2026-09-21 14:15 轮：max-h+内滚（VS Code/GitHub diff 先例）——超长 after（探测 1872 字）
                 展平后曾达 1707px=视口 3.3 倍；overscroll-contain 防滚动逃逸到外层。 */}
             <div className="prose max-h-[min(50vh,480px)] min-w-0 overflow-y-auto overscroll-contain text-ink">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{it?.after}</ReactMarkdown>
+              {isStructuredText(it?.after ?? '') ? (
+                <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-5" data-testid="proposal-after-raw">{it.after}</pre>
+              ) : it?.after ? (
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{it.after}</ReactMarkdown>
+              ) : (
+                <span className="text-xs text-ink-3" data-testid="proposal-after-empty">（删除这一段）</span>
+              )}
             </div>
           </div>
         </div>

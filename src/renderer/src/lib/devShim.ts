@@ -2300,22 +2300,33 @@ const mock = {
     const protectIds = new Set(mock.proposals.filter((p) => p.status === 'pending' && p.source === 'audit').map((p) => p.id))
     const ran: { kind: string; items: number; proposals: number }[] = []
     let created = 0
+    // 人物别名表（presence 用，一次扫描）
+    const aliasMap: Record<string, string[]> = {}
+    const names: string[] = []
+    for (const { file, name } of docsOf(projectId + '/人物')) {
+      const n = name.replace(/\.md$/i, '').trim()
+      if (n && !['总览', '索引'].includes(n)) {
+        names.push(n)
+        const al = parseAliases(extractFrontMatter(docs.get(projectId + '/人物/' + file) ?? '').fm)
+        if (al.length) aliasMap[n] = al
+      }
+    }
     for (const kind of kinds) {
-      if (kind !== 'presence') {
-        ran.push({ kind, items: 0, proposals: 0 }) // dev：其余本地项仍为 0（真机由主进程算）
+      // 与主进程同口径（2026-10-30 扩）：presence / order / actgaps 三项都真算共享纯函数，
+      // 其余本地项在 dev 仍记 0（真机由主进程算）——缺段/时序的可执行卡要能在无头里被看见。
+      const chapters = volumeChaptersOf(projectId)
+      const res =
+        kind === 'presence'
+          ? presenceCheck({ knownChars: names, chapters, aliasMap })
+          : kind === 'order'
+            ? chapterOrderCheck({ chapters })
+            : kind === 'actgaps'
+              ? actGapsCheck({ chapters })
+              : null
+      if (!res) {
+        ran.push({ kind, items: 0, proposals: 0 })
         continue
       }
-      const aliasMap: Record<string, string[]> = {}
-      const names: string[] = []
-      for (const { file, name } of docsOf(projectId + '/人物')) {
-        const n = name.replace(/\.md$/i, '').trim()
-        if (n && !['总览', '索引'].includes(n)) {
-          names.push(n)
-          const al = parseAliases(extractFrontMatter(docs.get(projectId + '/人物/' + file) ?? '').fm)
-          if (al.length) aliasMap[n] = al
-        }
-      }
-      const res = presenceCheck({ knownChars: names, chapters: volumeChaptersOf(projectId), aliasMap })
       let n = 0
       for (const it of res.items) {
         if (n >= 20) break

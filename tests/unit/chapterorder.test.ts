@@ -213,4 +213,55 @@ describe('chapterOrderCheck（切片时序核查纯函数）', () => {
     })
     expect(single.items.filter((i) => i.where.includes('条时间线'))).toEqual([])
   })
+
+  // 可执行落点（2026-10-30 智能层）：R1/R2 目标章号唯一确定 → 一键卡；R3/R5/R6/R7 仍只建议
+  it('R2 章号≠文件名编号 → 自带「章号对齐文件名」可执行提案，采纳即改对', () => {
+    const one = ch('正文/第03章_乙.md', 5, '第一幕_夜')
+    const r = chapterOrderCheck({ chapters: [one] })
+    const hit = r.items.find((i) => i.what.includes('两处不一致'))
+    expect(hit).toBeTruthy()
+    expect(hit!.proposal?.kind).toBe('replace-text')
+    expect(hit!.proposal?.target).toBe('正文/第03章_乙.md')
+    expect(hit!.proposal?.before).toBe('章号: 5')
+    expect(hit!.proposal?.after).toBe('章号: 3')
+    expect(hit!.proposal?.reason).toContain('时序核查')
+    const next = one.raw.replace(hit!.proposal!.before, hit!.proposal!.after)
+    expect(next).toContain('章号: 3')
+    expect(next).not.toContain('章号: 5')
+  })
+
+  it('R1 章号缺失且文件名有编号 → 自带「补上章号」可执行提案（追加在约定头块末）', () => {
+    const one = { file: '正文/第02章_甲.md', raw: '---\n题名: 甲\n---\n正文。\n' }
+    const r = chapterOrderCheck({ chapters: [one] })
+    const hit = r.items.find((i) => i.what.includes('「章号」缺失'))
+    expect(hit).toBeTruthy()
+    expect(hit!.proposal?.kind).toBe('replace-text')
+    expect(hit!.proposal?.before).toBe('题名: 甲')
+    expect(hit!.proposal?.after).toBe('题名: 甲\n章号: 2')
+    const next = one.raw.replace(hit!.proposal!.before, hit!.proposal!.after)
+    expect(next).toBe('---\n题名: 甲\n章号: 2\n---\n正文。\n')
+  })
+
+  it('R1 文件名也无编号 → 无从确定章号，不给提案（保留建议卡）', () => {
+    const one = { file: '正文/楔子.md', raw: '---\n题名: 楔子\n---\n正文。\n' }
+    const r = chapterOrderCheck({ chapters: [one] })
+    const hit = r.items.find((i) => i.what.includes('「章号」缺失'))
+    expect(hit).toBeTruthy()
+    expect(hit!.proposal).toBeUndefined()
+  })
+
+  it('R3 重号/R5 倒流仍是建议卡（编辑判断在作者），不误给可执行卡', () => {
+    const r = chapterOrderCheck({
+      chapters: [
+        ch('正文/第01章_甲.md', 1, '第二幕_夜'),
+        ch('正文/第02章_乙.md', 1, '第一幕_晨')
+      ]
+    })
+    const dup = r.items.find((i) => i.what.includes('共用'))
+    expect(dup).toBeTruthy()
+    expect(dup!.proposal).toBeUndefined()
+    const back = r.items.find((i) => i.what.includes('倒流'))
+    expect(back).toBeTruthy()
+    expect(back!.proposal).toBeUndefined()
+  })
 })

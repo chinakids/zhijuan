@@ -28,12 +28,31 @@ describe('actGapsCheck（正文缺段核查纯函数）', () => {
     expect(r.summary).toContain('1 章正文残留')
   })
 
-  it('多处缺段合并为一条（升序去重）', () => {
-    const body = `${actPlaceholder(3)}\n\n${actPlaceholder(1)}\n\n${actPlaceholder(3)}\n`
+  it('逐处一条（一个缺段＝一个决策），每条自带可执行「删注释」提案', () => {
+    const body = `${actPlaceholder(3)}\n\n${actPlaceholder(1)}\n\n收束。\n`
     const r = actGapsCheck({ chapters: [ch('正文/第02章_晨.md', body)] })
-    expect(r.items.length).toBe(1)
-    expect(r.items[0].what).toContain('缺第 1、3 段')
-    expect(r.items[0].what).toContain('2 处')
+    expect(r.items.length).toBe(2)
+    expect(r.items[0].where).toContain('缺第 3 段')
+    expect(r.items[1].where).toContain('缺第 1 段')
+    expect(r.summary).toContain('1 章正文残留')
+    expect(r.summary).toContain('2 处')
+    for (const it of r.items) {
+      expect(it.proposal?.target).toBe('正文/第02章_晨.md')
+      expect(it.proposal?.kind).toBe('replace-text')
+      expect(it.proposal?.after).toBe('')
+      expect(it.proposal?.reason).toContain('缺段核查')
+    }
+  })
+
+  it('采纳提案＝从正文精确删掉该注释（连同两侧换行，不留空行）', () => {
+    const body = `她回头。\n\n${actPlaceholder(2)}\n\n然后说：走吧。\n`
+    const one = ch('正文/第01章_雾港.md', body)
+    const p = actGapsCheck({ chapters: [one] }).items[0].proposal
+    expect(p).toBeTruthy()
+    const next = one.raw.replace(p!.before, p!.after)
+    expect(next).not.toContain('分幕草稿缺第 2 段')
+    expect(next).toContain('她回头。\n\n然后说：走吧。')
+    expect(next).toContain('章号: 1') // 约定头不动
   })
 
   it('作者自定义注释不误伤（非分幕占位不命中）', () => {

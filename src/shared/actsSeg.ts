@@ -38,6 +38,20 @@ export function matchActPlaceholders(text: string): number[] {
   return [...out].sort((a, b) => a - b)
 }
 
+/**
+ * 逐处取占位注释的**原文**（含段号；按出现顺序、不去重）。
+ * 用途：缺段核查生成「删除这条占位注释」的可执行提案——replace-text 的 before 必须是原文精确串。
+ */
+export function matchActPlaceholderMarks(text: string): { no: number; text: string }[] {
+  const out: { no: number; text: string }[] = []
+  for (const m of text.matchAll(ACT_PLACEHOLDER)) {
+    const n = Number(m[1])
+    if (!Number.isFinite(n) || n <= 0) continue
+    out.push({ no: n, text: m[0] })
+  }
+  return out
+}
+
 /** 缺段警示行开头（草稿头部 `> ⚠️ 第 X 段未按导演板写成…`），采纳/解析共用 */
 const ACT_WARN_LINE = /^>\s*⚠️/
 

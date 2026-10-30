@@ -110,6 +110,18 @@ export function frontMatterLineOf(text: string, key: string): string | null {
 }
 
 /**
+ * 取约定头块的**最后一行**（含原缩进、不含换行符）；无约定头 / 块为空 → null。
+ * 用途：给「约定头里还没有的键」做可执行提案——replace-text 只能替换一段现存文本，
+ * 所以在块末那行后追加新行（before=末行，after=末行+新键行），保持其余行原样。
+ */
+export function frontMatterLastLine(text: string): string | null {
+  const m = text.match(FM_RE)
+  if (!m) return null
+  const lines = m[1].split('\n').filter((l) => l.trim() !== '')
+  return lines.length ? lines[lines.length - 1] : null
+}
+
+/**
  * 移除约定头里的标量键（如 disabled）：键存在 → 删那一行（保其他行原样）；
  * 键不存在 / 无约定头 → 原样返回。
  */
